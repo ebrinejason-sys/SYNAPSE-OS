@@ -1,0 +1,15 @@
+{
+  "name": "Synapse Ecosystem",
+  "description": "Sovereign AI health operating system for Africa. Integrated hospital platform (Synapse OS) and patient health app (Synapse App) grounded in clinical guidelines.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "AI Diagnosis",
+    "Clinical Decision Support",
+    "Real-time Telemedicine",
+    "FHIR R4 Interoperability"
+  ]
+}
