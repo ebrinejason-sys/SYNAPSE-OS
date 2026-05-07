@@ -3,7 +3,7 @@
 
 <div align="center">
   
-![Synapse Logo](public/assets/logos/synapse-logo.png)
+![Synapse Logo](public/assets/logos/synapse-logo.jpg)
 
 **The Sovereign AI Health Operating System for Africa**
 
@@ -174,7 +174,7 @@ SYNAPSE-OS/
 ├── public/
 │   └── assets/
 │       └── logos/
-│           ├── synapse-logo.png
+│           ├── synapse-logo.jpg
 │           └── synapse-icon.jpg
 │
 ├── .env                             # Environment config (gitignored)

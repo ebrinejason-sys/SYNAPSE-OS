@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { UserPlus, Mail, Lock, CheckCircle2, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { Logo } from '../../components/Logo';
 
 export default function SignUp() {
   return (
@@ -11,11 +12,9 @@ export default function SignUp() {
         className="w-full max-w-lg bg-white p-10 rounded-[2.5rem] border border-gray-100 shadow-2xl"
       >
         <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-green-600 rounded-[1.5rem] flex items-center justify-center text-white mx-auto mb-6">
-            <UserPlus className="w-8 h-8" />
-          </div>
+          <Logo iconOnly size="xl" className="mx-auto mb-6" />
           <h1 className="text-3xl font-bold text-[#0F172A] mb-2">Create Account</h1>
-          <p className="text-gray-500 text-sm font-medium">Join the Synapse Ecosystem</p>
+          <p className="text-gray-500 text-sm font-medium">Join the Synapse OS</p>
         </div>
 
         <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 mb-8">

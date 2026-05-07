@@ -14,14 +14,14 @@ export default function SimplePage() {
         </Link>
         
         <div className="inline-block px-3 py-1 bg-green-50 text-green-700 text-[10px] font-bold uppercase tracking-[0.2em] rounded mb-6">
-           Synapse Ecosystem Documentation
+           Synapse OS Documentation
         </div>
         
         <h1 className="text-4xl font-bold text-[#0F172A] capitalize mb-8">{title}</h1>
         
         <div className="prose prose-slate max-w-none text-gray-600 leading-relaxed space-y-6">
            <p>
-             The <strong>{title}</strong> for the Synapse Ecosystem is currently being codified into our final production release. As a sovereign AI health operating system, we prioritize transparency and detailed documentation.
+             The <strong>{title}</strong> for the Synapse OS is currently being codified into our final production release. As a sovereign AI health operating system, we prioritize transparency and detailed documentation.
            </p>
            <p>
              Our core mission is to provide resilient, offline-first digital infrastructure for African healthcare facilities. Every policy, including our {title}, is grounded in maintaining the highest standards of data sovereignty and clinical safety.

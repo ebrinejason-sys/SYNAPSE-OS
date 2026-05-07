@@ -1,4 +1,4 @@
-# Synapse Ecosystem — Master Requirements Document
+# Synapse OS — Master Requirements Document
 ## Version 2.0 · Pre‑Seed · YC‑Ready
 
 ### 1. Vision

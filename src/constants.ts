@@ -1,6 +1,6 @@
 import { Patient, QueueItem, AuditLogEntry } from './types';
 
-export const APP_NAME = "Synapse Ecosystem";
+export const APP_NAME = "Synapse OS";
 
 export const DEMO_AUDIT_LOGS: AuditLogEntry[] = [
   {

@@ -1,4 +1,4 @@
-# Synapse Ecosystem — User & Data Flow
+# Synapse OS — User & Data Flow
 ## How every user moves through the system
 
 ### 1. The Two Products

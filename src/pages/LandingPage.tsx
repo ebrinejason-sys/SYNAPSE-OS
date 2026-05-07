@@ -1,6 +1,8 @@
+import React from 'react';
 import { motion } from 'motion/react';
 import { Shield, Activity, Users, Zap, CheckCircle, ArrowRight, Github, Linkedin, Mail, Play, BrainCircuit, Beaker } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { Logo } from '../components/Logo';
 import { cn } from '../lib/utils';
 
 export default function LandingPage() {
@@ -8,12 +10,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-bg-page selection:bg-emerald-100 selection:text-emerald-900 font-sans">
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 h-16 flex items-center justify-between px-6 lg:px-12">
-        <div className="flex items-center gap-2 group cursor-pointer">
-          <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105">
-            <div className="w-4 h-4 bg-white rounded-full opacity-90 shadow-sm" />
-          </div>
-          <span className="font-extrabold text-xl tracking-tighter text-slate-900 uppercase">Synapse<span className="text-emerald-600">OS</span></span>
-        </div>
+        <Logo className="cursor-pointer" />
         <div className="hidden md:flex items-center gap-10 text-sm font-bold text-slate-500 uppercase tracking-widest">
           <a href="#features" className="hover:text-slate-900 transition-colors">Features</a>
           <a href="#founders" className="hover:text-slate-900 transition-colors">Founders</a>
@@ -98,96 +95,106 @@ export default function LandingPage() {
                   </div>
                </div>
                <div className="flex-1 bg-slate-50 rounded-[1.5rem] border border-slate-100 p-6">
-                  <div className="h-2 w-full bg-slate-200 rounded mb-3" />
-                  <div className="h-2 w-5/6 bg-slate-200 rounded mb-3" />
-                  <div className="h-2 w-4/6 bg-slate-200 rounded" />
-                  <div className="mt-8 flex gap-3">
-                     <div className="h-10 w-32 bg-slate-900 rounded-xl" />
-                     <div className="h-10 w-32 bg-white border border-slate-200 rounded-xl" />
+                  <div className="flex items-center gap-3 mb-6">
+                     <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-xs font-black">PN</div>
+                     <div className="space-y-1">
+                        <div className="h-3 w-24 bg-slate-900 rounded" />
+                        <div className="h-2 w-16 bg-slate-200 rounded" />
+                     </div>
+                  </div>
+                  <div className="space-y-4">
+                     <div className="h-2.5 w-full bg-slate-100 rounded" />
+                     <div className="h-2.5 w-full bg-slate-100 rounded" />
+                     <div className="h-2.5 w-3/4 bg-slate-100 rounded" />
                   </div>
                </div>
-            </div>
-          </div>
-          {/* AI Activity Float */}
-          <div className="absolute top-6 right-6 bg-slate-900 text-white p-4 rounded-2xl shadow-xl flex items-center gap-4 animate-float border border-white/10 group-hover:scale-105 transition-transform">
-            <BrainCircuit className="w-6 h-6 text-emerald-400" />
-            <div>
-              <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-0.5">AI Check</p>
-              <p className="text-xs font-semibold leading-none">UCG Rule 5.1.A Validated</p>
             </div>
           </div>
         </motion.div>
       </section>
 
-      {/* Stats Bar */}
-      <section className="bg-slate-950 py-16 px-6 lg:px-12 border-y border-white/5">
-        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-12">
-           {[
-             { label: 'AI Diagnosis Concordance', value: '94.2%' },
-             { label: 'Triage Accuracy', value: '99.1%' },
-             { label: 'Cloud Sync Latency', value: '<2ms' },
-             { label: 'Grounded Guidelines', value: 'UCG 2023' }
-           ].map((stat, i) => (
-             <div key={i} className="text-center">
-               <div className="text-4xl font-black text-white mb-2 tracking-tighter">{stat.value}</div>
-               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.25em]">{stat.label}</div>
-             </div>
-           ))}
+      {/* Trust Bar */}
+      <section className="py-12 border-y border-slate-100 bg-white">
+        <div className="max-w-7xl mx-auto px-6 lg:px-12 flex flex-wrap justify-center items-center gap-12 lg:gap-24 grayscale opacity-40">
+           <div className="text-xl font-black tracking-tighter">MINISTRY OF HEALTH</div>
+           <div className="text-xl font-black tracking-tighter">WORLD HEALTH ORG</div>
+           <div className="text-xl font-black tracking-tighter">UNICEF HEALTH</div>
+           <div className="text-xl font-black tracking-tighter">USAID GLOBAL</div>
+           <div className="text-xl font-black tracking-tighter">GATES FOUNDATION</div>
         </div>
       </section>
 
-      {/* Features Grid */}
-      <section id="features" className="py-32 px-6 lg:px-12 max-w-7xl mx-auto">
-        <div className="mb-20">
-          <h2 className="text-sm font-bold text-emerald-600 uppercase tracking-[0.3em] mb-4">Core Ecosystem</h2>
-          <p className="text-4xl font-black text-slate-900 tracking-tight leading-[1.1]">Resilient Clinical Intelligence.</p>
-        </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-10">
-          {[
-            {
-              title: 'Clinical AI Copilot',
-              desc: 'Grounded in Uganda Clinical Guidelines (UCG). Real-time differential diagnosis using modern LLMs with local medical contexts.',
-              icon: Activity
-            },
-            {
-              title: 'Offline-First OS',
-              desc: 'Continuous operation regardless of network status. Peer-to-peer local data synchronization with secured cloud backups.',
-              icon: Zap
-            },
-            {
-              title: 'Insurance Copilot',
-              desc: 'Automated claim generation and real-time coverage checks for regional providers like IAA and UAP.',
-              icon: Shield
-            },
-            {
-              title: 'Inventory & Barcode',
-              desc: 'FEFO-based dispensing with integrated drug interaction alerts and automated reorder triggers.',
-              icon: Beaker
-            },
-            {
-              title: 'Community Link',
-              desc: 'Direct mobile access for patients to receive prescriptions, view lab results, and book remote clinical triage.',
-              icon: Users
-            },
-            {
-              title: 'One-Click Reporting',
-              desc: 'Automated HMIS epidemiological reports for district health officers, formatted to MOH standards.',
-              icon: CheckCircle
-            }
-          ].map((f, i) => (
-            <div key={i} className="p-10 rounded-[2rem] border border-slate-100 bg-white hover:shadow-2xl hover:shadow-slate-200/50 hover:border-emerald-100 transition-all group">
-              <div className="w-16 h-16 bg-bg-page border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-emerald-600 transition-colors mb-8 shadow-sm">
-                <f.icon className="w-8 h-8" />
+      {/* Features */}
+      <section id="features" className="py-32 px-6 lg:px-12 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-32 items-center mb-32">
+            <div>
+              <h2 className="text-sm font-bold text-emerald-600 uppercase tracking-[0.3em] mb-6">National Guidelines</h2>
+              <p className="text-5xl font-black text-slate-900 tracking-tight leading-[1.1] mb-8">
+                Clinical decision support, <br />
+                <span className="text-slate-400 font-medium">locally grounded.</span>
+              </p>
+              <p className="text-lg text-slate-500 font-medium leading-relaxed mb-10">
+                Unlike general EMRs, Synapse is hard-coded with Uganda Clinical Guidelines (UCG) and regional treatment protocols to ensure high-fidelity care delivery anywhere.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-8">
+                <div className="p-8 bg-bg-page rounded-3xl border border-slate-100">
+                  <Shield className="w-8 h-8 text-emerald-600 mb-4" />
+                  <h4 className="font-bold text-slate-900 mb-2">Protocol Adherence</h4>
+                  <p className="text-sm text-slate-500 font-medium">Auto-verification against national standards for all prescriptions.</p>
+                </div>
+                <div className="p-8 bg-bg-page rounded-3xl border border-slate-100">
+                  <Activity className="w-8 h-8 text-emerald-600 mb-4" />
+                  <h4 className="font-bold text-slate-900 mb-2">Real-time Risk</h4>
+                  <p className="text-sm text-slate-500 font-medium">Early warning scores integrated into the patient queue.</p>
+                </div>
               </div>
-              <h3 className="text-2xl font-bold mb-4 text-slate-900">{f.title}</h3>
-              <p className="text-slate-500 leading-relaxed font-medium">{f.desc}</p>
             </div>
-          ))}
+            <div className="relative">
+               <div className="absolute -inset-10 bg-emerald-100/50 rounded-full blur-3xl" />
+               <div className="relative bg-slate-900 rounded-[3rem] p-12 text-white shadow-2xl">
+                  <div className="flex items-center gap-4 mb-8">
+                     <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center">
+                        <Zap className="w-6 h-6 text-white" />
+                     </div>
+                     <div>
+                        <h3 className="font-bold">Sovereign AI Engine</h3>
+                        <p className="text-xs text-emerald-400 font-bold uppercase tracking-widest">Active Processing</p>
+                     </div>
+                  </div>
+                  <div className="space-y-6 font-mono text-[11px] opacity-80 leading-relaxed">
+                     <p className="text-emerald-400 underline cursor-default"># Analyzing patient symptoms...</p>
+                     <p>MATCH: ICD-10 J18.9 [Pneumonia]</p>
+                     <p>GUIDELINE: UCG 2023 Sec 4.2.1</p>
+                     <p className="text-white font-bold text-xs mt-4">RECOMMENDATION:</p>
+                     <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                        <p>1. Initiate Amoxicillin 500mg TID</p>
+                        <p>2. Monitor SpO2 q4h</p>
+                        <p>3. Review in 48 hours</p>
+                     </div>
+                  </div>
+               </div>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              { icon: Users, title: 'Queue Management', desc: 'Acuity-based sorting for outpatient departments and emergency triage.' },
+              { icon: Beaker, title: 'Pharmacy Sync', desc: 'Real-time stock alerts and automated dispensing verification.' },
+              { icon: BrainCircuit, title: 'Offline-First', desc: 'Full functionality without internet, auto-syncing when back online.' }
+            ].map((f, i) => (
+              <div key={i} className="p-10 rounded-[2.5rem] border border-slate-100 hover:border-emerald-200 transition-colors group">
+                <f.icon className="w-10 h-10 text-slate-300 group-hover:text-emerald-600 transition-colors mb-6" />
+                <h3 className="text-xl font-bold text-slate-900 mb-3">{f.title}</h3>
+                <p className="text-slate-500 font-medium text-sm leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Founders Section */}
-      <section id="founders" className="py-32 bg-slate-50/50 px-6 lg:px-12 border-y border-slate-100">
+      {/* Founders */}
+      <section id="founders" className="py-32 px-6 lg:px-12 bg-slate-50 border-y border-slate-100">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-sm font-bold text-slate-400 uppercase tracking-[0.3em] mb-4">The Architects</h2>
@@ -244,7 +251,7 @@ export default function LandingPage() {
         <div className="grid md:grid-cols-3 gap-10">
            {[
              { name: 'Starter', price: 'Free', features: ['Up to 5 Departments', 'Core Patient Registry', 'Basic Pharmacy POS', 'Community Link'], cta: 'Deploy Instance' },
-             { name: 'Professional', price: '$49/mo', features: ['Unlimited Departments', 'Clinical AI Copilot', 'Insurance Gateway Sync', 'Hospital Admin Portal'], cta: 'Start Trial', highlight: true },
+             { name: 'Professional', price: '9/mo', features: ['Unlimited Departments', 'Clinical AI Copilot', 'Insurance Gateway Sync', 'Hospital Admin Portal'], cta: 'Start Trial', highlight: true },
              { name: 'Enterprise', price: 'Custom', features: ['Multi-Tenant Admin', 'Custom HL7/FHIR Bridging', '24/7 Deployment Support', 'On-Premise Server Kit'], cta: 'Contact Sales' }
            ].map((plan, i) => (
              <div key={i} className={cn(
@@ -279,12 +286,7 @@ export default function LandingPage() {
       <footer className="bg-white border-t border-slate-100 py-32 px-6 lg:px-12 font-sans">
         <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-5 gap-16 mb-24">
           <div className="col-span-2">
-            <div className="flex items-center gap-2 mb-8">
-              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold transition-transform hover:scale-105">
-                 <div className="w-4 h-4 bg-white rounded-full opacity-90" />
-              </div>
-              <span className="font-extrabold text-xl tracking-tighter text-slate-900 uppercase">Synapse<span className="text-emerald-600">OS</span></span>
-            </div>
+            <Logo className="mb-8" />
             <p className="text-slate-400 font-medium max-w-sm leading-relaxed mb-8">
               Regional operating system for sovereign health infrastructure in Africa. Closing the clinical intelligence gap.
             </p>
@@ -323,7 +325,7 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto pt-16 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8">
-           <p className="text-xs font-bold text-slate-300 uppercase tracking-widest text-center md:text-left">© 2026 Synapse Ecosystem. All data sovereign to user facilities.</p>
+           <p className="text-xs font-bold text-slate-300 uppercase tracking-widest text-center md:text-left">© 2026 Synapse OS. All data sovereign to user facilities.</p>
            <div className="flex gap-10">
               <Link to="/status" className="flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-emerald-500 transition-colors uppercase tracking-widest">
                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Network Active
@@ -334,4 +336,3 @@ export default function LandingPage() {
     </div>
   );
 }
-
