@@ -1,43 +1,40 @@
 import { motion } from 'motion/react';
+import { Activity, ChevronLeft } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronLeft } from 'lucide-react';
 
 export default function SimplePage() {
   const location = useLocation();
   const title = location.pathname.split('/').pop()?.replace(/-/g, ' ') || 'Page';
 
   return (
-    <div className="min-h-screen bg-white p-12">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-green-600 mb-12 uppercase tracking-widest transition-colors">
-          <ChevronLeft className="w-4 h-4" /> Back Home
+    <div className="min-h-screen bg-synapse-black text-white font-sans selection:bg-synapse-primary/30 selection:text-cyan-200">
+      <nav className="fixed top-0 w-full z-50 bg-synapse-black/80 backdrop-blur-md border-b border-white/5 h-16 flex items-center justify-between px-6 lg:px-12">
+        <Link to="/" className="flex items-center gap-2 group cursor-pointer">
+          <div className="w-8 h-8 bg-synapse-primary rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 shadow-lg shadow-cyan-500/20">
+            <Activity className="w-5 h-5 text-synapse-black" />
+          </div>
+          <span className="font-black text-xl tracking-tighter text-white uppercase">Synapse<span className="text-synapse-primary">OS</span></span>
         </Link>
-        
-        <div className="inline-block px-3 py-1 bg-green-50 text-green-700 text-[10px] font-bold uppercase tracking-[0.2em] rounded mb-6">
-           Synapse Ecosystem Documentation
-        </div>
-        
-        <h1 className="text-4xl font-bold text-[#0F172A] capitalize mb-8">{title}</h1>
-        
-        <div className="prose prose-slate max-w-none text-gray-600 leading-relaxed space-y-6">
-           <p>
-             The <strong>{title}</strong> for the Synapse Ecosystem is currently being codified into our final production release. As a sovereign AI health operating system, we prioritize transparency and detailed documentation.
-           </p>
-           <p>
-             Our core mission is to provide resilient, offline-first digital infrastructure for African healthcare facilities. Every policy, including our {title}, is grounded in maintaining the highest standards of data sovereignty and clinical safety.
-           </p>
-           <div className="p-8 bg-gray-50 rounded-3xl border border-gray-100">
-              <h3 className="font-bold text-[#0F172A] mb-4">Key Principles</h3>
-              <ul className="list-disc pl-5 space-y-2 text-sm">
-                 <li>Data Sovereignty: Information belongs to the facility and the patient.</li>
-                 <li>Clinical Safety: Grounded in national guidelines (UCG).</li>
-                 <li>Transparency: Open-standard FHIR R4 interoperability.</li>
-              </ul>
-           </div>
-           <p>
-             For immediate inquiries regarding this section, please contact our team at <code>ops@synapseos.tech</code> or reach out via our pilot application portal.
-           </p>
-        </div>
+      </nav>
+
+      <div className="pt-40 pb-20 px-6 max-w-3xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+        >
+          <Link to="/" className="text-mono-xs text-neutral-600 hover:text-synapse-primary transition-colors mb-8 inline-flex items-center gap-2 group">
+            <ChevronLeft className="w-3 h-3 group-hover:-translate-x-1 transition-transform" /> BACK TO HOME
+          </Link>
+          <h1 className="heading-huge uppercase mb-12 text-gradient">{title}</h1>
+
+          <div className="space-y-8 text-neutral-400 font-medium leading-relaxed">
+            <p className="text-lg">This page is currently under construction as we finalize our Version 2.0 release documents.</p>
+            <div className="p-8 border border-white/5 bg-white/5 rounded-2xl">
+              <p className="text-sm">Synapse OS is the sovereign AI health operating system for Africa. We are building the clinical intelligence infrastructure that will close the healthcare gap for millions.</p>
+            </div>
+            <p>Please check back soon for updated documentation, company manifestos, and legal protocols.</p>
+          </div>
+        </motion.div>
       </div>
     </div>
   );

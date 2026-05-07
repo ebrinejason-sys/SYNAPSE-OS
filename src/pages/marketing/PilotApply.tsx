@@ -1,86 +1,77 @@
 import { motion } from 'motion/react';
-import { Send, CheckCircle, Hospital, MapPin, Smartphone, User } from 'lucide-react';
-import { useState } from 'react';
+import { Activity, Mail, Building, MapPin, Users, Send } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function PilotApply() {
-  const [submitted, setSubmitted] = useState(false);
-
-  if (submitted) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-6 text-center">
-        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-green-600 mx-auto mb-8">
-            <CheckCircle className="w-10 h-10" />
-          </div>
-          <h1 className="text-3xl font-bold mb-4">Application Received</h1>
-          <p className="text-gray-500 max-w-md mx-auto mb-8">
-            Thank you for your interest in the Synapse Pilot Program. Our implementation team will contact you within 48 hours to schedule a facility site visit.
-          </p>
-          <button onClick={() => window.location.href = '/'} className="px-8 py-3 bg-[#0F172A] text-white rounded-xl font-bold">Return Home</button>
-        </motion.div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#F4F6F8] py-24 px-6">
-      <div className="max-w-3xl mx-auto">
-        <header className="text-center mb-16">
-          <h1 className="text-4xl font-bold text-[#0F172A] mb-4">Apply for Pilot Access</h1>
-          <p className="text-gray-500">Scale your clinical intelligence with Synapse OS. Now accepting 20 new facilities for Q3 2026.</p>
-        </header>
+    <div className="min-h-screen bg-synapse-black text-white font-sans selection:bg-synapse-primary/30 selection:text-cyan-200">
+      <nav className="fixed top-0 w-full z-50 bg-synapse-black/80 backdrop-blur-md border-b border-white/5 h-16 flex items-center justify-between px-6 lg:px-12">
+        <Link to="/" className="flex items-center gap-2 group cursor-pointer">
+          <div className="w-8 h-8 bg-synapse-primary rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 shadow-lg shadow-cyan-500/20">
+            <Activity className="w-5 h-5 text-synapse-black" />
+          </div>
+          <span className="font-black text-xl tracking-tighter text-white uppercase">Synapse<span className="text-synapse-primary">OS</span></span>
+        </Link>
+      </nav>
 
-        <form className="bg-white p-10 rounded-[2.5rem] border border-gray-100 shadow-xl" onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }}>
-          <div className="grid md:grid-cols-2 gap-8 mb-8">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Facility Name</label>
-              <div className="relative">
-                <Hospital className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
-                <input type="text" required placeholder="Mengo Hospital" className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-500/20" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">District</label>
-              <div className="relative">
-                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
-                <input type="text" required placeholder="Kampala" className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-500/20" />
-              </div>
-            </div>
+      <div className="pt-32 pb-20 px-6 max-w-4xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="text-center mb-16">
+            <h1 className="heading-1 mb-4 uppercase tracking-tight">Pilot Application</h1>
+            <p className="text-neutral-500 text-sm font-bold uppercase tracking-widest max-w-xl mx-auto">Join the cohort of forward-thinking healthcare facilities building the future of African clinical intelligence.</p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8 mb-8">
-             <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Contact Person</label>
+          <div className="card p-10 md:p-16 space-y-10">
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="space-y-2">
+                <label className="text-mono-xs text-neutral-600">Facility Name</label>
                 <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
-                  <input type="text" required placeholder="Admin Name" className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-500/20" />
+                  <Building className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+                  <input type="text" className="input pl-11" placeholder="e.g. Mengo Hospital" />
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Phone Number</label>
+                <label className="text-mono-xs text-neutral-600">Location / City</label>
                 <div className="relative">
-                  <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
-                  <input type="tel" required placeholder="+256..." className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-500/20" />
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+                  <input type="text" className="input pl-11" placeholder="e.g. Kampala, Uganda" />
                 </div>
               </div>
-          </div>
-
-          <div className="space-y-2 mb-10">
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Facility Type</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm font-bold">
-               {['Public HCIV', 'Private Clinic', 'Hospital', 'NGO Center'].map(type => (
-                 <label key={type} className="flex items-center gap-2 p-4 border border-gray-100 rounded-xl cursor-pointer hover:bg-green-50 transition-colors">
-                    <input type="radio" name="facType" value={type} className="accent-green-600" />
-                    {type}
-                 </label>
-               ))}
+              <div className="space-y-2">
+                <label className="text-mono-xs text-neutral-600">Facility Type</label>
+                <select className="input appearance-none">
+                  <option className="bg-synapse-dark">General Hospital</option>
+                  <option className="bg-synapse-dark">Private Clinic</option>
+                  <option className="bg-synapse-dark">Health Center IV</option>
+                  <option className="bg-synapse-dark">Specialized Center</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-mono-xs text-neutral-600">Number of Staff</label>
+                <div className="relative">
+                  <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+                  <input type="text" className="input pl-11" placeholder="e.g. 50-100" />
+                </div>
+              </div>
             </div>
+
+            <div className="space-y-2">
+              <label className="text-mono-xs text-neutral-600">What is your biggest operational challenge?</label>
+              <textarea className="input min-h-[120px] resize-none" placeholder="Describe how Synapse OS can help your facility..." />
+            </div>
+
+            <button className="btn-primary w-full py-5 flex items-center justify-center gap-3 text-sm">
+              <Send className="w-4 h-4" /> SUBMIT APPLICATION
+            </button>
           </div>
 
-          <button className="w-full py-5 bg-green-600 text-white rounded-2xl font-bold text-lg hover:bg-green-700 transition-all flex items-center justify-center gap-3 shadow-xl shadow-green-600/20">
-            Submit Application <Send className="w-5 h-5" />
-          </button>
-        </form>
+          <p className="mt-12 text-center text-mono-xs text-neutral-700">
+            Our team will review your application and respond within 2 business days.
+          </p>
+        </motion.div>
       </div>
     </div>
   );
