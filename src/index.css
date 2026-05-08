@@ -5,11 +5,29 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
 
-  --color-synapse-black: #0a0a0a;
-  --color-synapse-dark: #121212;
+  --color-synapse-black: var(--synapse-black);
+  --color-synapse-dark: var(--synapse-dark);
   --color-synapse-primary: #06b6d4;
   --color-synapse-accent: #22d3ee;
   --color-synapse-emerald: #10b981;
+}
+
+:root {
+  --synapse-black: #0a0a0a;
+  --synapse-dark: #121212;
+  --text-primary: #ffffff;
+  --text-secondary: #a3a3a3;
+  --border-color: rgba(255, 255, 255, 0.05);
+  color-scheme: dark;
+}
+
+.light {
+  --synapse-black: #f8fafc;
+  --synapse-dark: #ffffff;
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --border-color: rgba(0, 0, 0, 0.05);
+  color-scheme: light;
 }
 
 @utility btn-primary {
@@ -17,101 +35,32 @@
 }
 
 @utility btn-secondary {
-  @apply px-6 py-3 bg-white/10 text-white rounded-xl font-bold uppercase tracking-widest border border-white/10 hover:bg-white/20 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm;
-}
-
-@utility btn-outline {
-  @apply px-6 py-3 border-2 border-synapse-primary text-synapse-primary rounded-xl font-bold uppercase tracking-widest hover:bg-synapse-primary/10 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply px-6 py-3 bg-white/10 text-[var(--text-primary)] rounded-xl font-bold uppercase tracking-widest border border-[var(--border-color)] hover:bg-white/20 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm;
 }
 
 @utility card {
-  @apply bg-synapse-dark rounded-2xl border border-white/5 shadow-xl hover:border-white/10 transition-all duration-200;
-}
-
-@utility card-elevated {
-  @apply bg-synapse-dark rounded-2xl border border-white/10 shadow-2xl transition-all duration-200;
-}
-
-@utility card-interactive {
-  @apply bg-synapse-dark rounded-2xl border border-white/5 shadow-lg hover:border-synapse-primary/50 hover:shadow-cyan-500/10 transition-all duration-200 cursor-pointer;
+  @apply bg-[var(--synapse-dark)] rounded-2xl border border-[var(--border-color)] shadow-xl transition-all duration-200;
 }
 
 @utility input {
-  @apply w-full px-4 py-3 border border-white/10 rounded-xl bg-white/5 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-synapse-primary focus:border-transparent transition-all duration-200 backdrop-blur-sm;
-}
-
-@utility badge-primary {
-  @apply inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-synapse-primary/10 text-synapse-primary border border-synapse-primary/20;
-}
-
-@utility badge-warning {
-  @apply inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-500 border border-amber-500/20;
+  @apply w-full px-4 py-3 border border-[var(--border-color)] rounded-xl bg-[var(--synapse-dark)] text-[var(--text-primary)] placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-synapse-primary focus:border-transparent transition-all duration-200 backdrop-blur-sm;
 }
 
 @utility heading-huge {
   @apply text-6xl lg:text-8xl font-black tracking-tighter leading-[0.9];
 }
 
-@utility heading-1 {
-  @apply text-5xl font-black tracking-tight;
-}
-
-@utility heading-2 {
-  @apply text-4xl font-bold tracking-tight;
-}
-
 @utility text-mono-xs {
   @apply font-mono text-[10px] uppercase tracking-[0.2em] font-bold;
 }
 
-@utility glass {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-@utility text-gradient {
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  background-image: linear-gradient(to right, #22d3ee, #10b981);
-}
-
 @layer base {
-  :root {
-    color-scheme: dark;
-  }
-
   body {
-    @apply bg-synapse-black text-white antialiased;
+    @apply bg-[var(--synapse-black)] text-[var(--text-primary)] antialiased transition-colors duration-300;
     font-family: var(--font-sans);
   }
 
   h1, h2, h3, h4, h5, h6 {
     @apply font-black;
   }
-
-  code, pre {
-    font-family: var(--font-mono);
-  }
-}
-
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: #0a0a0a;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 5px;
-  border: 2px solid #0a0a0a;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #334155;
 }
