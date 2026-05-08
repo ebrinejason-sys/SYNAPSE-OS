@@ -119,7 +119,7 @@ export default function DoctorQueue() {
                   transition={{ delay: i * 0.05 }}
                   className="group"
                 >
-                  <Link to={`/os/doctor/encounter/${encounterId}`}>
+                  <Link to={`/encounter/${encounterId}`}>
                     <article className="card-interactive p-6 relative overflow-hidden group">
                       {/* Acuity Dot */}
                       <div className={cn(
@@ -137,15 +137,15 @@ export default function DoctorQueue() {
                             {acuity} Priority
                           </span>
                           <span className="text-white/10">·</span>
-                          <span className="text-mono-xs text-neutral-600">{mrn}</span>
+                          <span className="text-mono-xs text-neutral-600 uppercase tracking-widest">{mrn}</span>
                         </div>
-                        <h3 className="text-xl font-black text-white group-hover:text-synapse-primary transition-colors leading-tight">
+                        <h3 className="text-xl font-black text-white group-hover:text-synapse-primary transition-colors leading-tight uppercase tracking-tight">
                           {patientName}
                         </h3>
                       </div>
 
                       {/* Info Row */}
-                      <div className="flex items-center gap-4 text-mono-xs text-neutral-500 mb-6">
+                      <div className="flex items-center gap-4 text-mono-xs text-neutral-500 mb-6 uppercase tracking-widest">
                         <span className="flex items-center gap-1.5">
                           <Clock className="w-3 h-3" />
                           {new Date(item.created_at || Date.now()).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
@@ -156,7 +156,7 @@ export default function DoctorQueue() {
 
                       {/* Complaint */}
                       <div className="bg-white/5 border border-white/5 p-4 rounded-xl mb-6">
-                        <p className="text-[11px] font-medium text-neutral-400 leading-relaxed line-clamp-2">
+                        <p className="text-[11px] font-medium text-neutral-400 leading-relaxed line-clamp-2 uppercase">
                           {chiefComplaint}
                         </p>
                       </div>
@@ -186,7 +186,7 @@ export default function DoctorQueue() {
               <div className="w-12 h-12 rounded-xl border-2 border-current flex items-center justify-center group-hover:scale-110 transition-transform">
                 <AlertCircle className="w-6 h-6" />
               </div>
-              <span className="text-mono-xs">Register Walk-in</span>
+              <span className="text-mono-xs uppercase tracking-widest font-black">Register Walk-in</span>
             </button>
           </section>
         )}
