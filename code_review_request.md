@@ -20,3 +20,11 @@
 - Ensure the CSS variable approach in `index.css` is consistent with Tailwind 4.0 patterns.
 - Confirm the `Logo` component properly handles the `variant` prop for different backgrounds.
 - Check if the `PricingModal` implementation in `LandingPage.tsx` is clean enough or should be extracted.
+
+## New Updates (Pricing & Mobile Responsiveness)
+7. **Pricing Visibility**: Fixed the issue where the currency symbol was not clearly visible. Numeric prices now have a clear dollar sign ($).
+8. **Mobile Optimization**:
+   - Updated `heading-huge` utility to use responsive sizes (`text-4xl` on mobile, scaling up to `text-8xl` on large screens).
+   - Standardized horizontal padding to `px-5` on mobile and `px-12` on desktop for all sections to prevent text from touching screen edges.
+   - Set `overflow-x-hidden` on `body` to ensure no accidental horizontal scrolling.
+   - Audited the `PricingModal` for mobile padding and font scaling.

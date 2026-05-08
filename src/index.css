@@ -47,7 +47,7 @@
 }
 
 @utility heading-huge {
-  @apply text-6xl lg:text-8xl font-black tracking-tighter leading-[0.9];
+  @apply text-4xl sm:text-5xl lg:text-8xl font-black tracking-tighter leading-[0.95] break-words;
 }
 
 @utility text-mono-xs {
@@ -56,11 +56,35 @@
 
 @layer base {
   body {
-    @apply bg-[var(--synapse-black)] text-[var(--text-primary)] antialiased transition-colors duration-300;
+    @apply bg-[var(--synapse-black)] text-[var(--text-primary)] antialiased transition-colors duration-300 overflow-x-hidden;
     font-family: var(--font-sans);
   }
 
   h1, h2, h3, h4, h5, h6 {
     @apply font-black;
   }
+}
+
+/* Ensure images and videos don't overflow */
+img, video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--synapse-black);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #262626;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #404040;
 }

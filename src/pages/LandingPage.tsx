@@ -44,7 +44,7 @@ const PricingModal = ({ isOpen, onClose, selectedPlan }: { isOpen: boolean, onCl
       <motion.div
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
-        className="card w-full max-w-lg p-10 relative overflow-hidden"
+        className="card w-full max-w-lg p-6 sm:p-10 relative overflow-hidden"
       >
         <div className="absolute top-0 right-0 p-6">
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
@@ -53,11 +53,11 @@ const PricingModal = ({ isOpen, onClose, selectedPlan }: { isOpen: boolean, onCl
         </div>
 
         <div className="text-mono-xs text-synapse-primary mb-2 uppercase tracking-[0.3em]">Tier Selected</div>
-        <h2 className="text-4xl font-black uppercase mb-8 tracking-tighter">{plan.name}</h2>
+        <h2 className="text-3xl sm:text-4xl font-black uppercase mb-8 tracking-tighter">{plan.name}</h2>
 
         <div className="mb-10 p-6 bg-white/5 rounded-2xl border border-white/5">
            <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest mb-2">Price Estimate</div>
-           <div className="text-3xl font-black">{plan.price}</div>
+           <div className="text-3xl font-black">{!isNaN(Number(plan.price)) && "$"}{plan.price}</div>
         </div>
 
         <ul className="space-y-4 mb-12">
@@ -113,7 +113,7 @@ export default function LandingPage() {
       </nav>
 
       {/* SECTION 2: HERO */}
-      <section className="relative pt-40 pb-32 px-6 lg:px-12 overflow-hidden">
+      <section className="relative pt-32 pb-20 px-5 lg:pt-48 lg:pb-32 lg:px-12 overflow-hidden">
         <div className="max-w-7xl mx-auto relative z-10 text-center">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -137,7 +137,7 @@ export default function LandingPage() {
       </section>
 
       {/* SECTION 11: ABOUT THE TEAM */}
-      <section id="about" className="py-32 px-6 lg:px-12 bg-synapse-dark/50 border-y border-white/5">
+      <section id="about" className="py-20 px-5 lg:py-32 lg:px-12 bg-synapse-dark/50 border-y border-white/5">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-24">
             <h2 className="text-mono-xs text-synapse-primary mb-6">The Architects</h2>
@@ -197,7 +197,7 @@ export default function LandingPage() {
       </section>
 
       {/* SECTION 13: PRICING */}
-      <section id="pricing" className="py-40 px-6 lg:px-12 max-w-7xl mx-auto">
+      <section id="pricing" className="py-24 px-5 lg:py-40 lg:px-12 max-w-7xl mx-auto">
         <div className="text-center mb-24">
           <h2 className="text-mono-xs text-synapse-primary mb-6">Sustainable Scaling</h2>
           <p className="heading-huge uppercase">Pricing <span className="text-neutral-500">Tiers.</span></p>
@@ -218,7 +218,7 @@ export default function LandingPage() {
                 {plan.highlight && <div className="absolute top-0 right-0 p-4 text-mono-xs text-synapse-primary bg-synapse-primary/10 rounded-bl-xl font-black">MOST POPULAR</div>}
                 <div className={cn("text-mono-xs mb-6 uppercase tracking-widest", plan.highlight ? 'text-synapse-primary' : 'text-neutral-600')}>{plan.name}</div>
                 <div className="mb-10">
-                   <span className="text-5xl font-black tracking-tight">{plan.price}</span>
+                   <span className="text-2xl font-black text-synapse-primary/50 mr-1 align-top mt-2 inline-block">{!isNaN(Number(plan.price)) && "$"}</span><span className="text-5xl font-black tracking-tight">{plan.price}</span>
                    {plan.period && <span className="text-[10px] uppercase font-black text-neutral-500 ml-2">{plan.period}</span>}
                 </div>
                 <ul className="space-y-4 mb-12 flex-1">
@@ -243,7 +243,7 @@ export default function LandingPage() {
       </section>
 
       {/* FOOTER */}
-      <footer className="bg-synapse-black border-t border-white/5 py-40 px-6 lg:px-12">
+      <footer className="bg-synapse-black border-t border-white/5 py-24 px-5 lg:py-40 lg:px-12">
         <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-5 gap-16 mb-32">
           <div className="col-span-2">
             <div className="mb-8">
