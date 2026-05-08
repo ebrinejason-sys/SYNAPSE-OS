@@ -27,8 +27,8 @@ const PricingModal = ({ isOpen, onClose, selectedPlan }: { isOpen: boolean, onCl
 
   const plans = {
     trial: { name: 'Pilot/Trial', price: 'Free', features: ['Full Department Access', 'AI Workspace (Limited)', 'Patient App Link', 'Basic Support', 'Sovereign Cloud Deployment'] },
-    starter: { name: 'Starter', price: '$99', features: ['Up to 3 Departments', 'Patient Registry', 'Basic Pharmacy', 'Email Support', '99.9% Uptime SLA'] },
-    professional: { name: 'Professional', price: '$499', features: ['Unlimited Departments', 'Clinical AI Workspace', 'Insurance Copilot', 'Priority Support', 'Full FHIR API Access'] },
+    starter: { name: 'Starter', price: '99', features: ['Up to 3 Departments', 'Patient Registry', 'Basic Pharmacy', 'Email Support', '99.9% Uptime SLA'] },
+    professional: { name: 'Professional', price: '499', features: ['Unlimited Departments', 'Clinical AI Workspace', 'Insurance Copilot', 'Priority Support', 'Full FHIR API Access'] },
     contact: { name: 'Enterprise', price: 'Custom', features: ['Custom HL7/FHIR Bridging', 'Audit & Compliance Tools', 'On-Premise Fallback', '24/7 Dedicated Support', 'White-label Patient Portal'] }
   };
 
@@ -39,7 +39,7 @@ const PricingModal = ({ isOpen, onClose, selectedPlan }: { isOpen: boolean, onCl
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-synapse-black/90 backdrop-blur-xl"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-synapse-black/90 backdrop-blur-xl"
     >
       <motion.div
         initial={{ scale: 0.9, y: 20 }}
@@ -52,12 +52,12 @@ const PricingModal = ({ isOpen, onClose, selectedPlan }: { isOpen: boolean, onCl
           </button>
         </div>
 
-        <div className="text-mono-xs text-synapse-primary mb-2 uppercase tracking-[0.3em]">Tier Selected</div>
+        <div className="text-mono-xs text-synapse-primary mb-2 uppercase tracking-[0.15em] sm:tracking-[0.3em]">Tier Selected</div>
         <h2 className="text-3xl sm:text-4xl font-black uppercase mb-8 tracking-tighter">{plan.name}</h2>
 
         <div className="mb-10 p-6 bg-white/5 rounded-2xl border border-white/5">
            <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest mb-2">Price Estimate</div>
-           <div className="text-3xl font-black">{!isNaN(Number(plan.price)) && "$"}{plan.price}</div>
+           <div className="text-3xl font-black">{!isNaN(Number(plan.price)) && <span className="text-2xl font-black text-synapse-primary mr-1">$</span>}{plan.price}</div>
         </div>
 
         <ul className="space-y-4 mb-12">
@@ -113,12 +113,12 @@ export default function LandingPage() {
       </nav>
 
       {/* SECTION 2: HERO */}
-      <section className="relative pt-32 pb-20 px-5 lg:pt-48 lg:pb-32 lg:px-12 overflow-hidden">
+      <section className="relative pt-32 pb-20 px-4 lg:pt-48 lg:pb-32 lg:px-12 overflow-hidden">
         <div className="max-w-7xl mx-auto relative z-10 text-center">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="inline-block px-4 py-1.5 rounded-full bg-synapse-primary/10 border border-synapse-primary/20 text-[10px] font-black text-synapse-primary uppercase tracking-[0.4em] mb-12"
+            className="inline-block px-4 py-1.5 rounded-full bg-synapse-primary/10 border border-synapse-primary/20 text-[10px] font-black text-synapse-primary uppercase tracking-[0.2em] sm:tracking-[0.4em] mb-12"
           >
             Sovereign Health Infrastructure
           </motion.div>
@@ -137,7 +137,7 @@ export default function LandingPage() {
       </section>
 
       {/* SECTION 11: ABOUT THE TEAM */}
-      <section id="about" className="py-20 px-5 lg:py-32 lg:px-12 bg-synapse-dark/50 border-y border-white/5">
+      <section id="about" className="py-20 px-4 lg:py-32 lg:px-12 bg-synapse-dark/50 border-y border-white/5">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-24">
             <h2 className="text-mono-xs text-synapse-primary mb-6">The Architects</h2>
@@ -191,13 +191,13 @@ export default function LandingPage() {
           </div>
 
           <div className="mt-24 text-center">
-            <Link to="/about" className="text-mono-xs text-neutral-600 hover:text-white transition-colors uppercase tracking-[0.3em]">Read our story →</Link>
+            <Link to="/about" className="text-mono-xs text-neutral-600 hover:text-white transition-colors uppercase tracking-[0.15em] sm:tracking-[0.3em]">Read our story →</Link>
           </div>
         </div>
       </section>
 
       {/* SECTION 13: PRICING */}
-      <section id="pricing" className="py-24 px-5 lg:py-40 lg:px-12 max-w-7xl mx-auto">
+      <section id="pricing" className="py-24 px-4 lg:py-40 lg:px-12 max-w-7xl mx-auto">
         <div className="text-center mb-24">
           <h2 className="text-mono-xs text-synapse-primary mb-6">Sustainable Scaling</h2>
           <p className="heading-huge uppercase">Pricing <span className="text-neutral-500">Tiers.</span></p>
@@ -218,7 +218,7 @@ export default function LandingPage() {
                 {plan.highlight && <div className="absolute top-0 right-0 p-4 text-mono-xs text-synapse-primary bg-synapse-primary/10 rounded-bl-xl font-black">MOST POPULAR</div>}
                 <div className={cn("text-mono-xs mb-6 uppercase tracking-widest", plan.highlight ? 'text-synapse-primary' : 'text-neutral-600')}>{plan.name}</div>
                 <div className="mb-10">
-                   <span className="text-2xl font-black text-synapse-primary/50 mr-1 align-top mt-2 inline-block">{!isNaN(Number(plan.price)) && "$"}</span><span className="text-5xl font-black tracking-tight">{plan.price}</span>
+                   <span className="text-3xl font-black text-synapse-primary mr-1 align-top mt-1 inline-block">{!isNaN(Number(plan.price)) && "$"}</span><span className="text-5xl font-black tracking-tight">{plan.price}</span>
                    {plan.period && <span className="text-[10px] uppercase font-black text-neutral-500 ml-2">{plan.period}</span>}
                 </div>
                 <ul className="space-y-4 mb-12 flex-1">
@@ -243,7 +243,7 @@ export default function LandingPage() {
       </section>
 
       {/* FOOTER */}
-      <footer className="bg-synapse-black border-t border-white/5 py-24 px-5 lg:py-40 lg:px-12">
+      <footer className="bg-synapse-black border-t border-white/5 py-24 px-4 lg:py-40 lg:px-12">
         <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-5 gap-16 mb-32">
           <div className="col-span-2">
             <div className="mb-8">

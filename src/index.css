@@ -47,7 +47,9 @@
 }
 
 @utility heading-huge {
-  @apply text-4xl sm:text-5xl lg:text-8xl font-black tracking-tighter leading-[0.95] break-words;
+  hyphens: auto;
+  overflow-wrap: break-word;
+  @apply text-3xl sm:text-5xl lg:text-8xl font-black tracking-tight sm:tracking-tighter leading-[1.1] sm:leading-[0.95];
 }
 
 @utility text-mono-xs {
