@@ -9,9 +9,9 @@ import PatientDashboard from './pages/app/PatientDashboard';
 import Login from './pages/auth/Login';
 import SignUp from './pages/auth/SignUp';
 import PilotApply from './pages/marketing/PilotApply';
-import DemoSandbox from './pages/demo/DemoSandbox';
 import SimplePage from './pages/marketing/SimplePage';
 import TeleChatbot from './pages/tele/TeleChatbot';
+import DemoLandingPage from './pages/demo/DemoLandingPage';
 import TeleBooking from './pages/tele/TeleBooking';
 import TeleBooked from './pages/tele/TeleBooked';
 import TeleRoom from './pages/tele/TeleRoom';
@@ -26,8 +26,6 @@ const OSLayout = ({ children }: { children: React.ReactNode }) => {
   
   const navItems = [
     { label: 'Patient Queue', path: '/doctor/queue' },
-    { label: 'Lab Orders', path: '/lab/orders' },
-    { label: 'Pharmacy', path: '/pharmacy/queue' },
     { label: 'Telemedicine', path: '/doctor/tele' },
     { label: 'Audit Logs', path: '/admin/audit' },
   ];
@@ -50,12 +48,8 @@ const OSLayout = ({ children }: { children: React.ReactNode }) => {
         </div>
       </header>
       
-      {/* Secondary Doctor Navigation */}
+      {/* Secondary Navigation */}
       <div className="bg-synapse-dark border-b border-white/5 px-6 flex items-center gap-8 sticky top-16 z-40 shrink-0">
-        <div className="flex items-center gap-4 py-1.5 bg-synapse-primary/10 px-3 rounded-lg border border-synapse-primary/20 my-2">
-           <div className="w-1.5 h-1.5 rounded-full bg-synapse-primary animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.5)]" />
-           <span className="text-[9px] font-black text-synapse-primary uppercase tracking-[0.2em]">Encounter Active</span>
-        </div>
         <nav className="flex items-center gap-8 h-12">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -66,7 +60,7 @@ const OSLayout = ({ children }: { children: React.ReactNode }) => {
                 className={cn(
                   "text-[10px] font-bold uppercase tracking-[0.2em] transition-all relative h-full flex items-center px-1",
                   isActive 
-                    ? "text-synapse-primary after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-synapse-primary shadow-[0_4px_12px_rgba(6,182,212,0.1)]"
+                    ? "text-synapse-primary after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-synapse-primary"
                     : "text-neutral-500 hover:text-white"
                 )}
               >
@@ -98,68 +92,36 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Website (synapseos.tech) */}
+        {/* Public Website */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/features" element={<SimplePage />} />
-        <Route path="/sdg" element={<SimplePage />} />
-        <Route path="/pricing" element={<LandingPage />} />
-        <Route path="/demo" element={<SimplePage />} />
-        <Route path="/demo/doctor" element={<OSLayout><DoctorQueue /></OSLayout>} />
         <Route path="/about" element={<SimplePage />} />
-        <Route path="/blog" element={<SimplePage />} />
         <Route path="/contact" element={<SimplePage />} />
-        <Route path="/careers" element={<SimplePage />} />
-        <Route path="/press" element={<SimplePage />} />
-        <Route path="/changelog" element={<SimplePage />} />
-        <Route path="/status" element={<SimplePage />} />
-        <Route path="/docs" element={<SimplePage />} />
         <Route path="/apply" element={<PilotApply />} />
-        <Route path="/apply-professional" element={<SimplePage />} />
+        <Route path="/demo" element={<DemoLandingPage />} />
 
-        {/* Legal */}
-        <Route path="/legal/privacy" element={<SimplePage />} />
-        <Route path="/legal/terms" element={<SimplePage />} />
-        <Route path="/legal/dpa" element={<SimplePage />} />
-        <Route path="/legal/cookie-policy" element={<SimplePage />} />
-
-        {/* Synapse OS Auth */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<SignUp />} />
-
-        {/* Synapse OS Dashboard & Clinical */}
-        <Route path="/doctor/queue" element={<OSLayout><DoctorQueue /></OSLayout>} />
-        <Route path="/doctor/tele" element={<OSLayout><DoctorTele /></OSLayout>} />
-        <Route path="/encounter/:id" element={<OSLayout><EncounterScreen /></OSLayout>} />
-
-        {/* OS Departments */}
-        <Route path="/lab/orders" element={<OSLayout><SimplePage /></OSLayout>} />
-        <Route path="/pharmacy/queue" element={<OSLayout><SimplePage /></OSLayout>} />
-        <Route path="/radiology/orders" element={<OSLayout><SimplePage /></OSLayout>} />
-        <Route path="/dept/maternity/anc" element={<OSLayout><SimplePage /></OSLayout>} />
-        <Route path="/dept/paediatrics/queue" element={<OSLayout><SimplePage /></OSLayout>} />
-        <Route path="/dept/hiv/dashboard" element={<OSLayout><SimplePage /></OSLayout>} />
-        <Route path="/dept/ae/triage" element={<OSLayout><SimplePage /></OSLayout>} />
-        <Route path="/dept/theatre/schedule" element={<OSLayout><SimplePage /></OSLayout>} />
-        <Route path="/dept/icu/dashboard" element={<OSLayout><SimplePage /></OSLayout>} />
-        <Route path="/dept/cardiology/ecg" element={<OSLayout><SimplePage /></OSLayout>} />
-        <Route path="/dept/mental/assessments" element={<OSLayout><SimplePage /></OSLayout>} />
-        <Route path="/dept/oncology/staging" element={<OSLayout><SimplePage /></OSLayout>} />
-        <Route path="/dept/dialysis/sessions" element={<OSLayout><SimplePage /></OSLayout>} />
-
-        {/* OS Admin */}
-        <Route path="/admin" element={<OSLayout><SimplePage /></OSLayout>} />
-        <Route path="/admin/audit" element={<OSLayout><AuditLog /></OSLayout>} />
-
-        {/* Synapse App Routes */}
-        <Route path="/app/dashboard" element={<PatientDashboard />} />
-        <Route path="/records/labs" element={<SimplePage />} />
-        <Route path="/children" element={<SimplePage />} />
+        {/* Telemedicine Flow (Public) */}
+        <Route path="/telemedicine" element={<Navigate to="/tele" replace />} />
         <Route path="/tele" element={<TeleChatbot />} />
         <Route path="/tele/booking" element={<TeleBooking />} />
         <Route path="/tele/booked/:id" element={<TeleBooked />} />
         <Route path="/tele/room/:id" element={<TeleRoom />} />
-        <Route path="/medical-id" element={<SimplePage />} />
-        <Route path="/emergency" element={<SimplePage />} />
+
+        {/* Auth */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<SignUp />} />
+
+        {/* OS Dashboard */}
+        <Route path="/doctor/queue" element={<OSLayout><DoctorQueue /></OSLayout>} />
+        <Route path="/doctor/tele" element={<OSLayout><DoctorTele /></OSLayout>} />
+        <Route path="/encounter/:id" element={<OSLayout><EncounterScreen /></OSLayout>} />
+        <Route path="/admin/audit" element={<OSLayout><AuditLog /></OSLayout>} />
+
+        {/* App Dashboard */}
+        <Route path="/app/dashboard" element={<PatientDashboard />} />
+
+        {/* Legal */}
+        <Route path="/legal/:slug" element={<SimplePage />} />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />

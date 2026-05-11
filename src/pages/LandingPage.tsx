@@ -24,8 +24,7 @@ import {
   Shield,
   Clock,
   Video,
-  MessageSquare,
-  ChevronDown
+  MessageSquare
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '../lib/utils';
@@ -58,7 +57,7 @@ const PricingModal = ({ isOpen, onClose, selectedPlan }: { isOpen: boolean, onCl
         className="card w-full max-w-lg p-6 sm:p-10 relative overflow-hidden break-words shadow-2xl shadow-cyan-500/10 border-white/10"
       >
         <div className="absolute top-0 right-0 p-6">
-          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-xl transition-colors">
             <X className="w-6 h-6 text-neutral-500" />
           </button>
         </div>
@@ -69,9 +68,9 @@ const PricingModal = ({ isOpen, onClose, selectedPlan }: { isOpen: boolean, onCl
         <div className="mb-10 p-6 bg-white/5 rounded-2xl border border-white/5">
            <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest mb-2">Price Estimate</div>
            <div className="text-4xl font-black flex items-baseline gap-2">
-             {!isNaN(Number(plan.price)) && <span className="text-3xl font-black text-synapse-primary">$</span>}
+             {!isNaN(Number(plan.price)) && <span className="text-4xl font-black text-white">$</span>}
              {plan.price}
-             {plan.price !== 'Free' && plan.price !== 'Custom' && <span className="text-xs text-neutral-500 font-bold ml-1 uppercase">/month</span>}
+             {plan.price !== 'Free' && plan.price !== 'Custom' && <span className="text-xs text-neutral-500 font-bold ml-1 uppercase tracking-widest">/month</span>}
            </div>
         </div>
 
@@ -146,7 +145,7 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
              <Link to="/demo" className="btn-primary py-5 px-10 rounded-2xl w-full sm:w-auto">Launch Interactive Demo</Link>
-             <Link to="/apply" className="btn-secondary py-5 px-10 rounded-2xl w-full sm:w-auto border-white/5">Apply for Pilot Access</Link>
+             <Link to="/tele" className="btn-secondary py-5 px-10 rounded-2xl w-full sm:w-auto border-white/10 flex items-center justify-center gap-3 hover:bg-white/10">Try Telemedicine <Video className="w-4 h-4" /></Link>
           </div>
 
           <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto opacity-40">
@@ -182,10 +181,10 @@ export default function LandingPage() {
       </section>
 
       {/* SECTION 4: AI WORKSPACE FEATURE */}
-      <section className="py-24 lg:py-40 px-4 lg:px-12 max-w-7xl mx-auto">
+      <section className="py-24 lg:py-40 px-3 sm:px-6 lg:px-12 max-w-7xl mx-auto">
         <div className="grid lg:grid-cols-2 gap-20 items-center">
           <div>
-            <div className="text-mono-xs text-synapse-primary mb-6 uppercase tracking-[0.4em]">Clinical Intelligence</div>
+            <div className="text-mono-xs text-synapse-primary mb-6 uppercase tracking-[0.2em] sm:tracking-[0.4em]">Clinical Intelligence</div>
             <h2 className="text-4xl lg:text-6xl font-black uppercase mb-8 leading-[1.1] tracking-tight">The AI <br /> <span className="text-neutral-500">Workspace.</span></h2>
             <p className="text-lg font-bold text-neutral-400 mb-12 leading-relaxed">
               Every encounter screen features a persistent AI companion. It analyzes symptoms, vitals, and patient history against the Uganda Clinical Guidelines in real-time.
@@ -216,7 +215,7 @@ export default function LandingPage() {
                          <div className="w-2.5 h-2.5 rounded-full bg-amber-500/20" />
                          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/20" />
                       </div>
-                      <div className="text-mono-xs text-neutral-600 tracking-[0.3em]">ai_copilot_v9.log</div>
+                      <div className="text-mono-xs text-neutral-600 tracking-[0.15em] sm:tracking-[0.3em]">ai_copilot_v9.log</div>
                    </div>
                    <div className="p-8 space-y-6 font-mono text-[11px]">
                       <div className="text-cyan-500 leading-relaxed animate-pulse"># Processing clinical context...</div>
@@ -399,7 +398,7 @@ export default function LandingPage() {
           </div>
 
           <div className="mt-24 text-center">
-            <Link to="/about" className="text-mono-xs text-neutral-600 hover:text-white transition-colors uppercase tracking-[0.3em]">Read our story →</Link>
+            <Link to="/about" className="text-mono-xs text-neutral-600 hover:text-white transition-colors uppercase tracking-[0.15em] sm:tracking-[0.3em]">Read our story →</Link>
           </div>
         </div>
       </section>
@@ -423,10 +422,10 @@ export default function LandingPage() {
                 ? "bg-white text-synapse-black border-synapse-primary shadow-2xl shadow-cyan-500/20 scale-105 z-10"
                 : "bg-synapse-dark border-white/5"
              )}>
-                {plan.highlight && <div className="absolute top-0 right-0 p-4 text-mono-xs text-synapse-primary bg-synapse-primary/10 rounded-bl-xl font-black tracking-widest">MOST POPULAR</div>}
-                <div className={cn("text-mono-xs mb-6 uppercase tracking-widest", plan.highlight ? 'text-synapse-primary' : 'text-neutral-600')}>{plan.name}</div>
+                {plan.highlight && <div className="absolute top-0 right-0 p-4 text-mono-xs text-synapse-primary bg-synapse-primary/10 rounded-bl-xl font-black tracking-widest uppercase">MOST POPULAR</div>}
+                <div className={cn("text-mono-xs mb-6 uppercase tracking-widest font-black", plan.highlight ? 'text-synapse-primary' : 'text-neutral-600')}>{plan.name}</div>
                 <div className="mb-10 flex items-baseline gap-1">
-                   {!isNaN(Number(plan.price)) && <span className="text-3xl font-black text-synapse-primary mr-1 align-top">$</span>}
+                   {!isNaN(Number(plan.price)) && <span className="text-4xl font-black text-white mr-1 align-top">$</span>}
                    <span className="text-5xl font-black tracking-tight">{plan.price}</span>
                    {plan.period && <span className="text-[10px] uppercase font-black text-neutral-500 ml-1">{plan.period}</span>}
                 </div>
@@ -462,13 +461,13 @@ export default function LandingPage() {
               Sovereign health operating system for Africa. Connecting clinical intelligence to every life.
             </p>
             <div className="flex flex-col gap-3 text-mono-xs text-neutral-700">
-               <span className="flex items-center gap-2 uppercase tracking-widest">🇺🇬 Built in Uganda</span>
-               <span className="flex items-center gap-2 uppercase tracking-widest text-[9px]">© Synapse Health Technologies Ltd</span>
+               <span className="flex items-center gap-2 uppercase tracking-widest font-black">🇺🇬 Built in Uganda</span>
+               <span className="flex items-center gap-2 uppercase tracking-widest text-[9px] font-black">© Synapse Health Technologies Ltd</span>
             </div>
           </div>
 
           <div>
-            <h4 className="text-mono-xs mb-10 text-white uppercase tracking-widest">Product</h4>
+            <h4 className="text-mono-xs mb-10 text-white uppercase tracking-widest font-black">Product</h4>
             <ul className="space-y-6 text-[10px] font-black text-neutral-600 uppercase tracking-widest">
               <li><Link to="/features" className="hover:text-synapse-primary transition-colors">Features</Link></li>
               <li><Link to="/demo" className="hover:text-synapse-primary transition-colors">OS Demo</Link></li>
@@ -478,7 +477,7 @@ export default function LandingPage() {
           </div>
 
           <div>
-            <h4 className="text-mono-xs mb-10 text-white uppercase tracking-widest">Company</h4>
+            <h4 className="text-mono-xs mb-10 text-white uppercase tracking-widest font-black">Company</h4>
             <ul className="space-y-6 text-[10px] font-black text-neutral-600 uppercase tracking-widest">
               <li><Link to="/about" className="hover:text-synapse-primary transition-colors">About</Link></li>
               <li><Link to="/blog" className="hover:text-synapse-primary transition-colors">Blog</Link></li>
@@ -488,7 +487,7 @@ export default function LandingPage() {
           </div>
 
           <div>
-            <h4 className="text-mono-xs mb-10 text-white uppercase tracking-widest">Legal</h4>
+            <h4 className="text-mono-xs mb-10 text-white uppercase tracking-widest font-black">Legal</h4>
             <ul className="space-y-6 text-[10px] font-black text-neutral-600 uppercase tracking-widest">
               <li><Link to="/legal/privacy" className="hover:text-synapse-primary transition-colors">Privacy Policy</Link></li>
               <li><Link to="/legal/terms" className="hover:text-synapse-primary transition-colors">Terms of Service</Link></li>
