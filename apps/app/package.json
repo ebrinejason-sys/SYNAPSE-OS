@@ -1,0 +1,9 @@
+{
+  "name": "@synapse/app",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Synapse App — Expo (React Native) — Phase 2. No dependencies declared here to avoid peer conflicts with the web workspace.",
+  "scripts": {
+    "build": "echo 'Synapse App (Expo) — scaffold only, build skipped'"
+  }
+}
