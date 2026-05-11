@@ -15,12 +15,20 @@ import { Activity } from 'lucide-react';
 
 import AuditLog from './pages/os/AuditLog';
 
+// Telemedicine Pages
+import TelemedicinePage from './pages/tele/TelemedicinePage';
+import BookingPage from './pages/tele/BookingPage';
+import BookingConfirmedPage from './pages/tele/BookingConfirmedPage';
+import VideoRoomPage from './pages/tele/VideoRoomPage';
+import DoctorTeleDashboard from './pages/os/DoctorTeleDashboard';
+
 // Layout wrapper for OS components
 const OSLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   
   const navItems = [
     { label: 'Patient Queue', path: '/os/doctor/queue' },
+    { label: 'Telemedicine', path: '/os/doctor/tele' },
     { label: 'Lab Orders', path: '/docs' },
     { label: 'Pharmacy', path: '/docs' },
     { label: 'Audit Logs', path: '/os/audit' },
@@ -102,11 +110,18 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
 
+        {/* Telemedicine (Public) */}
+        <Route path="/tele" element={<TelemedicinePage />} />
+        <Route path="/tele/booking" element={<BookingPage />} />
+        <Route path="/tele/booked/:id" element={<BookingConfirmedPage />} />
+        <Route path="/tele/room/:id" element={<VideoRoomPage />} />
+
         {/* Demo / Sandbox (YC Requirement) */}
         <Route path="/demo/*" element={<DemoSandbox />} />
 
         {/* OS Routes */}
         <Route path="/os/doctor/queue" element={<OSLayout><DoctorQueue /></OSLayout>} />
+        <Route path="/os/doctor/tele" element={<OSLayout><DoctorTeleDashboard /></OSLayout>} />
         <Route path="/os/doctor/encounter/:id" element={<OSLayout><EncounterScreen /></OSLayout>} />
         <Route path="/os/audit" element={<OSLayout><AuditLog /></OSLayout>} />
 
