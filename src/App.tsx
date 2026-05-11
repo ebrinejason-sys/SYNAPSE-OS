@@ -11,6 +11,11 @@ import SignUp from './pages/auth/SignUp';
 import PilotApply from './pages/marketing/PilotApply';
 import DemoSandbox from './pages/demo/DemoSandbox';
 import SimplePage from './pages/marketing/SimplePage';
+import TeleChatbot from './pages/tele/TeleChatbot';
+import TeleBooking from './pages/tele/TeleBooking';
+import TeleBooked from './pages/tele/TeleBooked';
+import TeleRoom from './pages/tele/TeleRoom';
+import DoctorTele from './pages/os/DoctorTele';
 import { ThemeToggle } from './components/ThemeToggle';
 import { Logo } from './components/Logo';
 import AuditLog from './pages/os/AuditLog';
@@ -23,6 +28,7 @@ const OSLayout = ({ children }: { children: React.ReactNode }) => {
     { label: 'Patient Queue', path: '/doctor/queue' },
     { label: 'Lab Orders', path: '/lab/orders' },
     { label: 'Pharmacy', path: '/pharmacy/queue' },
+    { label: 'Telemedicine', path: '/doctor/tele' },
     { label: 'Audit Logs', path: '/admin/audit' },
   ];
 
@@ -122,6 +128,7 @@ export default function App() {
 
         {/* Synapse OS Dashboard & Clinical */}
         <Route path="/doctor/queue" element={<OSLayout><DoctorQueue /></OSLayout>} />
+        <Route path="/doctor/tele" element={<OSLayout><DoctorTele /></OSLayout>} />
         <Route path="/encounter/:id" element={<OSLayout><EncounterScreen /></OSLayout>} />
 
         {/* OS Departments */}
@@ -147,7 +154,10 @@ export default function App() {
         <Route path="/app/dashboard" element={<PatientDashboard />} />
         <Route path="/records/labs" element={<SimplePage />} />
         <Route path="/children" element={<SimplePage />} />
-        <Route path="/tele/chatbot" element={<SimplePage />} />
+        <Route path="/tele" element={<TeleChatbot />} />
+        <Route path="/tele/booking" element={<TeleBooking />} />
+        <Route path="/tele/booked/:id" element={<TeleBooked />} />
+        <Route path="/tele/room/:id" element={<TeleRoom />} />
         <Route path="/medical-id" element={<SimplePage />} />
         <Route path="/emergency" element={<SimplePage />} />
 

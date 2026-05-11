@@ -1,102 +1,72 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React from 'react';
 import { motion } from 'motion/react';
 import { 
-  Play, Shield, Globe, Lock, ArrowRight, Activity, Beaker, Zap,
-  Users, Stethoscope, Pill, Microscope, TrendingUp, AlertCircle,
-  CheckCircle, Clock, MessageSquare, Heart, Brain
+  Activity,
+  ArrowRight,
+  Stethoscope,
+  Microscope,
+  Pill,
+  Brain,
+  Shield,
+  Globe,
+  Video,
+  AlertCircle
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { cn } from '../../lib/utils';
+import { Logo } from '../../components/Logo';
 
 export default function DemoLandingPage() {
-  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+  const stats = [
+    { label: 'Active Pilots', value: '12', icon: Activity, color: 'text-synapse-primary' },
+    { label: 'Patient Records', value: '40k+', icon: Shield, color: 'text-emerald-500' },
+    { label: 'Uptime SLA', value: '99.9%', icon: Globe, color: 'text-blue-500' },
+    { label: 'Latency', value: '<200ms', icon: Brain, color: 'text-purple-500' },
+  ];
 
   return (
-    <div className="min-h-screen bg-synapse-black text-white font-sans selection:bg-synapse-primary/30 selection:text-cyan-200">
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-synapse-black/80 backdrop-blur-md border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 bg-synapse-primary rounded-lg flex items-center justify-center shadow-lg shadow-cyan-500/20 transition-transform group-hover:scale-105">
-              <Activity className="w-5 h-5 text-synapse-black" />
-            </div>
-            <span className="font-black text-lg tracking-tighter text-white uppercase">
-              Synapse<span className="text-synapse-primary">OS</span>
-            </span>
-          </Link>
-          <div className="flex items-center gap-8">
-            <a href="#features" className="text-mono-xs text-neutral-500 hover:text-synapse-primary transition-colors">Features</a>
-            <a href="#demo" className="text-mono-xs text-neutral-500 hover:text-synapse-primary transition-colors">Demo</a>
-            <Link to="/apply" className="btn-primary py-2 px-4 text-[10px]">Apply</Link>
-          </div>
-        </div>
-      </nav>
-
+    <div className="min-h-screen bg-synapse-black text-white selection:bg-synapse-primary/30">
       {/* Hero Section */}
       <section className="pt-32 pb-40 px-6 relative overflow-hidden">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-synapse-primary/5 rounded-full blur-[120px] pointer-events-none" />
 
-        <div className="max-w-5xl mx-auto text-center relative">
+        <div className="max-w-7xl mx-auto text-center relative z-10">
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="mb-10"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="inline-flex items-center gap-2 px-4 py-1.5 bg-synapse-primary/10 border border-synapse-primary/20 rounded-full text-mono-xs text-synapse-primary mb-12"
           >
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-synapse-primary/10 border border-synapse-primary/20 rounded-full text-mono-xs text-synapse-primary">
-              <span className="w-2 h-2 bg-synapse-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.5)]" />
-              Sandbox v2.0 — No Sign-up Required
-            </div>
+            <span className="w-2 h-2 bg-synapse-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.5)]" />
+            Interactive Demo Sandbox
           </motion.div>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="heading-huge mb-10"
-          >
-            The Sovereign <br />
-            <span className="text-gradient font-black">AI Health OS.</span>
-          </motion.h1>
+          <h1 className="heading-huge mb-12 uppercase tracking-tighter">
+            Experience the <br /> <span className="text-neutral-500">Future of Care.</span>
+          </h1>
 
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="text-lg text-neutral-400 mb-12 leading-relaxed max-w-2xl mx-auto font-medium"
-          >
-            Experience a fully functional clinical decision support system with real-time AI diagnosis, insurance integration, and offline-first architecture—all in our interactive sandbox.
-          </motion.p>
+          <p className="text-xl text-neutral-400 max-w-3xl mx-auto mb-16 font-medium leading-relaxed">
+            Welcome to the Synapse OS playground. Explore our clinical workflows, AI diagnostic workspace, and connected patient ecosystem.
+          </p>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-24"
-          >
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-32">
             <Link to="/demo/doctor" className="btn-primary flex items-center gap-3 py-4 px-10">
-              <Play className="w-5 h-5 fill-current" />
-              Launch Clinical Demo
+              Launch Doctor OS <ArrowRight className="w-4 h-4" />
             </Link>
-            <Link to="/apply" className="btn-secondary flex items-center gap-3 py-4 px-10">
-              Request Pilot Access
-              <ArrowRight className="w-5 h-5" />
+            <Link to="/tele" className="btn-secondary flex items-center gap-3 py-4 px-10 border-white/10">
+              Start Telemedicine <Video className="w-4 h-4" />
             </Link>
-          </motion.div>
+          </div>
 
-          {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            {[
-              { label: 'Demo Facilities', value: '12+', icon: Users, color: 'text-synapse-primary' },
-              { label: 'Patient Records', value: '500+', icon: Activity, color: 'text-emerald-500' },
-              { label: 'Powered Diagnosis', value: 'AI', icon: Brain, color: 'text-amber-500' }
-            ].map((stat, i) => (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 max-w-5xl mx-auto">
+            {stats.map((stat, idx) => (
               <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 + (i * 0.1) }}
+                key={idx}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: idx * 0.1 }}
                 className="card p-8 flex flex-col items-center text-center group"
               >
-                <stat.icon className={cn("w-10 h-10 mb-4 transition-transform group-hover:scale-110", stat.color)} />
+                <stat.icon className={cn("w-6 h-6 mb-4 transition-transform group-hover:scale-110", stat.color)} />
                 <p className="text-4xl font-black text-white mb-2 tracking-tighter">{stat.value}</p>
                 <p className="text-mono-xs text-neutral-500">{stat.label}</p>
               </motion.div>
@@ -199,26 +169,32 @@ export default function DemoLandingPage() {
               </motion.div>
             </Link>
 
-            <motion.div
-              className="card p-12 h-full flex flex-col opacity-40 grayscale relative overflow-hidden cursor-not-allowed"
-            >
-              <div className="absolute top-6 right-6 badge-warning">Coming Soon</div>
-              <Beaker className="w-12 h-12 text-neutral-500 mb-8" />
-              <h3 className="text-2xl font-black text-neutral-300 mb-4 uppercase tracking-tight">Pharmacy Module</h3>
-              <p className="text-neutral-500 mb-10 leading-relaxed font-medium">
-                Dispense medications, check interactions, manage inventory, and handle insurance coverage calculations.
-              </p>
-            </motion.div>
+            <Link to="/tele" className="group">
+              <motion.div
+                whileHover={{ y: -8 }}
+                className="card-interactive p-12 h-full flex flex-col relative overflow-hidden"
+              >
+                <div className="absolute top-6 right-6 badge-primary uppercase text-[8px] font-black tracking-widest">Demo Live</div>
+                <Video className="w-12 h-12 text-synapse-primary mb-8 transition-transform group-hover:scale-110" />
+                <h3 className="text-2xl font-black text-white mb-4 uppercase tracking-tight">Telemedicine Flow</h3>
+                <p className="text-neutral-400 mb-10 leading-relaxed font-medium">
+                  Experience the 13-step guided symptom chatbot, automated triage, and the virtual consultation room stub.
+                </p>
+                <div className="mt-auto flex items-center gap-3 text-synapse-primary text-mono-xs group-hover:translate-x-2 transition-transform">
+                   Start Chatbot <ArrowRight className="w-4 h-4" />
+                </div>
+              </motion.div>
+            </Link>
           </div>
 
-          <div className="glass p-8 rounded-3xl flex flex-col sm:flex-row items-center gap-6 border border-white/5">
+          <div className="card p-8 rounded-3xl flex flex-col sm:flex-row items-center gap-6 border border-white/5">
             <div className="w-12 h-12 rounded-xl bg-synapse-primary/10 flex items-center justify-center shrink-0">
                <AlertCircle className="w-6 h-6 text-synapse-primary" />
             </div>
             <div className="flex-1 text-center sm:text-left">
-              <p className="text-mono-xs text-white mb-1">Demo Credentials</p>
-              <p className="text-neutral-500 text-sm font-medium leading-relaxed">
-                Use <code className="bg-white/5 px-2 py-0.5 rounded text-synapse-primary">demo@synapseos.tech</code> / <code className="bg-white/5 px-2 py-0.5 rounded text-synapse-primary">Demo4321</code> to access the full platform demo.
+              <p className="text-mono-xs text-white mb-1 tracking-widest">Demo Credentials</p>
+              <p className="text-neutral-500 text-sm font-medium leading-relaxed uppercase tracking-tight">
+                Use <code className="bg-white/5 px-2 py-0.5 rounded text-synapse-primary lowercase">demodoc@synapseos.tech</code> / <code className="bg-white/5 px-2 py-0.5 rounded text-synapse-primary">Demo4321</code> to access the full platform.
               </p>
             </div>
           </div>
@@ -229,7 +205,7 @@ export default function DemoLandingPage() {
       <section className="py-40 px-6 relative overflow-hidden">
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-synapse-primary/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="max-w-3xl mx-auto text-center relative">
-          <h2 className="heading-huge mb-10 uppercase tracking-tighter">Ready for <br /> <span className="text-gradient">Pilot?</span></h2>
+          <h2 className="heading-huge mb-10 uppercase tracking-tighter">Ready for <br /> <span className="text-neutral-500">Pilot?</span></h2>
           <p className="text-xl text-neutral-400 mb-12 font-medium">
             Join leading health facilities transforming care with Synapse OS.
           </p>
@@ -243,32 +219,27 @@ export default function DemoLandingPage() {
       {/* Footer */}
       <footer className="border-t border-white/5 py-24 px-6 bg-synapse-black">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-16 mb-20 text-center md:text-left">
-            <div className="col-span-2 md:col-span-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-16 mb-20 text-center md:text-left">
+            <div className="col-span-1 sm:col-span-2 md:col-span-1">
               <Link to="/" className="flex items-center gap-2 mb-6 justify-center md:justify-start">
-                <div className="w-8 h-8 bg-synapse-primary rounded-lg flex items-center justify-center">
-                  <Activity className="w-5 h-5 text-synapse-black" />
-                </div>
-                <span className="font-black tracking-tighter text-white uppercase">
-                  Synapse<span className="text-synapse-primary">OS</span>
-                </span>
+                <Logo size="sm" />
               </Link>
               <p className="text-xs text-neutral-500 leading-relaxed font-medium uppercase tracking-widest">Sovereign AI health operating system for Africa.</p>
             </div>
             <div>
               <p className="text-mono-xs text-white mb-6">Product</p>
               <ul className="space-y-4 text-xs font-black text-neutral-600 uppercase tracking-widest">
-                <li><a href="#features" className="hover:text-synapse-primary transition-colors">Features</a></li>
-                <li><a href="#demo" className="hover:text-synapse-primary transition-colors">Demo</a></li>
-                <li><Link to="/pricing" className="hover:text-synapse-primary transition-colors">Pricing</Link></li>
+                <li><Link to="/features" className="hover:text-synapse-primary transition-colors">Features</Link></li>
+                <li><Link to="/demo" className="hover:text-synapse-primary transition-colors">Demo</Link></li>
+                <li><a href="#pricing" className="hover:text-synapse-primary transition-colors">Pricing</a></li>
               </ul>
             </div>
             <div>
               <p className="text-mono-xs text-white mb-6">Company</p>
               <ul className="space-y-4 text-xs font-black text-neutral-600 uppercase tracking-widest">
-                <li><a href="#" className="hover:text-synapse-primary transition-colors">About</a></li>
-                <li><a href="#" className="hover:text-synapse-primary transition-colors">Blog</a></li>
-                <li><a href="#" className="hover:text-synapse-primary transition-colors">Careers</a></li>
+                <li><Link to="/about" className="hover:text-synapse-primary transition-colors">About</Link></li>
+                <li><Link to="/blog" className="hover:text-synapse-primary transition-colors">Blog</Link></li>
+                <li><Link to="/careers" className="hover:text-synapse-primary transition-colors">Careers</Link></li>
               </ul>
             </div>
             <div>
@@ -276,13 +247,13 @@ export default function DemoLandingPage() {
               <ul className="space-y-4 text-xs font-black text-neutral-600 uppercase tracking-widest">
                 <li><Link to="/legal/privacy" className="hover:text-synapse-primary transition-colors">Privacy</Link></li>
                 <li><Link to="/legal/terms" className="hover:text-synapse-primary transition-colors">Terms</Link></li>
-                <li><a href="#" className="hover:text-synapse-primary transition-colors">Contact</a></li>
+                <li><Link to="/contact" className="hover:text-synapse-primary transition-colors">Contact</Link></li>
               </ul>
             </div>
           </div>
           <div className="border-t border-white/5 pt-12 text-center">
-            <p className="text-mono-xs text-neutral-700">
-              © 2026 Synapse Ecosystem. Built with ❤️ for Africa.
+            <p className="text-mono-xs text-neutral-700 uppercase tracking-widest">
+              © 2026 Synapse Health Technologies Ltd. Built in Uganda.
             </p>
           </div>
         </div>

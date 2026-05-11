@@ -22,12 +22,16 @@ import {
   Pill,
   PieChart,
   Shield,
-  Clock
+  Clock,
+  Video,
+  MessageSquare,
+  ChevronDown
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { Logo } from '../components/Logo';
+import { MobileNav } from '../components/MobileNav';
 
 const PricingModal = ({ isOpen, onClose, selectedPlan }: { isOpen: boolean, onClose: () => void, selectedPlan: string }) => {
   if (!isOpen) return null;
@@ -46,12 +50,12 @@ const PricingModal = ({ isOpen, onClose, selectedPlan }: { isOpen: boolean, onCl
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-synapse-black/95 backdrop-blur-xl"
+      className="fixed inset-0 z-[300] flex items-center justify-center p-4 sm:p-6 bg-synapse-black/95 backdrop-blur-xl"
     >
       <motion.div
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
-        className="card w-full max-w-lg p-6 sm:p-10 relative overflow-hidden break-words shadow-2xl shadow-cyan-500/10"
+        className="card w-full max-w-lg p-6 sm:p-10 relative overflow-hidden break-words shadow-2xl shadow-cyan-500/10 border-white/10"
       >
         <div className="absolute top-0 right-0 p-6">
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
@@ -59,21 +63,22 @@ const PricingModal = ({ isOpen, onClose, selectedPlan }: { isOpen: boolean, onCl
           </button>
         </div>
 
-        <div className="text-mono-xs text-synapse-primary mb-2 uppercase tracking-[0.15em] sm:tracking-[0.3em]">Tier Selected</div>
+        <div className="text-mono-xs text-synapse-primary mb-2 uppercase tracking-[0.3em]">Plan Detail</div>
         <h2 className="text-3xl sm:text-4xl font-black uppercase mb-8 tracking-tighter">{plan.name}</h2>
 
         <div className="mb-10 p-6 bg-white/5 rounded-2xl border border-white/5">
            <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest mb-2">Price Estimate</div>
-           <div className="text-4xl font-black flex items-center gap-2">
-             {!isNaN(Number(plan.price)) && <span className="text-3xl font-black text-synapse-primary mr-1">$</span>}
+           <div className="text-4xl font-black flex items-baseline gap-2">
+             {!isNaN(Number(plan.price)) && <span className="text-3xl font-black text-synapse-primary">$</span>}
              {plan.price}
+             {plan.price !== 'Free' && plan.price !== 'Custom' && <span className="text-xs text-neutral-500 font-bold ml-1 uppercase">/month</span>}
            </div>
         </div>
 
         <ul className="space-y-4 mb-12">
           {plan.features.map((f: string, i: number) => (
-            <li key={i} className="flex items-center gap-3 text-[11px] font-black uppercase tracking-tight text-neutral-400">
-              <CheckCircle className="w-4 h-4 text-synapse-primary shrink-0" />
+            <li key={i} className="flex items-start gap-3 text-[11px] font-black uppercase tracking-tight text-neutral-400">
+              <CheckCircle className="w-4 h-4 text-synapse-primary shrink-0 mt-0.5" />
               {f}
             </li>
           ))}
@@ -106,21 +111,22 @@ export default function LandingPage() {
       </AnimatePresence>
 
       {/* SECTION 1: NAVIGATION */}
-      <nav className="fixed top-0 w-full z-50 bg-synapse-black/80 backdrop-blur-md border-b border-white/5 h-16 flex items-center justify-between px-3 sm:px-6 lg:px-12">
-        <Logo size="sm" showText={false} className="sm:hidden" />
-        <Logo size="sm" className="hidden sm:flex" />
+      <nav className="fixed top-0 w-full z-50 bg-synapse-black/80 backdrop-blur-md border-b border-white/5 h-16 flex items-center justify-between px-4 lg:px-12">
+        <Logo size="sm" />
 
         <div className="hidden lg:flex items-center gap-10 text-mono-xs text-neutral-500">
           <Link to="/features" className="hover:text-white transition-colors uppercase">Features</Link>
           <a href="#departments" className="hover:text-white transition-colors uppercase">Departments</a>
           <Link to="/demo" className="hover:text-white transition-colors uppercase">Demo</Link>
+          <Link to="/tele" className="hover:text-white transition-colors uppercase">Telemedicine</Link>
           <a href="#pricing" className="hover:text-white transition-colors uppercase">Pricing</a>
         </div>
 
         <div className="flex items-center gap-4">
           <ThemeToggle />
           <Link to="/login" className="text-mono-xs text-[var(--text-primary)] hover:text-synapse-primary transition-colors hidden sm:block">Sign In</Link>
-          <Link to="/apply" className="btn-primary py-2.5 px-6 text-[10px]">Get Started</Link>
+          <Link to="/apply" className="btn-primary py-2.5 px-6 text-[10px] hidden sm:block">Get Started</Link>
+          <MobileNav />
         </div>
       </nav>
 
@@ -134,7 +140,7 @@ export default function LandingPage() {
           >
             Sovereign Health Infrastructure
           </motion.div>
-          <h1 className="heading-huge uppercase mb-12">Connecting <br /> <span className="text-neutral-500">Intelligence</span> <br /> to every life.</h1>
+          <h1 className="heading-huge mb-12 uppercase">Connecting <br /> <span className="text-neutral-500">Intelligence</span> <br /> to every life.</h1>
           <p className="text-xl lg:text-2xl font-bold max-w-3xl mx-auto text-neutral-400 mb-16 leading-relaxed">
             The first AI-native health operating system built in Uganda for the clinical frontline. One ecosystem, two products, infinite scale.
           </p>
@@ -168,7 +174,7 @@ export default function LandingPage() {
       {/* SECTION 3: TRUST BADGES */}
       <section className="py-12 px-4 bg-synapse-dark/30 border-b border-white/5">
         <div className="max-w-7xl mx-auto flex flex-wrap justify-center gap-8 md:gap-16 opacity-50 grayscale hover:opacity-80 transition-opacity">
-           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Shield className="w-4 h-4" /> Uganda DPPA 2019</div>
+           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><ShieldCheck className="w-4 h-4" /> Uganda DPPA 2019</div>
            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Zap className="w-4 h-4" /> Works Offline</div>
            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Cpu className="w-4 h-4" /> Gemini 2.0 Native</div>
            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Database className="w-4 h-4" /> FHIR R4 Compliant</div>
@@ -176,10 +182,10 @@ export default function LandingPage() {
       </section>
 
       {/* SECTION 4: AI WORKSPACE FEATURE */}
-      <section className="py-24 lg:py-40 px-3 sm:px-6 lg:px-12 max-w-7xl mx-auto">
+      <section className="py-24 lg:py-40 px-4 lg:px-12 max-w-7xl mx-auto">
         <div className="grid lg:grid-cols-2 gap-20 items-center">
           <div>
-            <div className="text-mono-xs text-synapse-primary mb-6">Clinical Intelligence</div>
+            <div className="text-mono-xs text-synapse-primary mb-6 uppercase tracking-[0.4em]">Clinical Intelligence</div>
             <h2 className="text-4xl lg:text-6xl font-black uppercase mb-8 leading-[1.1] tracking-tight">The AI <br /> <span className="text-neutral-500">Workspace.</span></h2>
             <p className="text-lg font-bold text-neutral-400 mb-12 leading-relaxed">
               Every encounter screen features a persistent AI companion. It analyzes symptoms, vitals, and patient history against the Uganda Clinical Guidelines in real-time.
@@ -210,7 +216,7 @@ export default function LandingPage() {
                          <div className="w-2.5 h-2.5 rounded-full bg-amber-500/20" />
                          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/20" />
                       </div>
-                      <div className="text-mono-xs text-neutral-600">ai_copilot_v9.log</div>
+                      <div className="text-mono-xs text-neutral-600 tracking-[0.3em]">ai_copilot_v9.log</div>
                    </div>
                    <div className="p-8 space-y-6 font-mono text-[11px]">
                       <div className="text-cyan-500 leading-relaxed animate-pulse"># Processing clinical context...</div>
@@ -230,11 +236,69 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* SECTION 5: TELEMEDICINE PREVIEW */}
+      <section className="py-24 lg:py-40 px-4 lg:px-12 bg-synapse-dark/30 border-y border-white/5 overflow-hidden">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-20">
+           <div className="order-2 lg:order-1 flex-1 relative">
+              <div className="w-[300px] mx-auto aspect-[9/19] bg-synapse-black rounded-[3rem] border-[8px] border-neutral-900 overflow-hidden relative shadow-2xl">
+                 <div className="absolute top-0 w-full h-8 flex justify-center items-end pb-1">
+                    <div className="w-16 h-4 bg-neutral-900 rounded-full" />
+                 </div>
+                 <div className="h-full pt-10 px-6 space-y-6">
+                    <div className="flex items-center gap-3">
+                       <Logo size="sm" showText={false} />
+                       <span className="text-[10px] font-black uppercase text-white">Telemedicine</span>
+                    </div>
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl">
+                       <p className="text-[11px] font-bold text-neutral-200">Hello! I'm your AI health guide. What is your main symptom today?</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 pt-4">
+                       {['Fever', 'Headache', 'Cough', 'Pain'].map(s => (
+                         <div key={s} className="p-3 bg-white/5 border border-white/10 rounded-xl text-[8px] font-black uppercase text-center">{s}</div>
+                       ))}
+                    </div>
+                    <div className="absolute bottom-6 left-6 right-6">
+                       <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                          <div className="w-[30%] h-full bg-emerald-500" />
+                       </div>
+                    </div>
+                 </div>
+              </div>
+              <div className="absolute -top-10 -left-10 w-40 h-40 bg-synapse-primary/20 blur-[60px] rounded-full" />
+              <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-emerald-500/20 blur-[60px] rounded-full" />
+           </div>
+           <div className="order-1 lg:order-2 flex-1 space-y-8">
+              <div className="text-mono-xs text-synapse-primary uppercase tracking-[0.4em]">Patient Ecosystem</div>
+              <h2 className="text-4xl lg:text-6xl font-black uppercase leading-[1.1] tracking-tight">Care <br /> <span className="text-neutral-500">Everywhere.</span></h2>
+              <p className="text-lg font-bold text-neutral-400 leading-relaxed">
+                 The Synapse App connects patients directly to the clinical frontline. AI-guided triage ensures critical cases are fast-tracked while routine care happens via secure video.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-6 pt-4">
+                 <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-white font-black uppercase text-xs">
+                       <Smartphone className="w-4 h-4 text-synapse-primary" /> App-Native
+                    </div>
+                    <p className="text-[10px] font-bold text-neutral-500 uppercase leading-relaxed">Available for iOS and Android with full FHIR health record sync.</p>
+                 </div>
+                 <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-white font-black uppercase text-xs">
+                       <Video className="w-4 h-4 text-emerald-500" /> Secure Video
+                    </div>
+                    <p className="text-[10px] font-bold text-neutral-500 uppercase leading-relaxed">End-to-end encrypted consultations with real-time AI transcription.</p>
+                 </div>
+              </div>
+              <Link to="/tele" className="btn-primary py-5 px-10 rounded-2xl inline-flex items-center gap-3">
+                 Try Telemedicine Demo <Video className="w-4 h-4" />
+              </Link>
+           </div>
+        </div>
+      </section>
+
       {/* SECTION 7: DEPARTMENTS */}
-      <section id="departments" className="py-24 lg:py-40 px-3 sm:px-6 lg:px-12 bg-synapse-dark/30 border-y border-white/5">
+      <section id="departments" className="py-24 lg:py-40 px-4 lg:px-12">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-24">
-            <h2 className="text-mono-xs text-synapse-primary mb-6">Clinical Coverage</h2>
+            <h2 className="text-mono-xs text-synapse-primary mb-6 uppercase tracking-[0.4em]">Clinical Coverage</h2>
             <p className="heading-huge uppercase">Every <span className="text-neutral-500">Department.</span></p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -246,31 +310,50 @@ export default function LandingPage() {
                { icon: Pill, label: 'Pharmacy' },
                { icon: PieChart, label: 'SDG Center' },
                { icon: Smartphone, label: 'Patient App' },
-               { icon: Globe, label: 'Telemedicine' },
+               { icon: Globe, label: 'Telemedicine', href: '/tele' },
                { icon: Layout, label: 'Radiology' },
                { icon: Users, label: 'Staff Hub' },
                { icon: ShieldCheck, label: 'Compliance' },
                { icon: Clock, label: 'Workflow' }
-             ].map((dept, i) => (
-               <div key={i} className="card p-6 flex flex-col items-center text-center gap-4 hover:border-synapse-primary/30 transition-all cursor-default group overflow-hidden">
-                  <dept.icon className="w-6 h-6 text-neutral-600 group-hover:text-synapse-primary transition-colors" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500 group-hover:text-white transition-colors">{dept.label}</span>
-               </div>
-             ))}
+             ].map((dept, i) => {
+               const CardContent = (
+                 <>
+                    <dept.icon className="w-6 h-6 text-neutral-600 group-hover:text-synapse-primary transition-colors" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500 group-hover:text-white transition-colors">{dept.label}</span>
+                 </>
+               );
+
+               if (dept.href) {
+                 return (
+                   <Link key={i} to={dept.href} className="card p-6 flex flex-col items-center text-center gap-4 hover:border-synapse-primary/30 transition-all group overflow-hidden border-synapse-primary/10 bg-synapse-primary/5">
+                      {CardContent}
+                      <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <ChevronRight className="w-3 h-3 text-synapse-primary" />
+                      </div>
+                   </Link>
+                 );
+               }
+
+               return (
+                 <div key={i} className="card p-6 flex flex-col items-center text-center gap-4 hover:border-synapse-primary/30 transition-all cursor-default group overflow-hidden">
+                    {CardContent}
+                 </div>
+               );
+             })}
           </div>
         </div>
       </section>
 
       {/* SECTION 11: ABOUT THE TEAM */}
-      <section id="about" className="py-24 lg:py-40 px-3 sm:px-6 lg:px-12 border-b border-white/5">
+      <section id="about" className="py-24 lg:py-40 px-4 lg:px-12 border-y border-white/5 bg-synapse-dark/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-24">
-            <h2 className="text-mono-xs text-synapse-primary mb-6">The Architects</h2>
+            <h2 className="text-mono-xs text-synapse-primary mb-6 uppercase tracking-[0.4em]">The Architects</h2>
             <p className="heading-huge uppercase">Built by Africans, <span className="text-neutral-500">for Africa.</span></p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-16 max-w-5xl mx-auto">
-            <motion.div whileHover={{ y: -8 }} className="card p-6 sm:p-10 overflow-hidden break-words flex flex-col items-center text-center group relative shadow-2xl shadow-cyan-500/5">
+            <motion.div whileHover={{ y: -8 }} className="card p-6 sm:p-10 overflow-hidden break-words flex flex-col items-center text-center group relative shadow-2xl shadow-cyan-500/5 border-white/10">
               <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-20 transition-opacity">
                  <Activity className="w-24 h-24 text-synapse-primary" />
               </div>
@@ -292,7 +375,7 @@ export default function LandingPage() {
               </div>
             </motion.div>
             
-            <motion.div whileHover={{ y: -8 }} className="card p-6 sm:p-10 overflow-hidden break-words flex flex-col items-center text-center group relative shadow-2xl shadow-emerald-500/5">
+            <motion.div whileHover={{ y: -8 }} className="card p-6 sm:p-10 overflow-hidden break-words flex flex-col items-center text-center group relative shadow-2xl shadow-emerald-500/5 border-white/10">
                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-20 transition-opacity">
                  <ShieldCheck className="w-24 h-24 text-emerald-500" />
               </div>
@@ -316,7 +399,7 @@ export default function LandingPage() {
           </div>
 
           <div className="mt-24 text-center">
-            <Link to="/about" className="text-mono-xs text-neutral-600 hover:text-white transition-colors uppercase tracking-[0.15em] sm:tracking-[0.3em]">Read our story →</Link>
+            <Link to="/about" className="text-mono-xs text-neutral-600 hover:text-white transition-colors uppercase tracking-[0.3em]">Read our story →</Link>
           </div>
         </div>
       </section>
@@ -324,7 +407,7 @@ export default function LandingPage() {
       {/* SECTION 13: PRICING */}
       <section id="pricing" className="py-24 px-4 lg:py-40 lg:px-12 w-full max-w-7xl mx-auto">
         <div className="text-center mb-24">
-          <h2 className="text-mono-xs text-synapse-primary mb-6">Sustainable Scaling</h2>
+          <h2 className="text-mono-xs text-synapse-primary mb-6 uppercase tracking-[0.4em]">Sustainable Scaling</h2>
           <p className="heading-huge uppercase">Pricing <span className="text-neutral-500">Tiers.</span></p>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 items-end">
@@ -340,10 +423,10 @@ export default function LandingPage() {
                 ? "bg-white text-synapse-black border-synapse-primary shadow-2xl shadow-cyan-500/20 scale-105 z-10"
                 : "bg-synapse-dark border-white/5"
              )}>
-                {plan.highlight && <div className="absolute top-0 right-0 p-4 text-mono-xs text-synapse-primary bg-synapse-primary/10 rounded-bl-xl font-black">MOST POPULAR</div>}
+                {plan.highlight && <div className="absolute top-0 right-0 p-4 text-mono-xs text-synapse-primary bg-synapse-primary/10 rounded-bl-xl font-black tracking-widest">MOST POPULAR</div>}
                 <div className={cn("text-mono-xs mb-6 uppercase tracking-widest", plan.highlight ? 'text-synapse-primary' : 'text-neutral-600')}>{plan.name}</div>
                 <div className="mb-10 flex items-baseline gap-1">
-                   {!isNaN(Number(plan.price)) && <span className="text-3xl font-black text-synapse-primary mr-1">$</span>}
+                   {!isNaN(Number(plan.price)) && <span className="text-3xl font-black text-synapse-primary mr-1 align-top">$</span>}
                    <span className="text-5xl font-black tracking-tight">{plan.price}</span>
                    {plan.period && <span className="text-[10px] uppercase font-black text-neutral-500 ml-1">{plan.period}</span>}
                 </div>
@@ -379,8 +462,8 @@ export default function LandingPage() {
               Sovereign health operating system for Africa. Connecting clinical intelligence to every life.
             </p>
             <div className="flex flex-col gap-3 text-mono-xs text-neutral-700">
-               <span className="flex items-center gap-2">🇺🇬 BUILT IN UGANDA</span>
-               <span className="flex items-center gap-2">© SYNAPSE HEALTH TECHNOLOGIES LTD</span>
+               <span className="flex items-center gap-2 uppercase tracking-widest">🇺🇬 Built in Uganda</span>
+               <span className="flex items-center gap-2 uppercase tracking-widest text-[9px]">© Synapse Health Technologies Ltd</span>
             </div>
           </div>
 
@@ -389,9 +472,8 @@ export default function LandingPage() {
             <ul className="space-y-6 text-[10px] font-black text-neutral-600 uppercase tracking-widest">
               <li><Link to="/features" className="hover:text-synapse-primary transition-colors">Features</Link></li>
               <li><Link to="/demo" className="hover:text-synapse-primary transition-colors">OS Demo</Link></li>
+              <li><Link to="/tele" className="hover:text-synapse-primary transition-colors">Telemedicine</Link></li>
               <li><a href="#pricing" className="hover:text-synapse-primary transition-colors">Pricing</a></li>
-              <li><Link to="/docs" className="hover:text-synapse-primary transition-colors">Documentation</Link></li>
-              <li><Link to="/changelog" className="hover:text-synapse-primary transition-colors">Changelog</Link></li>
             </ul>
           </div>
 
