@@ -11,7 +11,9 @@ import SignUp from './pages/auth/SignUp';
 import PilotApply from './pages/marketing/PilotApply';
 import DemoSandbox from './pages/demo/DemoSandbox';
 import SimplePage from './pages/marketing/SimplePage';
-import { Activity } from 'lucide-react';
+import Logo from "./components/Logo";
+import { ThemeToggle } from "./components/ThemeToggle";
+import { useTheme } from "./hooks/useTheme";
 
 import AuditLog from './pages/os/AuditLog';
 
@@ -35,19 +37,17 @@ const OSLayout = ({ children }: { children: React.ReactNode }) => {
   ];
 
   return (
-    <div className="min-h-screen bg-synapse-black font-sans text-white flex flex-col selection:bg-synapse-primary/30 selection:text-cyan-200">
-      <header className="h-16 bg-synapse-black/80 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-6 sticky top-0 z-50 shrink-0">
+    <div className="min-h-screen bg-[var(--bg-main)] font-sans text-[var(--text-main)] flex flex-col selection:bg-synapse-primary/30 selection:text-cyan-200">
+      <header className="h-16 bg-[var(--bg-main)]/80 backdrop-blur-md border-b border-[var(--border-main)] flex items-center justify-between px-6 sticky top-0 z-50 shrink-0">
         <div className="flex items-center gap-10">
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 bg-synapse-primary rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 shadow-lg shadow-cyan-500/20">
-              <Activity className="w-5 h-5 text-synapse-black" />
-            </div>
-            <span className="font-black text-xl tracking-tighter text-white uppercase">Synapse<span className="text-synapse-primary">OS</span></span>
+          <Link to="/" className="group">
+            <Logo size="sm" />
           </Link>
         </div>
         <div className="flex items-center gap-4">
+          <ThemeToggle />
           <div className="text-right mr-2 hidden md:block">
-            <p className="text-[10px] font-black text-white uppercase tracking-widest">Dr. Okello Moses</p>
+            <p className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest">Dr. Okello Moses</p>
             <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">Mengo Hospital • OPD</p>
           </div>
           <div className="w-10 h-10 bg-white/5 rounded-full border border-white/10 flex items-center justify-center text-synapse-primary font-black text-xs uppercase tracking-tighter group hover:border-synapse-primary/50 transition-colors cursor-pointer">OM</div>
@@ -55,7 +55,7 @@ const OSLayout = ({ children }: { children: React.ReactNode }) => {
       </header>
       
       {/* Secondary Doctor Navigation */}
-      <div className="bg-synapse-dark border-b border-white/5 px-6 flex items-center gap-8 sticky top-16 z-40 shrink-0">
+      <div className="bg-[var(--bg-card)] border-b border-[var(--border-main)] px-6 flex items-center gap-8 sticky top-16 z-40 shrink-0">
         <div className="flex items-center gap-4 py-1.5 bg-synapse-primary/10 px-3 rounded-lg border border-synapse-primary/20 my-2">
            <div className="w-1.5 h-1.5 rounded-full bg-synapse-primary animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.5)]" />
            <span className="text-[9px] font-black text-synapse-primary uppercase tracking-[0.2em]">Encounter Active</span>
@@ -71,7 +71,7 @@ const OSLayout = ({ children }: { children: React.ReactNode }) => {
                   "text-[10px] font-bold uppercase tracking-[0.2em] transition-all relative h-full flex items-center px-1",
                   isActive 
                     ? "text-synapse-primary after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-synapse-primary shadow-[0_4px_12px_rgba(6,182,212,0.1)]"
-                    : "text-neutral-500 hover:text-white"
+                    : "text-neutral-500 hover:text-[var(--text-main)]"
                 )}
               >
                 {item.label}
@@ -81,7 +81,7 @@ const OSLayout = ({ children }: { children: React.ReactNode }) => {
         </nav>
       </div>
 
-      <main className="flex-1 bg-synapse-black">
+      <main className="flex-1 bg-[var(--bg-main)]">
         <AnimatePresence mode="wait">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -99,6 +99,7 @@ const OSLayout = ({ children }: { children: React.ReactNode }) => {
 };
 
 export default function App() {
+  useTheme(); // Initialize theme
   return (
     <BrowserRouter>
       <Routes>
@@ -127,21 +128,6 @@ export default function App() {
 
         {/* App Routes (Patient) */}
         <Route path="/app/dashboard" element={<PatientDashboard />} />
-
-        {/* Stubs & Legal */}
-        <Route path="/about" element={<SimplePage />} />
-        <Route path="/features" element={<SimplePage />} />
-        <Route path="/pricing" element={<SimplePage />} />
-        <Route path="/blog" element={<SimplePage />} />
-        <Route path="/contact" element={<SimplePage />} />
-        <Route path="/careers" element={<SimplePage />} />
-        <Route path="/docs" element={<SimplePage />} />
-        <Route path="/status" element={<SimplePage />} />
-        <Route path="/changelog" element={<SimplePage />} />
-        <Route path="/privacy" element={<SimplePage />} />
-        <Route path="/terms" element={<SimplePage />} />
-        <Route path="/dpa" element={<SimplePage />} />
-        <Route path="/consent" element={<SimplePage />} />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />
