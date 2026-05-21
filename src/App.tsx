@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
+import { SynapseLogo } from './components/ui/SynapseLogo';
 import LandingPage from './pages/LandingPage';
 import DoctorQueue from './pages/os/DoctorQueue';
 import EncounterScreen from './pages/os/EncounterScreen';
@@ -29,11 +30,8 @@ const OSLayout = ({ children }: { children: React.ReactNode }) => {
     <div className="min-h-screen bg-bg-page font-sans text-text-main flex flex-col">
       <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-50 shrink-0">
         <div className="flex items-center gap-10">
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105">
-              <div className="w-4 h-4 bg-white rounded-full opacity-90 shadow-sm"></div>
-            </div>
-            <span className="font-bold text-xl tracking-tighter text-slate-900 uppercase">Synapse<span className="text-emerald-600">OS</span></span>
+          <Link to="/" className="group">
+            <SynapseLogo variant="light" className="text-slate-900 group-hover:opacity-80 transition-opacity" />
           </Link>
         </div>
         <div className="flex items-center gap-4">

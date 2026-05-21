@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
-import { User, LogIn, Mail, Lock, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { SynapseIcon } from '../../components/ui/SynapseLogo';
 
 export default function Login() {
   return (
@@ -11,9 +12,7 @@ export default function Login() {
         className="w-full max-w-md bg-white p-10 rounded-[2.5rem] border border-gray-100 shadow-2xl shadow-gray-200/50"
       >
         <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-green-600 rounded-[1.5rem] flex items-center justify-center text-white mx-auto mb-6 shadow-xl shadow-green-500/20">
-            <LogIn className="w-8 h-8" />
-          </div>
+          <SynapseIcon size={64} className="mx-auto mb-6 shadow-xl" />
           <h1 className="text-3xl font-bold text-[#0F172A] mb-2">Welcome Back</h1>
           <p className="text-gray-500 text-sm font-medium">Professional clinical login</p>
         </div>

@@ -1,178 +1,104 @@
 import { useState, useEffect } from 'react';
 import { supabase, demoQueries } from '../lib/supabase';
 
-// Demo patient queue hook
-export function useDemoPatientQueue(facilityId: string) {
+export function useDemoPatientQueue() {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchQueue = async () => {
-      try {
-        setLoading(true);
-        const { data, error: err } = await demoQueries.getPatientQueue(facilityId);
-        if (err) throw err;
-        setPatients(data || []);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (facilityId) {
-      fetchQueue();
-    }
-  }, [facilityId]);
+    demoQueries.getPatientQueue().then(({ data, error: err }) => {
+      if (err) setError(err.message);
+      else setPatients(data || []);
+      setLoading(false);
+    });
+  }, []);
 
   return { patients, loading, error };
 }
 
-// Demo encounter details hook
 export function useDemoEncounter(encounterId: string) {
   const [encounter, setEncounter] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchEncounter = async () => {
-      try {
-        setLoading(true);
-        const { data, error: err } = await supabase
-          .from('encounters')
-          .select(`
-            *,
-            patient:patients(*),
-            diagnoses:encounter_diagnoses(*),
-            observations:observations(*),
-            orders:orders(*)
-          `)
-          .eq('schema', 'demo')
-          .eq('id', encounterId)
-          .single();
-        if (err) throw err;
-        setEncounter(data);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (encounterId) {
-      fetchEncounter();
-    }
+    if (!encounterId) return;
+    demoQueries.getEncounter(encounterId).then(({ data, error: err }) => {
+      if (err) setError(err.message);
+      else setEncounter(data);
+      setLoading(false);
+    });
   }, [encounterId]);
 
   return { encounter, loading, error };
 }
 
-// Demo patients hook
-export function useDemoPatients(facilityId?: string) {
+export function useDemoPatients() {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        setLoading(true);
-        const { data, error: err } = await demoQueries.getPatients(facilityId);
-        if (err) throw err;
-        setPatients(data || []);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPatients();
-  }, [facilityId]);
+    demoQueries.getPatients().then(({ data, error: err }) => {
+      if (err) setError(err.message);
+      else setPatients(data || []);
+      setLoading(false);
+    });
+  }, []);
 
   return { patients, loading, error };
 }
 
-// Demo facilities hook
-export function useDemoFacilities() {
-  const [facilities, setFacilities] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchFacilities = async () => {
-      try {
-        setLoading(true);
-        const { data, error: err } = await demoQueries.getFacilities();
-        if (err) throw err;
-        setFacilities(data || []);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchFacilities();
-  }, []);
-
-  return { facilities, loading, error };
-}
-
-// Demo guidelines hook
-export function useDemoGuidelines(condition?: string) {
+export function useDemoGuidelines(category?: string) {
   const [guidelines, setGuidelines] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchGuidelines = async () => {
-      try {
-        setLoading(true);
-        const { data, error: err } = await demoQueries.getGuidelines(condition);
-        if (err) throw err;
-        setGuidelines(data || []);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchGuidelines();
-  }, [condition]);
+    demoQueries.getGuidelines(category).then(({ data, error: err }) => {
+      if (err) setError(err.message);
+      else setGuidelines(data || []);
+      setLoading(false);
+    });
+  }, [category]);
 
   return { guidelines, loading, error };
 }
 
-// Demo auth state hook
+export function useGuidelineSearch(term: string) {
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!term || term.length < 2) { setResults([]); return; }
+    setLoading(true);
+    demoQueries.searchGuidelines(term).then(({ data }) => {
+      setResults(data || []);
+      setLoading(false);
+    });
+  }, [term]);
+
+  return { results, loading };
+}
+
 export function useDemoAuth() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const getUser = async () => {
-      try {
-        const { data } = await supabase.auth.getUser();
-        setUser(data.user);
-      } catch (err) {
-        console.error('Auth error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    getUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user || null);
-      }
-    );
-
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user);
+      setLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
     return () => subscription?.unsubscribe();
   }, []);
 
   return { user, loading };
 }
+
+// Legacy alias kept for compatibility
+export const useDemoFacilities = () => ({ facilities: [], loading: false, error: null });

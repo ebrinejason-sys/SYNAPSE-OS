@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { 
+import {
   Play, Shield, Globe, Lock, ArrowRight, Activity, Beaker, Zap,
   Users, Stethoscope, Pill, Microscope, TrendingUp, AlertCircle,
   CheckCircle, Clock, MessageSquare, Heart, Brain
 } from 'lucide-react';
+import { SynapseLogo } from '../../components/ui/SynapseLogo';
 
 export default function DemoLandingPage() {
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
@@ -15,13 +16,8 @@ export default function DemoLandingPage() {
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-neutral-200">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 bg-green-600 rounded-xl flex items-center justify-center shadow-lg">
-              <Heart className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-lg tracking-tight text-neutral-900">
-              Synapse<span className="text-green-600">OS</span>
-            </span>
+          <Link to="/" className="group">
+            <SynapseLogo variant="light" className="text-neutral-900 group-hover:opacity-80 transition-opacity" />
           </Link>
           <div className="flex items-center gap-4">
             <a href="#features" className="text-sm font-medium text-neutral-600 hover:text-green-600 transition">Features</a>
@@ -307,13 +303,8 @@ export default function DemoLandingPage() {
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-4 gap-12 mb-12">
             <div>
-              <Link to="/" className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-green-600 rounded-xl flex items-center justify-center">
-                  <Heart className="w-5 h-5 text-white" />
-                </div>
-                <span className="font-bold tracking-tight text-neutral-900">
-                  Synapse<span className="text-green-600">OS</span>
-                </span>
+              <Link to="/" className="inline-block mb-4 group">
+                <SynapseLogo variant="light" className="text-neutral-900 group-hover:opacity-80 transition-opacity" />
               </Link>
               <p className="text-sm text-neutral-600">Sovereign AI health operating system for Africa.</p>
             </div>

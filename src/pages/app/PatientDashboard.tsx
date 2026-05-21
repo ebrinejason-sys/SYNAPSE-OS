@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { User, Bell, Calendar, FileText, Activity, ShieldCheck, ArrowRight, HeartPulse, Pill } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { SynapseIcon } from '../../components/ui/SynapseLogo';
 
 export default function PatientDashboard() {
   return (
@@ -12,7 +13,7 @@ export default function PatientDashboard() {
         <header className="px-6 pt-12 pb-6 bg-[#0F172A] text-white rounded-b-[2.5rem]">
            <div className="flex justify-between items-center mb-8">
               <div className="flex items-center gap-3">
-                 <div className="w-12 h-12 bg-green-600 rounded-2xl flex items-center justify-center text-xl font-bold">S</div>
+                 <SynapseIcon size={48} className="rounded-2xl" />
                  <div>
                     <h1 className="text-xl font-bold">Health Dashboard</h1>
                     <p className="text-xs text-gray-400 font-medium">Synced with Mengo Hospital</p>

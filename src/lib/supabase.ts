@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -5,102 +6,83 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Demo schema queries
-export const DEMO_SCHEMA = 'demo';
-
+// Demo queries — use public.demo_* tables (RLS-free, pre-seeded)
 export const demoQueries = {
-  // Facilities
-  getFacilities: () => 
+  // All patients with their department
+  getPatients: () =>
     supabase
-      .from('facilities')
-      .select('*')
-      .eq('schema', DEMO_SCHEMA)
-      .order('created_at', { ascending: false }),
+      .from('demo_patients')
+      .select(`*, department:demo_departments(name, code)`)
+      .eq('is_deleted', false)
+      .order('arrived_at', { ascending: true }),
 
-  // Patients
-  getPatients: (facilityId?: string) =>
+  // Patient queue — patients with encounters joined
+  getPatientQueue: () =>
     supabase
-      .from('patients')
-      .select('*')
-      .eq('schema', DEMO_SCHEMA)
-      .eq(facilityId ? 'facility_id' : 'id', facilityId || '')
-      .order('created_at', { ascending: false }),
-
-  // Encounters
-  getEncounters: (patientId?: string, facilityId?: string) =>
-    supabase
-      .from('encounters')
+      .from('demo_patients')
       .select(`
         *,
-        patient:patients(*),
-        diagnoses:encounter_diagnoses(*),
-        observations:observations(*),
-        orders:orders(*)
+        department:demo_departments(name, code),
+        encounters:demo_encounters(id, chief_complaint, diagnosis, status)
       `)
-      .eq('schema', DEMO_SCHEMA)
-      .eq(patientId ? 'patient_id' : 'id', patientId || '')
-      .eq(facilityId ? 'facility_id' : 'id', facilityId || '')
-      .order('created_at', { ascending: false }),
+      .eq('is_deleted', false)
+      .order('arrived_at', { ascending: true }),
 
-  // Queue (active encounters sorted by acuity)
-  getPatientQueue: (facilityId: string) =>
+  // Single encounter with patient + vitals
+  getEncounter: (encounterId: string) =>
     supabase
-      .from('encounters')
+      .from('demo_encounters')
       .select(`
         *,
-        patient:patients(*),
-        acuity_level,
-        status
+        patient:demo_patients(*),
+        vitals:demo_vitals(*),
+        orders:demo_encounter_orders(*),
+        department:demo_departments(name, code)
       `)
-      .eq('schema', DEMO_SCHEMA)
-      .eq('facility_id', facilityId)
-      .in('status', ['active', 'waiting'])
-      .order('acuity_level', { ascending: false })
-      .order('created_at', { ascending: true }),
+      .eq('id', encounterId)
+      .single(),
 
-  // Clinical Guidelines
-  getGuidelines: (condition?: string) =>
+  // Encounters for a patient
+  getPatientEncounters: (patientId: string) =>
     supabase
-      .from('clinical_guidelines')
+      .from('demo_encounters')
+      .select(`*, orders:demo_encounter_orders(*)`)
+      .eq('patient_id', patientId)
+      .order('created_at', { ascending: false }),
+
+  // Vitals for a patient
+  getVitals: (patientId: string) =>
+    supabase
+      .from('demo_vitals')
       .select('*')
-      .eq('schema', DEMO_SCHEMA)
-      .eq(condition ? 'condition' : 'id', condition || '')
-      .order('version', { ascending: false }),
+      .eq('patient_id', patientId)
+      .order('recorded_at', { ascending: false })
+      .limit(10),
 
-  // Insurance Providers
-  getInsuranceProviders: (facilityId?: string) =>
+  // UCG clinical guidelines (real data, public schema)
+  getGuidelines: (category?: string) => {
+    const q = supabase
+      .from('ucg_guidelines')
+      .select('id, guideline_code, title, category, subcategory, content, icd11_codes')
+      .eq('is_deleted', false)
+      .order('category');
+    return category ? q.ilike('category', `%${category}%`) : q;
+  },
+
+  searchGuidelines: (term: string) =>
     supabase
-      .from('insurance_providers')
+      .from('ucg_guidelines')
+      .select('id, guideline_code, title, category, subcategory, content, icd11_codes')
+      .or(`title.ilike.%${term}%,category.ilike.%${term}%,content.ilike.%${term}%`)
+      .eq('is_deleted', false)
+      .limit(5),
+
+  // Departments
+  getDepartments: () =>
+    supabase
+      .from('demo_departments')
       .select('*')
-      .eq('schema', DEMO_SCHEMA)
-      .eq(facilityId ? 'facility_id' : 'id', facilityId || '')
-      .order('name', { ascending: true }),
-
-  // Lab Orders
-  getLabOrders: (facilityId: string) =>
-    supabase
-      .from('lab_orders')
-      .select(`
-        *,
-        patient:patients(*),
-        results:lab_results(*)
-      `)
-      .eq('schema', DEMO_SCHEMA)
-      .eq('facility_id', facilityId)
-      .order('created_at', { ascending: false }),
-
-  // Pharmacy Orders
-  getPharmacyOrders: (facilityId: string) =>
-    supabase
-      .from('pharmacy_orders')
-      .select(`
-        *,
-        patient:patients(*),
-        items:pharmacy_order_items(*)
-      `)
-      .eq('schema', DEMO_SCHEMA)
-      .eq('facility_id', facilityId)
-      .order('created_at', { ascending: false }),
+      .order('name'),
 };
 
 // Auth helpers
