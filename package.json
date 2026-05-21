@@ -10,11 +10,18 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "build:demo": "vite build",
     "lint": "turbo lint",
     "type-check": "turbo type-check"
   },
+  "dependencies": {
+    "react-router-dom": "^7.0.0"
+  },
   "devDependencies": {
     "turbo": "^2.0.0",
-    "typescript": "~5.8.2"
+    "typescript": "~5.8.2",
+    "vite": "^6.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "@tailwindcss/vite": "^4.0.0"
   }
 }
