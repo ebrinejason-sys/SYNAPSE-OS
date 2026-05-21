@@ -1,41 +1,91 @@
 import React from 'react';
-import { Routes, Route, Link, Navigate } from 'react-router-dom';
-import { motion } from 'motion/react';
-import { Globe } from 'lucide-react';
+import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import DemoLandingPage from './DemoLandingPage';
 import DoctorQueue from '../os/DoctorQueue';
 import EncounterScreen from '../os/EncounterScreen';
+import { Activity, LayoutDashboard, Beaker, Shield, Terminal } from 'lucide-react';
+import { cn } from '../../lib/utils';
+
+const SidebarLink = ({ to, icon: Icon, label, active }: { to: string, icon: any, label: string, active: boolean }) => (
+  <Link
+    to={to}
+    className={cn(
+      "flex items-center gap-3 px-4 py-3 rounded-xl text-mono-xs transition-all",
+      active
+        ? "bg-synapse-primary text-synapse-black font-black shadow-lg shadow-cyan-500/20"
+        : "text-neutral-500 hover:text-white hover:bg-white/5"
+    )}
+  >
+    <Icon className="w-4 h-4" />
+    <span>{label}</span>
+  </Link>
+);
 
 export default function DemoSandbox() {
-  return (
-    <Routes>
-      <Route index element={<DemoLandingPage />} />
-      <Route path="doctor" element={<DemoLayout title="Synapse OS · Clinical Sandbox"><DoctorQueue /></DemoLayout>} />
-      <Route path="encounter/:id" element={<DemoLayout title="Synapse OS · Patient Encounter"><EncounterScreen /></DemoLayout>} />
-      <Route path="*" element={<Navigate to="/demo" replace />} />
-    </Routes>
-  );
-}
+  const location = useLocation();
 
-function DemoLayout({ children, title }: { children: React.ReactNode, title: string }) {
+  // If we are on the landing page, don't show the dashboard layout
+  if (location.pathname === '/demo' || location.pathname === '/demo/') {
+    return <DemoLandingPage />;
+  }
+
   return (
-    <div className="min-h-screen flex flex-col bg-neutral-50">
-      <nav className="h-16 bg-neutral-900 text-white px-6 flex items-center justify-between sticky top-0 z-50 border-b border-neutral-800">
-        <div className="flex items-center gap-4">
-          <Link to="/demo" className="hover:text-green-400 transition-all font-bold text-sm flex items-center gap-2 group">
-            <Globe className="w-4 h-4 group-hover:scale-110 transition-transform" /> Exit Sandbox
+    <div className="flex h-screen bg-synapse-black text-white overflow-hidden selection:bg-synapse-primary/30 selection:text-cyan-200">
+      {/* Sidebar */}
+      <aside className="w-64 border-r border-white/5 flex flex-col bg-synapse-black shrink-0">
+        <div className="p-6">
+          <Link to="/demo" className="flex items-center gap-2 group mb-10">
+            <div className="w-8 h-8 bg-synapse-primary rounded-lg flex items-center justify-center shadow-lg shadow-cyan-500/20">
+              <Activity className="w-5 h-5 text-synapse-black" />
+            </div>
+            <span className="font-black text-lg tracking-tighter text-white uppercase">
+              Synapse<span className="text-synapse-primary font-black">OS</span>
+            </span>
           </Link>
-          <div className="h-4 w-px bg-white/20" />
-          <span className="text-xs font-bold uppercase tracking-[0.2em] text-neutral-400">{title}</span>
+
+          <nav className="space-y-2">
+            <SidebarLink
+              to="/demo/doctor"
+              icon={LayoutDashboard}
+              label="Patient Queue"
+              active={location.pathname === '/demo/doctor'}
+            />
+            <SidebarLink
+              to="/demo/lab"
+              icon={Beaker}
+              label="Lab Orders"
+              active={location.pathname === '/demo/lab'}
+            />
+            <SidebarLink
+              to="/demo/security"
+              icon={Shield}
+              label="Audit Logs"
+              active={location.pathname === '/demo/security'}
+            />
+          </nav>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="px-3 py-1 bg-green-500/10 text-green-400 border border-green-500/20 rounded-full text-[10px] font-bold uppercase tracking-widest animate-pulse">
-            Sandbox Active
+
+        <div className="mt-auto p-6">
+          <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
+            <div className="flex items-center gap-2 text-mono-xs text-synapse-primary mb-2">
+              <Terminal className="w-3 h-3" />
+              SANDBOX MODE
+            </div>
+            <p className="text-[10px] text-neutral-500 font-bold uppercase leading-relaxed tracking-wider">
+              Isolated demo environment. All actions are simulated.
+            </p>
           </div>
         </div>
-      </nav>
-      <main className="flex-1 overflow-auto">
-        {children}
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-auto bg-synapse-black relative">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-synapse-primary to-transparent opacity-20" />
+        <Routes>
+          <Route path="doctor" element={<DoctorQueue />} />
+          <Route path="encounter/:id" element={<EncounterScreen />} />
+          <Route path="*" element={<DoctorQueue />} />
+        </Routes>
       </main>
     </div>
   );
