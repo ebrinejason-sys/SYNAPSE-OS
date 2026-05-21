@@ -15,7 +15,8 @@
     "type-check": "turbo type-check"
   },
   "dependencies": {
-    "react-router-dom": "^7.0.0"
+    "react-router-dom": "^7.0.0",
+    "motion": "^12.0.0"
   },
   "devDependencies": {
     "turbo": "^2.0.0",
