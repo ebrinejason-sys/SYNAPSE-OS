@@ -35,31 +35,33 @@ export function OSLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Sub-nav */}
-      <div className="bg-surface-1 border-b border-edge px-6 flex items-center gap-8 sticky top-14 z-40 shrink-0">
-        <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-gold/10 border border-gold/20 my-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
-          <span className="text-[9px] font-black text-gold uppercase tracking-[0.2em]">Encounter Active</span>
-        </div>
+      <div className="bg-surface-1 border-b border-edge sticky top-14 z-40 shrink-0 overflow-x-auto">
+        <div className="flex items-center gap-6 px-6 min-w-max">
+          <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-gold/10 border border-gold/20 my-2 shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
+            <span className="text-[9px] font-black text-gold uppercase tracking-[0.2em]">Encounter Active</span>
+          </div>
 
-        <nav className="flex items-center gap-6 h-11">
-          {NAV_ITEMS.map(item => {
-            const isActive = location.pathname === item.path;
-            return (
-              <Link
-                key={item.label}
-                to={item.path}
-                className={cn(
-                  'text-[10px] font-black uppercase tracking-[0.2em] h-full flex items-center px-1 border-b-2 transition-all',
-                  isActive
-                    ? 'text-gold border-gold'
-                    : 'text-text-3 border-transparent hover:text-text-2 hover:border-edge-strong'
-                )}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+          <nav className="flex items-center gap-6 h-11">
+            {NAV_ITEMS.map(item => {
+              const isActive = location.pathname === item.path;
+              return (
+                <Link
+                  key={item.label}
+                  to={item.path}
+                  className={cn(
+                    'text-[10px] font-black uppercase tracking-[0.2em] h-full flex items-center px-1 border-b-2 transition-all whitespace-nowrap',
+                    isActive
+                      ? 'text-gold border-gold'
+                      : 'text-text-3 border-transparent hover:text-text-2 hover:border-edge-strong'
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
       </div>
 
       {/* Page content */}

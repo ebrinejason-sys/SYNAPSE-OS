@@ -115,6 +115,19 @@
   }
 }
 
+@utility btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm uppercase tracking-widest transition-all duration-200 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed select-none border;
+  border-color: var(--color-edge-strong);
+  color: var(--color-text-2);
+  background: var(--color-surface-2);
+
+  &:hover:not(:disabled) {
+    background: var(--color-surface-3);
+    border-color: var(--color-gold);
+    color: var(--color-text-1);
+  }
+}
+
 /* Cards */
 @utility card {
   @apply rounded-2xl border transition-all duration-200;
@@ -185,6 +198,13 @@
 }
 
 @utility badge-amber {
+  @apply badge;
+  background: rgba(251,191,36,0.1);
+  color: var(--color-amber);
+  border: 1px solid rgba(251,191,36,0.2);
+}
+
+@utility badge-warning {
   @apply badge;
   background: rgba(251,191,36,0.1);
   color: var(--color-amber);
@@ -284,6 +304,17 @@
   50%       { box-shadow: 0 0 0 6px transparent; }
 }
 .animate-pulse-gold { animation: pulse-gold 2s ease-in-out infinite; }
+
+/* Legacy aliases — keeps old code working during migration */
+@utility text-mono-xs {
+  @apply text-[10px] font-bold uppercase tracking-[0.15em];
+  color: var(--color-text-3);
+}
+
+@utility heading-huge {
+  @apply text-5xl lg:text-7xl xl:text-8xl font-bold tracking-tight leading-none;
+  font-family: var(--font-display);
+}
 
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

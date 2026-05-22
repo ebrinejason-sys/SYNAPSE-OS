@@ -2,10 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Activity,
   ArrowLeft,
   ChevronRight,
-  User,
   MapPin,
   ShieldCheck,
   Clock,
@@ -13,9 +11,11 @@ import {
   AlertCircle,
   CheckCircle2,
   Calendar,
-  MessageSquare
+  MessageSquare,
+  Activity
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { SynapseLogo } from '../../components/ui/SynapseLogo';
 import { CHATBOT_STEPS, calculateTriage, TriageResult } from '../../lib/chatbot-engine';
 
 interface ChatMessage {
@@ -26,7 +26,7 @@ interface ChatMessage {
 
 export default function TelemedicinePage() {
   const navigate = useNavigate();
-  const [currentStepIndex, setCurrentStepIndex] = useState(-1); // -1 = welcome
+  const [currentStepIndex, setCurrentStepIndex] = useState(-1);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -62,20 +62,16 @@ export default function TelemedicinePage() {
     const updatedAnswers = { ...answers, [currentStep!.key]: answer };
     setAnswers(updatedAnswers);
 
-    // Add user message
     setMessages(prev => [...prev, {
       id: `answer-${currentStep!.id}`,
       sender: 'user',
       content: label || String(answer)
     }]);
 
-    // Find next step
     let nextIndex = currentStepIndex + 1;
     while (nextIndex < CHATBOT_STEPS.length) {
       const nextStep = CHATBOT_STEPS[nextIndex];
-      if (!nextStep.condition || nextStep.condition(updatedAnswers)) {
-        break;
-      }
+      if (!nextStep.condition || nextStep.condition(updatedAnswers)) break;
       nextIndex++;
     }
 
@@ -86,12 +82,12 @@ export default function TelemedicinePage() {
 
         let extraContent = null;
         if (nextStep.key === 'district') {
-           extraContent = (
-             <div className="mt-2 p-2 bg-synapse-primary/10 border border-synapse-primary/20 rounded-lg flex items-start gap-2">
-                <MapPin className="w-3 h-3 text-synapse-primary shrink-0 mt-0.5" />
-                <span className="text-[10px] text-synapse-primary font-bold leading-tight">This helps us find the nearest SynapseOS facility and provide relevant public health alerts.</span>
-             </div>
-           );
+          extraContent = (
+            <div className="mt-2 p-2 bg-gold/10 border border-gold/20 rounded-lg flex items-start gap-2">
+              <MapPin className="w-3 h-3 text-gold shrink-0 mt-0.5" />
+              <span className="text-[10px] text-gold font-bold leading-tight">This helps us find the nearest SynapseOS facility and provide relevant public health alerts.</span>
+            </div>
+          );
         }
 
         setMessages(prev => [...prev, {
@@ -105,31 +101,28 @@ export default function TelemedicinePage() {
           )
         }]);
       } else {
-        // Triage complete
         const result = calculateTriage(updatedAnswers);
         setTriageResult(result);
-        setCurrentStepIndex(CHATBOT_STEPS.length); // Step 14
+        setCurrentStepIndex(CHATBOT_STEPS.length);
       }
     }, 400);
   };
 
   return (
-    <div className="min-h-screen bg-synapse-black text-white font-sans selection:bg-synapse-primary/30">
+    <div className="min-h-screen bg-ink text-text-1">
       {/* Navigation */}
-      <header className="h-16 border-b border-white/5 flex items-center justify-between px-6 sticky top-0 z-50 bg-synapse-black/80 backdrop-blur-md">
-        <Link to="/" className="flex items-center gap-2 text-neutral-400 hover:text-white transition-colors group">
+      <header className="h-16 border-b border-edge flex items-center justify-between px-6 sticky top-0 z-50 bg-ink/80 backdrop-blur-md">
+        <Link to="/" className="flex items-center gap-2 text-text-3 hover:text-text-1 transition-colors group">
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
           <span className="text-[10px] font-black uppercase tracking-widest">Back to Home</span>
         </Link>
-        <div className="flex items-center gap-2">
-           <Activity className="w-5 h-5 text-synapse-primary" />
-           <span className="font-black text-sm tracking-tighter uppercase">Synapse<span className="text-synapse-primary">Telemedicine</span></span>
-        </div>
+        <SynapseLogo />
+        <div className="w-4" />
       </header>
 
       <main className="max-w-7xl mx-auto flex flex-col md:flex-row h-[calc(100vh-64px)]">
         {/* Left Panel: Chatbot */}
-        <div className="flex-1 md:w-[60%] border-r border-white/5 flex flex-col overflow-hidden">
+        <div className="flex-1 md:w-[60%] border-r border-edge flex flex-col overflow-hidden">
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
             <AnimatePresence initial={false}>
               {messages.map((msg) => (
@@ -145,8 +138,8 @@ export default function TelemedicinePage() {
                   <div className={cn(
                     "px-4 py-3 rounded-2xl text-sm font-medium",
                     msg.sender === 'ai'
-                      ? "bg-[#F0FDF4] text-synapse-black border border-[#DCFCE7] rounded-tl-none"
-                      : "bg-white text-synapse-black border border-synapse-primary/20 rounded-tr-none"
+                      ? "bg-surface-2 text-text-1 border border-edge rounded-tl-none"
+                      : "bg-gold/10 text-text-1 border border-gold/20 rounded-tr-none"
                   )}>
                     {msg.content}
                   </div>
@@ -166,11 +159,11 @@ export default function TelemedicinePage() {
           </div>
 
           {/* Input Area */}
-          <div className="p-6 border-t border-white/5 bg-synapse-dark/30">
+          <div className="p-6 border-t border-edge bg-surface-1/30">
             {currentStepIndex === -1 && (
-               <button onClick={handleStart} className="btn-primary w-full group">
-                 Start Consultation <ChevronRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform inline" />
-               </button>
+              <button type="button" onClick={handleStart} className="btn-primary w-full group">
+                Start Consultation <ChevronRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform inline" />
+              </button>
             )}
 
             {currentStep && (
@@ -180,8 +173,9 @@ export default function TelemedicinePage() {
                     {currentStep.options?.map(opt => (
                       <button
                         key={opt}
+                        type="button"
                         onClick={() => handleAnswer(opt)}
-                        className="px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-wider hover:border-synapse-primary hover:bg-synapse-primary/10 transition-all text-neutral-300 hover:text-white"
+                        className="px-3 py-2 bg-surface-2 border border-edge rounded-xl text-[10px] font-bold uppercase tracking-wider hover:border-gold hover:bg-gold/10 transition-all text-text-3 hover:text-text-1"
                       >
                         {opt}
                       </button>
@@ -192,19 +186,20 @@ export default function TelemedicinePage() {
                 {currentStep.type === 'scale' && (
                   <div className="space-y-4">
                     <div className="flex justify-between px-1">
-                       {Array.from({ length: 10 }, (_, i) => i + 1).map(val => (
-                         <button
-                           key={val}
-                           onClick={() => handleAnswer(val)}
-                           className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-xs font-bold hover:bg-synapse-primary hover:text-synapse-black hover:border-synapse-primary transition-all"
-                         >
-                           {val}
-                         </button>
-                       ))}
+                      {Array.from({ length: 10 }, (_, i) => i + 1).map(val => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => handleAnswer(val)}
+                          className="w-8 h-8 rounded-full border border-edge flex items-center justify-center text-xs font-bold hover:bg-gold hover:text-ink hover:border-gold transition-all"
+                        >
+                          {val}
+                        </button>
+                      ))}
                     </div>
-                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-neutral-500">
-                       <span>Mild</span>
-                       <span>Unbearable</span>
+                    <div className="flex justify-between label-xs">
+                      <span>Mild</span>
+                      <span>Unbearable</span>
                     </div>
                   </div>
                 )}
@@ -212,25 +207,26 @@ export default function TelemedicinePage() {
                 {currentStep.type === 'multiselect' && (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-2">
-                       {currentStep.options?.map(opt => (
-                         <label key={opt} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 cursor-pointer hover:border-white/20 transition-all group">
-                            <input
-                              type="checkbox"
-                              className="w-4 h-4 rounded border-white/20 bg-transparent text-synapse-primary focus:ring-synapse-primary"
-                              onChange={(e) => {
-                                const current = answers[currentStep.key] || [];
-                                if (e.target.checked) {
-                                  setAnswers({ ...answers, [currentStep.key]: [...current, opt] });
-                                } else {
-                                  setAnswers({ ...answers, [currentStep.key]: current.filter((x: string) => x !== opt) });
-                                }
-                              }}
-                            />
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 group-hover:text-white">{opt}</span>
-                         </label>
-                       ))}
+                      {currentStep.options?.map(opt => (
+                        <label key={opt} className="flex items-center gap-3 p-3 rounded-xl bg-surface-2 border border-edge cursor-pointer hover:border-edge-strong transition-all group">
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 rounded border-edge bg-transparent text-gold focus:ring-gold"
+                            onChange={(e) => {
+                              const current = answers[currentStep.key] || [];
+                              if (e.target.checked) {
+                                setAnswers({ ...answers, [currentStep.key]: [...current, opt] });
+                              } else {
+                                setAnswers({ ...answers, [currentStep.key]: current.filter((x: string) => x !== opt) });
+                              }
+                            }}
+                          />
+                          <span className="label-xs text-text-3 group-hover:text-text-1">{opt}</span>
+                        </label>
+                      ))}
                     </div>
                     <button
+                      type="button"
                       onClick={() => handleAnswer(answers[currentStep.key] || ['None'], (answers[currentStep.key] || ['None']).join(', '))}
                       className="btn-primary w-full"
                     >
@@ -253,6 +249,7 @@ export default function TelemedicinePage() {
                       }}
                     />
                     <button
+                      type="button"
                       onClick={(e) => {
                         const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
                         handleAnswer(input.value);
@@ -264,28 +261,27 @@ export default function TelemedicinePage() {
                   </div>
                 )}
 
-                {/* Insurance Special */}
                 {currentStep.key === 'insurance' && answers.insurance === 'Yes — I have insurance' && (
-                  <div className="p-3 bg-synapse-emerald/10 border border-synapse-emerald/20 rounded-xl flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-synapse-emerald/20 flex items-center justify-center shrink-0">
-                      <ShieldCheck className="w-4 h-4 text-synapse-emerald" />
+                  <div className="p-3 bg-emerald/10 border border-emerald/20 rounded-xl flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald/20 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-4 h-4 text-emerald" />
                     </div>
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-synapse-emerald mb-1">Insurance Sync Available</p>
-                      <p className="text-[10px] text-neutral-400 font-medium leading-relaxed">You can sync your insurance details on admission. Download the Synapse App to store your insurance card.</p>
+                      <p className="label-xs text-emerald mb-1">Insurance Sync Available</p>
+                      <p className="text-[10px] text-text-3 font-medium leading-relaxed">You can sync your insurance details on admission. Download the Synapse App to store your insurance card.</p>
                     </div>
                   </div>
                 )}
 
                 {/* Progress Bar */}
                 <div className="pt-4 space-y-2">
-                  <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-neutral-500">
+                  <div className="flex justify-between label-xs">
                     <span>Progress</span>
                     <span>Step {currentStepIndex + 1} of {CHATBOT_STEPS.length}</span>
                   </div>
-                  <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-1 w-full bg-surface-3 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-synapse-primary transition-all duration-500"
+                      className="h-full bg-gold transition-all duration-500"
                       style={{ width: `${((currentStepIndex + 1) / CHATBOT_STEPS.length) * 100}%` }}
                     />
                   </div>
@@ -296,9 +292,9 @@ export default function TelemedicinePage() {
         </div>
 
         {/* Right Panel: Info */}
-        <div className="hidden md:flex md:w-[40%] bg-synapse-dark/20 flex-col p-8 space-y-12 overflow-y-auto">
+        <div className="hidden md:flex md:w-[40%] bg-surface-1/20 flex-col p-8 space-y-12 overflow-y-auto">
           <section>
-            <h3 className="text-mono-xs text-synapse-primary mb-6">How It Works</h3>
+            <h3 className="label-sm text-gold mb-6">How It Works</h3>
             <div className="space-y-6">
               {[
                 { icon: MessageSquare, text: "Answer questions (2 min)" },
@@ -307,11 +303,11 @@ export default function TelemedicinePage() {
                 { icon: ShieldCheck, text: "Receive prescription" },
               ].map((item, i) => (
                 <div key={i} className="flex items-center gap-4 group">
-                  <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:border-synapse-primary/50 transition-colors">
-                    <item.icon className="w-4 h-4 text-neutral-400 group-hover:text-synapse-primary transition-colors" />
+                  <div className="w-10 h-10 rounded-xl bg-surface-2 border border-edge flex items-center justify-center group-hover:border-gold/50 transition-colors">
+                    <item.icon className="w-4 h-4 text-text-3 group-hover:text-gold transition-colors" />
                   </div>
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-neutral-300">
-                    <span className="text-synapse-primary mr-2">{i + 1}.</span> {item.text}
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-text-2">
+                    <span className="text-gold mr-2">{i + 1}.</span> {item.text}
                   </span>
                 </div>
               ))}
@@ -319,40 +315,38 @@ export default function TelemedicinePage() {
           </section>
 
           <section>
-            <h3 className="text-mono-xs text-neutral-500 mb-6 uppercase tracking-widest">Available Doctors Today</h3>
+            <h3 className="label-sm mb-6">Available Doctors Today</h3>
             <div className="space-y-4">
               {[
                 { name: 'Dr. Okello Moses', spec: 'General Medicine', status: 'available' },
                 { name: 'Dr. Nalwoga Sarah', spec: 'Family Medicine', status: 'available' },
                 { name: 'Dr. Ssemwanga John', spec: 'Paediatrics', status: 'limited' },
               ].map((doc, i) => (
-                <div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between group hover:bg-white/10 transition-colors">
+                <div key={i} className="p-4 rounded-2xl bg-surface-2 border border-edge flex items-center justify-between group hover:bg-surface-3 transition-colors">
                   <div>
-                    <p className="text-xs font-bold text-white mb-1">{doc.name}</p>
-                    <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{doc.spec}</p>
+                    <p className="text-xs font-bold text-text-1 mb-1">{doc.name}</p>
+                    <p className="label-xs">{doc.spec}</p>
                   </div>
                   <div className={cn(
                     "w-2 h-2 rounded-full",
-                    doc.status === 'available' ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+                    doc.status === 'available' ? "bg-emerald animate-pulse" : "bg-amber"
                   )} />
                 </div>
               ))}
             </div>
           </section>
 
-          <footer className="pt-8 mt-auto border-t border-white/5 space-y-4">
-            <div className="flex items-center gap-3 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
-              <ShieldCheck className="w-3 h-3 text-synapse-primary" />
-              All consultations are encrypted
-            </div>
-            <div className="flex items-center gap-3 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
-              <ShieldCheck className="w-3 h-3 text-synapse-primary" />
-              Uganda DPPA 2019 compliant
-            </div>
-            <div className="flex items-center gap-3 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
-              <Activity className="w-3 h-3 text-synapse-primary" />
-              AI assists — doctor decides
-            </div>
+          <footer className="pt-8 mt-auto border-t border-edge space-y-4">
+            {[
+              { icon: ShieldCheck, text: "All consultations are encrypted" },
+              { icon: ShieldCheck, text: "Uganda DPPA 2019 compliant" },
+              { icon: Activity, text: "AI assists — doctor decides" },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-3 label-xs">
+                <item.icon className="w-3 h-3 text-gold" />
+                {item.text}
+              </div>
+            ))}
           </footer>
         </div>
       </main>
@@ -370,54 +364,54 @@ function TriageDisplay({ result, answers }: { result: TriageResult, answers: any
   if (result.level === 'emergency') {
     return (
       <div className="space-y-6">
-        <div className="p-8 rounded-3xl bg-red-500 text-white shadow-2xl shadow-red-500/20">
+        <div className="p-8 rounded-3xl bg-red text-white shadow-2xl shadow-red/20">
           <div className="flex items-center gap-3 mb-4">
-             <AlertCircle className="w-8 h-8" />
-             <h2 className="text-3xl font-black uppercase tracking-tighter">Emergency</h2>
+            <AlertCircle className="w-8 h-8" />
+            <h2 className="text-3xl font-black uppercase tracking-tighter">Emergency</h2>
           </div>
           <p className="text-lg font-bold leading-tight mb-2">Based on your symptoms, you need immediate medical attention.</p>
           <p className="text-sm opacity-90 mb-8 font-medium">Please call 999 or go to the nearest emergency room NOW.</p>
 
           <div className="p-6 bg-black/20 rounded-2xl border border-white/20 backdrop-blur-sm mb-8">
-             <h4 className="text-[10px] font-black uppercase tracking-widest mb-4 opacity-70">Nearest SynapseOS Hospital</h4>
-             <p className="text-lg font-black mb-1">Mulago National Referral Hospital</p>
-             <div className="flex items-center gap-2 text-xs font-bold mb-4 opacity-80">
-                <MapPin className="w-3 h-3" /> 2.3 km away
-             </div>
-             <div className="space-y-2 mb-6">
-               <div className="flex items-center gap-2 text-xs font-bold">
-                 <Phone className="w-3 h-3" /> +256 414 554 000
-               </div>
-               <div className="flex items-center gap-2 text-xs font-bold text-red-100">
-                 <Activity className="w-3 h-3" /> Emergency department — open 24/7
-               </div>
-             </div>
-             <button className="w-full py-3 bg-white text-red-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-neutral-100 transition-colors">
-               Get Directions
-             </button>
+            <h4 className="text-[10px] font-black uppercase tracking-widest mb-4 opacity-70">Nearest SynapseOS Hospital</h4>
+            <p className="text-lg font-black mb-1">Mulago National Referral Hospital</p>
+            <div className="flex items-center gap-2 text-xs font-bold mb-4 opacity-80">
+              <MapPin className="w-3 h-3" /> 2.3 km away
+            </div>
+            <div className="space-y-2 mb-6">
+              <div className="flex items-center gap-2 text-xs font-bold">
+                <Phone className="w-3 h-3" /> +256 414 554 000
+              </div>
+              <div className="flex items-center gap-2 text-xs font-bold text-red-100">
+                <Activity className="w-3 h-3" /> Emergency department — open 24/7
+              </div>
+            </div>
+            <button type="button" className="w-full py-3 bg-white text-red-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-neutral-100 transition-colors">
+              Get Directions
+            </button>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-             <button className="py-4 bg-white/10 hover:bg-white/20 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all">
-               Call 999
-             </button>
-             <button className="py-4 bg-white/10 hover:bg-white/20 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all">
-               Share Location
-             </button>
+            <button type="button" className="py-4 bg-white/10 hover:bg-white/20 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all">
+              Call 999
+            </button>
+            <button type="button" className="py-4 bg-white/10 hover:bg-white/20 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all">
+              Share Location
+            </button>
           </div>
         </div>
 
-        <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between">
-           <div className="flex items-center gap-3">
-             <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
-                <ShieldCheck className="w-5 h-5 text-red-500" />
-             </div>
-             <div>
-                <p className="text-xs font-bold text-white">Medical ID Prepared</p>
-                <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-bold">Show to first responder</p>
-             </div>
-           </div>
-           <button className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border border-white/10">View ID</button>
+        <div className="card p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-red/20 flex items-center justify-center">
+              <ShieldCheck className="w-5 h-5 text-red" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-text-1">Medical ID Prepared</p>
+              <p className="label-xs">Show to first responder</p>
+            </div>
+          </div>
+          <button type="button" className="btn-ghost text-xs border border-edge">View ID</button>
         </div>
       </div>
     );
@@ -429,13 +423,13 @@ function TriageDisplay({ result, answers }: { result: TriageResult, answers: any
     <div className="space-y-6">
       <div className={cn(
         "p-8 rounded-3xl shadow-2xl transition-all",
-        isUrgent ? "bg-amber-500 text-synapse-black shadow-amber-500/20" : "bg-synapse-emerald text-synapse-black shadow-emerald-500/20"
+        isUrgent ? "bg-amber text-ink shadow-amber/20" : "bg-emerald text-ink shadow-emerald/20"
       )}>
         <div className="flex items-center gap-3 mb-6">
-           {isUrgent ? <Clock className="w-8 h-8" /> : <CheckCircle2 className="w-8 h-8" />}
-           <h2 className="text-3xl font-black uppercase tracking-tighter">
-             {isUrgent ? 'Urgent' : 'Routine'}
-           </h2>
+          {isUrgent ? <Clock className="w-8 h-8" /> : <CheckCircle2 className="w-8 h-8" />}
+          <h2 className="text-3xl font-black uppercase tracking-tighter">
+            {isUrgent ? 'Urgent' : 'Routine'}
+          </h2>
         </div>
         <p className="text-lg font-black leading-tight mb-2">
           {isUrgent ? 'You should see a doctor today' : 'Your symptoms can be safely assessed in a scheduled appointment'}
@@ -444,26 +438,26 @@ function TriageDisplay({ result, answers }: { result: TriageResult, answers: any
           {result.explanation}
         </p>
 
-        <button onClick={handleBooking} className="w-full py-4 bg-synapse-black text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-neutral-900 transition-all shadow-xl flex items-center justify-center group">
+        <button type="button" onClick={handleBooking} className="w-full py-4 bg-ink text-text-1 rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-surface-1 transition-all shadow-xl flex items-center justify-center group">
           {isUrgent ? 'See Available Appointments' : 'Browse Appointments'}
           <ChevronRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </button>
       </div>
 
       <div className="card p-6">
-        <h4 className="text-mono-xs text-neutral-500 mb-4 uppercase tracking-widest">Available {isUrgent ? 'Today' : 'This Week'}</h4>
+        <h4 className="label-sm mb-4">Available {isUrgent ? 'Today' : 'This Week'}</h4>
         <div className="space-y-3">
           {[
             { name: 'Dr. Okello Moses', time: '10:30 AM', slots: '1 slot' },
             { name: 'Dr. Nalwoga Sarah', time: '2:15 PM', slots: '2 slots' },
             { name: 'Dr. Ssemwanga John', time: '4:00 PM', slots: '1 slot' },
           ].map((slot, i) => (
-            <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-white/5 hover:border-synapse-primary/50 transition-colors group cursor-pointer" onClick={handleBooking}>
+            <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-edge hover:border-gold/50 transition-colors group cursor-pointer" onClick={handleBooking}>
               <div>
-                <p className="text-xs font-bold text-white mb-0.5 group-hover:text-synapse-primary transition-colors">{slot.name}</p>
-                <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">{slot.slots} available</p>
+                <p className="text-xs font-bold text-text-1 mb-0.5 group-hover:text-gold transition-colors">{slot.name}</p>
+                <p className="label-xs">{slot.slots} available</p>
               </div>
-              <div className="text-[10px] font-black text-synapse-primary bg-synapse-primary/10 px-3 py-1.5 rounded-lg border border-synapse-primary/20">
+              <div className="label-xs text-gold bg-gold/10 px-3 py-1.5 rounded-lg border border-gold/20">
                 {slot.time}
               </div>
             </div>
