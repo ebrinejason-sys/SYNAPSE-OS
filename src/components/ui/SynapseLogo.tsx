@@ -8,20 +8,16 @@ interface SynapseIconProps {
   className?: string;
 }
 
-export function SynapseLogo({ variant = 'light', className = '' }: SynapseLogoProps) {
-  const src = variant === 'dark'
-    ? '/assets/logos/synapse-icon.jpg'
-    : '/assets/logos/synapse-logo.png';
-
+export function SynapseLogo({ className = '' }: SynapseLogoProps) {
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <img
-        src={src}
+        src="/assets/logos/synapse-logo.png"
         alt="SynapseOS"
         className="w-8 h-8 rounded-lg object-cover"
       />
-      <span className="font-extrabold text-xl tracking-tighter uppercase">
-        Synapse<span className="text-emerald-600">OS</span>
+      <span className="font-display font-extrabold text-xl tracking-tight uppercase">
+        Synapse<span className="text-gold">OS</span>
       </span>
     </div>
   );
