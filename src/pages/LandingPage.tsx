@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode } from 'react';
+﻿import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { motion, useInView } from 'motion/react';
 import {
   Shield, Activity, Users, Zap, CheckCircle, ArrowRight,
@@ -9,8 +9,9 @@ import {
 import { Link } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { SynapseLogo } from '../components/ui/SynapseLogo';
+import { ThemeToggle } from '../components/ThemeToggle';
 
-// ─── Shared animation variants ────────────────────────────────────────────────
+// â”€â”€â”€ Shared animation variants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const fadeUp = {
   hidden:  { opacity: 0, y: 24 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
@@ -46,7 +47,7 @@ function CountUp({ end, suffix = '' }: { end: number; suffix?: string }) {
   return <span ref={ref}>{val.toLocaleString()}{suffix}</span>;
 }
 
-// ─── Navbar ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Navbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const NAV_LINKS = [
   ['Solution', '#solution'],
   ['Features', '#features'],
@@ -88,6 +89,7 @@ function Navbar() {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
+          <ThemeToggle />
           <Link to="/login"
             className="text-[11px] font-bold text-text-3 hover:text-text-1 transition-colors uppercase tracking-widest px-3 py-2">
             Sign In
@@ -124,7 +126,7 @@ function Navbar() {
   );
 }
 
-// ─── Hero ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Hero() {
   return (
     <section className="min-h-screen bg-ink flex flex-col items-center justify-center px-6 pt-24 pb-16 relative overflow-hidden">
@@ -144,7 +146,7 @@ function Hero() {
             <span className="relative inline-flex rounded-full h-2 w-2 bg-gold" />
           </span>
           <span className="text-[10px] font-black text-gold uppercase tracking-[0.25em]">
-            Built in Uganda &nbsp;·&nbsp; Designed for the World
+            Built in Uganda &nbsp;Â·&nbsp; Designed for the World
           </span>
         </motion.div>
 
@@ -158,12 +160,12 @@ function Hero() {
         {/* Sub */}
         <motion.p variants={fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.35 }}
           className="text-lg text-text-2 mb-4 max-w-2xl mx-auto leading-relaxed">
-          An AI-powered hospital operating system built for African infrastructure — grounded in national clinical guidelines, offline-first, ICD-11 coded.
+          An AI-powered hospital operating system built for African infrastructure â€” grounded in national clinical guidelines, offline-first, ICD-11 coded.
         </motion.p>
 
         <motion.p variants={fadeUp} initial="hidden" animate="visible" transition={{ delay: 0.42 }}
           className="text-xs text-gold/70 mb-10 font-mono tracking-[0.15em] uppercase">
-          AI Diagnosis · Insurance Automation · Offline-First · Works on 2G · Speaks Luganda
+          AI Diagnosis Â· Insurance Automation Â· Offline-First Â· Works on 2G Â· Speaks Luganda
         </motion.p>
 
         {/* CTAs */}
@@ -207,7 +209,7 @@ function Hero() {
   );
 }
 
-// ─── Problem ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Problem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Problem() {
   const problems = [
     { stat: '70%',  color: 'text-red', label: 'of sub-Saharan hospitals still use paper records', detail: 'Lost files, duplicate patients, zero clinical history when it matters most.' },
@@ -242,7 +244,7 @@ function Problem() {
   );
 }
 
-// ─── Solution ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Solution â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Solution() {
   return (
     <section id="solution" className="bg-ink py-24 px-6">
@@ -256,15 +258,15 @@ function Solution() {
                 The AI that never<br />works without evidence.
               </motion.h2>
               <motion.p variants={fadeUp} className="text-text-2 leading-relaxed mb-8">
-                Before every diagnosis, Synapse OS loads Uganda Clinical Guidelines, retrieves top evidence for the patient's complaint, and grounds every suggestion in published national protocols. The AI sees what you see — and cites its sources.
+                Before every diagnosis, Synapse OS loads Uganda Clinical Guidelines, retrieves top evidence for the patient's complaint, and grounds every suggestion in published national protocols. The AI sees what you see â€” and cites its sources.
               </motion.p>
 
               <motion.ul variants={stagger} className="space-y-3.5 mb-10">
                 {[
-                  'Grounded in Uganda Clinical Guidelines 2023 — 18 protocols loaded',
-                  'ICD-11 coded — globally interoperable from day one',
+                  'Grounded in Uganda Clinical Guidelines 2023 â€” 18 protocols loaded',
+                  'ICD-11 coded â€” globally interoperable from day one',
                   'Confidence % shown for every differential diagnosis',
-                  'Doctor accepts, modifies, or overrides — AI never decides alone',
+                  'Doctor accepts, modifies, or overrides â€” AI never decides alone',
                   'Drug interaction checks + allergy cross-reference on every order',
                 ].map(item => (
                   <motion.li key={item} variants={fadeUp}
@@ -288,7 +290,7 @@ function Solution() {
               <div className="card-elevated p-6 border-gold/20">
                 <div className="flex items-center gap-2 mb-5">
                   <BrainCircuit className="w-4 h-4 text-gold" />
-                  <span className="label-sm text-gold">Clinical Copilot · AI Diagnosis</span>
+                  <span className="label-sm text-gold">Clinical Copilot Â· AI Diagnosis</span>
                 </div>
 
                 {[
@@ -313,12 +315,12 @@ function Solution() {
 
                 <div className="p-3 bg-gold/10 border border-gold/20 rounded-xl text-xs text-text-2 mb-4">
                   <span className="font-bold text-gold">UCG Recommendation: </span>
-                  Artemether-Lumefantrine (AL) 4 tabs BD × 3 days with fatty food. Confirm with mRDT.
+                  Artemether-Lumefantrine (AL) 4 tabs BD Ã— 3 days with fatty food. Confirm with mRDT.
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
-                  <button type="button" className="py-2 bg-gold text-ink text-xs font-black rounded-lg hover:bg-gold-accent transition-colors">✓ Accept</button>
-                  <button type="button" className="py-2 bg-surface-3 text-text-1 text-xs font-black rounded-lg border border-edge hover:border-gold/40 transition-colors">✏ Modify</button>
+                  <button type="button" className="py-2 bg-gold text-ink text-xs font-black rounded-lg hover:bg-gold-accent transition-colors">âœ“ Accept</button>
+                  <button type="button" className="py-2 bg-surface-3 text-text-1 text-xs font-black rounded-lg border border-edge hover:border-gold/40 transition-colors">âœ Modify</button>
                   <button type="button" className="py-2 bg-surface-3 text-text-3 text-xs font-bold rounded-lg border border-edge hover:border-edge-strong transition-colors">Override</button>
                 </div>
               </div>
@@ -330,11 +332,11 @@ function Solution() {
   );
 }
 
-// ─── Trust badges ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Trust badges â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function TrustBadges() {
   const badges = [
     { icon: Shield,      text: 'Uganda DPPA 2019 Compliant' },
-    { icon: Wifi,        text: 'Offline-First · Works on 2G' },
+    { icon: Wifi,        text: 'Offline-First Â· Works on 2G' },
     { icon: BrainCircuit, text: '94% Diagnostic Concordance' },
     { icon: Globe2,      text: 'ICD-11 WHO Standard' },
     { icon: Lock,        text: 'End-to-End Encrypted' },
@@ -356,7 +358,7 @@ function TrustBadges() {
   );
 }
 
-// ─── Features ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Features â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Features() {
   const features = [
     { icon: Stethoscope, title: 'Clinical AI Copilot',    desc: 'Real-time differential diagnosis grounded in Uganda Clinical Guidelines. ICD-11 coded with confidence scores and mandatory doctor sign-off.' },
@@ -397,15 +399,15 @@ function Features() {
   );
 }
 
-// ─── Departments ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Departments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Departments() {
   const depts = [
-    { icon: '🏥', title: 'National & Referral',   points: ['FHIR bundle export', 'Cross-tenant records', 'National bed queue'] },
-    { icon: '🧪', title: 'District Hospitals',    points: ['Full OPD + pharmacy + lab', 'Works on 2G', 'Offline-capable'] },
-    { icon: '👶', title: 'Maternity & Paediatrics', points: ['ANC schedule tracking', 'APGAR + PEWS scores', 'Immunisation records'] },
-    { icon: '💊', title: 'Pharmacy & Inventory',  points: ['FEFO dispensing', 'Drug interaction alerts', 'Auto reorder triggers'] },
-    { icon: '📱', title: 'Clinics & Health Centres', points: ['Set up in 24 hours', 'Grows with you', 'Patient SMS reminders'] },
-    { icon: '🌍', title: 'Community Health',       points: ['CHW mobile app', 'Catchment mapping', 'MUAC screening'] },
+    { icon: 'ðŸ¥', title: 'National & Referral',   points: ['FHIR bundle export', 'Cross-tenant records', 'National bed queue'] },
+    { icon: 'ðŸ§ª', title: 'District Hospitals',    points: ['Full OPD + pharmacy + lab', 'Works on 2G', 'Offline-capable'] },
+    { icon: 'ðŸ‘¶', title: 'Maternity & Paediatrics', points: ['ANC schedule tracking', 'APGAR + PEWS scores', 'Immunisation records'] },
+    { icon: 'ðŸ’Š', title: 'Pharmacy & Inventory',  points: ['FEFO dispensing', 'Drug interaction alerts', 'Auto reorder triggers'] },
+    { icon: 'ðŸ“±', title: 'Clinics & Health Centres', points: ['Set up in 24 hours', 'Grows with you', 'Patient SMS reminders'] },
+    { icon: 'ðŸŒ', title: 'Community Health',       points: ['CHW mobile app', 'Catchment mapping', 'MUAC screening'] },
   ];
 
   return (
@@ -440,7 +442,7 @@ function Departments() {
   );
 }
 
-// ─── SDG Impact ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ SDG Impact â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Impact() {
   const sdgs = [
     { num: 1,  title: 'No Poverty',        val: 68, color: '#E5243B' },
@@ -463,7 +465,7 @@ function Impact() {
               Every encounter counts toward<br />the Sustainable Development Goals.
             </h2>
             <p className="text-text-3 max-w-xl mx-auto text-sm leading-relaxed">
-              Every clinical action is automatically mapped to SDG indicators — giving hospitals, donors, and governments real-time health impact data.
+              Every clinical action is automatically mapped to SDG indicators â€” giving hospitals, donors, and governments real-time health impact data.
             </p>
           </motion.div>
 
@@ -486,7 +488,7 @@ function Impact() {
   );
 }
 
-// ─── Demo CTA ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Demo CTA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function DemoCTA() {
   return (
     <section className="bg-surface-1 py-20 px-6 border-y border-edge">
@@ -503,14 +505,14 @@ function DemoCTA() {
                   <span className="animate-ping absolute inset-0 rounded-full bg-gold opacity-60" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-gold" />
                 </span>
-                <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em]">Live Demo — Real Patient Data</span>
+                <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em]">Live Demo â€” Real Patient Data</span>
               </div>
 
               <h2 className="font-display text-3xl font-bold text-text-1 mb-4 tracking-tight">
                 See Synapse OS with 11 real patients<br />from Mengo Hospital.
               </h2>
               <p className="text-text-3 mb-8 max-w-lg mx-auto text-sm leading-relaxed">
-                Live data from our Supabase database — real triage statuses, real vitals, real UCG clinical guidelines. No mock data. No smoke and mirrors.
+                Live data from our Supabase database â€” real triage statuses, real vitals, real UCG clinical guidelines. No mock data. No smoke and mirrors.
               </p>
 
               <div className="flex flex-wrap gap-4 justify-center">
@@ -529,7 +531,7 @@ function DemoCTA() {
   );
 }
 
-// ─── Testimonial ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Testimonial â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Testimonial() {
   return (
     <section className="bg-ink py-20 px-6">
@@ -543,7 +545,7 @@ function Testimonial() {
             <div className="inline-flex flex-col items-center gap-1">
               <div className="w-px h-8 bg-gold/30 mb-3" />
               <p className="font-display font-bold text-text-1">Dr. Amina K.</p>
-              <p className="text-xs text-text-3 uppercase tracking-widest font-bold">Internal Medicine · Mulago National Referral Hospital · Pilot Participant</p>
+              <p className="text-xs text-text-3 uppercase tracking-widest font-bold">Internal Medicine Â· Mulago National Referral Hospital Â· Pilot Participant</p>
             </div>
           </motion.div>
         </FadeSection>
@@ -552,19 +554,19 @@ function Testimonial() {
   );
 }
 
-// ─── Team ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Team â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Team() {
   const team = [
     {
       name: 'Tushabe Ebrine',
-      role: 'Co-Founder · CEO / CTO',
+      role: 'Co-Founder Â· CEO / CTO',
       bio: 'Lead engineer who built the core clinical AI engine. Focused on infrastructure resilience, offline-first architecture, and clinical safety for high-stakes medical environments across East Africa.',
       img: '/assets/team/ebrine-tushabe.jpg',
       linkedin: '#', github: '#', hasGithub: true,
     },
     {
       name: 'Nathan David',
-      role: 'Co-Founder · COO',
+      role: 'Co-Founder Â· COO',
       bio: 'Health financing analyst with regional expertise in hospital operations, insurance systems optimisation, and healthcare economics across East Africa. Drives go-to-market and partnerships.',
       img: '/assets/team/nathan-david.jpg',
       linkedin: '#', email: 'contact@synapseos.tech', hasGithub: false,
@@ -619,7 +621,7 @@ function Team() {
   );
 }
 
-// ─── Pricing ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Pricing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Pricing() {
   const plans = [
     {
@@ -683,7 +685,7 @@ function Pricing() {
           </div>
 
           <motion.p variants={fadeUp} className="text-center text-xs text-text-3 mt-8">
-            All plans include offline mode · ICD-11 coding · UCG-grounded AI · Uganda DPPA 2019 compliance
+            All plans include offline mode Â· ICD-11 coding Â· UCG-grounded AI Â· Uganda DPPA 2019 compliance
           </motion.p>
         </FadeSection>
       </div>
@@ -691,7 +693,7 @@ function Pricing() {
   );
 }
 
-// ─── Apply CTA ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Apply CTA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ApplyCTA() {
   return (
     <section className="bg-surface-1 py-20 px-6 border-t border-edge">
@@ -723,7 +725,7 @@ function ApplyCTA() {
   );
 }
 
-// ─── Footer ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Footer() {
   const footerLinks = [
     { heading: 'Platform', links: [['Features', '/features'], ['Live Demo', '/demo'], ['Pricing', '/pricing'], ['API Docs', '/docs']] },
@@ -739,11 +741,11 @@ function Footer() {
             <SynapseLogo variant="dark" />
           </Link>
           <p className="text-text-3 text-sm leading-relaxed max-w-xs my-6">
-            The AI operating system for African healthcare. Closing the clinical intelligence gap — one hospital at a time.
+            The AI operating system for African healthcare. Closing the clinical intelligence gap â€” one hospital at a time.
           </p>
           <div className="flex gap-4">
             <span className="label-xs">Est. 2024</span>
-            <span className="label-xs">Built in Kampala 🇺🇬</span>
+            <span className="label-xs">Built in Kampala ðŸ‡ºðŸ‡¬</span>
           </div>
         </div>
 
@@ -763,10 +765,10 @@ function Footer() {
 
       <div className="max-w-7xl mx-auto pt-8 border-t border-edge flex flex-col md:flex-row justify-between items-center gap-4">
         <p className="text-xs font-bold text-text-3 uppercase tracking-widest text-center md:text-left">
-          © 2026 Synapse Health Technologies Ltd. · Kampala, Uganda.
+          Â© 2026 Synapse Health Technologies Ltd. Â· Kampala, Uganda.
         </p>
         <p className="text-xs text-text-3 tracking-wide text-center">
-          Uganda DPPA 2019 · ISO 27001 Aligned · ICD-11 WHO Standard
+          Uganda DPPA 2019 Â· ISO 27001 Aligned Â· ICD-11 WHO Standard
         </p>
         <Link to="/status" className="flex items-center gap-2 text-xs font-bold text-text-3 hover:text-gold transition-colors uppercase tracking-widest">
           <span className="w-2 h-2 rounded-full bg-emerald animate-pulse" />
@@ -777,7 +779,7 @@ function Footer() {
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function LandingPage() {
   return (
     <div className="font-body bg-ink">

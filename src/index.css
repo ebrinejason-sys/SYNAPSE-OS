@@ -1,9 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300;1,9..40,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300;1,9..40,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
-/* ─── SOVEREIGN DESIGN TOKENS ─────────────────────────────────────────────── */
+/* â”€â”€â”€ SOVEREIGN DESIGN TOKENS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @theme {
-  /* Backgrounds — obsidian scale */
+  /* Backgrounds â€” obsidian scale */
   --color-ink:       #07070A;
   --color-surface-1: #0D0D12;
   --color-surface-2: #141419;
@@ -13,7 +13,7 @@
   --color-edge:        rgba(255, 255, 255, 0.07);
   --color-edge-strong: rgba(255, 255, 255, 0.14);
 
-  /* African Gold — primary brand */
+  /* African Gold â€” primary brand */
   --color-gold:      #E8B84B;
   --color-gold-dim:  rgba(232, 184, 75, 0.12);
   --color-gold-glow: rgba(232, 184, 75, 0.25);
@@ -42,7 +42,26 @@
   --color-synapse-emerald: #34D399;
 }
 
-/* ─── BASE ────────────────────────────────────────────────────────────────── */
+/* â”€â”€â”€ BASE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* --- LIGHT MODE TOKEN OVERRIDES ----------------------------------------- */
+[data-theme="light"] {
+  --color-ink:       #F8F7F4;
+  --color-surface-1: #FFFFFF;
+  --color-surface-2: #F2F0EC;
+  --color-surface-3: #E8E5DF;
+
+  --color-edge:        rgba(0, 0, 0, 0.08);
+  --color-edge-strong: rgba(0, 0, 0, 0.16);
+
+  --color-text-1: #0D0D12;
+  --color-text-2: #4A4844;
+  --color-text-3: #8A8784;
+
+  --color-gold-dim:  rgba(232, 184, 75, 0.15);
+  --color-gold-glow: rgba(232, 184, 75, 0.30);
+
+  color-scheme: light;
+}
 @layer base {
   :root { color-scheme: dark; }
 
@@ -78,7 +97,7 @@
   * { box-sizing: border-box; }
 }
 
-/* ─── UTILITY CLASSES ─────────────────────────────────────────────────────── */
+/* â”€â”€â”€ UTILITY CLASSES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 /* Buttons */
 @utility btn-primary {
@@ -305,7 +324,7 @@
 }
 .animate-pulse-gold { animation: pulse-gold 2s ease-in-out infinite; }
 
-/* Legacy aliases — keeps old code working during migration */
+/* Legacy aliases â€” keeps old code working during migration */
 @utility text-mono-xs {
   @apply text-[10px] font-bold uppercase tracking-[0.15em];
   color: var(--color-text-3);

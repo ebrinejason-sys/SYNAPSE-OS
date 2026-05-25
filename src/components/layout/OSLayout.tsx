@@ -1,8 +1,9 @@
-import React from 'react';
+﻿import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { SynapseLogo } from '../ui/SynapseLogo';
+import { ThemeToggle } from '../ThemeToggle';
 
 const NAV_ITEMS = [
   { label: 'Queue',       path: '/os/doctor/queue' },
@@ -26,8 +27,9 @@ export function OSLayout({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-4">
           <div className="text-right hidden md:block">
             <p className="text-[10px] font-black text-text-1 uppercase tracking-widest">Dr. Okello Moses</p>
-            <p className="text-[10px] text-text-3 font-bold uppercase tracking-widest">Mengo Hospital · OPD</p>
+            <p className="text-[10px] text-text-3 font-bold uppercase tracking-widest">Mengo Hospital Â· OPD</p>
           </div>
+          <ThemeToggle />
           <div className="w-9 h-9 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold font-black text-xs uppercase cursor-pointer hover:bg-gold/20 transition-colors">
             OM
           </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { cn } from '../../lib/utils';
@@ -8,6 +8,7 @@ import {
   Brain
 } from 'lucide-react';
 import { SynapseLogo } from '../../components/ui/SynapseLogo';
+import { ThemeToggle } from '../../components/ThemeToggle';
 
 export default function DemoLandingPage() {
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
@@ -23,6 +24,7 @@ export default function DemoLandingPage() {
           <div className="flex items-center gap-8">
             <a href="#features" className="label-xs hover:text-gold transition-colors">Features</a>
             <a href="#demo" className="label-xs hover:text-gold transition-colors">Demo</a>
+            <ThemeToggle />
             <Link to="/apply" className="btn-primary py-2 px-4 text-[10px]">Apply</Link>
           </div>
         </div>
@@ -40,7 +42,7 @@ export default function DemoLandingPage() {
           >
             <div className="badge-gold inline-flex">
               <span className="w-2 h-2 bg-gold rounded-full animate-pulse" />
-              Sandbox v2.0 — No Sign-up Required
+              Sandbox v2.0 â€” No Sign-up Required
             </div>
           </motion.div>
 
@@ -59,7 +61,7 @@ export default function DemoLandingPage() {
             transition={{ delay: 0.1 }}
             className="text-lg text-text-3 mb-12 leading-relaxed max-w-2xl mx-auto font-medium"
           >
-            Experience a fully functional clinical decision support system with real-time AI diagnosis, insurance integration, and offline-first architecture—all in our interactive sandbox.
+            Experience a fully functional clinical decision support system with real-time AI diagnosis, insurance integration, and offline-first architectureâ€”all in our interactive sandbox.
           </motion.p>
 
           <motion.div
@@ -273,7 +275,7 @@ export default function DemoLandingPage() {
           </div>
           <div className="border-t border-edge pt-12 text-center">
             <p className="label-xs">
-              © 2026 Synapse Ecosystem. Built with love for Africa.
+              Â© 2026 Synapse Ecosystem. Built with love for Africa.
             </p>
           </div>
         </div>

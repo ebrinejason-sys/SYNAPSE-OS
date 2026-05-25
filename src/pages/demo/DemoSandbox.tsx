@@ -1,8 +1,9 @@
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+﻿import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import DemoLandingPage from './DemoLandingPage';
 import DoctorQueue from '../os/DoctorQueue';
 import EncounterScreen from '../os/EncounterScreen';
 import { Activity, LayoutDashboard, Beaker, Shield, Terminal } from 'lucide-react';
+import { ThemeToggle } from '../../components/ThemeToggle';
 import { cn } from '../../lib/utils';
 
 const SidebarLink = ({ to, icon: Icon, label, active }: { to: string; icon: any; label: string; active: boolean }) => (
@@ -41,6 +42,7 @@ export default function DemoSandbox() {
             </span>
           </Link>
 
+          <div className="flex justify-end mb-4"><ThemeToggle /></div>
           <nav className="space-y-1.5">
             <SidebarLink
               to="/demo/doctor"
