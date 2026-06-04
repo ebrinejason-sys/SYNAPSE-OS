@@ -1,49 +1,93 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "").split(",").map((e) => e.trim()).filter(Boolean);
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.headers.get("host") ?? "";
 
-  // Determine if this is a tenant subdomain request
-  const isPlatformAdmin = hostname.startsWith("admin.");
-  const isApp = hostname.startsWith("app.");
-  const isPublic = hostname.startsWith("synapseos.") || hostname.includes("localhost") || hostname.includes("vercel.app");
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api/") ||
+    /\.(svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2)$/.test(pathname)
+  ) {
+    return NextResponse.next();
+  }
 
-  // Extract tenant slug from subdomain (e.g. "mulago.synapseos.tech" -> "mulago")
-  const subdomain = hostname.split(".")[0];
-  const isTenantSubdomain =
-    !isPlatformAdmin &&
-    !isApp &&
-    !isPublic &&
-    subdomain !== "www" &&
-    !hostname.includes("localhost");
+  const isLocal = hostname.includes("localhost") || hostname.includes("127.0.0.1");
+  const parts = hostname.split(".");
+  const rawSubdomain = parts[0];
 
-  // Subdomain routing fires unconditionally — no auth env vars required
-  if (isTenantSubdomain) {
+  const isRootDomain =
+    hostname.startsWith("synapseos.") ||
+    hostname.startsWith("www.") ||
+    isLocal ||
+    hostname.includes("vercel.app");
+
+  const subdomain = isRootDomain ? (request.nextUrl.searchParams.get("subdomain") ?? "") : rawSubdomain;
+
+  // ── DEMO subdomain ────────────────────────────────────────────────
+  if (subdomain === "demo") {
     const url = request.nextUrl.clone();
-    url.pathname = `/os/${subdomain}${pathname}`;
+    url.pathname = `/demo${pathname === "/" ? "" : pathname}`;
     return NextResponse.rewrite(url);
   }
 
-  if (isPlatformAdmin) {
+  // ── APP subdomain ─────────────────────────────────────────────────
+  if (subdomain === "app") {
     const url = request.nextUrl.clone();
-    url.pathname = `/platform${pathname}`;
+    url.pathname = `/app-portal${pathname === "/" ? "" : pathname}`;
     return NextResponse.rewrite(url);
   }
 
-  // Guard: if Supabase env vars are not configured, skip auth and render the page
+  // ── ADMIN subdomain: email-gated ──────────────────────────────────
+  if (subdomain === "admin") {
+    const isLoginPage = pathname === "/platform/login";
+
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/platform${pathname === "/" ? "" : pathname}`;
+      return NextResponse.rewrite(url);
+    }
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      { cookies: { getAll: () => request.cookies.getAll(), setAll: () => {} } }
+    );
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user && !isLoginPage) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/platform/login";
+      return NextResponse.rewrite(url);
+    }
+    if (user && ADMIN_EMAILS.length > 0 && !ADMIN_EMAILS.includes(user.email ?? "") && !isLoginPage) {
+      return NextResponse.redirect(new URL("https://synapseos.tech?e=403", request.url));
+    }
+
+    const url = request.nextUrl.clone();
+    url.pathname = `/platform${pathname === "/" ? "" : pathname}`;
+    return NextResponse.rewrite(url);
+  }
+
+  // ── HOSPITAL subdomain: tenant portal ─────────────────────────────
+  if (subdomain && subdomain !== "www" && subdomain !== "synapseos") {
+    const response = NextResponse.rewrite(
+      new URL(`/os/${subdomain}${pathname === "/" ? "" : pathname}`, request.url)
+    );
+    response.headers.set("x-hospital-subdomain", subdomain);
+    return response;
+  }
+
+  // ── Root domain: session refresh ──────────────────────────────────
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return NextResponse.next({ request });
   }
 
-  // Create supabase response to refresh session
   let supabaseResponse = NextResponse.next({ request });
-  type CookieToSet = {
-    name: string;
-    value: string;
-    options?: Parameters<typeof supabaseResponse.cookies.set>[2];
-  };
+  type CookieToSet = { name: string; value: string; options?: Parameters<typeof supabaseResponse.cookies.set>[2] };
 
   try {
     const supabase = createServerClient(
@@ -55,40 +99,29 @@ export async function middleware(request: NextRequest) {
           setAll(cookiesToSet: CookieToSet[]) {
             cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
             supabaseResponse = NextResponse.next({ request });
-            cookiesToSet.forEach(({ name, value, options }) =>
-              supabaseResponse.cookies.set(name, value, options)
-            );
+            cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options));
           },
         },
       }
     );
-
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Protect OS routes
-    const isOsRoute = pathname.startsWith("/os/") ||
+    const isProtected =
+      pathname.startsWith("/os/") ||
       pathname.startsWith("/doctor/") ||
       pathname.startsWith("/nurse/") ||
       pathname.startsWith("/encounter/") ||
       pathname.startsWith("/lab/") ||
       pathname.startsWith("/pharmacy/") ||
       pathname.startsWith("/admin/") ||
-      pathname.startsWith("/patient/") ||
-      pathname.startsWith("/dept/") ||
-      pathname.startsWith("/sdg") ||
-      pathname.startsWith("/epidemiology");
+      pathname.startsWith("/patient/");
 
-    if (isOsRoute && !user) {
+    if (isProtected && !user) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirectTo", pathname);
       return NextResponse.redirect(loginUrl);
     }
-
-    if (pathname.startsWith("/platform") && !user) {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
   } catch {
-    // Auth failure — let the request through rather than crashing
     return NextResponse.next({ request });
   }
 
@@ -96,7 +129,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|images|fonts|icons|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
