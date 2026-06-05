@@ -1,77 +1,87 @@
-import Link from "next/link";
+import Link from 'next/link'
+import { SynapseLogo } from '../components/SynapseLogo'
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen" style={{ background: "#060D1A", color: "#f0f4ff", fontFamily: "var(--font-body)" }}>
-      <nav style={{ borderBottom: "1px solid rgba(0,212,170,0.15)", padding: "1rem 2rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.25rem", color: "#00D4AA" }}>Synapse OS</span>
-        <div style={{ display: "flex", gap: "1.5rem" }}>
-          <Link href="/features" style={{ color: "#94a3b8", fontSize: "0.875rem" }}>Features</Link>
-          <Link href="/pricing" style={{ color: "#94a3b8", fontSize: "0.875rem" }}>Pricing</Link>
-          <Link href="/demo" style={{ color: "#94a3b8", fontSize: "0.875rem" }}>Demo</Link>
-          <Link href="/apply" style={{ background: "#00D4AA", color: "#060D1A", padding: "0.5rem 1rem", borderRadius: "0.375rem", fontSize: "0.875rem", fontWeight: 600 }}>Apply for Access</Link>
+    <main className="min-h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+      <nav className="flex items-center justify-between px-6 py-4"
+           style={{ borderBottom: '1px solid var(--border-edge)' }}>
+        <SynapseLogo size="md" />
+        <div className="flex items-center gap-6">
+          <Link href="/features" className="text-sm" style={{ color: 'var(--text-secondary)' }}>Features</Link>
+          <Link href="/pricing"  className="text-sm" style={{ color: 'var(--text-secondary)' }}>Pricing</Link>
+          <Link href="/about"    className="text-sm" style={{ color: 'var(--text-secondary)' }}>About</Link>
+          <Link href="/apply"
+                className="text-sm font-semibold px-4 py-2 rounded-xl transition-all"
+                style={{ background: 'var(--brand-orange)', color: '#07070A' }}>
+            Apply for Access
+          </Link>
         </div>
       </nav>
-      <div style={{ maxWidth: "64rem", margin: "0 auto", padding: "6rem 2rem", textAlign: "center" }}>
-        <div style={{ background: "rgba(0,212,170,0.1)", border: "1px solid rgba(0,212,170,0.3)", borderRadius: "2rem", padding: "0.375rem 1rem", display: "inline-block", marginBottom: "2rem", fontSize: "0.75rem", color: "#00D4AA" }}>
-          Built in Uganda · Powered by MedGemma AI
+
+      <div className="max-w-4xl mx-auto px-6 py-24 text-center">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8 text-xs font-semibold"
+             style={{ background: 'rgba(232,184,75,0.12)', border: '1px solid var(--border-gold)', color: 'var(--brand-gold)' }}>
+          Built in Uganda · Powered by Gemini AI
         </div>
-        <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(2.5rem, 5vw, 4rem)", fontWeight: 800, lineHeight: 1.1, marginBottom: "1.5rem" }}>
+
+        <h1 className="font-display font-bold mb-6"
+            style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)', lineHeight: 1.1 }}>
           Every Hospital.<br />
-          <span style={{ color: "#00D4AA" }}>Every Patient.</span><br />
+          <span className="text-gold-gradient">Every Patient.</span><br />
           Every Step — AI-Assisted.
         </h1>
-        <p style={{ fontSize: "1.125rem", color: "#94a3b8", maxWidth: "42rem", margin: "0 auto 3rem" }}>
+
+        <p className="text-lg mb-12 mx-auto"
+           style={{ color: 'var(--text-secondary)', maxWidth: '42rem' }}>
           Synapse OS is an AI-powered Health Management Information System built for Africa.
-          Every department. Every workflow. Offline-first. FHIR R4 compliant. Grounded in Uganda Clinical Guidelines.
+          Every department. Every workflow. Offline-first. FHIR R4 compliant.
+          Grounded in Uganda Clinical Guidelines.
         </p>
-        <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-          <a
-              href="https://demo.synapseos.tech"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                background: "#00D4AA",
-                color: "#060D1A",
-                padding: "0.875rem 2rem",
-                borderRadius: "0.5rem",
-                fontWeight: 700,
-                fontSize: "1rem",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                textDecoration: "none",
-              }}
-            >
-              <span style={{ position: "relative", display: "inline-flex", height: "0.5rem", width: "0.5rem" }}>
-                <span
-                  style={{
-                    position: "absolute",
-                    display: "inline-flex",
-                    height: "100%",
-                    width: "100%",
-                    borderRadius: "9999px",
-                    background: "#060D1A",
-                    opacity: 0.75,
-                    animation: "ping 1s cubic-bezier(0,0,0.2,1) infinite",
-                  }}
-                />
-                <span
-                  style={{
-                    position: "relative",
-                    display: "inline-flex",
-                    borderRadius: "9999px",
-                    height: "0.5rem",
-                    width: "0.5rem",
-                    background: "#060D1A",
-                  }}
-                />
-              </span>
-              Try Live Demo
-            </a>
-          <Link href="/apply" style={{ border: "1px solid rgba(0,212,170,0.4)", color: "#00D4AA", padding: "0.875rem 2rem", borderRadius: "0.5rem", fontWeight: 600, fontSize: "1rem" }}>Apply for Pilot Access</Link>
+
+        <div className="flex flex-wrap gap-4 justify-center">
+          <a href="https://demo.synapseos.tech"
+             target="_blank"
+             rel="noopener noreferrer"
+             className="inline-flex items-center gap-2 text-base font-bold px-8 py-4 rounded-xl transition-all"
+             style={{ background: 'var(--brand-orange)', color: '#07070A' }}>
+            <span style={{ position: 'relative', display: 'inline-flex', height: '0.5rem', width: '0.5rem' }}>
+              <span style={{
+                position: 'absolute', display: 'inline-flex',
+                height: '100%', width: '100%', borderRadius: '9999px',
+                background: '#07070A', opacity: 0.75,
+                animation: 'ping 1s cubic-bezier(0,0,0.2,1) infinite',
+              }} />
+              <span style={{
+                position: 'relative', display: 'inline-flex',
+                borderRadius: '9999px', height: '0.5rem', width: '0.5rem',
+                background: '#07070A',
+              }} />
+            </span>
+            Try Live Demo
+          </a>
+
+          <Link href="/apply"
+                className="inline-flex items-center text-base font-semibold px-8 py-4 rounded-xl transition-all"
+                style={{ border: '1px solid var(--border-gold)', color: 'var(--brand-gold)' }}>
+            Apply for Pilot Access
+          </Link>
         </div>
       </div>
+
+      {/* Stats bar */}
+      <div className="max-w-3xl mx-auto px-6 pb-16 grid grid-cols-3 gap-6 text-center">
+        {[
+          { val: '50+', label: 'Departments' },
+          { val: 'FHIR R4', label: 'Compliant' },
+          { val: 'Uganda-first', label: 'Built for Africa' },
+        ].map(({ val, label }) => (
+          <div key={label} className="py-6 rounded-2xl" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)' }}>
+            <p className="font-display font-bold text-2xl" style={{ color: 'var(--brand-orange)' }}>{val}</p>
+            <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
+          </div>
+        ))}
+      </div>
     </main>
-  );
+  )
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/client";
+import { SynapseLogo } from "../../../../components/SynapseLogo";
 
 export default function PortalLoginPage({
   params,
@@ -43,6 +44,7 @@ export default function PortalLoginPage({
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email address"
               className="w-full bg-[#0D1B2E] border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[#00D4AA]"
             />
           </div>
@@ -53,6 +55,7 @@ export default function PortalLoginPage({
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
               className="w-full bg-[#0D1B2E] border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[#00D4AA]"
             />
           </div>

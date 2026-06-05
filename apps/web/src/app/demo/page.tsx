@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { SynapseLogo } from "../../components/SynapseLogo";
 
 type Differential = {
   condition: string;
@@ -113,10 +114,10 @@ export default function DemoPage() {
 
   return (
     <main className="min-h-screen bg-[#060D1A] text-white">
-      <header className="border-b border-[#00D4AA]/20 px-6 py-4 flex items-center justify-between">
-        <div>
-          <span className="font-bold text-[#00D4AA] text-lg">Synapse OS</span>
-          <span className="ml-3 text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">AI Demo</span>
+      <header className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-edge)' }}>
+        <div className="flex items-center gap-3">
+          <SynapseLogo size="sm" />
+          <span className="text-xs px-2 py-0.5 rounded font-medium badge-orange">AI Demo</span>
         </div>
         <a
           href="https://synapseos.tech/apply-professional"

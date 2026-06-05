@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { resolveTenant } from "../../../lib/tenant";
+import { SynapseLogo } from "../../../components/SynapseLogo";
 
 export default async function PortalLayout({
   children,
@@ -19,12 +20,12 @@ export default async function PortalLayout({
   }
 
   return (
-    <div data-tenant={tenant.hospitalId} className="min-h-screen bg-[#060D1A] text-white">
-      <header className="border-b border-[#00D4AA]/20 px-6 py-3 flex items-center justify-between">
+    <div data-tenant={tenant.hospitalId} className="min-h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+      <header className="px-6 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-edge)' }}>
         <div className="flex items-center gap-3">
-          <span className="text-[#00D4AA] font-bold">Synapse OS</span>
-          <span className="text-slate-500 text-sm">|</span>
-          <span className="text-slate-200 text-sm font-medium">{tenant.hospitalName}</span>
+          <SynapseLogo size="sm" />
+          <span style={{ color: 'var(--border-strong)' }}>|</span>
+          <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{tenant.hospitalName}</span>
         </div>
         <nav className="flex items-center gap-4 text-sm">
           <a href={`/os/${slug}/dashboard`} className="text-slate-400 hover:text-white">Dashboard</a>

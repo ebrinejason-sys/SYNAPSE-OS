@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../lib/supabase/client";
+import { SynapseLogo } from "../../../components/SynapseLogo";
 
 export default function PlatformLoginPage() {
   const [email, setEmail] = useState("");
@@ -28,6 +29,9 @@ export default function PlatformLoginPage() {
   return (
     <div className="min-h-screen bg-[#060D1A] text-white flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
+        <div className="flex justify-center mb-8">
+          <SynapseLogo size="lg" />
+        </div>
         <h1 className="text-xl font-bold mb-1">System Administration</h1>
         <p className="text-slate-400 text-sm mb-6">Restricted access</p>
         <form onSubmit={handleLogin} className="space-y-4">
