@@ -26,7 +26,49 @@ export default function HomePage() {
           Every department. Every workflow. Offline-first. FHIR R4 compliant. Grounded in Uganda Clinical Guidelines.
         </p>
         <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-          <Link href="/demo" style={{ background: "#00D4AA", color: "#060D1A", padding: "0.875rem 2rem", borderRadius: "0.5rem", fontWeight: 700, fontSize: "1rem" }}>Launch Interactive Demo</Link>
+          <a
+              href="https://demo.synapseos.tech"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                background: "#00D4AA",
+                color: "#060D1A",
+                padding: "0.875rem 2rem",
+                borderRadius: "0.5rem",
+                fontWeight: 700,
+                fontSize: "1rem",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                textDecoration: "none",
+              }}
+            >
+              <span style={{ position: "relative", display: "inline-flex", height: "0.5rem", width: "0.5rem" }}>
+                <span
+                  style={{
+                    position: "absolute",
+                    display: "inline-flex",
+                    height: "100%",
+                    width: "100%",
+                    borderRadius: "9999px",
+                    background: "#060D1A",
+                    opacity: 0.75,
+                    animation: "ping 1s cubic-bezier(0,0,0.2,1) infinite",
+                  }}
+                />
+                <span
+                  style={{
+                    position: "relative",
+                    display: "inline-flex",
+                    borderRadius: "9999px",
+                    height: "0.5rem",
+                    width: "0.5rem",
+                    background: "#060D1A",
+                  }}
+                />
+              </span>
+              Try Live Demo
+            </a>
           <Link href="/apply" style={{ border: "1px solid rgba(0,212,170,0.4)", color: "#00D4AA", padding: "0.875rem 2rem", borderRadius: "0.5rem", fontWeight: 600, fontSize: "1rem" }}>Apply for Pilot Access</Link>
         </div>
       </div>
