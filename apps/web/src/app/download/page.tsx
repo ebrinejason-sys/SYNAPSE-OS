@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import Link from 'next/link'
 import { SynapseLogo } from '../../components/SynapseLogo'
 import { Smartphone, Wifi, Heart, Activity, Shield, Download } from 'lucide-react'
 
@@ -44,9 +45,9 @@ export default function DownloadPage() {
       <nav className="flex items-center justify-between px-6 py-4"
            style={{ borderBottom: '1px solid var(--border-edge)' }}>
         <SynapseLogo size="md" />
-        <a href="/" style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+        <Link href="/" style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
           ← Back to home
-        </a>
+        </Link>
       </nav>
 
       {/* Hero */}
@@ -81,7 +82,7 @@ export default function DownloadPage() {
                 <li>Download the APK file above</li>
                 <li>Open your Downloads folder</li>
                 <li>Tap the APK file to install</li>
-                <li>If prompted, allow "Install unknown apps" for your browser</li>
+                <li>If prompted, allow &quot;Install unknown apps&quot; for your browser</li>
                 <li>Open Synapse and sign in with your account</li>
               </ol>
             </div>

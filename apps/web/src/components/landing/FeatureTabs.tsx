@@ -5,7 +5,6 @@ const TABS = [
   {
     id: 'clinical-ai',
     label: 'Clinical AI',
-    icon: '⚕️',
     heading: 'Differential Diagnosis at AI Speed',
     description:
       'MedGemma 27B generates ranked differential diagnoses grounded in Uganda Clinical Guidelines. Every suggestion cited, every confidence score explained — supporting, not replacing, clinical judgement.',
@@ -30,7 +29,6 @@ const TABS = [
   {
     id: 'insurance',
     label: 'Insurance Copilot',
-    icon: '🛡',
     heading: 'Stop Losing Revenue to Rejected Claims',
     description:
       'Real-time coverage verification inline during ordering. Claims auto-submit the moment the doctor signs. When insurers reject, Gemini Pro drafts a formal appeal with UCG citations in under 10 seconds.',
@@ -41,7 +39,7 @@ const TABS = [
       { val: 'FHIR', label: 'Claim format for all major Ugandan insurers' },
     ],
     features: [
-      '✅ / ⚠️ / ❌ coverage badges per order line',
+      'Live coverage badges (covered / partial / not covered) per order line',
       'Pre-authorisation workflow with status tracking',
       'FHIR Claim auto-generation on encounter sign',
       'AI appeal drafting with Uganda Clinical Guidelines citations',
@@ -55,7 +53,6 @@ const TABS = [
   {
     id: 'lab',
     label: 'Lab Automation',
-    icon: '🔬',
     heading: 'From Sample to Signed Result — Without Delays',
     description:
       'Auto-ingest results from lab instruments via ASTM/HL7 bridge. Critical values trigger a multi-channel notification chain in under one second. AI interprets results in the context of the working diagnosis.',
@@ -80,7 +77,6 @@ const TABS = [
   {
     id: 'pharmacy',
     label: 'Pharmacy POS',
-    icon: '💊',
     heading: 'FEFO Dispense. Zero Expired Stock.',
     description:
       'First-Expiry-First-Out batch enforcement with barcode scanning, drug interaction checking, and mobile money integration. Full POS for walk-in retail and prescription dispense workflows.',
@@ -105,7 +101,6 @@ const TABS = [
   {
     id: 'public-health',
     label: 'Public Health',
-    icon: '🌍',
     heading: 'Population Intelligence, Not Just Patient Records',
     description:
       'SDG Command Center tracks all 17 goals using real clinical data. Outbreak detection alerts when disease spikes cluster. DHIS2 nightly export keeps national systems in sync — automatically.',
@@ -153,7 +148,6 @@ export function FeatureTabs() {
               borderRadius: '0.5rem 0.5rem 0 0',
             }}
           >
-            <span style={{ fontSize: '1rem' }}>{t.icon}</span>
             {t.label}
           </button>
         ))}

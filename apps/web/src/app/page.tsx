@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { SynapseLogo } from '../components/SynapseLogo'
 import { FeatureTabs }    from '../components/landing/FeatureTabs'
 import { DemoWidget }     from '../components/landing/DemoWidget'
@@ -68,26 +69,26 @@ const METRICS = [
 
 /* ─── Department modules ────────────────────────────────────────────────── */
 const MODULES = [
-  { icon: '🏥', name: 'OPD / Consultation',   desc: 'Outpatient queue, consultation workflow, fee schedules' },
-  { icon: '🚨', name: 'Emergency A&E',         desc: 'Triage board (ESI), START algorithm, resuscitation records' },
-  { icon: '🤱', name: 'Maternity',             desc: 'ANC tracker, partograph, delivery records, PMTCT, MPDSR' },
-  { icon: '👶', name: 'Paediatrics',           desc: 'WHO growth charts, immunisation scheduler, CMAM, MUAC' },
-  { icon: '💊', name: 'HIV / ART',             desc: 'Client enrolment, ART regimen management, viral load tracking' },
-  { icon: '🫀', name: 'ICU',                   desc: 'Hourly flowsheets, SOFA/APACHE II, sepsis bundle, ventilator' },
-  { icon: '🔪', name: 'Surgery / Theatre',     desc: 'WHO SSC 3-phase checklist, intra-op records, PACU' },
-  { icon: '❤️', name: 'Cardiology',            desc: 'AI ECG interpretation, TIMI/GRACE/CHA₂DS₂-VASc scores' },
-  { icon: '🧬', name: 'Oncology',              desc: 'TNM staging, chemo protocols, BSA dosing, CTCAE toxicity' },
-  { icon: '🧠', name: 'Mental Health',         desc: 'PHQ-9, GAD-7, C-SSRS, risk assessment, safety planning' },
-  { icon: '🩺', name: 'Renal / Dialysis',      desc: 'Dialysis session records, CKD staging, renal function trends' },
-  { icon: '🏡', name: 'Care Home',             desc: 'Care plans, Barthel Index, Waterlow/Braden, falls risk' },
-  { icon: '🌍', name: 'Community Health',      desc: 'CHW mobile (offline), household surveys, contact tracing' },
-  { icon: '🎓', name: 'Teaching Hospital',     desc: 'Ward round mode, AI pre-round summaries, M&M conferences' },
-  { icon: '🔬', name: 'Laboratory',            desc: 'Orders queue, results entry, QC, AI interpretation' },
-  { icon: '💉', name: 'Pharmacy',              desc: 'FEFO dispense, POS, drug interactions, inventory' },
-  { icon: '📡', name: 'Radiology',             desc: 'DICOM viewer, AI preliminary reads, PACS integration' },
-  { icon: '💰', name: 'Finance',               desc: 'Fee schedules, invoicing, mobile money, insurance claims' },
-  { icon: '📋', name: 'Reception',             desc: 'Registration, appointments, triage queue, visitor log' },
-  { icon: '📱', name: 'Telemedicine',          desc: '13-step chatbot → video consult → AI SOAP note' },
+  { abbr: 'OPD', name: 'OPD / Consultation',  desc: 'Outpatient queue, consultation workflow, fee schedules' },
+  { abbr: 'A&E', name: 'Emergency A&E',        desc: 'Triage board (ESI), START algorithm, resuscitation records' },
+  { abbr: 'MAT', name: 'Maternity',            desc: 'ANC tracker, partograph, delivery records, PMTCT, MPDSR' },
+  { abbr: 'PAE', name: 'Paediatrics',          desc: 'WHO growth charts, immunisation scheduler, CMAM, MUAC' },
+  { abbr: 'HIV', name: 'HIV / ART',            desc: 'Client enrolment, ART regimen management, viral load tracking' },
+  { abbr: 'ICU', name: 'ICU',                  desc: 'Hourly flowsheets, SOFA/APACHE II, sepsis bundle, ventilator' },
+  { abbr: 'THR', name: 'Surgery / Theatre',    desc: 'WHO SSC 3-phase checklist, intra-op records, PACU' },
+  { abbr: 'CDO', name: 'Cardiology',           desc: 'AI ECG interpretation, TIMI/GRACE/CHA₂DS₂-VASc scores' },
+  { abbr: 'ONC', name: 'Oncology',             desc: 'TNM staging, chemo protocols, BSA dosing, CTCAE toxicity' },
+  { abbr: 'MHU', name: 'Mental Health',        desc: 'PHQ-9, GAD-7, C-SSRS, risk assessment, safety planning' },
+  { abbr: 'REN', name: 'Renal / Dialysis',     desc: 'Dialysis session records, CKD staging, renal function trends' },
+  { abbr: 'CHM', name: 'Care Home',            desc: 'Care plans, Barthel Index, Waterlow/Braden, falls risk' },
+  { abbr: 'CHW', name: 'Community Health',     desc: 'CHW mobile (offline), household surveys, contact tracing' },
+  { abbr: 'TCH', name: 'Teaching Hospital',    desc: 'Ward round mode, AI pre-round summaries, M&M conferences' },
+  { abbr: 'LAB', name: 'Laboratory',           desc: 'Orders queue, results entry, QC, AI interpretation' },
+  { abbr: 'PHM', name: 'Pharmacy',             desc: 'FEFO dispense, POS, drug interactions, inventory' },
+  { abbr: 'RAD', name: 'Radiology',            desc: 'DICOM viewer, AI preliminary reads, PACS integration' },
+  { abbr: 'FIN', name: 'Finance',              desc: 'Fee schedules, invoicing, mobile money, insurance claims' },
+  { abbr: 'REC', name: 'Reception',            desc: 'Registration, appointments, triage queue, visitor log' },
+  { abbr: 'TEL', name: 'Telemedicine',         desc: '13-step chatbot → video consult → AI SOAP note' },
 ]
 
 /* ─── SDG goals ─────────────────────────────────────────────────────────── */
@@ -222,12 +223,12 @@ const PARTNERS = [
 
 /* ─── Security trust items ───────────────────────────────────────────────── */
 const TRUST = [
-  { icon: '🔒', title: 'DPPA 2019 Compliant',   desc: 'Uganda Data Protection and Privacy Act' },
-  { icon: '🛡', title: 'Row-Level Security',      desc: 'RLS enforced on all 120+ database tables' },
-  { icon: '🔐', title: 'TLS Everywhere',          desc: 'All data encrypted in transit' },
-  { icon: '📋', title: 'Full Audit Trail',        desc: 'Every action logged with actor + timestamp' },
-  { icon: '🌐', title: 'FHIR R4 Certified',       desc: 'Open interoperability standard' },
-  { icon: '📵', title: 'Offline Capable',         desc: 'Works during internet and power outages' },
+  { abbr: 'DPPA', title: 'DPPA 2019 Compliant',  desc: 'Uganda Data Protection and Privacy Act' },
+  { abbr: 'RLS',  title: 'Row-Level Security',    desc: 'RLS enforced on all 120+ database tables' },
+  { abbr: 'TLS',  title: 'TLS Everywhere',        desc: 'All data encrypted in transit' },
+  { abbr: 'LOG',  title: 'Full Audit Trail',      desc: 'Every action logged with actor + timestamp' },
+  { abbr: 'FHIR', title: 'FHIR R4 Certified',    desc: 'Open interoperability standard' },
+  { abbr: 'OFF',  title: 'Offline Capable',       desc: 'Works during internet and power outages' },
 ]
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -313,7 +314,6 @@ export default function HomePage() {
               letterSpacing: '0.06em',
             }}
           >
-            <span style={{ fontSize: '1rem' }}>🇺🇬</span>
             Built in Uganda · Powered by Gemini AI · Open to Africa
           </div>
 
@@ -533,7 +533,7 @@ export default function HomePage() {
                 className="inline-flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-full mb-5"
                 style={{ background: 'rgba(249,115,22,0.12)', color: 'var(--brand-orange)', border: '1px solid var(--border-orange)' }}
               >
-                🏥 For Hospitals &amp; Clinics
+                For Hospitals &amp; Clinics
               </div>
               <h3 className="font-display font-bold text-2xl mb-3">SynapseOS</h3>
               <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)', lineHeight: 1.7 }}>
@@ -575,7 +575,7 @@ export default function HomePage() {
                 className="inline-flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-full mb-5"
                 style={{ background: 'rgba(232,184,75,0.12)', color: 'var(--brand-gold)', border: '1px solid var(--border-gold)' }}
               >
-                📱 For Patients &amp; Families
+                For Patients &amp; Families
               </div>
               <h3 className="font-display font-bold text-2xl mb-3">Synapse App</h3>
               <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)', lineHeight: 1.7 }}>
@@ -657,13 +657,21 @@ export default function HomePage() {
             {MODULES.map(m => (
               <div
                 key={m.name}
-                className="group p-5 rounded-2xl transition-all cursor-default"
-                style={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-edge)',
-                }}
+                className="p-5 rounded-2xl transition-all cursor-default"
+                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)' }}
               >
-                <span style={{ fontSize: '1.75rem', display: 'block', marginBottom: '0.75rem' }}>{m.icon}</span>
+                <span
+                  className="inline-flex items-center justify-center rounded-lg font-mono font-bold text-xs mb-3"
+                  style={{
+                    width: '2.25rem', height: '2.25rem',
+                    background: 'rgba(249,115,22,0.1)',
+                    color: 'var(--brand-orange)',
+                    border: '1px solid var(--border-orange)',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  {m.abbr}
+                </span>
                 <p className="font-display font-semibold text-sm mb-1.5">{m.name}</p>
                 <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{m.desc}</p>
               </div>
@@ -970,67 +978,60 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto">
-            {[
-              {
-                initials: 'ET',
-                name: 'Ebrine Tushabe',
-                role: 'Founder & CEO',
-                bio: 'Engineer and entrepreneur building sovereign health infrastructure for Africa. Deeply familiar with the operational realities of Ugandan hospitals — and why existing software fails them.',
-                color: 'var(--brand-orange)',
-                links: [
-                  { label: 'founder@synapseos.tech', href: 'mailto:founder@synapseos.tech' },
-                ],
-              },
-              {
-                initials: 'CA',
-                name: 'Clinical Advisor',
-                role: 'Co-Founder & Clinical Lead',
-                bio: 'Bringing deep clinical expertise and hospital experience to every AI decision. Ensures that every algorithm, every score, every alert reflects the realities of practice in Uganda.',
-                color: 'var(--brand-gold)',
-                links: [],
-              },
-            ].map(person => (
-              <div
-                key={person.name}
-                className="p-8 rounded-2xl flex flex-col items-start gap-5"
-                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)' }}
-              >
-                {/* Avatar */}
-                <div
-                  className="flex items-center justify-center rounded-2xl font-display font-black text-2xl shrink-0"
-                  style={{
-                    width: '4.5rem', height: '4.5rem',
-                    background: `${person.color}18`,
-                    border: `2px solid ${person.color}40`,
-                    color: person.color,
-                  }}
-                >
-                  {person.initials}
-                </div>
-
-                <div>
-                  <p className="font-display font-bold text-lg">{person.name}</p>
-                  <p className="text-xs font-semibold mb-3" style={{ color: person.color }}>{person.role}</p>
-                  <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                    {person.bio}
-                  </p>
-                  {person.links.length > 0 && (
-                    <div className="flex gap-3 mt-4">
-                      {person.links.map(l => (
-                        <a
-                          key={l.label}
-                          href={l.href}
-                          className="text-xs font-semibold transition-colors"
-                          style={{ color: person.color }}
-                        >
-                          {l.label}
-                        </a>
-                      ))}
-                    </div>
-                  )}
+            {/* Ebrine Tushabe — Founder & CEO */}
+            <div
+              className="p-8 rounded-2xl flex flex-col items-start gap-5"
+              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)' }}
+            >
+              <Image
+                src="/team/founder.png"
+                alt="Ebrine Tushabe"
+                width={72}
+                height={72}
+                className="rounded-2xl object-cover shrink-0"
+                style={{ border: '2px solid rgba(249,115,22,0.4)' }}
+              />
+              <div>
+                <p className="font-display font-bold text-lg">Ebrine Tushabe</p>
+                <p className="text-xs font-semibold mb-3" style={{ color: 'var(--brand-orange)' }}>Founder & CEO</p>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  Engineer and entrepreneur building sovereign health infrastructure for Africa.
+                  Deeply familiar with the operational realities of Ugandan hospitals — and why existing software fails them.
+                </p>
+                <div className="flex gap-3 mt-4">
+                  <a
+                    href="mailto:founder@synapseos.tech"
+                    className="text-xs font-semibold transition-colors"
+                    style={{ color: 'var(--brand-orange)' }}
+                  >
+                    founder@synapseos.tech
+                  </a>
                 </div>
               </div>
-            ))}
+            </div>
+
+            {/* Nathan David — Co-Founder & Clinical Lead */}
+            <div
+              className="p-8 rounded-2xl flex flex-col items-start gap-5"
+              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)' }}
+            >
+              <Image
+                src="/team/cofounder.jpg"
+                alt="Nathan David"
+                width={72}
+                height={72}
+                className="rounded-2xl object-cover shrink-0"
+                style={{ border: '2px solid rgba(232,184,75,0.4)' }}
+              />
+              <div>
+                <p className="font-display font-bold text-lg">Nathan David</p>
+                <p className="text-xs font-semibold mb-3" style={{ color: 'var(--brand-gold)' }}>Co-Founder & Clinical Lead</p>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  Bringing deep clinical expertise and hospital experience to every AI decision.
+                  Ensures that every algorithm, every score, every alert reflects the realities of practice in Uganda.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -1171,7 +1172,7 @@ export default function HomePage() {
                   className="inline-flex items-center gap-2 text-sm font-bold px-5 py-3 rounded-xl transition-all pulse-gold-glow"
                   style={{ background: 'var(--brand-gold)', color: '#07070A' }}
                 >
-                  📱 Download APK
+                  Download APK
                 </Link>
                 <Link
                   href="/download#waitlist"
@@ -1313,7 +1314,19 @@ export default function HomePage() {
                 className="p-6 rounded-2xl flex items-start gap-4"
                 style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)' }}
               >
-                <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>{t.icon}</span>
+                <span
+                  className="inline-flex items-center justify-center rounded-lg font-mono font-bold text-xs shrink-0 mt-0.5"
+                  style={{
+                    width: '2.25rem', height: '2.25rem',
+                    background: 'rgba(232,184,75,0.1)',
+                    color: 'var(--brand-gold)',
+                    border: '1px solid var(--border-gold)',
+                    letterSpacing: '0.02em',
+                    fontSize: '0.6rem',
+                  }}
+                >
+                  {t.abbr}
+                </span>
                 <div>
                   <p className="font-semibold text-sm mb-1">{t.title}</p>
                   <p className="text-xs" style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>{t.desc}</p>
@@ -1350,7 +1363,6 @@ export default function HomePage() {
                 border: '1px solid var(--border-orange)',
               }}
             >
-              <p className="text-4xl mb-4">🏥</p>
               <h3 className="font-display font-bold text-2xl mb-3">
                 Deploy for Your Hospital
               </h3>
@@ -1378,7 +1390,6 @@ export default function HomePage() {
                 border: '1px solid var(--border-gold)',
               }}
             >
-              <p className="text-4xl mb-4">📱</p>
               <h3 className="font-display font-bold text-2xl mb-3">
                 Download Synapse App
               </h3>
