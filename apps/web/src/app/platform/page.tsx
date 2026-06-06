@@ -1,213 +1,138 @@
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { createServiceClient } from "../../lib/supabase/server";
+import { requirePlatformAdmin } from "../../lib/platform/auth";
 
-async function getStats() {
-  const supabase = createServiceClient();
-  const [hospitals, profiles, patients, encounters, surveillance, imports, waitlist] =
-    await Promise.all([
-      (supabase as any).from("hospitals").select("id", { count: "exact", head: true }),
-      (supabase as any).from("profiles").select("id", { count: "exact", head: true }),
-      (supabase as any)
-        .from("patients")
-        .select("id", { count: "exact", head: true })
-        .eq("is_deleted", false),
-      (supabase as any).from("encounters").select("id", { count: "exact", head: true }),
-      (supabase as any).from("surveillance_reports").select("id", { count: "exact", head: true }),
-      (supabase as any)
-        .from("import_batches")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "completed"),
-      (supabase as any).from("apk_waitlist").select("id", { count: "exact", head: true }),
-    ]);
+type StatItem = {
+  label: string;
+  value: number;
+};
+
+async function getOverview() {
+  const supabaseAdmin = createServiceClient();
+
+  const stats = await Promise.all([
+    (supabaseAdmin as any).from("tenants").select("id", { count: "exact", head: true }),
+    (supabaseAdmin as any).from("profiles").select("id", { count: "exact", head: true }),
+    (supabaseAdmin as any).from("patients").select("id", { count: "exact", head: true }),
+    (supabaseAdmin as any).from("encounters").select("id", { count: "exact", head: true }),
+    (supabaseAdmin as any)
+      .from("beta_access_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending"),
+    (supabaseAdmin as any)
+      .from("verification_documents")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending_review"),
+  ]);
+
+  const { data: activity } = await (supabaseAdmin as any)
+    .from("audit_log")
+    .select("id, action, entity_type, created_at, actor_id")
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  const mrrValue = process.env.PLATFORM_MRR_UGX ?? "0";
+
+  const supabaseHealth = process.env.NEXT_PUBLIC_SUPABASE_URL
+    ? "Configured"
+    : "Missing env";
+
+  const vercelHealth = process.env.VERCEL_TOKEN ? "Token configured" : "No Vercel token";
+
+  const resendHealth = process.env.RESEND_API_KEY ? "Resend connected" : "No Resend key";
+
   return {
-    hospitals: hospitals.count ?? 0,
-    profiles: profiles.count ?? 0,
-    patients: patients.count ?? 0,
-    encounters: encounters.count ?? 0,
-    surveillance: surveillance.count ?? 0,
-    imports: imports.count ?? 0,
-    waitlist: waitlist.count ?? 0,
+    statItems: [
+      { label: "Total Hospitals", value: stats[0].count ?? 0 },
+      { label: "Total Users", value: stats[1].count ?? 0 },
+      { label: "Total Patients", value: stats[2].count ?? 0 },
+      { label: "Total Encounters", value: stats[3].count ?? 0 },
+      { label: "Pending Pilot Applications", value: stats[4].count ?? 0 },
+      { label: "Pending Verifications", value: stats[5].count ?? 0 },
+    ] as StatItem[],
+    activity: (activity ?? []) as Array<{
+      id: string;
+      action: string;
+      entity_type: string;
+      created_at: string;
+      actor_id: string;
+    }>,
+    mrrValue,
+    systemHealth: [
+      { label: "Supabase", value: supabaseHealth },
+      { label: "Vercel", value: vercelHealth },
+      { label: "Resend", value: resendHealth },
+    ],
   };
 }
 
-async function getHospitals() {
-  const supabase = createServiceClient();
-  const { data } = await (supabase as any)
-    .from("hospitals")
-    .select("id, name, subdomain, type, created_at")
-    .order("created_at", { ascending: false })
-    .limit(20);
-  return (data ?? []) as Array<{
-    id: string;
-    name: string;
-    subdomain: string;
-    type: string | null;
-    created_at: string;
-  }>;
-}
-
-async function getImportJobs() {
-  const supabase = createServiceClient();
-  const { data } = await (supabase as any)
-    .from("import_batches")
-    .select(
-      "id, hospital_id, source_type, status, total_rows, valid_rows, error_rows, created_at"
-    )
-    .order("created_at", { ascending: false })
-    .limit(10);
-  return (data ?? []) as Array<{
-    id: string;
-    hospital_id: string;
-    source_type: string;
-    status: string;
-    total_rows: number | null;
-    valid_rows: number | null;
-    error_rows: number | null;
-    created_at: string;
-  }>;
-}
-
-export default async function PlatformAdminPage() {
-  const [stats, hospitals, jobs] = await Promise.all([
-    getStats(),
-    getHospitals(),
-    getImportJobs(),
-  ]);
-
-  const STAT_ITEMS = [
-    { label: "Hospitals", value: stats.hospitals, cls: "text-[#00D4AA]" },
-    { label: "Staff", value: stats.profiles, cls: "text-indigo-500" },
-    { label: "Patients", value: stats.patients, cls: "text-amber-400" },
-    { label: "Encounters", value: stats.encounters, cls: "text-emerald-500" },
-    { label: "Surveillance", value: stats.surveillance, cls: "text-red-500" },
-    { label: "Imports Done", value: stats.imports, cls: "text-violet-500" },
-    { label: "APK Waitlist", value: stats.waitlist, cls: "text-cyan-400" },
-  ];
+export default async function PlatformOverviewPage() {
+  await requirePlatformAdmin();
+  const data = await getOverview();
 
   return (
-    <div className="min-h-screen bg-[#060D1A] text-white p-6">
-      <div className="max-w-7xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-2xl font-bold">Platform Admin</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            SynapseOS · qfqakzmjatszisuqjwon
-          </p>
-        </div>
+    <div className="space-y-6">
+      <section>
+        <h1 className="text-2xl font-bold">Platform Overview</h1>
+        <p className="mt-1 text-sm text-slate-400">Cross-tenant operational visibility for SynapseOS.</p>
+      </section>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-          {STAT_ITEMS.map((s) => (
-            <div key={s.label} className="bg-[#0D1B2E] border border-slate-800 rounded-xl p-4">
-              <p className="text-xs text-slate-400 font-medium">{s.label}</p>
-              <p className={`text-2xl font-bold mt-1 ${s.cls}`}>
-                {s.value.toLocaleString()}
-              </p>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {data.statItems.map((item) => (
+          <article key={item.label} className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-500">{item.label}</p>
+            <p className="mt-2 text-3xl font-semibold text-[#F97316]">{item.value.toLocaleString()}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <article className="rounded-2xl border border-[#E8B84B]/30 bg-[#E8B84B]/8 p-4">
+          <p className="text-xs uppercase tracking-wide text-[#E8B84B]">MRR (UGX)</p>
+          <p className="mt-2 text-2xl font-semibold">{Number(data.mrrValue).toLocaleString()}</p>
+          <p className="mt-1 text-xs text-slate-300">Manual placeholder until billing automation is enabled.</p>
+        </article>
+
+        <article className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 lg:col-span-2">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">System Health</h2>
+            <Link href="/platform/health" className="text-xs text-orange-300 hover:text-orange-200">
+              Open detailed health view
+            </Link>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {data.systemHealth.map((entry) => (
+              <div key={entry.label} className="rounded-xl border border-slate-700 bg-slate-950/60 p-3">
+                <p className="text-xs text-slate-500">{entry.label}</p>
+                <p className="mt-1 text-sm text-slate-200">{entry.value}</p>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">Recent Activity</h2>
+        <div className="space-y-2">
+          {data.activity.length === 0 ? (
+            <p className="text-sm text-slate-500">No recent entries in audit_log.</p>
+          ) : null}
+          {data.activity.map((entry) => (
+            <div
+              key={entry.id}
+              className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm"
+            >
+              <div>
+                <p className="font-medium text-slate-200">{entry.action}</p>
+                <p className="text-xs text-slate-500">{entry.entity_type} · actor {entry.actor_id?.slice(0, 8) ?? "unknown"}</p>
+              </div>
+              <p className="text-xs text-slate-500">{new Date(entry.created_at).toLocaleString()}</p>
             </div>
           ))}
         </div>
-
-        {/* Hospitals table */}
-        <div>
-          <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">
-            Hospitals
-          </h2>
-          <div className="bg-[#0D1B2E] border border-slate-800 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="border-b border-slate-800">
-                <tr>
-                  {["Name", "Subdomain", "Type", "Registered"].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800">
-                {hospitals.map((h) => (
-                  <tr key={h.id} className="hover:bg-slate-800/40">
-                    <td className="px-4 py-3 font-medium text-white">{h.name}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-[#00D4AA]">{h.subdomain}</td>
-                    <td className="px-4 py-3 text-slate-400 capitalize">{h.type ?? "—"}</td>
-                    <td className="px-4 py-3 text-slate-400">
-                      {new Date(h.created_at).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-                {hospitals.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
-                      No hospitals yet
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Import Jobs table */}
-        <div>
-          <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">
-            Import Jobs
-          </h2>
-          <div className="bg-[#0D1B2E] border border-slate-800 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="border-b border-slate-800">
-                <tr>
-                  {["ID", "Source", "Status", "Total", "Valid", "Errors", "Date"].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800">
-                {jobs.map((j) => (
-                  <tr key={j.id} className="hover:bg-slate-800/40">
-                    <td className="px-4 py-3 font-mono text-xs text-slate-400">
-                      {j.id.slice(0, 8)}…
-                    </td>
-                    <td className="px-4 py-3 text-slate-300">{j.source_type}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full ${
-                          j.status === "completed"
-                            ? "bg-emerald-500/15 text-emerald-400"
-                            : j.status === "failed"
-                            ? "bg-red-500/15 text-red-400"
-                            : "bg-amber-500/15 text-amber-400"
-                        }`}
-                      >
-                        {j.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-300">{j.total_rows ?? 0}</td>
-                    <td className="px-4 py-3 text-emerald-400">{j.valid_rows ?? 0}</td>
-                    <td className="px-4 py-3 text-red-400">{j.error_rows ?? 0}</td>
-                    <td className="px-4 py-3 text-slate-400">
-                      {new Date(j.created_at).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-                {jobs.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
-                      No import jobs yet
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      </section>
     </div>
   );
 }
