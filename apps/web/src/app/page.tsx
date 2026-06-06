@@ -243,7 +243,7 @@ export default function HomePage() {
       <nav
         className="sticky top-0 z-50 flex items-center justify-between px-6 py-3.5"
         style={{
-          background: 'rgba(7,7,10,0.85)',
+          background: 'var(--nav-glass)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
           borderBottom: '1px solid var(--border-subtle)',
@@ -272,6 +272,11 @@ export default function HomePage() {
                 style={{ color: 'var(--text-secondary)' }}>
             Sign In
           </Link>
+          <Link href="/signup"
+                className="text-sm font-semibold px-4 py-2 rounded-xl transition-all hidden md:block"
+                style={{ border: '1px solid var(--border-edge)', color: 'var(--text-primary)' }}>
+            Create Account
+          </Link>
           <Link href="/apply"
                 className="text-sm font-bold px-4 py-2 rounded-xl transition-all pulse-glow"
                 style={{ background: 'var(--brand-orange)', color: '#07070A' }}>
@@ -293,7 +298,7 @@ export default function HomePage() {
         <div style={{
           position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
           width: '60vw', height: '60vh',
-          background: 'radial-gradient(ellipse at top, rgba(249,115,22,0.18) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse at top, var(--hero-glow) 0%, transparent 70%)',
           pointerEvents: 'none',
         }} />
 
@@ -301,7 +306,7 @@ export default function HomePage() {
         <div style={{
           position: 'absolute', bottom: '10%', right: '10%',
           width: '30vw', height: '30vh',
-          background: 'radial-gradient(ellipse, rgba(232,184,75,0.07) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse, var(--hero-glow-gold) 0%, transparent 70%)',
           pointerEvents: 'none',
         }} />
 
@@ -1353,7 +1358,7 @@ export default function HomePage() {
           position: 'absolute', top: '50%', left: '50%',
           transform: 'translate(-50%, -50%)',
           width: '60%', height: '80%',
-          background: 'radial-gradient(ellipse, rgba(249,115,22,0.12) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse, var(--hero-glow) 0%, transparent 70%)',
           pointerEvents: 'none',
         }} />
 

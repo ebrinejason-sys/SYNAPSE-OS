@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "Synapse",
+    "slug": "synapse-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "synapse",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#07070A"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "tech.synapseos.app",
+      "buildNumber": "1"
+    },
+    "android": {
+      "package": "tech.synapseos.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#07070A"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-camera",
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0"
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "supabaseUrl": "https://qfqakzmjatszisuqjwon.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmcWFrem1qYXRzemlzdXFqd29uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NTQzODksImV4cCI6MjA5MTEzMDM4OX0.iFCseUE1uVvCuz_wP37agvzulXya17aGG9s49Lnz92o",
+      "webAppUrl": "https://synapseos.tech",
+      "eas": {
+        "projectId": "synapse-os-mobile"
+      }
+    },
+    "owner": "synapseos"
+  }
+}

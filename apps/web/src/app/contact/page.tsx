@@ -52,7 +52,7 @@ export default function ContactPage() {
       <nav
         className="sticky top-0 z-50 flex items-center justify-between px-6 py-3.5"
         style={{
-          background: 'rgba(7,7,10,0.85)',
+          background: 'var(--nav-glass)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
           borderBottom: '1px solid var(--border-subtle)',
@@ -87,7 +87,7 @@ export default function ContactPage() {
             Talk to the team
           </h1>
           <p className="text-base leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-            Whether you&rsquo;re a hospital administrator, investor, or partner — we read every message personally.
+            Whether you&rsquo;re a hospital administrator, investor, or partner — every message goes directly to the founders.
           </p>
         </div>
 
@@ -214,7 +214,7 @@ export default function ContactPage() {
               {status === 'error' && (
                 <p className="text-xs" style={{ color: '#EF4444' }}>
                   Something went wrong. Please try again or email us directly at{' '}
-                  <a href="mailto:hello@synapseos.tech" style={{ color: 'var(--brand-orange)' }}>hello@synapseos.tech</a>
+                  <a href="mailto:ebrinetushabe@gmail.com" style={{ color: 'var(--brand-orange)' }}>ebrinetushabe@gmail.com</a>
                 </p>
               )}
 
@@ -241,8 +241,8 @@ export default function ContactPage() {
         {/* Direct contact */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
-            { label: 'Email', value: 'hello@synapseos.tech', href: 'mailto:hello@synapseos.tech' },
-            { label: 'Pilot access', value: 'Apply now', href: '/apply' },
+            { label: 'Ebrine (CEO)', value: 'ebrinetushabe@gmail.com', href: 'mailto:ebrinetushabe@gmail.com' },
+            { label: 'Nathan (Clinical Lead)', value: 'nathandavid762@gmail.com', href: 'mailto:nathandavid762@gmail.com' },
           ].map(c => (
             <a
               key={c.label}

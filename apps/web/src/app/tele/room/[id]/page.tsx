@@ -140,7 +140,7 @@ export default function TeleRoomPage() {
         {panel !== 'none' && (
           <div
             className="absolute right-0 top-0 bottom-0 w-80 flex flex-col"
-            style={{ background: 'rgba(7,7,10,0.95)', borderLeft: '1px solid rgba(255,255,255,0.08)' }}
+            style={{ background: 'var(--bg-base)', borderLeft: '1px solid var(--border-edge)' }}
           >
             <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
               <p className="text-sm font-semibold text-white">{panel === 'chat' ? 'Chat' : 'SOAP Notes'}</p>
