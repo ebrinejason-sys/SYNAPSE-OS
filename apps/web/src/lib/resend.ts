@@ -47,7 +47,7 @@ export function brandedEmail({
                 Synapse Health Technologies Ltd &middot; Kampala, Uganda<br/>
                 <a href="https://synapseos.tech" style="color:#F97316;text-decoration:none;">synapseos.tech</a>
                 &nbsp;&middot;&nbsp;
-                <a href="mailto:founder@synapseos.tech" style="color:#60607A;text-decoration:none;">founder@synapseos.tech</a>
+                <a href="mailto:hello@synapseos.tech" style="color:#60607A;text-decoration:none;">hello@synapseos.tech</a>
               </p>
             </td>
           </tr>

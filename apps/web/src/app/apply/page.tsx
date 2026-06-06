@@ -64,7 +64,7 @@ export default function ApplyPage() {
       if (!res.ok) throw new Error('Submission failed')
       window.location.href = '/apply/thank-you'
     } catch {
-      setError('Something went wrong. Please try again or email founder@synapseos.tech')
+      setError('Something went wrong. Please try again or email hello@synapseos.tech')
     } finally {
       setLoading(false)
     }

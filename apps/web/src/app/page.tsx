@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { SynapseLogo } from '../components/SynapseLogo'
-import { FeatureTabs }    from '../components/landing/FeatureTabs'
-import { DemoWidget }     from '../components/landing/DemoWidget'
+import { SynapseLogo }  from '../components/SynapseLogo'
+import { ThemeToggle }  from '../components/ThemeToggle'
+import { FeatureTabs }  from '../components/landing/FeatureTabs'
+import { DemoWidget }   from '../components/landing/DemoWidget'
 import { NewsletterForm } from '../components/landing/NewsletterForm'
 
 /* ─── Kente geometric SVG background (inline, pointer-events:none) ─────── */
@@ -265,8 +266,9 @@ export default function HomePage() {
           ))}
         </div>
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <Link href="/login"
-                className="text-sm font-medium transition-colors hover:text-white"
+                className="text-sm font-medium transition-colors hover:text-white hidden md:block"
                 style={{ color: 'var(--text-secondary)' }}>
             Sign In
           </Link>
@@ -988,6 +990,7 @@ export default function HomePage() {
                 alt="Ebrine Tushabe"
                 width={72}
                 height={72}
+                unoptimized
                 className="rounded-2xl object-cover shrink-0"
                 style={{ border: '2px solid rgba(249,115,22,0.4)' }}
               />
@@ -1000,11 +1003,11 @@ export default function HomePage() {
                 </p>
                 <div className="flex gap-3 mt-4">
                   <a
-                    href="mailto:founder@synapseos.tech"
+                    href="mailto:hello@synapseos.tech"
                     className="text-xs font-semibold transition-colors"
                     style={{ color: 'var(--brand-orange)' }}
                   >
-                    founder@synapseos.tech
+                    hello@synapseos.tech
                   </a>
                 </div>
               </div>
@@ -1020,6 +1023,7 @@ export default function HomePage() {
                 alt="Nathan David"
                 width={72}
                 height={72}
+                unoptimized
                 className="rounded-2xl object-cover shrink-0"
                 style={{ border: '2px solid rgba(232,184,75,0.4)' }}
               />
@@ -1556,10 +1560,10 @@ export default function HomePage() {
           >
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
               © 2025–2026 Synapse Health Technologies Ltd · Kampala, Uganda ·{' '}
-              <a href="mailto:founder@synapseos.tech"
+              <a href="mailto:hello@synapseos.tech"
                  className="hover:text-white transition-colors"
                  style={{ color: 'var(--text-muted)' }}>
-                founder@synapseos.tech
+                hello@synapseos.tech
               </a>
             </p>
             <div className="flex items-center gap-2">

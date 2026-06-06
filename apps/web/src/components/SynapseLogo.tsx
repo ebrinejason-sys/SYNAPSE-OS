@@ -19,8 +19,9 @@ export function SynapseLogo({ size = 'md', variant = 'full', className = '' }: P
       alt="Synapse OS"
       width={px}
       height={px}
-      style={{ borderRadius: Math.round(px * 0.22), display: 'block', flexShrink: 0 }}
+      unoptimized
       priority
+      style={{ borderRadius: Math.round(px * 0.22), display: 'block', flexShrink: 0 }}
     />
   )
 
