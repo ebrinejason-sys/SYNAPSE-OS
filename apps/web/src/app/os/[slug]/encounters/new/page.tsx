@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "../../../../../lib/supabase/client";
 
@@ -25,6 +25,14 @@ const CONFIDENCE_STYLES: Record<string, string> = {
 };
 
 export default function NewEncounterPage() {
+  return (
+    <Suspense fallback={<div className="py-16 text-center text-sm">Loading…</div>}>
+      <NewEncounterInner />
+    </Suspense>
+  )
+}
+
+function NewEncounterInner() {
   const params = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();

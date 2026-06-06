@@ -15,7 +15,7 @@ export function SynapseLogo({ size = 'md', variant = 'full', className = '' }: P
 
   const logoImg = (
     <Image
-      src="/synapse-logo.jpg"
+      src="/synapse-logo.png"
       alt="Synapse OS"
       width={px}
       height={px}
