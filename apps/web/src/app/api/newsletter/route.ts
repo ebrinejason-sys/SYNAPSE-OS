@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '../../../lib/supabase/server'
+import { createServiceClient } from '../../../lib/supabase/server'
 import { resend, NOTIFY_EMAILS, FROM_EMAIL, FROM_NAME, brandedEmail } from '../../../lib/resend'
 
 export async function POST(req: NextRequest) {
@@ -10,11 +10,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'valid email required' }, { status: 400 })
   }
 
-  const supabase = await createClient()
-  const { error } = await (supabase as any)
+  const db = createServiceClient() as any
+  const { error } = await db
     .from('newsletter_subscribers')
     .upsert(
-      { email, source: 'landing_page', subscribed_at: new Date().toISOString() },
+      { email, source: 'landing_page', subscribed: true, subscribed_at: new Date().toISOString() },
       { onConflict: 'email' }
     )
 
@@ -23,13 +23,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to subscribe' }, { status: 500 })
   }
 
-  /* Confirmation to subscriber */
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://synapseos.tech'
+  const unsubToken = Buffer.from(email).toString('base64url')
+  const unsubscribeUrl = `${appUrl}/api/newsletter/unsubscribe?t=${unsubToken}`
+
   await resend.emails.send({
     from: `${FROM_NAME} <${FROM_EMAIL}>`,
     to: [email],
     subject: "You're subscribed to Synapse OS updates",
     html: brandedEmail({
       subject: "You're subscribed to Synapse OS updates",
+      unsubscribeUrl,
       body: `
         <h2 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#F5F5F7;">You're on the list.</h2>
         <p style="font-size:15px;line-height:1.7;color:#A0A0B0;margin:0 0 16px;">
@@ -39,9 +43,8 @@ export async function POST(req: NextRequest) {
         <a href="https://synapseos.tech" style="display:inline-block;background:#F97316;color:#07070A;font-weight:700;font-size:13px;padding:10px 20px;border-radius:8px;text-decoration:none;">Visit Synapse OS</a>
       `,
     }),
-  })
+  }).catch(err => console.error('newsletter confirmation email error:', err))
 
-  /* Notify founders of new subscriber */
   await resend.emails.send({
     from: `${FROM_NAME} <${FROM_EMAIL}>`,
     to: NOTIFY_EMAILS,
@@ -54,7 +57,7 @@ export async function POST(req: NextRequest) {
         </p>
       `,
     }),
-  })
+  }).catch(err => console.error('newsletter founder notification error:', err))
 
   return NextResponse.json({ ok: true })
 }
