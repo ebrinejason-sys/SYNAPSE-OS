@@ -186,7 +186,7 @@ function LoginContent() {
     if (!res.ok) { setError(data.error ?? 'Verification failed.'); setLoading(false); return }
     const { error: sessionErr } = await createClient().auth.verifyOtp({
       token_hash: data.token_hash,
-      type: 'email',
+      type: 'magiclink',
     })
     if (sessionErr) { setError('Could not create session. Please try again.'); setLoading(false); return }
     router.push(next)
@@ -220,7 +220,7 @@ function LoginContent() {
     if (!res.ok) { setError(data.error ?? 'Verification failed.'); setLoading(false); return }
     const { error: sessionErr } = await createClient().auth.verifyOtp({
       token_hash: data.token_hash,
-      type: 'email',
+      type: 'magiclink',
     })
     if (sessionErr) { setError('Could not create session. Please try again.'); setLoading(false); return }
     router.push(next)
