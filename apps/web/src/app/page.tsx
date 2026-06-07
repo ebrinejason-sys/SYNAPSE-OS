@@ -991,7 +991,7 @@ export default function HomePage() {
               style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)' }}
             >
               <Image
-                src="/team/founder.png"
+                src="/team/founder.jpg"
                 alt="Ebrine Tushabe"
                 width={72}
                 height={72}
@@ -1008,11 +1008,11 @@ export default function HomePage() {
                 </p>
                 <div className="flex gap-3 mt-4">
                   <a
-                    href="mailto:hello@synapseos.tech"
+                    href="mailto:ebrinetushabe@gmail.com"
                     className="text-xs font-semibold transition-colors"
                     style={{ color: 'var(--brand-orange)' }}
                   >
-                    hello@synapseos.tech
+                    ebrinetushabe@gmail.com
                   </a>
                 </div>
               </div>
@@ -1565,10 +1565,10 @@ export default function HomePage() {
           >
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
               © 2025–2026 Synapse Health Technologies Ltd · Kampala, Uganda ·{' '}
-              <a href="mailto:hello@synapseos.tech"
+              <a href="mailto:ebrinetushabe@gmail.com"
                  className="hover:text-white transition-colors"
                  style={{ color: 'var(--text-muted)' }}>
-                hello@synapseos.tech
+                ebrinetushabe@gmail.com
               </a>
             </p>
             <div className="flex items-center gap-2">

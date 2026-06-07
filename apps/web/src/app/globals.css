@@ -55,30 +55,50 @@
 }
 
 [data-theme="light"] {
-  --bg-base:     #FAFAFA;
+  /* Surfaces */
+  --bg-base:     #F7F7FA;
   --bg-surface:  #FFFFFF;
-  --bg-elevated: #F4F4F8;
-  --bg-overlay:  #EBEBF0;
+  --bg-elevated: #EEEFF5;
+  --bg-overlay:  #E4E5EE;
   --bg-ink:      #FFFFFF;
 
+  /* Typography — full contrast on white */
   --text-primary:   #0A0A12;
-  --text-secondary: #444456;
-  --text-muted:     #888899;
-  --text-gold:      #C9960A;
-  --text-orange:    #EA6500;
+  --text-secondary: #3A3A50;
+  --text-muted:     #72728A;
+  --text-gold:      #A07A00;
+  --text-orange:    #C74E00;
 
-  --border-subtle: rgba(0,0,0,0.06);
-  --border-edge:   rgba(0,0,0,0.10);
-  --border-strong: rgba(0,0,0,0.18);
-  --border-gold:   rgba(201,150,10,0.25);
-  --border-orange: rgba(234,101,0,0.25);
+  /* Brand colours stay vivid but darken slightly for legibility */
+  --brand-orange:       #E06000;
+  --brand-orange-light: #F97316;
+  --brand-orange-dark:  #B84A00;
+  --brand-gold:         #B8860A;
+  --brand-gold-light:   #D4A012;
+  --brand-gold-dark:    #8C6200;
 
-  /* Theme-adaptive overlays — light mode */
-  --nav-glass:      rgba(252, 252, 253, 0.92);
-  --glass-bg:       rgba(255, 255, 255, 0.80);
-  --hero-glow:      rgba(249, 115, 22, 0.10);
-  --hero-glow-gold: rgba(232, 184, 75, 0.06);
-  --shimmer-base:   rgba(0, 0, 0, 0.03);
+  /* Borders — visible on white */
+  --border-subtle: rgba(0,0,0,0.07);
+  --border-edge:   rgba(0,0,0,0.12);
+  --border-strong: rgba(0,0,0,0.22);
+  --border-gold:   rgba(176,130,10,0.30);
+  --border-orange: rgba(200,80,0,0.30);
+
+  /* Clinical colours — high contrast */
+  --acuity-red:    #DC2626;
+  --acuity-orange: #EA580C;
+  --acuity-yellow: #CA8A04;
+  --acuity-green:  #16A34A;
+  --conf-high:     #16A34A;
+  --conf-med:      #CA8A04;
+  --conf-low:      #DC2626;
+
+  /* Overlays */
+  --nav-glass:      rgba(247, 247, 250, 0.95);
+  --glass-bg:       rgba(255, 255, 255, 0.90);
+  --hero-glow:      rgba(224, 96, 0, 0.12);
+  --hero-glow-gold: rgba(184, 134, 10, 0.08);
+  --shimmer-base:   rgba(0, 0, 0, 0.04);
 }
 
 @layer utilities {
@@ -111,10 +131,11 @@
     @apply bg-orange-500 hover:bg-orange-400 text-white font-semibold rounded-xl px-5 py-2.5 transition-all shadow-md;
   }
   .btn-secondary {
-    @apply bg-transparent border hover:border-white/20 font-semibold rounded-xl px-5 py-2.5 transition-all;
+    @apply bg-transparent border font-semibold rounded-xl px-5 py-2.5 transition-all;
     border-color: var(--border-edge);
     color: var(--text-primary);
   }
+  [data-theme="light"] .btn-secondary:hover { border-color: var(--border-strong); }
   .btn-gold {
     @apply font-semibold rounded-xl px-5 py-2.5 transition-all;
     background: linear-gradient(135deg, var(--brand-gold), var(--brand-orange));
@@ -146,6 +167,43 @@ body {
   font-family: 'DM Sans', 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* ── Light-mode global overrides ─────────────────────────────────────────
+   Any component that uses hardcoded dark RGBA values gets corrected here
+   so light mode shows full contrast without touching 200+ component files.
+   ──────────────────────────────────────────────────────────────────────── */
+[data-theme="light"] body { background-color: var(--bg-base); }
+
+/* Inputs & textareas — ensure black text on light bg */
+[data-theme="light"] input,
+[data-theme="light"] textarea,
+[data-theme="light"] select {
+  color: var(--text-primary);
+  background-color: var(--bg-surface);
+  border-color: var(--border-edge);
+}
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder { color: var(--text-muted); }
+
+/* Tables */
+[data-theme="light"] table { color: var(--text-primary); }
+[data-theme="light"] th    { color: var(--text-muted); border-color: var(--border-subtle); }
+[data-theme="light"] td    { border-color: var(--border-subtle); }
+
+/* Scrollbars — match light bg */
+[data-theme="light"] ::-webkit-scrollbar       { width: 6px; height: 6px; }
+[data-theme="light"] ::-webkit-scrollbar-track  { background: var(--bg-base); }
+[data-theme="light"] ::-webkit-scrollbar-thumb  { background: var(--border-strong); border-radius: 3px; }
+
+/* Badge contrast on light */
+[data-theme="light"] .badge-gold  { background: rgba(176,130,10,0.12); color: #8C6200; border-color: rgba(176,130,10,0.3); }
+[data-theme="light"] .badge-orange { background: rgba(200,80,0,0.10);   color: #B84A00; border-color: rgba(200,80,0,0.3); }
+
+/* Card shadows on light for depth */
+[data-theme="light"] .card { box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04); }
+
+/* Shimmer overlay flip */
+[data-theme="light"] .kente-bg { opacity: 0.04; }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Space Grotesk', 'DM Sans', sans-serif;
