@@ -42,12 +42,13 @@ const EXAMPLE_CASES = [
   },
 ];
 
-const CONFIDENCE_COLOR: Record<string, { bg: string; text: string; border: string }> = {
+const CONFIDENCE_COLOR: { [K in "high" | "medium" | "low"]: { bg: string; text: string; border: string } } = {
   high:   { bg: "rgba(34,197,94,0.10)",  text: "#22C55E", border: "rgba(34,197,94,0.25)"  },
   medium: { bg: "rgba(234,179,8,0.10)",  text: "#EAB308", border: "rgba(234,179,8,0.25)"  },
   low:    { bg: "rgba(160,160,176,0.10)", text: "#A0A0B0", border: "rgba(160,160,176,0.25)" },
 };
 
+const DEFAULT_AI_BADGE = { label: "AI Model", color: "#F97316" };
 const AI_BADGE: Record<string, { label: string; color: string }> = {
   gemini:     { label: "Gemini 2.0 Flash",         color: "#4285F4" },
   deepseek:   { label: "DeepSeek via OpenRouter",   color: "#7C3AED" },
@@ -332,12 +333,12 @@ export default function DemoPage() {
                   <span
                     className="text-xs font-bold px-2 py-0.5 rounded-md"
                     style={{
-                      background: `${(AI_BADGE[result.ai_provider] ?? AI_BADGE.openrouter).color}18`,
-                      color: (AI_BADGE[result.ai_provider] ?? AI_BADGE.openrouter).color,
-                      border: `1px solid ${(AI_BADGE[result.ai_provider] ?? AI_BADGE.openrouter).color}40`,
+                      background: `${(AI_BADGE[result.ai_provider] ?? DEFAULT_AI_BADGE).color}18`,
+                      color: (AI_BADGE[result.ai_provider] ?? DEFAULT_AI_BADGE).color,
+                      border: `1px solid ${(AI_BADGE[result.ai_provider] ?? DEFAULT_AI_BADGE).color}40`,
                     }}
                   >
-                    {(AI_BADGE[result.ai_provider] ?? { label: result.ai_model ?? result.ai_provider }).label}
+                    {(AI_BADGE[result.ai_provider] ?? DEFAULT_AI_BADGE).label}
                   </span>
                 </div>
               )}
