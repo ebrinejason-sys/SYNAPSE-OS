@@ -1,6 +1,21 @@
 import { Resend } from 'resend'
 
-export const resend = new Resend(process.env.RESEND_API_KEY)
+let resendClient: Resend | null = null
+
+export function getResend(): Resend {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY is not configured')
+  }
+  resendClient ??= new Resend(apiKey)
+  return resendClient
+}
+
+export const resend = {
+  emails: {
+    send: (...args: Parameters<Resend['emails']['send']>) => getResend().emails.send(...args),
+  },
+}
 
 export const NOTIFY_EMAILS = ['ebrinetushabe@gmail.com', 'nathandavid762@gmail.com']
 export const FROM_EMAIL    = process.env.RESEND_FROM_EMAIL ?? 'noreply@synapseos.tech'

@@ -1,17 +1,17 @@
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { DM_Sans } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 
-const inter = Inter({
+const dmSans = DM_Sans({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-inter",
+  variable: "--font-dm-sans",
 })
 
 export const metadata: Metadata = {
   title: "Synapse Pharmacy",
-  description: "Synapse Health Technologies — Pharmacy Management Portal",
+  description: "Synapse Health Technologies - Pharmacy Management Portal",
 }
 
 export default function RootLayout({
@@ -22,14 +22,14 @@ export default function RootLayout({
       <head>
         <link rel="icon" type="image/png" href="/logo.png" />
         <meta name="theme-color" content="#F97316" />
-        {/* FOCT prevention — sets theme before first paint */}
+        {/* FOCT prevention - sets theme before first paint */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){var t=localStorage.getItem('synapse-theme')||'dark';document.documentElement.setAttribute('data-theme',t);document.documentElement.className=t+' scroll-smooth';})();`,
           }}
         />
       </head>
-      <body className={`${inter.variable} font-sans antialiased bg-background text-foreground`}>
+      <body className={`${dmSans.variable} font-sans antialiased bg-background text-foreground`}>
         {children}
         <Toaster />
       </body>

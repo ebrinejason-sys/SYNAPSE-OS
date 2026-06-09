@@ -108,3 +108,55 @@
   .btn-ghost     { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.98] transition-all; }
   .btn-danger    { @apply inline-flex items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-red-600 active:scale-[0.98] transition-all; }
 }
+
+@layer utilities {
+  .text-blue-400,
+  .text-blue-500,
+  .text-blue-600,
+  .text-blue-700,
+  .text-blue-800,
+  .text-blue-900,
+  .text-purple-400,
+  .text-purple-800 {
+    color: hsl(var(--primary));
+  }
+
+  .bg-blue-50,
+  .bg-blue-50\/50,
+  .bg-blue-100,
+  .bg-blue-500\/15,
+  .bg-purple-50,
+  .bg-purple-500\/15 {
+    background-color: hsl(var(--primary) / 0.10);
+  }
+
+  .border-blue-200,
+  .border-l-blue-500,
+  .border-l-purple-500 {
+    border-color: hsl(var(--primary) / 0.28);
+  }
+
+  .hover\:bg-blue-500\/15:hover,
+  .hover\:bg-purple-500\/15:hover {
+    background-color: hsl(var(--primary) / 0.16);
+  }
+
+  .from-blue-600,
+  .from-purple-600,
+  .from-indigo-100 {
+    --tw-gradient-from: #F97316 var(--tw-gradient-from-position);
+    --tw-gradient-to: rgb(249 115 22 / 0) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+  }
+
+  .to-blue-600,
+  .to-purple-100,
+  .to-purple-600 {
+    --tw-gradient-to: #E8B84B var(--tw-gradient-to-position);
+  }
+
+  .via-white {
+    --tw-gradient-to: rgb(245 245 247 / 0) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), #111117 var(--tw-gradient-via-position), var(--tw-gradient-to);
+  }
+}

@@ -747,7 +747,7 @@ export default function POSPage() {
               onClick={handleInstallClick}
               variant="outline"
               size="sm"
-              className="bg-purple-50 border-purple-200 text-purple-400 hover:bg-purple-500/15"
+              className="border-primary/25 bg-primary/10 text-primary hover:bg-primary/15"
             >
               <Download className="h-4 w-4 mr-2" />
               Install POS
@@ -764,7 +764,7 @@ export default function POSPage() {
           </div>
 
           {pendingSyncCount > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-blue-50 border border-blue-200 text-blue-400 animate-pulse">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-accent/10 border border-accent/25 text-[#E8B84B] animate-pulse">
               <Clock className="h-3 w-3" />
               {pendingSyncCount} pending sync
             </div>
@@ -948,8 +948,8 @@ export default function POSPage() {
               <p className="text-sm text-muted-foreground mt-2">Your sale has been recorded successfully. Would you like to print the receipt?</p>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm text-blue-800">
+              <div className="bg-accent/10 border border-accent/25 rounded-lg p-3">
+                <p className="text-sm text-foreground">
                   <strong>Important:</strong> The transaction has already been saved to the system regardless of your choice.
                 </p>
               </div>
@@ -1041,7 +1041,7 @@ export default function POSPage() {
                                 e.stopPropagation()
                                 addToCart(product, pkg)
                               }}
-                              className="text-xs bg-blue-50 text-blue-400 px-2 py-1 rounded-full hover:bg-blue-500/15 transition-colors"
+                              className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full hover:bg-primary/15 transition-colors"
                               title={`${pkg.name}: ${pkg.unitsPerPackage} units @ ${formatCurrency(pkg.price)}`}
                             >
                               {pkg.name} ({pkg.unitsPerPackage})
@@ -1090,7 +1090,7 @@ export default function POSPage() {
                       <div className="flex-1">
                         <div className="font-medium text-sm">{item.name}</div>
                         {item.selectedPackage && (
-                          <div className="text-xs text-blue-400 flex items-center gap-1">
+                          <div className="text-xs text-primary flex items-center gap-1">
                             <Package className="h-3 w-3" />
                             {item.selectedPackage.name} ({item.selectedPackage.unitsPerPackage} {item.unitOfMeasure}s)
                           </div>
@@ -1261,7 +1261,7 @@ export default function POSPage() {
       {/* Floating Cart Button for Mobile */}
       <button
         onClick={() => setShowMobileCart(!showMobileCart)}
-        className="lg:hidden fixed bottom-6 right-6 z-50 bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-full shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 hover:scale-110 active:scale-95"
+        className="lg:hidden fixed bottom-6 right-6 z-50 bg-gradient-to-r from-[#F97316] to-[#E8B84B] text-white p-4 rounded-full shadow-2xl hover:shadow-[#F97316]/30 transition-all duration-300 hover:scale-110 active:scale-95"
         aria-label="Shopping Cart"
       >
         <div className="relative">
@@ -1279,7 +1279,7 @@ export default function POSPage() {
         <div className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end">
           <div className="bg-card w-full max-h-[85vh] rounded-t-3xl overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300">
             {/* Mobile Cart Header */}
-            <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-purple-600 to-blue-600 text-white">
+            <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-[#F97316] to-[#E8B84B] text-white">
               <h3 className="text-lg font-bold flex items-center gap-2">
                 <ShoppingCart className="h-5 w-5" />
                 Cart ({cart.length})
@@ -1368,7 +1368,7 @@ export default function POSPage() {
                     const checkoutSection = document.querySelector('[data-checkout-section]')
                     checkoutSection?.scrollIntoView({ behavior: 'smooth' })
                   }}
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-xl font-semibold hover:shadow-lg active:scale-95 transition-all"
+                  className="w-full bg-gradient-to-r from-[#F97316] to-[#E8B84B] text-white py-3 rounded-xl font-semibold hover:shadow-lg active:scale-95 transition-all"
                 >
                   Proceed to Checkout
                 </button>
@@ -1816,7 +1816,7 @@ function TransactionReceipt({
                     {item.product?.strength && <span className="text-[10px] font-medium ml-1">({item.product.strength})</span>}
                     {item.product?.sku && <span className="text-[8px] text-muted-foreground block">{item.product.sku}</span>}
                     {item.product?.dosageForm && <span className="text-[8px] text-muted-foreground block">{item.product.dosageForm}</span>}
-                    {item.packageName && <span className="text-[8px] text-blue-400 block">{item.packageQuantity || ""} {item.packageName}</span>}
+                    {item.packageName && <span className="text-[8px] text-primary block">{item.packageQuantity || ""} {item.packageName}</span>}
                     {item.batch?.batchNumber && <span className="text-[8px] text-muted-foreground block">Batch: {item.batch.batchNumber}</span>}
                     {item.batch?.expiryDate && <span className="text-[8px] text-muted-foreground block">Exp: {new Date(item.batch.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</span>}
                   </td>
@@ -1877,4 +1877,3 @@ function TransactionReceipt({
     </div>
   )
 }
-
