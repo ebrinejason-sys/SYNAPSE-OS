@@ -1,8 +1,11 @@
 export const dynamic = "force-dynamic";
 
+import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { Eye, ShieldAlert } from "lucide-react";
+import { createServiceClient } from "../../../lib/supabase/server";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
-import { formatDateTime, safeRows } from "../_lib/platform-data";
+import { formatDateTime, logPlatformEvent, safeRows } from "../_lib/platform-data";
 
 type UserRow = {
   id?: string;
@@ -12,6 +15,59 @@ type UserRow = {
   tenant_id?: string | null;
   last_sign_in_at?: string | null;
 };
+
+async function startImpersonation(formData: FormData) {
+  "use server";
+  const profile = await requirePlatformAdmin();
+  const userId = String(formData.get("user_id") ?? "");
+  if (!userId) return;
+
+  const supabaseAdmin = createServiceClient();
+  const { data: target } = await (supabaseAdmin as any)
+    .from("profiles")
+    .select("id, full_name, email, role, tenant_id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!target || target.role === "platform_admin") {
+    await logPlatformEvent({
+      actorId: profile.id,
+      action: "impersonation.blocked",
+      entityType: "profile",
+      entityId: userId,
+      metadata: { reason: "target_not_found_or_platform_admin" },
+    });
+    return;
+  }
+
+  const session = {
+    userId: target.id,
+    name: target.full_name ?? target.email ?? "Unnamed user",
+    email: target.email ?? "",
+    role: target.role ?? "user",
+    tenantId: target.tenant_id ?? null,
+    startedAt: new Date().toISOString(),
+    startedBy: profile.id,
+  };
+  const cookieStore = await cookies();
+  cookieStore.set("synapse_impersonation", encodeURIComponent(JSON.stringify(session)), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 60 * 60,
+    path: "/",
+  });
+
+  await logPlatformEvent({
+    actorId: profile.id,
+    action: "impersonation.started",
+    entityType: "profile",
+    entityId: target.id,
+    tenantId: target.tenant_id ?? null,
+    metadata: { impersonated_role: target.role, impersonated_email: target.email },
+  });
+  revalidatePath("/platform/impersonation");
+}
 
 export default async function ImpersonationPage() {
   await requirePlatformAdmin();
@@ -69,14 +125,17 @@ export default async function ImpersonationPage() {
                     <td className="px-4 py-3 font-mono text-xs text-slate-500">{user.tenant_id?.slice(0, 8) ?? "none"}</td>
                     <td className="px-4 py-3 text-slate-500">{formatDateTime(user.last_sign_in_at)}</td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        disabled={isPlatformAdmin}
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        <Eye className="h-3 w-3" />
-                        {isPlatformAdmin ? "Blocked" : "Impersonate"}
-                      </button>
+                      <form action={startImpersonation}>
+                        <input type="hidden" name="user_id" value={user.id ?? ""} />
+                        <button
+                          type="submit"
+                          disabled={isPlatformAdmin}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <Eye className="h-3 w-3" />
+                          {isPlatformAdmin ? "Blocked" : "Impersonate"}
+                        </button>
+                      </form>
                     </td>
                   </tr>
                 );

@@ -1,7 +1,9 @@
 export const dynamic = "force-dynamic";
 
+import { revalidatePath } from "next/cache";
+import { createServiceClient } from "../../../lib/supabase/server";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
-import { formatDateTime, safeRows } from "../_lib/platform-data";
+import { formatDateTime, logPlatformEvent, safeRows } from "../_lib/platform-data";
 
 type TicketRow = {
   id?: string;
@@ -10,6 +12,8 @@ type TicketRow = {
   priority?: string | null;
   status?: string | null;
   tenant_id?: string | null;
+  assigned_to?: string | null;
+  resolution_notes?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -20,6 +24,64 @@ const columns = [
   { key: "resolved", label: "Resolved" },
   { key: "closed", label: "Closed" },
 ];
+
+async function recordTicketEvent(ticketId: string, actorId: string, event: string, metadata: Record<string, unknown> = {}) {
+  try {
+    const supabaseAdmin = createServiceClient();
+    await (supabaseAdmin as any).from("support_ticket_events").insert({
+      ticket_id: ticketId,
+      actor_id: actorId,
+      event,
+      metadata,
+      created_at: new Date().toISOString(),
+    });
+  } catch {}
+}
+
+async function assignTicketToMe(formData: FormData) {
+  "use server";
+  const profile = await requirePlatformAdmin();
+  const ticketId = String(formData.get("ticket_id") ?? "");
+  if (!ticketId) return;
+
+  const supabaseAdmin = createServiceClient();
+  await (supabaseAdmin as any)
+    .from("support_tickets")
+    .update({ assigned_to: profile.id, status: "in_progress", updated_at: new Date().toISOString() })
+    .eq("id", ticketId);
+
+  await recordTicketEvent(ticketId, profile.id, "assigned", { assigned_to: profile.id });
+  await logPlatformEvent({ actorId: profile.id, action: "support_ticket.assigned", entityType: "support_ticket", entityId: ticketId });
+  revalidatePath("/platform/support");
+}
+
+async function updateTicketStatus(formData: FormData) {
+  "use server";
+  const profile = await requirePlatformAdmin();
+  const ticketId = String(formData.get("ticket_id") ?? "");
+  const status = String(formData.get("status") ?? "");
+  const resolutionNotes = String(formData.get("resolution_notes") ?? "").trim();
+  const allowed = new Set(["open", "in_progress", "resolved", "closed"]);
+  if (!ticketId || !allowed.has(status)) return;
+
+  const update: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
+  if (resolutionNotes) {
+    update.resolution_notes = resolutionNotes;
+  }
+
+  const supabaseAdmin = createServiceClient();
+  await (supabaseAdmin as any).from("support_tickets").update(update).eq("id", ticketId);
+
+  await recordTicketEvent(ticketId, profile.id, "status_changed", { status, resolution_notes: resolutionNotes || null });
+  await logPlatformEvent({
+    actorId: profile.id,
+    action: `support_ticket.${status}`,
+    entityType: "support_ticket",
+    entityId: ticketId,
+    metadata: { resolution_notes: resolutionNotes || null },
+  });
+  revalidatePath("/platform/support");
+}
 
 function priorityClass(priority: string | null | undefined) {
   if (priority === "critical") return "border-red-500/25 bg-red-500/10 text-red-300";
@@ -32,7 +94,7 @@ export default async function PlatformSupportPage() {
   await requirePlatformAdmin();
   const tickets = await safeRows<TicketRow>(
     "support_tickets",
-    "id, title, description, priority, status, tenant_id, created_at, updated_at",
+    "id, title, description, priority, status, tenant_id, assigned_to, resolution_notes, created_at, updated_at",
     { orderBy: "created_at", limit: 200 }
   );
 
@@ -83,10 +145,34 @@ export default async function PlatformSupportPage() {
                     </div>
                     <p className="line-clamp-3 text-xs text-slate-500">{ticket.description ?? "No description supplied."}</p>
                     <p className="mt-3 text-[11px] text-slate-600">Opened {formatDateTime(ticket.created_at)}</p>
+                    {ticket.assigned_to ? (
+                      <p className="mt-1 font-mono text-[11px] text-[#E8B84B]">Assigned {ticket.assigned_to.slice(0, 8)}</p>
+                    ) : null}
+                    {ticket.resolution_notes ? <p className="mt-2 rounded-lg bg-slate-900 p-2 text-xs text-slate-400">{ticket.resolution_notes}</p> : null}
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <button type="button" className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">Assign</button>
-                      <button type="button" className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">Reply</button>
-                      <button type="button" className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">Close</button>
+                      <form action={assignTicketToMe}>
+                        <input type="hidden" name="ticket_id" value={ticket.id ?? ""} />
+                        <button type="submit" className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">Assign me</button>
+                      </form>
+                      {column.key !== "resolved" ? (
+                        <form action={updateTicketStatus}>
+                          <input type="hidden" name="ticket_id" value={ticket.id ?? ""} />
+                          <input type="hidden" name="status" value="resolved" />
+                          <button type="submit" className="rounded-lg border border-green-500/30 px-2 py-1 text-xs text-green-300">Resolve</button>
+                        </form>
+                      ) : null}
+                      {column.key !== "closed" ? (
+                        <form action={updateTicketStatus} className="flex flex-wrap gap-2">
+                          <input type="hidden" name="ticket_id" value={ticket.id ?? ""} />
+                          <input type="hidden" name="status" value="closed" />
+                          <input
+                            name="resolution_notes"
+                            placeholder="Resolution note"
+                            className="w-32 rounded-lg border border-slate-700 bg-[#111117] px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#F97316]"
+                          />
+                          <button type="submit" className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">Close</button>
+                        </form>
+                      ) : null}
                     </div>
                   </article>
                 ))}

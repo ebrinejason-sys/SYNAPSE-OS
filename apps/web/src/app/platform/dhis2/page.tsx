@@ -1,8 +1,10 @@
 export const dynamic = "force-dynamic";
 
+import { revalidatePath } from "next/cache";
 import { DatabaseZap, Play, RefreshCcw } from "lucide-react";
+import { createServiceClient } from "../../../lib/supabase/server";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
-import { formatDate, formatDateTime, safeRows } from "../_lib/platform-data";
+import { formatDate, formatDateTime, logPlatformEvent, safeRows } from "../_lib/platform-data";
 
 type ExportRow = {
   id?: string;
@@ -19,6 +21,50 @@ function statusClass(status: string | null | undefined) {
   if (status === "failed") return "border-red-500/25 bg-red-500/10 text-red-300";
   if (status === "partial") return "border-amber-500/25 bg-amber-500/10 text-amber-300";
   return "border-slate-700 bg-slate-800 text-slate-300";
+}
+
+async function triggerExportAll() {
+  "use server";
+  const profile = await requirePlatformAdmin();
+  const today = new Date().toISOString().slice(0, 10);
+  const supabaseAdmin = createServiceClient();
+
+  await (supabaseAdmin as any).from("dhis2_export_log").insert({
+    tenant_id: null,
+    export_date: today,
+    records_exported: 0,
+    status: "pending",
+    error_message: "Queued manually by platform admin",
+    created_at: new Date().toISOString(),
+  });
+
+  await logPlatformEvent({
+    actorId: profile.id,
+    action: "dhis2.export_all_queued",
+    entityType: "dhis2_export",
+    metadata: { export_date: today },
+  });
+  revalidatePath("/platform/dhis2");
+}
+
+async function retryExport(formData: FormData) {
+  "use server";
+  const profile = await requirePlatformAdmin();
+  const exportId = String(formData.get("export_id") ?? "");
+  if (!exportId) return;
+
+  const supabaseAdmin = createServiceClient();
+  await (supabaseAdmin as any)
+    .from("dhis2_export_log")
+    .update({
+      status: "pending",
+      error_message: "Retry queued manually by platform admin",
+      created_at: new Date().toISOString(),
+    })
+    .eq("id", exportId);
+
+  await logPlatformEvent({ actorId: profile.id, action: "dhis2.export_retry_queued", entityType: "dhis2_export", entityId: exportId });
+  revalidatePath("/platform/dhis2");
 }
 
 export default async function Dhis2ExportsPage() {
@@ -39,10 +85,12 @@ export default async function Dhis2ExportsPage() {
           <h1 className="mt-2 text-2xl font-bold">DHIS2 Export Monitor</h1>
           <p className="mt-1 text-sm text-slate-400">Monitor nightly exports, retry failed batches, and keep a reference mapping for DHIS2 fields.</p>
         </div>
-        <button type="button" className="inline-flex items-center gap-2 rounded-xl bg-[#F97316] px-4 py-2 text-sm font-bold text-[#07070A]">
+        <form action={triggerExportAll}>
+        <button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-[#F97316] px-4 py-2 text-sm font-bold text-[#07070A]">
           <Play className="h-4 w-4" />
           Export all
         </button>
+        </form>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -88,10 +136,13 @@ export default async function Dhis2ExportsPage() {
                     </td>
                     <td className="max-w-xs truncate px-4 py-3 text-slate-500">{row.error_message ?? "None"}</td>
                     <td className="px-4 py-3">
-                      <button type="button" className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">
+                      <form action={retryExport}>
+                        <input type="hidden" name="export_id" value={row.id ?? ""} />
+                      <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">
                         <RefreshCcw className="h-3 w-3" />
                         Retry
                       </button>
+                      </form>
                     </td>
                   </tr>
                 ))}

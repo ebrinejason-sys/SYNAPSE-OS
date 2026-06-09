@@ -27,6 +27,43 @@ export function platformAdminClient() {
   return createServiceClient() as unknown as PlatformClient;
 }
 
+export async function logPlatformEvent({
+  actorId,
+  action,
+  entityType,
+  entityId,
+  tenantId,
+  metadata,
+}: {
+  actorId: string;
+  action: string;
+  entityType: string;
+  entityId?: string | null;
+  tenantId?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  const payload = {
+    actor_id: actorId,
+    action,
+    entity_type: entityType,
+    entity_id: entityId ?? null,
+    tenant_id: tenantId ?? null,
+    metadata: metadata ?? {},
+    created_at: new Date().toISOString(),
+  };
+
+  try {
+    const supabaseAdmin = createServiceClient();
+    const { error } = await (supabaseAdmin as any).from("audit_logs").insert(payload);
+    if (!error) return;
+  } catch {}
+
+  try {
+    const supabaseAdmin = createServiceClient();
+    await (supabaseAdmin as any).from("audit_log").insert(payload);
+  } catch {}
+}
+
 export async function safeCount(table: string, filters: Array<[string, unknown]> = []) {
   try {
     let query = platformAdminClient().from(table).select("id", { count: "exact", head: true });

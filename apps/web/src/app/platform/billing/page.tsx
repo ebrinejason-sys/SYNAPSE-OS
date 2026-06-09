@@ -1,7 +1,9 @@
 export const dynamic = "force-dynamic";
 
+import { revalidatePath } from "next/cache";
+import { createServiceClient } from "../../../lib/supabase/server";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
-import { formatDate, formatUGX, safeCount, safeRows } from "../_lib/platform-data";
+import { formatDate, formatUGX, logPlatformEvent, safeCount, safeRows } from "../_lib/platform-data";
 
 type SubscriptionRow = {
   id?: string;
@@ -27,6 +29,114 @@ function statusClass(status: string | null | undefined) {
   if (status === "trial") return "border-amber-500/25 bg-amber-500/10 text-amber-300";
   if (status === "suspended" || status === "cancelled") return "border-red-500/25 bg-red-500/10 text-red-300";
   return "border-slate-700 bg-slate-800 text-slate-300";
+}
+
+function nextMonthIsoDate() {
+  const date = new Date();
+  date.setMonth(date.getMonth() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+async function generateInvoice(formData: FormData) {
+  "use server";
+  const profile = await requirePlatformAdmin();
+  const subscriptionId = String(formData.get("subscription_id") ?? "");
+  const tenantId = String(formData.get("tenant_id") ?? "");
+  const amount = Number(formData.get("amount") ?? 0);
+  if (!subscriptionId || !tenantId) return;
+
+  try {
+    const supabaseAdmin = createServiceClient();
+    await (supabaseAdmin as any).from("billing_invoices").insert({
+      tenant_id: tenantId,
+      subscription_id: subscriptionId,
+      amount_ugx: amount,
+      status: "issued",
+      due_date: nextMonthIsoDate(),
+      created_by: profile.id,
+      created_at: new Date().toISOString(),
+    });
+  } catch {}
+
+  await logPlatformEvent({
+    actorId: profile.id,
+    action: "billing.invoice_generated",
+    entityType: "facility_subscription",
+    entityId: subscriptionId,
+    tenantId,
+    metadata: { amount_ugx: amount },
+  });
+  revalidatePath("/platform/billing");
+}
+
+async function markSubscriptionPaid(formData: FormData) {
+  "use server";
+  const profile = await requirePlatformAdmin();
+  const subscriptionId = String(formData.get("subscription_id") ?? "");
+  const tenantId = String(formData.get("tenant_id") ?? "");
+  const amount = Number(formData.get("amount") ?? 0);
+  if (!subscriptionId || !tenantId) return;
+
+  const supabaseAdmin = createServiceClient();
+  await (supabaseAdmin as any)
+    .from("facility_subscriptions")
+    .update({
+      status: "active",
+      last_payment_date: new Date().toISOString(),
+      next_billing_date: nextMonthIsoDate(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", subscriptionId);
+
+  try {
+    await (supabaseAdmin as any).from("billing_payments").insert({
+      tenant_id: tenantId,
+      subscription_id: subscriptionId,
+      amount_ugx: amount,
+      method: "manual_admin",
+      status: "paid",
+      paid_at: new Date().toISOString(),
+      recorded_by: profile.id,
+    });
+  } catch {}
+
+  await logPlatformEvent({
+    actorId: profile.id,
+    action: "billing.payment_marked_paid",
+    entityType: "facility_subscription",
+    entityId: subscriptionId,
+    tenantId,
+    metadata: { amount_ugx: amount, method: "manual_admin" },
+  });
+  revalidatePath("/platform/billing");
+}
+
+async function changeSubscriptionPlan(formData: FormData) {
+  "use server";
+  const profile = await requirePlatformAdmin();
+  const subscriptionId = String(formData.get("subscription_id") ?? "");
+  const tenantId = String(formData.get("tenant_id") ?? "");
+  const plan = String(formData.get("plan") ?? "");
+  const monthlyAmount = Number(formData.get("monthly_amount_ugx") ?? 0);
+  const allowedPlans = new Set(["trial", "starter", "professional", "enterprise"]);
+  if (!subscriptionId || !tenantId || !allowedPlans.has(plan)) return;
+
+  const supabaseAdmin = createServiceClient();
+  await (supabaseAdmin as any)
+    .from("facility_subscriptions")
+    .update({ plan, monthly_amount_ugx: monthlyAmount, status: plan === "trial" ? "trial" : "active", updated_at: new Date().toISOString() })
+    .eq("id", subscriptionId);
+  await (supabaseAdmin as any).from("tenants").update({ subscription_tier: plan, status: plan === "trial" ? "trial" : "active" }).eq("id", tenantId);
+
+  await logPlatformEvent({
+    actorId: profile.id,
+    action: "billing.plan_changed",
+    entityType: "facility_subscription",
+    entityId: subscriptionId,
+    tenantId,
+    metadata: { plan, monthly_amount_ugx: monthlyAmount },
+  });
+  revalidatePath("/platform/billing");
 }
 
 export default async function PlatformBillingPage() {
@@ -134,9 +244,37 @@ export default async function PlatformBillingPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-2">
-                          <button type="button" className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">Invoice</button>
-                          <button type="button" className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">Mark paid</button>
-                          <button type="button" className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">Change plan</button>
+                          <form action={generateInvoice}>
+                            <input type="hidden" name="subscription_id" value={subscription.id ?? ""} />
+                            <input type="hidden" name="tenant_id" value={subscription.tenant_id ?? ""} />
+                            <input type="hidden" name="amount" value={Number(subscription.monthly_amount_ugx ?? 0)} />
+                            <button type="submit" className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">Invoice</button>
+                          </form>
+                          <form action={markSubscriptionPaid}>
+                            <input type="hidden" name="subscription_id" value={subscription.id ?? ""} />
+                            <input type="hidden" name="tenant_id" value={subscription.tenant_id ?? ""} />
+                            <input type="hidden" name="amount" value={Number(subscription.monthly_amount_ugx ?? 0)} />
+                            <button type="submit" className="rounded-lg border border-green-500/30 px-2 py-1 text-xs text-green-300">Mark paid</button>
+                          </form>
+                          <form action={changeSubscriptionPlan} className="flex flex-wrap gap-2">
+                            <input type="hidden" name="subscription_id" value={subscription.id ?? ""} />
+                            <input type="hidden" name="tenant_id" value={subscription.tenant_id ?? ""} />
+                            <select name="plan" defaultValue={subscription.plan ?? tenant?.subscription_tier ?? "starter"} className="rounded-lg border border-slate-700 bg-[#07070A] px-2 py-1 text-xs text-slate-300">
+                              <option value="trial">trial</option>
+                              <option value="starter">starter</option>
+                              <option value="professional">professional</option>
+                              <option value="enterprise">enterprise</option>
+                            </select>
+                            <input
+                              name="monthly_amount_ugx"
+                              type="number"
+                              min="0"
+                              step="1000"
+                              defaultValue={Number(subscription.monthly_amount_ugx ?? 0)}
+                              className="w-24 rounded-lg border border-slate-700 bg-[#07070A] px-2 py-1 text-xs text-slate-300"
+                            />
+                            <button type="submit" className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">Save</button>
+                          </form>
                         </div>
                       </td>
                     </tr>
