@@ -46,7 +46,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
     router.refresh();
   }
 
-  if (pathname === "/platform/login") {
+  if (pathname === "/platform/login" || pathname === "/platform/mfa") {
     return <>{children}</>;
   }
 

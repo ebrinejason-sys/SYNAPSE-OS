@@ -30,5 +30,10 @@ export async function requirePlatformAdmin(): Promise<PlatformAdminProfile> {
     redirect("/platform/login");
   }
 
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal?.currentLevel !== "aal2") {
+    redirect("/platform/login?mfa=required");
+  }
+
   return profile as PlatformAdminProfile;
 }
