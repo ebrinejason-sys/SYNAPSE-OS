@@ -17,7 +17,7 @@ export async function middleware(request: NextRequest) {
 
   const isLocal = hostname.includes("localhost") || hostname.includes("127.0.0.1");
   const parts = hostname.split(".");
-  const rawSubdomain = parts[0];
+  const rawSubdomain = parts[0] ?? "";
 
   const isRootDomain =
     hostname.startsWith("synapseos.") ||
@@ -76,6 +76,15 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── HOSPITAL subdomain: tenant portal ─────────────────────────────
+  if (subdomain.startsWith("pharm-")) {
+    const pharmacySlug = subdomain.replace(/^pharm-/, "");
+    const response = NextResponse.rewrite(
+      new URL(`/pharmacy/queue${pathname === "/" ? "" : pathname}`, request.url)
+    );
+    response.headers.set("x-pharmacy-subdomain", pharmacySlug);
+    return response;
+  }
+
   if (subdomain && subdomain !== "www" && subdomain !== "synapseos") {
     const response = NextResponse.rewrite(
       new URL(`/os/${subdomain}${pathname === "/" ? "" : pathname}`, request.url)

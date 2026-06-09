@@ -523,11 +523,11 @@ export default function HomePage() {
               className="font-display font-bold"
               style={{ fontSize: 'clamp(1.75rem, 3.5vw, 2.75rem)', letterSpacing: '-0.02em' }}
             >
-              One platform. Two powerful products.
+              One platform. Three connected products.
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* SynapseOS — for hospitals */}
             <div
               className="p-8 rounded-2xl relative overflow-hidden"
@@ -571,6 +571,47 @@ export default function HomePage() {
             </div>
 
             {/* Synapse App — for patients */}
+            <div
+              className="p-8 rounded-2xl relative overflow-hidden"
+              style={{
+                background: 'linear-gradient(135deg, rgba(34,197,94,0.08), rgba(249,115,22,0.02))',
+                border: '1px solid rgba(34,197,94,0.24)',
+              }}
+            >
+              <div
+                className="inline-flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-full mb-5"
+                style={{ background: 'rgba(34,197,94,0.12)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.28)' }}
+              >
+                For Pharmacies
+              </div>
+              <h3 className="font-display font-bold text-2xl mb-3">Synapse Pharm</h3>
+              <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                A pharmacy operating system and network layer for inventory, POS, refills,
+                patient discovery, and offline-first counter workflows.
+              </p>
+              <ul className="space-y-2.5 mb-6">
+                {[
+                  'Migrate existing inventory from Excel, CSV, QuickBooks, or legacy systems',
+                  'Get discovered when nearby patients search for drugs you have in stock',
+                  'Accept refill requests and in-app orders from Synapse App users',
+                  'Shortage alerts help pharmacies stock up before demand spikes',
+                  'Run on a default Synapse route or your own custom domain',
+                ].map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span style={{ color: '#22C55E', marginTop: '0.1rem' }}>→</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/contact?intent=pharmacy"
+                className="inline-flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl transition-all"
+                style={{ background: '#22C55E', color: '#07070A' }}
+              >
+                Enrol My Pharmacy
+              </Link>
+            </div>
+
             <div
               className="p-8 rounded-2xl relative overflow-hidden"
               style={{
