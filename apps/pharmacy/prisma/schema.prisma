@@ -1,0 +1,518 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  username          String?   @unique
+  password          String
+  name              String
+  role              Role      @default(STAFF)
+  permissions       Permission[]
+  isActive          Boolean   @default(true)
+  mustChangePassword Boolean  @default(true)
+  twoFactorEnabled  Boolean   @default(false)
+  twoFactorEmail    String?
+  twoFactorCode     String?
+  twoFactorExpiry          DateTime?
+  twoFactorSessionToken    String?
+  twoFactorSessionExpiry   DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  createdBy         String?
+  
+  transactions      Transaction[]
+  orders            Order[]
+  claimedOrders     Order[]   @relation("ClaimedOrders")
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  transactionEdits  TransactionEdit[] @relation("TransactionEdits")
+  
+  @@map("users")
+}
+
+model Settings {
+  id                String   @id @default(cuid())
+  pharmacyName      String
+  location          String
+  contact           String
+  email             String
+  logo              String?
+  footerText        String?
+  receiptHeader     String?
+  receiptFooter     String?
+  taxRate           Float    @default(0)
+  currency          String   @default("UGX")
+  lowStockThreshold Int      @default(10)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@map("settings")
+}
+
+model Product {
+  id                String   @id @default(cuid())
+  name              String
+  description       String?
+  category          String
+  sku               String   @unique
+  barcode           String?
+  price             Float
+  costPrice         Float
+  quantity          Int      @default(0)
+  reorderLevel      Int      @default(10)
+  unitOfMeasure     String   @default("Unit")  // Base unit: Tablet, ml, Capsule, etc.
+  expiryDate        DateTime?
+  manufacturer      String?
+  batchNumber       String?
+  isActive          Boolean  @default(true)
+
+  // Drug specific fields
+  strength          String?  // e.g., "500mg"
+  dosageForm        String?  // e.g., "Tablet", "Syrup"
+  activeIngredient  String?  // e.g., "Paracetamol"
+  genericName       String?
+  sideEffects       String?
+  storageInstructions String?
+  regulatoryId      String?
+  requiresPrescription Boolean @default(false)
+
+  supplierId        String?
+  supplier          Supplier? @relation(fields: [supplierId], references: [id])
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  stockAdjustments  StockAdjustment[]
+  orderItems        OrderItem[]
+  transactionItems  TransactionItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+  packages          ProductPackage[]
+  batches           ProductBatch[]
+  
+  @@map("products")
+}
+
+// User-defined packages for a product (Strip=10, Box=100, Dozen=12)
+model ProductPackage {
+  id              String   @id @default(cuid())
+  productId       String
+  name            String   // "Strip", "Box", "Dozen", "Blister" - user-defined
+  unitsPerPackage Int      // Number of base units in this package
+  price           Float    // Selling price for this package
+  isDefault       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  @@unique([productId, name])
+  @@map("product_packages")
+}
+
+// Multi-batch tracking with individual expiry dates (FIFO by expiry)
+model ProductBatch {
+  id              String   @id @default(cuid())
+  productId       String
+  batchNumber     String
+  quantity        Int      // Current units in this batch
+  initialQuantity Int      // Original quantity when received  
+  expiryDate      DateTime
+  receivedDate    DateTime @default(now())
+  costPrice       Float    // Cost for this specific batch
+  isActive        Boolean  @default(true)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  transactionItems TransactionItem[]
+  
+  @@unique([productId, batchNumber])
+  @@map("product_batches")
+}
+
+model StockAdjustment {
+  id          String   @id @default(cuid())
+  productId   String
+  quantity    Int
+  type        AdjustmentType
+  reason      String?
+  previousQty Int
+  newQty      Int
+  createdAt   DateTime @default(now())
+  createdBy   String
+  
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  @@map("stock_adjustments")
+}
+
+model Transaction {
+  id              String   @id @default(cuid())
+  transactionNo   String   @unique
+  customerId      String?
+  clientName      String?
+  clientPhone     String?
+  clientAddress   String?
+  userId          String
+  totalAmount     Float
+  discount        Float    @default(0)
+  tax             Float    @default(0)
+  netAmount       Float
+  paymentMethod   PaymentMethod
+  status          TransactionStatus @default(COMPLETED)
+  notes           String?
+  isEdited        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user            User     @relation(fields: [userId], references: [id])
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  items           TransactionItem[]
+  edits           TransactionEdit[]
+  
+  @@map("transactions")
+}
+
+model TransactionItem {
+  id              String   @id @default(cuid())
+  transactionId   String
+  productId       String
+  batchId         String?  // Link to specific batch sold (FIFO by expiry)
+  quantity        Int      // Quantity in base units
+  unitPrice       Float
+  costPrice       Float?   // Cost price at time of sale for accurate profit calculation
+  totalPrice      Float
+  packageName     String?  // "Strip", "Box", etc. - null for base unit sales
+  packageQuantity Int?     // Number of packages sold (e.g., 2 strips)
+  
+  transaction     Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  product         Product  @relation(fields: [productId], references: [id])
+  batch           ProductBatch? @relation(fields: [batchId], references: [id])
+  
+  @@map("transaction_items")
+}
+
+model Customer {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  password        String?
+  name            String
+  phone           String?
+  address         String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  orders          Order[]
+  transactions    Transaction[]
+  
+  @@map("customers")
+}
+
+model Client {
+  id              String   @id @default(cuid())
+  name            String
+  phone           String?
+  address         String?
+  notes           String?
+  lastVisit       DateTime?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("clients")
+  
+  @@index([name])
+}
+
+model Supplier {
+  id              String   @id @default(cuid())
+  name            String
+  email           String   @unique
+  phone           String?
+  address         String?
+  contactPerson   String?
+  notes           String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  purchaseOrders  PurchaseOrder[]
+  products        Product[]
+  
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id              String   @id @default(cuid())
+  orderNo         String   @unique
+  supplierId      String
+  totalAmount     Float
+  status          PurchaseOrderStatus @default(DRAFT)
+  notes           String?
+  expectedDate    DateTime?
+  createdBy       String
+  emailSent       Boolean  @default(false)
+  emailSentAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  supplier        Supplier @relation(fields: [supplierId], references: [id])
+  items           PurchaseOrderItem[]
+  
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String   @id @default(cuid())
+  purchaseOrderId String
+  productId       String?
+  productName     String
+  quantity        Int
+  unitPrice       Float
+  totalPrice      Float
+  
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product         Product? @relation(fields: [productId], references: [id])
+  
+  @@map("purchase_order_items")
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  CONFIRMED
+  SHIPPED
+  RECEIVED
+  CANCELLED
+}
+
+model Order {
+  id              String   @id @default(cuid())
+  orderNo         String   @unique
+  customerId      String?
+  orderType       OrderType @default(CUSTOMER)
+  totalAmount     Float
+  status          OrderStatus @default(PENDING)
+  paymentStatus   PaymentStatus @default(UNPAID)
+  notes           String?
+  deliveryAddress String?
+  processedBy     String?
+  claimedBy       String?
+  claimedAt       DateTime?
+  isOnlineOrder   Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  processedByUser User?    @relation(fields: [processedBy], references: [id])
+  claimedByUser   User?    @relation("ClaimedOrders", fields: [claimedBy], references: [id])
+  items           OrderItem[]
+  
+  @@map("orders")
+}
+
+model OrderItem {
+  id              String   @id @default(cuid())
+  orderId         String
+  productId       String?
+  productName     String
+  quantity        Int
+  unitPrice       Float
+  totalPrice      Float
+  
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product         Product? @relation(fields: [productId], references: [id])
+  
+  @@map("order_items")
+}
+
+model AuditLog {
+  id              String   @id @default(cuid())
+  userId          String
+  action          String
+  entity          String
+  entityId        String?
+  details         String?
+  ipAddress       String?
+  createdAt       DateTime @default(now())
+  
+  user            User     @relation(fields: [userId], references: [id])
+  
+  @@map("audit_logs")
+}
+
+model Inquiry {
+  id              String   @id @default(cuid())
+  userId          String?
+  userEmail       String
+  userName        String
+  type            InquiryType
+  subject         String
+  message         String
+  status          InquiryStatus @default(PENDING)
+  adminResponse   String?
+  respondedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("inquiries")
+}
+
+enum InquiryType {
+  FEATURE_REQUEST
+  PASSWORD_RESET
+  ACCESS_REQUEST
+  DELETE_REQUEST
+  OTHER
+}
+
+enum InquiryStatus {
+  PENDING
+  RESOLVED
+  REJECTED
+}
+
+enum Role {
+  CEO
+  ADMIN
+  STAFF
+}
+
+enum Permission {
+  MANAGE_USERS
+  MANAGE_SETTINGS
+  MANAGE_INVENTORY
+  VIEW_INVENTORY
+  MANAGE_POS
+  VIEW_TRANSACTIONS
+  MANAGE_TRANSACTIONS
+  VIEW_REPORTS
+  CLAIM_ORDERS
+}
+
+enum AdjustmentType {
+  INCREASE
+  DECREASE
+  CORRECTION
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  MOBILE_MONEY
+  BANK_TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum OrderType {
+  CUSTOMER
+  SUPPLIER
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+model Notification {
+  id              String   @id @default(cuid())
+  userId          String
+  type            NotificationType
+  title           String
+  message         String
+  relatedId       String?
+  isRead          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("notifications")
+}
+
+enum NotificationType {
+  NEW_ORDER
+  ORDER_CLAIMED
+  ORDER_STATUS
+  SYSTEM
+  TRANSACTION_EDIT
+}
+
+model TransactionEdit {
+  id              String   @id @default(cuid())
+  transactionId   String
+  editedBy        String
+  reason          String   // Required - why the edit was made
+  previousData    String   // JSON snapshot of transaction before edit
+  newData         String   // JSON snapshot of transaction after edit
+  createdAt       DateTime @default(now())
+  
+  transaction     Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  editor          User        @relation("TransactionEdits", fields: [editedBy], references: [id])
+  
+  @@map("transaction_edits")
+}
+
+// ── Sync Infrastructure ──────────────────────────────────────────────────────
+
+model SyncQueue {
+  id         String      @id @default(cuid())
+  action     SyncAction
+  entityType String
+  entityId   String
+  payload    String      // JSON payload of the record
+  status     SyncStatus  @default(PENDING)
+  error      String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@map("sync_queue")
+}
+
+model SyncLog {
+  id         String   @id @default(cuid())
+  lastSyncAt DateTime @default(now())
+  status     String   // SUCCESS | ERROR
+  details    String?
+
+  @@map("sync_logs")
+}
+
+enum SyncAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum SyncStatus {
+  PENDING
+  PROCESSING
+  SYNCED
+  ERROR
+}
