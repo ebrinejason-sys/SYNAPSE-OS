@@ -24,14 +24,17 @@ export function SynapseLogo({ size = 'md', variant = 'full', className = '' }: P
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-        backgroundColor: '#07070A',
-        backgroundImage: 'url("/synapse-logo.png")',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-        backgroundSize: 'cover',
-        border: '1px solid rgba(232,184,75,0.25)',
+        background: 'linear-gradient(135deg, rgba(249,115,22,0.18), rgba(232,184,75,0.12))',
+        border: '1px solid rgba(232,184,75,0.35)',
+        boxShadow: 'inset 0 0 0 1px rgba(249,115,22,0.12)',
+        color: '#F97316',
+        fontWeight: 900,
+        fontSize: Math.max(11, Math.round(px * 0.45)),
+        lineHeight: 1,
       }}
-    />
+    >
+      S
+    </span>
   )
 
   if (variant === 'icon') return logoImg

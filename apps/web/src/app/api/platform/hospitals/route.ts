@@ -1,7 +1,18 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "../../../../lib/supabase/server";
+import { logPlatformEvent } from "../../../platform/_lib/platform-data";
 
 const DEFAULT_DEPARTMENTS = ["Administration", "Front Desk", "Pharmacy", "Lab", "Finance"];
+
+function slugify(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 48);
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -12,9 +23,9 @@ export async function GET(request: Request) {
 
   const supabaseAdmin = createServiceClient();
   const { data } = await (supabaseAdmin as any)
-    .from("hospitals")
+    .from("tenants")
     .select("id")
-    .eq("subdomain", slug)
+    .eq("slug", slug)
     .maybeSingle();
 
   return NextResponse.json({ available: !data });
@@ -25,55 +36,88 @@ export async function POST(request: Request) {
   const supabaseAdmin = createServiceClient();
 
   const tenantId = crypto.randomUUID();
+  const slug = slugify(body.subdomain || body.hospitalName || "");
+  const facilityType = String(body.hospitalType ?? "clinic").toLowerCase();
+  const plan = String(body.tier ?? "trial");
+
+  if (!slug || !body.hospitalName || !body.adminEmail) {
+    return NextResponse.json({ error: "Hospital name, subdomain, and admin email are required." }, { status: 400 });
+  }
 
   const { error: tenantError } = await (supabaseAdmin as any).from("tenants").insert({
     id: tenantId,
-    slug: body.subdomain,
+    slug,
     name: body.hospitalName,
-    status: "active",
-    subscription_tier: body.tier,
+    country: "UG",
+    district: body.district || null,
+    facility_type: facilityType || "clinic",
+    bed_capacity: Number(body.bedsCount || 0) || null,
+    phone: body.contactPhone || null,
+    email: body.contactEmail || body.adminEmail,
+    address: [body.city, body.district].filter(Boolean).join(", ") || null,
+    plan,
+    is_active: true,
+    onboarding_completed: false,
+    onboarding_step: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   });
 
   if (tenantError) {
     return NextResponse.json({ error: tenantError.message }, { status: 400 });
   }
 
-  const { error: hospitalError } = await (supabaseAdmin as any).from("hospitals").insert({
-    id: tenantId,
-    tenant_id: tenantId,
-    name: body.hospitalName,
-    subdomain: body.subdomain,
-    type: body.hospitalType,
-    city: body.city,
-    district: body.district,
-    beds_count: body.bedsCount,
-    contact_email: body.contactEmail,
-    contact_name: body.contactName,
-    contact_phone: body.contactPhone,
-    status: "active",
-    subscription_tier: body.tier,
-  });
-
-  if (hospitalError) {
-    return NextResponse.json({ error: hospitalError.message }, { status: 400 });
-  }
+  try {
+    await (supabaseAdmin as any).from("hospitals").insert({
+      id: tenantId,
+      tenant_id: tenantId,
+      name: body.hospitalName,
+      subdomain: slug,
+      type: body.hospitalType,
+      city: body.city,
+      district: body.district,
+      beds_count: Number(body.bedsCount || 0) || null,
+      contact_email: body.contactEmail || body.adminEmail,
+      contact_name: body.contactName,
+      contact_phone: body.contactPhone,
+      status: "active",
+      subscription_tier: plan,
+    });
+  } catch {}
 
   if (Array.isArray(body.modules) && body.modules.length > 0) {
-    const moduleRows = body.modules.map((moduleKey: string) => ({
-      hospital_id: tenantId,
+    const featureRows = body.modules.map((moduleKey: string) => ({
       tenant_id: tenantId,
-      module_key: moduleKey,
-      is_active: true,
+      feature_key: moduleKey,
+      is_enabled: true,
+      enabled_at: new Date().toISOString(),
+      notes: "Enabled during hospital onboarding.",
     }));
-    await (supabaseAdmin as any).from("hospital_modules").upsert(moduleRows, { onConflict: "hospital_id,module_key" });
+    try {
+      await (supabaseAdmin as any).from("feature_flags").upsert(featureRows, { onConflict: "tenant_id,feature_key" });
+    } catch {}
+
+    try {
+      const moduleRows = body.modules.map((moduleKey: string) => ({
+        hospital_id: tenantId,
+        tenant_id: tenantId,
+        module_key: moduleKey,
+        is_active: true,
+      }));
+      await (supabaseAdmin as any).from("hospital_modules").upsert(moduleRows, { onConflict: "hospital_id,module_key" });
+    } catch {}
   }
 
   const departmentRows = DEFAULT_DEPARTMENTS.map((name) => ({
-    hospital_id: tenantId,
     tenant_id: tenantId,
     name,
+    code: name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""),
+    type: name === "Pharmacy" ? "pharmacy" : "administrative",
+    is_active: true,
   }));
-  await (supabaseAdmin as any).from("departments").insert(departmentRows);
+  try {
+    await (supabaseAdmin as any).from("departments").insert(departmentRows);
+  } catch {}
 
   const { data: adminUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
     email: body.adminEmail,
@@ -85,17 +129,53 @@ export async function POST(request: Request) {
   });
 
   if (createUserError) {
-    return NextResponse.json({ error: createUserError.message }, { status: 400 });
+    await logPlatformEvent({
+      actorId: tenantId,
+      action: "hospital.admin_user_failed",
+      entityType: "tenant",
+      entityId: tenantId,
+      tenantId,
+      metadata: { error: createUserError.message, admin_email: body.adminEmail },
+    });
+    return NextResponse.json({ id: tenantId, warning: createUserError.message });
   }
 
-  await (supabaseAdmin as any).from("profiles").insert({
-    id: adminUser.user.id,
-    role: "hospital_admin",
-    tenant_id: tenantId,
-    hospital_id: tenantId,
-    email: body.adminEmail,
-    full_name: body.contactName || "Hospital Admin",
+  const fullName = body.contactName || "Hospital Admin";
+  const [firstName, ...restName] = fullName.split(" ");
+  const profileAttempts = [
+    {
+      id: adminUser.user.id,
+      role: "hospital_admin",
+      tenant_id: tenantId,
+      hospital_id: tenantId,
+      email: body.adminEmail,
+      full_name: fullName,
+    },
+    {
+      tenant_id: tenantId,
+      user_id: adminUser.user.id,
+      role: "facility_admin",
+      first_name: firstName || "Hospital",
+      last_name: restName.join(" ") || "Admin",
+      email: body.adminEmail,
+      phone: body.contactPhone || null,
+      is_active: true,
+    },
+  ];
+
+  for (const profile of profileAttempts) {
+    const { error } = await (supabaseAdmin as any).from("profiles").insert(profile);
+    if (!error) break;
+  }
+
+  await logPlatformEvent({
+    actorId: adminUser.user.id,
+    action: "hospital.onboarded",
+    entityType: "tenant",
+    entityId: tenantId,
+    tenantId,
+    metadata: { slug, plan, facility_type: facilityType },
   });
 
-  return NextResponse.json({ id: tenantId });
+  return NextResponse.json({ id: tenantId, slug });
 }
