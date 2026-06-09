@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   Activity, BedDouble, Building2, Calculator, ClipboardList,
   FileText, LayoutDashboard, Package, Settings, ShieldCheck,
-  Stethoscope, Users, Wallet,
+  Stethoscope, UserRound, Users, Wallet,
 } from 'lucide-react'
 import { createClient } from '../../lib/supabase/client'
 import { SynapseLogo } from '../../components/SynapseLogo'
@@ -20,6 +20,7 @@ const NAV = [
   { href: '/admin/supply', label: 'Supply', icon: Package },
   { href: '/admin/lab', label: 'Lab', icon: Activity },
   { href: '/admin/audit', label: 'Audit', icon: FileText },
+  { href: '/admin/account', label: 'Account', icon: UserRound },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ]
 

@@ -33,6 +33,43 @@ async function requirePlatformAdminId() {
   return profile?.role === "platform_admin" ? user.id : null;
 }
 
+async function insertTenantWithFallback(supabaseAdmin: ReturnType<typeof createServiceClient>, row: Record<string, unknown>) {
+  const attempts = [
+    row,
+    {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      custom_domain: row.custom_domain,
+      facility_type: row.facility_type,
+      district: row.district,
+      is_active: row.is_active,
+      plan: row.plan,
+      email: row.email,
+      phone: row.phone,
+    },
+    {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      facility_type: row.facility_type,
+    },
+    {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+    },
+  ];
+
+  let lastError: { message?: string } | null = null;
+  for (const attempt of attempts) {
+    const { error } = await (supabaseAdmin as any).from("tenants").insert(attempt);
+    if (!error) return null;
+    lastError = error;
+  }
+  return lastError;
+}
+
 export async function GET(request: Request) {
   const slug = slugify(new URL(request.url).searchParams.get("slug") ?? "");
   if (!slug) {
@@ -64,7 +101,7 @@ export async function POST(request: Request) {
   const defaultDomain = `${slug}.synapseos.tech`;
   const customDomain = String(body.customDomain ?? "").trim().toLowerCase() || null;
 
-  const { error: tenantError } = await (supabaseAdmin as any).from("tenants").insert({
+  const tenantError = await insertTenantWithFallback(supabaseAdmin, {
     id: tenantId,
     slug,
     name: pharmacyName,
@@ -75,7 +112,6 @@ export async function POST(request: Request) {
     plan: body.plan || "starter",
     email: adminEmail,
     phone: body.contactPhone || null,
-    address: body.physicalAddress || null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
@@ -108,18 +144,20 @@ export async function POST(request: Request) {
     });
   } catch {}
 
-  const features = new Set<string>(Array.isArray(body.modules) ? body.modules : PHARMACY_FEATURES);
-  await (supabaseAdmin as any).from("feature_flags").upsert(
-    Array.from(features).map((featureKey) => ({
-      tenant_id: tenantId,
-      feature_key: featureKey,
-      is_enabled: true,
-      enabled_by: actorId,
-      enabled_at: new Date().toISOString(),
-      notes: "Enabled during pharmacy onboarding.",
-    })),
-    { onConflict: "tenant_id,feature_key" }
-  );
+  try {
+    const features = new Set<string>(Array.isArray(body.modules) ? body.modules : PHARMACY_FEATURES);
+    await (supabaseAdmin as any).from("feature_flags").upsert(
+      Array.from(features).map((featureKey) => ({
+        tenant_id: tenantId,
+        feature_key: featureKey,
+        is_enabled: true,
+        enabled_by: actorId,
+        enabled_at: new Date().toISOString(),
+        notes: "Enabled during pharmacy onboarding.",
+      })),
+      { onConflict: "tenant_id,feature_key" }
+    );
+  } catch {}
 
   const { data: adminUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
     email: adminEmail,
@@ -140,13 +178,31 @@ export async function POST(request: Request) {
       metadata: { error: createUserError.message, admin_email: adminEmail },
     });
   } else {
-    await (supabaseAdmin as any).from("profiles").insert({
-      id: adminUser.user.id,
-      role: "pharmacy_admin",
-      tenant_id: tenantId,
-      email: adminEmail,
-      full_name: body.contactName || "Pharmacy Admin",
-    });
+    const fullName = body.contactName || "Pharmacy Admin";
+    const [firstName, ...restName] = fullName.split(" ");
+    const profileAttempts = [
+      {
+        id: adminUser.user.id,
+        role: "pharmacy_admin",
+        tenant_id: tenantId,
+        email: adminEmail,
+        full_name: fullName,
+      },
+      {
+        tenant_id: tenantId,
+        user_id: adminUser.user.id,
+        role: "pharmacist",
+        first_name: firstName || "Pharmacy",
+        last_name: restName.join(" ") || "Admin",
+        email: adminEmail,
+        phone: body.contactPhone || null,
+        is_active: true,
+      },
+    ];
+    for (const profile of profileAttempts) {
+      const { error } = await (supabaseAdmin as any).from("profiles").insert(profile);
+      if (!error) break;
+    }
   }
 
   await logPlatformEvent({

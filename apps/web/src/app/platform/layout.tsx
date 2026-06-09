@@ -59,6 +59,7 @@ const SIDEBAR_ITEMS = [
   { href: "/platform/dhis2", label: "DHIS2 Exports", icon: DatabaseZap },
   { href: "/platform/impersonation", label: "Impersonation", icon: Eye },
   { href: "/platform/audit-log", label: "Audit Log", icon: ClipboardList },
+  { href: "/platform/account", label: "Account", icon: UserRound },
   { href: "/platform/settings", label: "Settings", icon: Settings },
 ];
 

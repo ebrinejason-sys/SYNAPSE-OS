@@ -69,7 +69,7 @@ export function brandedEmail({
           <tr>
             <td style="padding:32px 40px 24px;">
               <div style="margin-bottom:24px;">
-                <img src="https://synapseos.tech/synapse-logo.png" alt="Synapse OS" width="40" height="40"
+                <img src="https://synapseos.tech/assets/logos/synapse-logo.png" alt="Synapse OS" width="40" height="40"
                   style="border-radius:9px;display:inline-block;vertical-align:middle;margin-right:10px;" />
                 <span style="font-size:22px;font-weight:800;letter-spacing:-0.02em;vertical-align:middle;">
                   <span style="color:#F97316;">Synapse</span><span style="color:#E8B84B;">OS</span>

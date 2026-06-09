@@ -3,6 +3,7 @@ import { createServiceClient } from "../../../../lib/supabase/server";
 import { logPlatformEvent } from "../../../platform/_lib/platform-data";
 
 const DEFAULT_DEPARTMENTS = ["Administration", "Front Desk", "Pharmacy", "Lab", "Finance"];
+const HOSPITAL_TYPES = new Set(["national", "referral", "teaching", "general"]);
 
 function slugify(value: string) {
   return value
@@ -12,6 +13,48 @@ function slugify(value: string) {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .slice(0, 48);
+}
+
+function normalizeHospitalType(value: unknown) {
+  const normalized = String(value ?? "general").trim().toLowerCase();
+  return HOSPITAL_TYPES.has(normalized) ? normalized : "general";
+}
+
+async function insertTenantWithFallback(supabaseAdmin: ReturnType<typeof createServiceClient>, row: Record<string, unknown>) {
+  const attempts = [
+    row,
+    {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      country: row.country,
+      district: row.district,
+      facility_type: row.facility_type,
+      phone: row.phone,
+      email: row.email,
+      plan: row.plan,
+      is_active: row.is_active,
+    },
+    {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      facility_type: row.facility_type,
+    },
+    {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+    },
+  ];
+
+  let lastError: { message?: string } | null = null;
+  for (const attempt of attempts) {
+    const { error } = await (supabaseAdmin as any).from("tenants").insert(attempt);
+    if (!error) return null;
+    lastError = error;
+  }
+  return lastError;
 }
 
 export async function GET(request: Request) {
@@ -44,7 +87,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Hospital name, subdomain, and admin email are required." }, { status: 400 });
   }
 
-  const { error: tenantError } = await (supabaseAdmin as any).from("tenants").insert({
+  const tenantError = await insertTenantWithFallback(supabaseAdmin, {
     id: tenantId,
     slug,
     name: body.hospitalName,
@@ -54,7 +97,6 @@ export async function POST(request: Request) {
     bed_capacity: Number(body.bedsCount || 0) || null,
     phone: body.contactPhone || null,
     email: body.contactEmail || body.adminEmail,
-    address: [body.city, body.district].filter(Boolean).join(", ") || null,
     plan,
     is_active: true,
     onboarding_completed: false,
@@ -70,18 +112,20 @@ export async function POST(request: Request) {
   try {
     await (supabaseAdmin as any).from("hospitals").insert({
       id: tenantId,
-      tenant_id: tenantId,
       name: body.hospitalName,
       subdomain: slug,
-      type: body.hospitalType,
-      city: body.city,
-      district: body.district,
-      beds_count: Number(body.bedsCount || 0) || null,
-      contact_email: body.contactEmail || body.adminEmail,
-      contact_name: body.contactName,
-      contact_phone: body.contactPhone,
-      status: "active",
-      subscription_tier: plan,
+      type: normalizeHospitalType(body.hospitalType),
+      settings: {
+        tenant_id: tenantId,
+        city: body.city || null,
+        district: body.district || null,
+        beds_count: Number(body.bedsCount || 0) || null,
+        contact_email: body.contactEmail || body.adminEmail,
+        contact_name: body.contactName || null,
+        contact_phone: body.contactPhone || null,
+        subscription_tier: plan,
+        source: "platform_onboarding",
+      },
     });
   } catch {}
 
@@ -109,10 +153,10 @@ export async function POST(request: Request) {
   }
 
   const departmentRows = DEFAULT_DEPARTMENTS.map((name) => ({
+    hospital_id: tenantId,
     tenant_id: tenantId,
     name,
-    code: name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""),
-    type: name === "Pharmacy" ? "pharmacy" : "administrative",
+    dept_type: name === "Pharmacy" ? "pharmacy" : "administrative",
     is_active: true,
   }));
   try {

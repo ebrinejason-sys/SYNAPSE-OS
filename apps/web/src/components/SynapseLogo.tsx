@@ -13,28 +13,19 @@ export function SynapseLogo({ size = 'md', variant = 'full', className = '' }: P
   const px = ICON_PX[size]
 
   const logoImg = (
-    <span
-      aria-label="Synapse OS"
-      role="img"
+    <img
+      src="/assets/logos/synapse-logo.png"
+      alt="Synapse OS"
       style={{
         width: px,
         height: px,
         borderRadius: Math.round(px * 0.22),
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        display: 'block',
         flexShrink: 0,
-        background: 'linear-gradient(135deg, rgba(249,115,22,0.18), rgba(232,184,75,0.12))',
         border: '1px solid rgba(232,184,75,0.35)',
-        boxShadow: 'inset 0 0 0 1px rgba(249,115,22,0.12)',
-        color: '#F97316',
-        fontWeight: 900,
-        fontSize: Math.max(11, Math.round(px * 0.45)),
-        lineHeight: 1,
+        objectFit: 'cover',
       }}
-    >
-      S
-    </span>
+    />
   )
 
   if (variant === 'icon') return logoImg
