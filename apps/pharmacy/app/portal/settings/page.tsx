@@ -56,10 +56,19 @@ export default function SettingsPage() {
       if (response.ok) {
         const data = await response.json()
         if (data) {
-          setSettings(data)
-          if (data.logo) {
-            setLogoPreview(data.logo)
-          }
+          // Map snake_case DB columns → camelCase state fields
+          setSettings({
+            pharmacyName: data.pharmacy_name ?? data.pharmacyName ?? "",
+            location: data.location ?? "",
+            contact: data.contact ?? "",
+            email: data.email ?? "",
+            footerText: data.footer_text ?? data.footerText ?? "",
+            currency: data.currency ?? "UGX",
+            taxRate: Number(data.tax_rate ?? data.taxRate ?? 0),
+            logo: data.logo ?? "",
+            printerType: data.printer_type ?? data.printerType ?? "default",
+          })
+          if (data.logo) setLogoPreview(data.logo)
         }
       }
     } catch (error) {

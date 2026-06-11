@@ -187,6 +187,11 @@ async function forceInventorySync(formData: FormData) {
   revalidatePath("/platform/pharmacy-network");
 }
 
+function pharmacyRouteForSlug(slug?: string | null) {
+  const cleanSlug = (slug || "pharmacy").replace(/^pharm-/, "");
+  return `https://pharm.synapseos.tech/${cleanSlug}`;
+}
+
 export default async function PharmacyNetworkPage() {
   await requirePlatformAdmin();
 
@@ -275,7 +280,7 @@ export default async function PharmacyNetworkPage() {
                   const rows = inventoryByPharmacy.get(pharmacy.id ?? "") ?? [];
                   const pharmacyProfile = profileByTenant.get(pharmacy.id ?? "");
                   const latestSync = rows[0]?.last_synced_at ?? pharmacy.updated_at;
-                  const defaultDomain = pharmacyProfile?.default_domain ?? `${pharmacy.slug ?? pharmacy.id ?? "pharm"}.synapseos.tech`;
+                  const defaultDomain = pharmacyProfile?.default_domain ?? pharmacyRouteForSlug(pharmacy.slug ?? pharmacy.id);
                   const customDomain = pharmacyProfile?.custom_domain;
                   const domainStatus = customDomain
                     ? pharmacyProfile?.custom_domain_verified

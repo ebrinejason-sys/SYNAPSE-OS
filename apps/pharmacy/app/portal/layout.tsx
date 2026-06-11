@@ -35,6 +35,7 @@ const navigation = [
   { name: "Inquiries",       href: "/portal/inquiries",       icon: MessageSquare, adminOnly: true },
   { name: "Activity Log",    href: "/portal/activity-log",    icon: Activity,    adminOnly: true },
   { name: "Settings",        href: "/portal/settings",        icon: Settings,    permission: "MANAGE_SETTINGS" },
+  { name: "Network",         href: "/portal/network",         icon: Wifi,        permission: "MANAGE_SETTINGS" },
 ]
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {

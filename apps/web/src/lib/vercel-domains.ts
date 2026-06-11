@@ -15,12 +15,16 @@ export type PharmacyDomainProvisioning = {
   error: string | null;
 };
 
-const FALLBACK_PROJECT_ID = "prj_ST72DC6VkMfhon3M1yW2PL575mcd";
+const FALLBACK_PHARMACY_PROJECT_ID = "prj_CHbxKSy0pee2nieRVvQ3Rhyw4cnh";
 
 function getVercelDomainConfig() {
   return {
     token: process.env.VERCEL_API_TOKEN ?? process.env.SYNAPSE_VERCEL_API_TOKEN ?? "",
-    projectId: process.env.SYNAPSE_VERCEL_PROJECT_ID ?? process.env.VERCEL_PROJECT_ID ?? FALLBACK_PROJECT_ID,
+    projectId:
+      process.env.SYNAPSE_PHARMACY_VERCEL_PROJECT_ID ??
+      process.env.SYNAPSE_VERCEL_PROJECT_ID ??
+      process.env.VERCEL_PROJECT_ID ??
+      FALLBACK_PHARMACY_PROJECT_ID,
     teamId: process.env.SYNAPSE_VERCEL_TEAM_ID ?? process.env.VERCEL_TEAM_ID ?? "team_ZHaBdLFb1hunAs68QC70HTBy",
   };
 }

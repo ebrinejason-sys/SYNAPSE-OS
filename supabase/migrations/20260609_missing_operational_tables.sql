@@ -202,3 +202,66 @@ CREATE TABLE IF NOT EXISTS public.pharmacy_import_sessions (
 ALTER TABLE public.pharmacy_import_sessions ENABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS idx_pharmacy_import_sessions_tenant ON public.pharmacy_import_sessions(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_pharmacy_import_sessions_status ON public.pharmacy_import_sessions(status);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pharmacy_credit_ledger' AND policyname = 'tenant_isolation'
+  ) THEN
+    CREATE POLICY tenant_isolation ON public.pharmacy_credit_ledger
+      FOR ALL USING (
+        tenant_id IN (
+          SELECT profiles.tenant_id FROM public.profiles WHERE profiles.id = auth.uid()
+          UNION
+          SELECT tenants.id FROM public.tenants WHERE EXISTS (
+            SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'platform_admin'
+          )
+        )
+      );
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pharmacy_expenses' AND policyname = 'tenant_isolation'
+  ) THEN
+    CREATE POLICY tenant_isolation ON public.pharmacy_expenses
+      FOR ALL USING (
+        tenant_id IN (
+          SELECT profiles.tenant_id FROM public.profiles WHERE profiles.id = auth.uid()
+          UNION
+          SELECT tenants.id FROM public.tenants WHERE EXISTS (
+            SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'platform_admin'
+          )
+        )
+      );
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pharmacy_staff_permissions' AND policyname = 'tenant_isolation'
+  ) THEN
+    CREATE POLICY tenant_isolation ON public.pharmacy_staff_permissions
+      FOR ALL USING (
+        tenant_id IN (
+          SELECT profiles.tenant_id FROM public.profiles WHERE profiles.id = auth.uid()
+          UNION
+          SELECT tenants.id FROM public.tenants WHERE EXISTS (
+            SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'platform_admin'
+          )
+        )
+      );
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pharmacy_import_sessions' AND policyname = 'tenant_isolation'
+  ) THEN
+    CREATE POLICY tenant_isolation ON public.pharmacy_import_sessions
+      FOR ALL USING (
+        tenant_id IN (
+          SELECT profiles.tenant_id FROM public.profiles WHERE profiles.id = auth.uid()
+          UNION
+          SELECT tenants.id FROM public.tenants WHERE EXISTS (
+            SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'platform_admin'
+          )
+        )
+      );
+  END IF;
+END $$;

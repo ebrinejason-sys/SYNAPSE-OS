@@ -209,6 +209,28 @@ export async function middleware(request: NextRequest) {
       loginUrl.searchParams.set("redirectTo", pathname);
       return NextResponse.redirect(loginUrl);
     }
+
+    if (isProtected && user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("tenant_id, is_admin, role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const isPrivileged = profile?.is_admin || profile?.role === "platform_admin";
+
+      if (profile && !isPrivileged && profile.tenant_id) {
+        const { data: tenant } = await supabase
+          .from("tenants")
+          .select("is_active")
+          .eq("id", profile.tenant_id)
+          .maybeSingle();
+
+        if (!tenant || !tenant.is_active) {
+          return NextResponse.redirect(new URL("/login?error=account_inactive", request.url));
+        }
+      }
+    }
   } catch {
     return NextResponse.next({ request });
   }

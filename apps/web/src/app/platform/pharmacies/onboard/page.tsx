@@ -44,7 +44,7 @@ export default function PharmacyOnboardingPage() {
   const [modules, setModules] = useState<string[]>(MODULES.map(([key]) => key));
 
   const computedSlug = useMemo(() => slugify(slug || pharmacyName), [slug, pharmacyName]);
-  const defaultDomain = computedSlug ? `pharm-${computedSlug}.synapseos.tech` : "pharm-your-pharmacy.synapseos.tech";
+  const defaultDomain = computedSlug ? `https://pharm.synapseos.tech/${computedSlug}` : "https://pharm.synapseos.tech/your-pharmacy";
 
   function toggleModule(key: string) {
     setModules((current) => (current.includes(key) ? current.filter((entry) => entry !== key) : [...current, key]));

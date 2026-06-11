@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
           currency: data.currency ?? "UGX",
           tax_rate: data.taxRate ?? 0,
           low_stock_threshold: data.lowStockThreshold,
+          printer_type: data.printerType ?? "default",
         },
         { onConflict: "tenant_id" }
       )

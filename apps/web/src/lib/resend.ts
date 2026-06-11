@@ -143,6 +143,50 @@ export async function sendWelcomeEmail(email: string, name: string): Promise<voi
   })
 }
 
+/* Transactional: pharmacy admin invite — sent on enrollment */
+export async function sendPharmacyInviteEmail({
+  to,
+  pharmacyName,
+  adminName,
+  inviteToken,
+}: {
+  to: string
+  pharmacyName: string
+  adminName: string
+  inviteToken: string
+}): Promise<void> {
+  const pharmacyAppUrl = process.env.NEXT_PUBLIC_PHARMACY_APP_URL ?? "https://pharm.synapseos.tech"
+  const inviteUrl = `${pharmacyAppUrl.replace(/\/$/, "")}/invite/${inviteToken}`
+  const firstName = adminName.split(' ')[0] || 'there'
+  await resend.emails.send({
+    from: `Synapse Health <${FROM_EMAIL}>`,
+    to: [to],
+    subject: `You've been enrolled on Synapse Pharmacy — ${pharmacyName}`,
+    html: brandedEmail({
+      subject: `You've been enrolled on Synapse Pharmacy`,
+      body: `
+        <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#F5F5F7;">
+          Welcome to Synapse Pharmacy, ${firstName}.
+        </h2>
+        <p style="font-size:14px;line-height:1.7;color:#A0A0B0;margin:0 0 8px;">
+          <strong style="color:#F5F5F7;">${pharmacyName}</strong> has been enrolled on
+          Synapse Health Technologies. You are the pharmacy administrator.
+        </p>
+        <p style="font-size:14px;line-height:1.7;color:#A0A0B0;margin:0 0 24px;">
+          Click below to set up your account and get started.
+        </p>
+        <a href="${inviteUrl}"
+          style="display:inline-block;background:#F97316;color:#fff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;">
+          Set Up Your Account →
+        </a>
+        <p style="font-size:12px;color:#60607A;margin:20px 0 0;">
+          This link expires in 7 days. If you didn't expect this email, you can safely ignore it.
+        </p>
+      `,
+    }),
+  })
+}
+
 /* Transactional: waitlist confirmation for APK download */
 export async function sendWaitlistEmail(email: string): Promise<void> {
   await resend.emails.send({

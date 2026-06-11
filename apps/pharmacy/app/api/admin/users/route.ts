@@ -142,6 +142,13 @@ export async function POST(request: NextRequest) {
 
     const newUserId = newAuthUser.user.id
 
+    // The handle_new_user() trigger created the profile row but without tenant_id.
+    // Update it now so RLS policies work for the new staff member.
+    await supabaseAdmin
+      .from("profiles")
+      .update({ tenant_id: tenantId, role: pharmacyRole })
+      .eq("id", newUserId)
+
     // Insert pharmacy_user_settings
     const { error: settingsError } = await supabaseAdmin
       .from("pharmacy_user_settings")

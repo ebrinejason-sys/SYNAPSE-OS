@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient, createServiceClient } from "../../../../lib/supabase/server";
 import { provisionVercelProjectDomain } from "../../../../lib/vercel-domains";
 import { logPlatformEvent } from "../../../platform/_lib/platform-data";
+import { sendPharmacyInviteEmail } from "../../../../lib/resend";
 
 const PHARMACY_FEATURES = [
   "pharmacy_network",
@@ -20,6 +21,11 @@ function slugify(value: string) {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .slice(0, 48);
+}
+
+function pharmacyRouteForSlug(slug: string) {
+  const tenantSlug = slug.replace(/^pharm-/, "");
+  return `https://pharm.synapseos.tech/${tenantSlug}`;
 }
 
 async function requirePlatformAdminId() {
@@ -78,8 +84,9 @@ export async function GET(request: Request) {
   }
 
   const supabaseAdmin = createServiceClient();
-  const { data } = await (supabaseAdmin as any).from("tenants").select("id").eq("slug", `pharm-${slug}`).maybeSingle();
-  return NextResponse.json({ available: !data, defaultDomain: `pharm-${slug}.synapseos.tech` });
+  const tenantSlug = `pharm-${slug}`;
+  const { data } = await (supabaseAdmin as any).from("tenants").select("id").eq("slug", tenantSlug).maybeSingle();
+  return NextResponse.json({ available: !data, defaultDomain: pharmacyRouteForSlug(tenantSlug) });
 }
 
 export async function POST(request: Request) {
@@ -99,7 +106,7 @@ export async function POST(request: Request) {
 
   const tenantId = crypto.randomUUID();
   const supabaseAdmin = createServiceClient();
-  const defaultDomain = `${slug}.synapseos.tech`;
+  const defaultDomain = pharmacyRouteForSlug(slug);
   const customDomain = String(body.customDomain ?? "").trim().toLowerCase() || null;
   const domainProvisioning = customDomain ? await provisionVercelProjectDomain(customDomain) : null;
 
@@ -114,6 +121,8 @@ export async function POST(request: Request) {
     plan: body.plan || "starter",
     email: adminEmail,
     phone: body.contactPhone || null,
+    default_subdomain: slug,
+    modules_enabled: Array.isArray(body.modules) && body.modules.length > 0 ? body.modules : ["inventory", "dispensing", "network", "staff", "reports"],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
@@ -190,28 +199,81 @@ export async function POST(request: Request) {
   } else {
     const fullName = body.contactName || "Pharmacy Admin";
     const [firstName, ...restName] = fullName.split(" ");
-    const profileAttempts = [
-      {
-        id: adminUser.user.id,
+    // The handle_new_user() trigger already created the profile row on auth.users insert.
+    // We only need to UPDATE it with tenant_id and role — INSERT would duplicate-key error.
+    await (supabaseAdmin as any)
+      .from("profiles")
+      .update({
+        tenant_id: tenantId,
         role: "pharmacy_admin",
-        tenant_id: tenantId,
-        email: adminEmail,
         full_name: fullName,
-      },
-      {
-        tenant_id: tenantId,
-        user_id: adminUser.user.id,
-        role: "pharmacist",
         first_name: firstName || "Pharmacy",
         last_name: restName.join(" ") || "Admin",
         email: adminEmail,
-        phone: body.contactPhone || null,
-        is_active: true,
-      },
-    ];
-    for (const profile of profileAttempts) {
-      const { error } = await (supabaseAdmin as any).from("profiles").insert(profile);
-      if (!error) break;
+      })
+      .eq("id", adminUser.user.id);
+  }
+
+  // Create pharmacy_user_settings for the admin user (required for role checks in pharmacy app)
+  if (adminUser?.user?.id) {
+    try {
+      await (supabaseAdmin as any)
+        .from("pharmacy_user_settings")
+        .upsert(
+          {
+            tenant_id: tenantId,
+            profile_id: adminUser.user.id,
+            pharmacy_role: "pharmacy_admin",
+            permissions: [],
+            is_active: true,
+            must_change_password: true,
+            created_by: actorId,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "tenant_id,profile_id" }
+        );
+    } catch {}
+  }
+
+  // Create pharmacy_onboarding record — generates invite_token automatically
+  let inviteToken: string | null = null;
+  try {
+    const { data: onboarding } = await (supabaseAdmin as any)
+      .from("pharmacy_onboarding")
+      .upsert(
+        {
+          tenant_id: tenantId,
+          current_step: 0,
+          enrolled_by: actorId,
+          invite_sent_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "tenant_id" }
+      )
+      .select("invite_token")
+      .single();
+    inviteToken = onboarding?.invite_token ?? null;
+  } catch {}
+
+  // Send invite email to the pharmacy admin
+  if (inviteToken) {
+    try {
+      await sendPharmacyInviteEmail({
+        to: adminEmail,
+        pharmacyName,
+        adminName: body.contactName || "Pharmacy Admin",
+        inviteToken,
+      });
+    } catch (emailErr) {
+      // Log but don't fail the enrollment if email sending fails
+      await logPlatformEvent({
+        actorId,
+        action: "pharmacy.invite_email_failed",
+        entityType: "tenant",
+        entityId: tenantId,
+        tenantId,
+        metadata: { error: String(emailErr), admin_email: adminEmail },
+      });
     }
   }
 
@@ -227,8 +289,9 @@ export async function POST(request: Request) {
       domain_status: domainProvisioning?.status ?? "default",
       domain_error: domainProvisioning?.error ?? null,
       migration_source: body.migrationSource || "pending",
+      invite_email_sent: Boolean(inviteToken),
     },
   });
 
-  return NextResponse.json({ id: tenantId, slug, defaultDomain, customDomain, domainProvisioning });
+  return NextResponse.json({ id: tenantId, slug, defaultDomain, customDomain, domainProvisioning, inviteEmailSent: Boolean(inviteToken) });
 }
