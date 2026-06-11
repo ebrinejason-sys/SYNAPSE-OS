@@ -11,10 +11,15 @@ type TenantLookup = {
   slug?: string | null;
 };
 
-function pharmacyPath(pathname: string) {
-  if (pathname === "/") return "/pharmacy/queue";
-  if (pathname.startsWith("/pharmacy")) return pathname;
-  return `/pharmacy${pathname}`;
+function standalonePharmacyUrl(request: NextRequest, tenantSlug: string) {
+  const origin = (process.env.NEXT_PUBLIC_PHARMACY_APP_URL ?? "https://pharm.synapseos.tech").replace(/\/$/, "");
+  const target = new URL("/login", origin);
+  target.searchParams.set("tenant", tenantSlug);
+
+  const redirectTo = request.nextUrl.searchParams.get("redirectTo");
+  if (redirectTo) target.searchParams.set("redirectTo", redirectTo);
+
+  return target;
 }
 
 async function resolvePharmacyCustomDomain(hostname: string) {
@@ -93,13 +98,7 @@ export async function middleware(request: NextRequest) {
   if (!isLocal && !hostname.includes("vercel.app") && !isSynapseManagedDomain) {
     const pharmacyDomain = await resolvePharmacyCustomDomain(hostname);
     if (pharmacyDomain) {
-      const response = NextResponse.rewrite(
-        new URL(pharmacyPath(pathname), request.url)
-      );
-      response.headers.set("x-pharmacy-custom-domain", hostname);
-      response.headers.set("x-pharmacy-tenant-id", pharmacyDomain.tenantId);
-      response.headers.set("x-pharmacy-subdomain", pharmacyDomain.slug);
-      return response;
+      return NextResponse.redirect(standalonePharmacyUrl(request, pharmacyDomain.slug));
     }
   }
 
@@ -154,11 +153,7 @@ export async function middleware(request: NextRequest) {
   // ── HOSPITAL subdomain: tenant portal ─────────────────────────────
   if (subdomain.startsWith("pharm-")) {
     const pharmacySlug = subdomain.replace(/^pharm-/, "");
-    const response = NextResponse.rewrite(
-      new URL(pharmacyPath(pathname), request.url)
-    );
-    response.headers.set("x-pharmacy-subdomain", pharmacySlug);
-    return response;
+    return NextResponse.redirect(standalonePharmacyUrl(request, `pharm-${pharmacySlug}`));
   }
 
   if (subdomain && subdomain !== "www" && subdomain !== "synapseos") {
