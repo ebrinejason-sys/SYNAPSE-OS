@@ -83,6 +83,15 @@ CREATE TABLE IF NOT EXISTS pharmacy_orders (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE pharmacy_orders
+  ADD COLUMN IF NOT EXISTS patient_id UUID REFERENCES profiles(id),
+  ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS total_ugx INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS fulfillment_type TEXT,
+  ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'unpaid',
+  ADD COLUMN IF NOT EXISTS payment_ref TEXT;
+
 ALTER TABLE pharmacy_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pharmacy_network_inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE drug_shortage_alerts ENABLE ROW LEVEL SECURITY;
@@ -93,3 +102,41 @@ CREATE INDEX IF NOT EXISTS idx_pharmacy_profiles_custom_domain ON pharmacy_profi
 CREATE INDEX IF NOT EXISTS idx_pharmacy_inventory_tenant_drug ON pharmacy_network_inventory(pharmacy_tenant_id, drug_name);
 CREATE INDEX IF NOT EXISTS idx_pharmacy_orders_tenant_status ON pharmacy_orders(tenant_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_shortage_alerts_active_drug ON drug_shortage_alerts(is_active, drug_name);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pharmacy_profiles' AND policyname = 'platform_admin_pharmacy_profiles'
+  ) THEN
+    CREATE POLICY platform_admin_pharmacy_profiles ON pharmacy_profiles
+      USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'platform_admin'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pharmacy_profiles' AND policyname = 'tenant_pharmacy_profiles'
+  ) THEN
+    CREATE POLICY tenant_pharmacy_profiles ON pharmacy_profiles
+      USING (tenant_id = (SELECT tenant_id FROM profiles WHERE profiles.id = auth.uid()));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pharmacy_network_inventory' AND policyname = 'platform_admin_pharmacy_inventory'
+  ) THEN
+    CREATE POLICY platform_admin_pharmacy_inventory ON pharmacy_network_inventory
+      USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'platform_admin'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pharmacy_network_inventory' AND policyname = 'tenant_pharmacy_inventory'
+  ) THEN
+    CREATE POLICY tenant_pharmacy_inventory ON pharmacy_network_inventory
+      USING (pharmacy_tenant_id = (SELECT tenant_id FROM profiles WHERE profiles.id = auth.uid()));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pharmacy_orders' AND policyname = 'tenant_pharmacy_orders'
+  ) THEN
+    CREATE POLICY tenant_pharmacy_orders ON pharmacy_orders
+      USING (tenant_id = (SELECT tenant_id FROM profiles WHERE profiles.id = auth.uid()) OR patient_id = auth.uid());
+  END IF;
+END $$;
