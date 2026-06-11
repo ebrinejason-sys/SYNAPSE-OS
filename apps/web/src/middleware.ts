@@ -11,6 +11,12 @@ type TenantLookup = {
   slug?: string | null;
 };
 
+function pharmacyPath(pathname: string) {
+  if (pathname === "/") return "/pharmacy/queue";
+  if (pathname.startsWith("/pharmacy")) return pathname;
+  return `/pharmacy${pathname}`;
+}
+
 async function resolvePharmacyCustomDomain(hostname: string) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -88,7 +94,7 @@ export async function middleware(request: NextRequest) {
     const pharmacyDomain = await resolvePharmacyCustomDomain(hostname);
     if (pharmacyDomain) {
       const response = NextResponse.rewrite(
-        new URL(`/pharmacy${pathname === "/" ? "" : pathname}`, request.url)
+        new URL(pharmacyPath(pathname), request.url)
       );
       response.headers.set("x-pharmacy-custom-domain", hostname);
       response.headers.set("x-pharmacy-tenant-id", pharmacyDomain.tenantId);
@@ -149,7 +155,7 @@ export async function middleware(request: NextRequest) {
   if (subdomain.startsWith("pharm-")) {
     const pharmacySlug = subdomain.replace(/^pharm-/, "");
     const response = NextResponse.rewrite(
-      new URL(`/pharmacy${pathname === "/" ? "" : pathname}`, request.url)
+      new URL(pharmacyPath(pathname), request.url)
     );
     response.headers.set("x-pharmacy-subdomain", pharmacySlug);
     return response;
