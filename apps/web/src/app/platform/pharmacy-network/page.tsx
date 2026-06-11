@@ -1,11 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { Fragment } from "react";
 import { revalidatePath } from "next/cache";
-import { Download, Globe2, MapPinned, Pill, RefreshCcw, UploadCloud } from "lucide-react";
+import { Download, Globe2, Mail, MapPinned, Pill, Power, RefreshCcw, Save, UploadCloud } from "lucide-react";
 import { createServiceClient } from "../../../lib/supabase/server";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
 import { provisionVercelProjectDomain, verifyVercelProjectDomain } from "../../../lib/vercel-domains";
+import { sendPharmacyInviteEmail } from "../../../lib/resend";
 import { formatDateTime, logPlatformEvent, safeCount, safeRows } from "../_lib/platform-data";
 
 type PharmacyRow = {
@@ -14,7 +16,14 @@ type PharmacyRow = {
   slug?: string | null;
   facility_type?: string | null;
   district?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  plan?: string | null;
+  status?: string | null;
   is_active?: boolean | null;
+  is_network_member?: boolean | null;
+  accepts_refill_requests?: boolean | null;
+  network_listing_name?: string | null;
   updated_at?: string | null;
 };
 
@@ -31,6 +40,9 @@ type PharmacyProfileRow = {
   migration_completed_at?: string | null;
   is_network_visible?: boolean | null;
   delivery_available?: boolean | null;
+  contact_person?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
 };
 
 type InventoryRow = {
@@ -42,6 +54,14 @@ type InventoryRow = {
   strength?: string | null;
   quantity_in_stock?: number | null;
   last_synced_at?: string | null;
+};
+
+type OnboardingRow = {
+  tenant_id?: string | null;
+  current_step?: number | null;
+  invite_token?: string | null;
+  invite_sent_at?: string | null;
+  invite_expires_at?: string | null;
 };
 
 async function updatePharmacyDomain(formData: FormData) {
@@ -187,6 +207,202 @@ async function forceInventorySync(formData: FormData) {
   revalidatePath("/platform/pharmacy-network");
 }
 
+async function updatePharmacyDetails(formData: FormData) {
+  "use server";
+  const profile = await requirePlatformAdmin();
+  const tenantId = String(formData.get("tenant_id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const district = String(formData.get("district") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const plan = String(formData.get("plan") ?? "starter").trim();
+  const networkListingName = String(formData.get("network_listing_name") ?? "").trim();
+  const isNetworkMember = formData.get("is_network_member") === "on";
+  const acceptsRefillRequests = formData.get("accepts_refill_requests") === "on";
+  const deliveryAvailable = formData.get("delivery_available") === "on";
+
+  if (!tenantId || !name) return;
+
+  const supabaseAdmin = createServiceClient();
+  await (supabaseAdmin as any)
+    .from("tenants")
+    .update({
+      name,
+      district: district || null,
+      phone: phone || null,
+      email: email || null,
+      plan: plan || "starter",
+      is_network_member: isNetworkMember,
+      accepts_refill_requests: acceptsRefillRequests,
+      network_listing_name: networkListingName || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", tenantId)
+    .eq("facility_type", "pharmacy");
+
+  await (supabaseAdmin as any)
+    .from("pharmacy_profiles")
+    .upsert(
+      {
+        tenant_id: tenantId,
+        pharmacy_name: name,
+        district: district || null,
+        contact_phone: phone || null,
+        contact_email: email || null,
+        is_network_visible: isNetworkMember,
+        delivery_available: deliveryAvailable,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "tenant_id" }
+    );
+
+  await logPlatformEvent({
+    actorId: profile.id,
+    action: "pharmacy.updated",
+    entityType: "tenant",
+    entityId: tenantId,
+    tenantId,
+    metadata: {
+      name,
+      plan,
+      is_network_member: isNetworkMember,
+      accepts_refill_requests: acceptsRefillRequests,
+      delivery_available: deliveryAvailable,
+    },
+  });
+
+  revalidatePath("/platform/pharmacy-network");
+}
+
+async function setPharmacyOperationalStatus(formData: FormData) {
+  "use server";
+  const profile = await requirePlatformAdmin();
+  const tenantId = String(formData.get("tenant_id") ?? "");
+  const nextStatus = String(formData.get("status") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!tenantId || !["active", "suspended"].includes(nextStatus)) return;
+
+  const isActive = nextStatus === "active";
+  const supabaseAdmin = createServiceClient();
+  const tenantUpdate: Record<string, unknown> = {
+    status: nextStatus,
+    is_active: isActive,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (!isActive) {
+    tenantUpdate.is_network_member = false;
+    tenantUpdate.accepts_refill_requests = false;
+  }
+
+  await (supabaseAdmin as any)
+    .from("tenants")
+    .update(tenantUpdate)
+    .eq("id", tenantId)
+    .eq("facility_type", "pharmacy");
+
+  if (!isActive) {
+    await (supabaseAdmin as any)
+      .from("pharmacy_profiles")
+      .upsert(
+        {
+          tenant_id: tenantId,
+          is_network_visible: false,
+          delivery_available: false,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "tenant_id" }
+      );
+  }
+
+  await logPlatformEvent({
+    actorId: profile.id,
+    action: isActive ? "pharmacy.reactivated" : "pharmacy.suspended",
+    entityType: "tenant",
+    entityId: tenantId,
+    tenantId,
+    metadata: { reason: reason || null },
+  });
+
+  revalidatePath("/platform/pharmacy-network");
+}
+
+async function resendPharmacySetupInvite(formData: FormData) {
+  "use server";
+  const profile = await requirePlatformAdmin();
+  const tenantId = String(formData.get("tenant_id") ?? "");
+  if (!tenantId) return;
+
+  const supabaseAdmin = createServiceClient();
+  const { data: tenant } = await (supabaseAdmin as any)
+    .from("tenants")
+    .select("name, email")
+    .eq("id", tenantId)
+    .eq("facility_type", "pharmacy")
+    .maybeSingle();
+
+  if (!tenant) return;
+
+  const { data: adminSettings } = await (supabaseAdmin as any)
+    .from("pharmacy_user_settings")
+    .select("profile_id")
+    .eq("tenant_id", tenantId)
+    .eq("pharmacy_role", "pharmacy_admin")
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  let adminEmail = tenant.email as string | null;
+  let adminName = "Pharmacy Admin";
+  if (adminSettings?.profile_id) {
+    const { data: profileRow } = await (supabaseAdmin as any)
+      .from("profiles")
+      .select("email, full_name")
+      .eq("id", adminSettings.profile_id)
+      .maybeSingle();
+    adminEmail = profileRow?.email ?? adminEmail;
+    adminName = profileRow?.full_name ?? adminName;
+  }
+
+  if (!adminEmail) return;
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: onboarding } = await (supabaseAdmin as any)
+    .from("pharmacy_onboarding")
+    .upsert(
+      {
+        tenant_id: tenantId,
+        invite_sent_at: now.toISOString(),
+        invite_expires_at: expiresAt,
+        updated_at: now.toISOString(),
+      },
+      { onConflict: "tenant_id" }
+    )
+    .select("invite_token")
+    .single();
+
+  if (onboarding?.invite_token) {
+    await sendPharmacyInviteEmail({
+      to: adminEmail,
+      pharmacyName: tenant.name ?? "Your pharmacy",
+      adminName,
+      inviteToken: onboarding.invite_token,
+    });
+  }
+
+  await logPlatformEvent({
+    actorId: profile.id,
+    action: "pharmacy.invite_resent",
+    entityType: "tenant",
+    entityId: tenantId,
+    tenantId,
+    metadata: { admin_email: adminEmail },
+  });
+
+  revalidatePath("/platform/pharmacy-network");
+}
+
 function pharmacyRouteForSlug(slug?: string | null) {
   const cleanSlug = (slug || "pharmacy").replace(/^pharm-/, "");
   return `https://pharm.synapseos.tech/${cleanSlug}`;
@@ -195,15 +411,15 @@ function pharmacyRouteForSlug(slug?: string | null) {
 export default async function PharmacyNetworkPage() {
   await requirePlatformAdmin();
 
-  const [pharmacies, profiles, inventory, syncedRecently] = await Promise.all([
-    safeRows<PharmacyRow>("tenants", "id, name, slug, facility_type, district, is_active, updated_at", {
+  const [pharmacies, profiles, inventory, syncedRecently, onboardingRows] = await Promise.all([
+    safeRows<PharmacyRow>("tenants", "id, name, slug, facility_type, district, email, phone, plan, status, is_active, is_network_member, accepts_refill_requests, network_listing_name, updated_at", {
       filters: [["facility_type", "pharmacy"]],
       orderBy: "updated_at",
       limit: 200,
     }),
     safeRows<PharmacyProfileRow>(
       "pharmacy_profiles",
-      "tenant_id, custom_domain, custom_domain_verified, default_domain, domain_status, domain_error, domain_verification, migrated_from, migration_status, migration_completed_at, is_network_visible, delivery_available",
+      "tenant_id, custom_domain, custom_domain_verified, default_domain, domain_status, domain_error, domain_verification, migrated_from, migration_status, migration_completed_at, is_network_visible, delivery_available, contact_person, contact_phone, contact_email",
       { limit: 1000 }
     ),
     safeRows<InventoryRow>(
@@ -212,10 +428,16 @@ export default async function PharmacyNetworkPage() {
       { orderBy: "last_synced_at", limit: 200 }
     ),
     safeCount("pharmacy_network_inventory"),
+    safeRows<OnboardingRow>(
+      "pharmacy_onboarding",
+      "tenant_id, current_step, invite_token, invite_sent_at, invite_expires_at",
+      { limit: 1000 }
+    ),
   ]);
 
   const inventoryByPharmacy = new Map<string, InventoryRow[]>();
   const profileByTenant = new Map(profiles.map((profile) => [profile.tenant_id, profile]));
+  const onboardingByTenant = new Map(onboardingRows.map((row) => [row.tenant_id, row]));
   for (const item of inventory) {
     const key = item.pharmacy_tenant_id ?? "unknown";
     inventoryByPharmacy.set(key, [...(inventoryByPharmacy.get(key) ?? []), item]);
@@ -279,78 +501,166 @@ export default async function PharmacyNetworkPage() {
                 {pharmacies.map((pharmacy) => {
                   const rows = inventoryByPharmacy.get(pharmacy.id ?? "") ?? [];
                   const pharmacyProfile = profileByTenant.get(pharmacy.id ?? "");
+                  const onboarding = onboardingByTenant.get(pharmacy.id ?? "");
                   const latestSync = rows[0]?.last_synced_at ?? pharmacy.updated_at;
                   const defaultDomain = pharmacyProfile?.default_domain ?? pharmacyRouteForSlug(pharmacy.slug ?? pharmacy.id);
                   const customDomain = pharmacyProfile?.custom_domain;
+                  const isActive = pharmacy.is_active !== false && pharmacy.status !== "suspended";
                   const domainStatus = customDomain
                     ? pharmacyProfile?.custom_domain_verified
                       ? "verified custom"
                       : pharmacyProfile?.domain_status?.replace(/_/g, " ") ?? "DNS pending"
                     : "default route";
                   return (
-                    <tr key={pharmacy.id ?? pharmacy.name ?? crypto.randomUUID()}>
-                      <td className="px-4 py-3 font-medium text-slate-100">{pharmacy.name ?? "Unnamed pharmacy"}</td>
-                      <td className="px-4 py-3 text-slate-400">{pharmacy.district ?? "Unknown"}</td>
-                      <td className="px-4 py-3">
-                        <div className="space-y-1">
-                          <p className="font-mono text-xs text-[#E8B84B]">{customDomain || defaultDomain}</p>
-                          <span className={`rounded-full border px-2 py-0.5 text-[10px] ${pharmacyProfile?.custom_domain_verified ? "border-green-500/25 bg-green-500/10 text-green-300" : "border-slate-700 bg-slate-800 text-slate-400"}`}>
-                            {domainStatus}
-                          </span>
-                          {pharmacyProfile?.domain_error ? <p className="max-w-56 text-[11px] text-red-300">{pharmacyProfile.domain_error}</p> : null}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-300">{rows.length}</td>
-                      <td className="px-4 py-3 text-slate-500">{formatDateTime(latestSync)}</td>
-                      <td className="px-4 py-3">
-                        <p className="text-xs text-slate-300">{pharmacyProfile?.migration_status ?? "not started"}</p>
-                        <p className="mt-1 text-[11px] text-slate-500">{pharmacyProfile?.migrated_from ?? "source pending"}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="rounded-full border border-green-500/25 bg-green-500/10 px-2 py-0.5 text-xs text-green-300">
-                          {rows.length > 0 ? "synced" : "waiting"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex min-w-64 flex-wrap gap-2">
-                          <form action={forceInventorySync}>
-                            <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
-                            <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">
-                              <RefreshCcw className="h-3 w-3" />
-                              Force sync
-                            </button>
-                          </form>
-                          <form action={markMigrationReady} className="flex flex-wrap gap-2">
-                            <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
-                            <select name="migration_source" defaultValue={pharmacyProfile?.migrated_from ?? "csv_excel"} className="rounded-lg border border-slate-700 bg-[#07070A] px-2 py-1 text-xs text-slate-300">
-                              <option value="csv_excel">CSV/Excel</option>
-                              <option value="quickbooks">QuickBooks</option>
-                              <option value="legacy_system">Legacy system</option>
-                              <option value="manual">Manual</option>
-                            </select>
-                            <button type="submit" className="rounded-lg border border-[#E8B84B]/30 px-2 py-1 text-xs text-[#E8B84B]">Migration ready</button>
-                          </form>
-                          <form action={updatePharmacyDomain} className="flex flex-wrap gap-2">
-                            <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
-                            <input name="custom_domain" placeholder="rx.example.ug" defaultValue={customDomain ?? ""} className="w-32 rounded-lg border border-slate-700 bg-[#07070A] px-2 py-1 text-xs text-slate-300" />
-                            <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">
-                              <Globe2 className="h-3 w-3" />
-                              Domain
-                            </button>
-                          </form>
-                          {customDomain ? (
-                            <form action={verifyPharmacyDomain}>
+                    <Fragment key={pharmacy.id ?? pharmacy.name ?? defaultDomain}>
+                      <tr>
+                        <td className="px-4 py-3 font-medium text-slate-100">{pharmacy.name ?? "Unnamed pharmacy"}</td>
+                        <td className="px-4 py-3 text-slate-400">{pharmacy.district ?? "Unknown"}</td>
+                        <td className="px-4 py-3">
+                          <div className="space-y-1">
+                            <p className="font-mono text-xs text-[#E8B84B]">{customDomain || defaultDomain}</p>
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] ${pharmacyProfile?.custom_domain_verified ? "border-green-500/25 bg-green-500/10 text-green-300" : "border-slate-700 bg-slate-800 text-slate-400"}`}>
+                              {domainStatus}
+                            </span>
+                            {pharmacyProfile?.domain_error ? <p className="max-w-56 text-[11px] text-red-300">{pharmacyProfile.domain_error}</p> : null}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-slate-300">{rows.length}</td>
+                        <td className="px-4 py-3 text-slate-500">{formatDateTime(latestSync)}</td>
+                        <td className="px-4 py-3">
+                          <p className="text-xs text-slate-300">{pharmacyProfile?.migration_status ?? "not started"}</p>
+                          <p className="mt-1 text-[11px] text-slate-500">{pharmacyProfile?.migrated_from ?? "source pending"}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="space-y-1">
+                            <span className={`rounded-full border px-2 py-0.5 text-xs ${isActive ? "border-green-500/25 bg-green-500/10 text-green-300" : "border-red-500/25 bg-red-500/10 text-red-300"}`}>
+                              {isActive ? pharmacy.status ?? "active" : "suspended"}
+                            </span>
+                            <p className="text-[11px] text-slate-500">{rows.length > 0 ? "synced" : "waiting"}</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex min-w-64 flex-wrap gap-2">
+                            <form action={forceInventorySync}>
                               <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
-                              <input type="hidden" name="custom_domain" value={customDomain} />
-                              <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-green-500/30 px-2 py-1 text-xs text-green-300">
-                                <Globe2 className="h-3 w-3" />
-                                Verify
+                              <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">
+                                <RefreshCcw className="h-3 w-3" />
+                                Force sync
                               </button>
                             </form>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
+                            <form action={resendPharmacySetupInvite}>
+                              <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
+                              <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-[#E8B84B]/30 px-2 py-1 text-xs text-[#E8B84B]">
+                                <Mail className="h-3 w-3" />
+                                Resend invite
+                              </button>
+                            </form>
+                            <form action={setPharmacyOperationalStatus}>
+                              <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
+                              <input type="hidden" name="status" value={isActive ? "suspended" : "active"} />
+                              <input type="hidden" name="reason" value={isActive ? "Platform admin suspended pharmacy" : "Platform admin reactivated pharmacy"} />
+                              <button type="submit" className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs ${isActive ? "border-red-500/30 text-red-300" : "border-green-500/30 text-green-300"}`}>
+                                <Power className="h-3 w-3" />
+                                {isActive ? "Suspend" : "Reactivate"}
+                              </button>
+                            </form>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr className="bg-[#07070A]/55">
+                        <td colSpan={8} className="px-4 py-4">
+                          <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">
+                            <form action={updatePharmacyDetails} className="grid gap-3 rounded-xl border border-slate-800 bg-[#0B0B10] p-3 md:grid-cols-2">
+                              <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
+                              <label className="space-y-1">
+                                <span className="text-[10px] uppercase tracking-wide text-slate-500">Name</span>
+                                <input name="name" defaultValue={pharmacy.name ?? ""} className="w-full rounded-lg border border-slate-700 bg-[#07070A] px-2 py-1.5 text-xs text-slate-200" />
+                              </label>
+                              <label className="space-y-1">
+                                <span className="text-[10px] uppercase tracking-wide text-slate-500">Plan</span>
+                                <select name="plan" defaultValue={pharmacy.plan ?? "starter"} className="w-full rounded-lg border border-slate-700 bg-[#07070A] px-2 py-1.5 text-xs text-slate-200">
+                                  <option value="trial">trial</option>
+                                  <option value="starter">starter</option>
+                                  <option value="professional">professional</option>
+                                  <option value="enterprise">enterprise</option>
+                                </select>
+                              </label>
+                              <label className="space-y-1">
+                                <span className="text-[10px] uppercase tracking-wide text-slate-500">District</span>
+                                <input name="district" defaultValue={pharmacy.district ?? ""} className="w-full rounded-lg border border-slate-700 bg-[#07070A] px-2 py-1.5 text-xs text-slate-200" />
+                              </label>
+                              <label className="space-y-1">
+                                <span className="text-[10px] uppercase tracking-wide text-slate-500">Phone</span>
+                                <input name="phone" defaultValue={pharmacyProfile?.contact_phone ?? pharmacy.phone ?? ""} className="w-full rounded-lg border border-slate-700 bg-[#07070A] px-2 py-1.5 text-xs text-slate-200" />
+                              </label>
+                              <label className="space-y-1">
+                                <span className="text-[10px] uppercase tracking-wide text-slate-500">Email</span>
+                                <input name="email" defaultValue={pharmacyProfile?.contact_email ?? pharmacy.email ?? ""} className="w-full rounded-lg border border-slate-700 bg-[#07070A] px-2 py-1.5 text-xs text-slate-200" />
+                              </label>
+                              <label className="space-y-1">
+                                <span className="text-[10px] uppercase tracking-wide text-slate-500">Network name</span>
+                                <input name="network_listing_name" defaultValue={pharmacy.network_listing_name ?? pharmacy.name ?? ""} className="w-full rounded-lg border border-slate-700 bg-[#07070A] px-2 py-1.5 text-xs text-slate-200" />
+                              </label>
+                              <label className="flex items-center gap-2 text-xs text-slate-300">
+                                <input name="is_network_member" type="checkbox" defaultChecked={Boolean(pharmacy.is_network_member || pharmacyProfile?.is_network_visible)} className="accent-[#F97316]" />
+                                Patient network
+                              </label>
+                              <label className="flex items-center gap-2 text-xs text-slate-300">
+                                <input name="accepts_refill_requests" type="checkbox" defaultChecked={Boolean(pharmacy.accepts_refill_requests)} className="accent-[#F97316]" />
+                                Refill requests
+                              </label>
+                              <label className="flex items-center gap-2 text-xs text-slate-300">
+                                <input name="delivery_available" type="checkbox" defaultChecked={Boolean(pharmacyProfile?.delivery_available)} className="accent-[#F97316]" />
+                                Delivery
+                              </label>
+                              <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97316] px-3 py-2 text-xs font-semibold text-white md:col-span-2">
+                                <Save className="h-3.5 w-3.5" />
+                                Save pharmacy
+                              </button>
+                            </form>
+
+                            <div className="space-y-3 rounded-xl border border-slate-800 bg-[#0B0B10] p-3">
+                              <form action={markMigrationReady} className="flex flex-wrap gap-2">
+                                <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
+                                <select name="migration_source" defaultValue={pharmacyProfile?.migrated_from ?? "csv_excel"} className="rounded-lg border border-slate-700 bg-[#07070A] px-2 py-1.5 text-xs text-slate-300">
+                                  <option value="csv_excel">CSV/Excel</option>
+                                  <option value="quickbooks">QuickBooks</option>
+                                  <option value="legacy_system">Legacy system</option>
+                                  <option value="manual">Manual</option>
+                                </select>
+                                <button type="submit" className="rounded-lg border border-[#E8B84B]/30 px-2 py-1.5 text-xs text-[#E8B84B]">Migration ready</button>
+                              </form>
+                              <div className="text-xs text-slate-500">
+                                <p>Onboarding step: <span className="text-slate-300">{onboarding?.current_step ?? "not started"}</span></p>
+                                <p>Invite sent: <span className="text-slate-300">{formatDateTime(onboarding?.invite_sent_at)}</span></p>
+                                <p>Invite expires: <span className="text-slate-300">{formatDateTime(onboarding?.invite_expires_at)}</span></p>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3 rounded-xl border border-slate-800 bg-[#0B0B10] p-3">
+                              <form action={updatePharmacyDomain} className="flex flex-wrap gap-2">
+                                <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
+                                <input name="custom_domain" placeholder="rx.example.ug" defaultValue={customDomain ?? ""} className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-[#07070A] px-2 py-1.5 text-xs text-slate-300" />
+                                <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1.5 text-xs text-slate-300">
+                                  <Globe2 className="h-3 w-3" />
+                                  Domain
+                                </button>
+                              </form>
+                              {customDomain ? (
+                                <form action={verifyPharmacyDomain}>
+                                  <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
+                                  <input type="hidden" name="custom_domain" value={customDomain} />
+                                  <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-green-500/30 px-2 py-1.5 text-xs text-green-300">
+                                    <Globe2 className="h-3 w-3" />
+                                    Verify custom domain
+                                  </button>
+                                </form>
+                              ) : null}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    </Fragment>
                   );
                 })}
                 {pharmacies.length === 0 ? (
