@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceClient } from "../../../../lib/supabase/server";
+import { provisionVercelProjectDomain } from "../../../../lib/vercel-domains";
 import { logPlatformEvent } from "../../../platform/_lib/platform-data";
 
 const PHARMACY_FEATURES = [
@@ -100,6 +101,7 @@ export async function POST(request: Request) {
   const supabaseAdmin = createServiceClient();
   const defaultDomain = `${slug}.synapseos.tech`;
   const customDomain = String(body.customDomain ?? "").trim().toLowerCase() || null;
+  const domainProvisioning = customDomain ? await provisionVercelProjectDomain(customDomain) : null;
 
   const tenantError = await insertTenantWithFallback(supabaseAdmin, {
     id: tenantId,
@@ -133,6 +135,14 @@ export async function POST(request: Request) {
       contact_email: adminEmail,
       custom_domain: customDomain,
       default_domain: defaultDomain,
+      custom_domain_verified: Boolean(domainProvisioning?.verified),
+      custom_domain_verified_at: domainProvisioning?.verified ? new Date().toISOString() : null,
+      vercel_domain_id: domainProvisioning?.vercelDomainId ?? null,
+      domain_status: domainProvisioning?.status ?? "default",
+      domain_verification: domainProvisioning?.verification ?? null,
+      domain_error: domainProvisioning?.error ?? null,
+      domain_configured_at: customDomain ? new Date().toISOString() : null,
+      last_domain_check_at: customDomain ? new Date().toISOString() : null,
       is_network_visible: Boolean(body.networkVisible ?? true),
       delivery_available: Boolean(body.deliveryAvailable),
       delivery_radius_km: Number(body.deliveryRadiusKm || 0) || null,
@@ -211,8 +221,14 @@ export async function POST(request: Request) {
     entityType: "tenant",
     entityId: tenantId,
     tenantId,
-    metadata: { default_domain: defaultDomain, custom_domain: customDomain, migration_source: body.migrationSource || "pending" },
+    metadata: {
+      default_domain: defaultDomain,
+      custom_domain: customDomain,
+      domain_status: domainProvisioning?.status ?? "default",
+      domain_error: domainProvisioning?.error ?? null,
+      migration_source: body.migrationSource || "pending",
+    },
   });
 
-  return NextResponse.json({ id: tenantId, slug, defaultDomain, customDomain });
+  return NextResponse.json({ id: tenantId, slug, defaultDomain, customDomain, domainProvisioning });
 }

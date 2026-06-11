@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { Download, Globe2, MapPinned, Pill, RefreshCcw, UploadCloud } from "lucide-react";
 import { createServiceClient } from "../../../lib/supabase/server";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
+import { provisionVercelProjectDomain, verifyVercelProjectDomain } from "../../../lib/vercel-domains";
 import { formatDateTime, logPlatformEvent, safeCount, safeRows } from "../_lib/platform-data";
 
 type PharmacyRow = {
@@ -22,6 +23,9 @@ type PharmacyProfileRow = {
   custom_domain?: string | null;
   custom_domain_verified?: boolean | null;
   default_domain?: string | null;
+  domain_status?: string | null;
+  domain_error?: string | null;
+  domain_verification?: unknown[] | null;
   migrated_from?: string | null;
   migration_status?: string | null;
   migration_completed_at?: string | null;
@@ -48,6 +52,7 @@ async function updatePharmacyDomain(formData: FormData) {
   if (!tenantId || !customDomain) return;
 
   const supabaseAdmin = createServiceClient();
+  const provisioning = await provisionVercelProjectDomain(customDomain);
   try {
     await (supabaseAdmin as any)
       .from("pharmacy_profiles")
@@ -55,7 +60,14 @@ async function updatePharmacyDomain(formData: FormData) {
         {
           tenant_id: tenantId,
           custom_domain: customDomain,
-          custom_domain_verified: false,
+          custom_domain_verified: provisioning.verified,
+          custom_domain_verified_at: provisioning.verified ? new Date().toISOString() : null,
+          vercel_domain_id: provisioning.vercelDomainId,
+          domain_status: provisioning.status,
+          domain_verification: provisioning.verification,
+          domain_error: provisioning.error,
+          domain_configured_at: new Date().toISOString(),
+          last_domain_check_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
         { onConflict: "tenant_id" }
@@ -70,8 +82,50 @@ async function updatePharmacyDomain(formData: FormData) {
     tenantId,
     metadata: {
       custom_domain: customDomain,
+      domain_status: provisioning.status,
+      domain_error: provisioning.error,
       dns_instruction: `Add TXT record _synapse.${customDomain} with value synapse-domain-verification=${tenantId.slice(0, 8)}`,
     },
+  });
+  revalidatePath("/platform/pharmacy-network");
+}
+
+async function verifyPharmacyDomain(formData: FormData) {
+  "use server";
+  const profile = await requirePlatformAdmin();
+  const tenantId = String(formData.get("tenant_id") ?? "");
+  const customDomain = String(formData.get("custom_domain") ?? "").trim().toLowerCase();
+  if (!tenantId || !customDomain) return;
+
+  const verification = await verifyVercelProjectDomain(customDomain);
+  const supabaseAdmin = createServiceClient();
+  try {
+    await (supabaseAdmin as any)
+      .from("pharmacy_profiles")
+      .upsert(
+        {
+          tenant_id: tenantId,
+          custom_domain: customDomain,
+          custom_domain_verified: verification.verified,
+          custom_domain_verified_at: verification.verified ? new Date().toISOString() : null,
+          vercel_domain_id: verification.vercelDomainId,
+          domain_status: verification.status,
+          domain_verification: verification.verification,
+          domain_error: verification.error,
+          last_domain_check_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "tenant_id" }
+      );
+  } catch {}
+
+  await logPlatformEvent({
+    actorId: profile.id,
+    action: "pharmacy.custom_domain_verified",
+    entityType: "tenant",
+    entityId: tenantId,
+    tenantId,
+    metadata: { custom_domain: customDomain, domain_status: verification.status, domain_error: verification.error },
   });
   revalidatePath("/platform/pharmacy-network");
 }
@@ -144,7 +198,7 @@ export default async function PharmacyNetworkPage() {
     }),
     safeRows<PharmacyProfileRow>(
       "pharmacy_profiles",
-      "tenant_id, custom_domain, custom_domain_verified, default_domain, migrated_from, migration_status, migration_completed_at, is_network_visible, delivery_available",
+      "tenant_id, custom_domain, custom_domain_verified, default_domain, domain_status, domain_error, domain_verification, migrated_from, migration_status, migration_completed_at, is_network_visible, delivery_available",
       { limit: 1000 }
     ),
     safeRows<InventoryRow>(
@@ -223,6 +277,11 @@ export default async function PharmacyNetworkPage() {
                   const latestSync = rows[0]?.last_synced_at ?? pharmacy.updated_at;
                   const defaultDomain = pharmacyProfile?.default_domain ?? `${pharmacy.slug ?? pharmacy.id ?? "pharm"}.synapseos.tech`;
                   const customDomain = pharmacyProfile?.custom_domain;
+                  const domainStatus = customDomain
+                    ? pharmacyProfile?.custom_domain_verified
+                      ? "verified custom"
+                      : pharmacyProfile?.domain_status?.replace(/_/g, " ") ?? "DNS pending"
+                    : "default route";
                   return (
                     <tr key={pharmacy.id ?? pharmacy.name ?? crypto.randomUUID()}>
                       <td className="px-4 py-3 font-medium text-slate-100">{pharmacy.name ?? "Unnamed pharmacy"}</td>
@@ -231,8 +290,9 @@ export default async function PharmacyNetworkPage() {
                         <div className="space-y-1">
                           <p className="font-mono text-xs text-[#E8B84B]">{customDomain || defaultDomain}</p>
                           <span className={`rounded-full border px-2 py-0.5 text-[10px] ${pharmacyProfile?.custom_domain_verified ? "border-green-500/25 bg-green-500/10 text-green-300" : "border-slate-700 bg-slate-800 text-slate-400"}`}>
-                            {customDomain ? (pharmacyProfile?.custom_domain_verified ? "verified custom" : "DNS pending") : "default route"}
+                            {domainStatus}
                           </span>
+                          {pharmacyProfile?.domain_error ? <p className="max-w-56 text-[11px] text-red-300">{pharmacyProfile.domain_error}</p> : null}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-slate-300">{rows.length}</td>
@@ -273,6 +333,16 @@ export default async function PharmacyNetworkPage() {
                               Domain
                             </button>
                           </form>
+                          {customDomain ? (
+                            <form action={verifyPharmacyDomain}>
+                              <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
+                              <input type="hidden" name="custom_domain" value={customDomain} />
+                              <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-green-500/30 px-2 py-1 text-xs text-green-300">
+                                <Globe2 className="h-3 w-3" />
+                                Verify
+                              </button>
+                            </form>
+                          ) : null}
                         </div>
                       </td>
                     </tr>

@@ -3,9 +3,61 @@ import { createServerClient } from "@supabase/ssr";
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "").split(",").map((e) => e.trim()).filter(Boolean);
 
+type PharmacyDomainLookup = {
+  tenant_id?: string | null;
+};
+
+type TenantLookup = {
+  slug?: string | null;
+};
+
+async function resolvePharmacyCustomDomain(hostname: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) return null;
+
+  try {
+    const profileUrl = new URL(`${supabaseUrl}/rest/v1/pharmacy_profiles`);
+    profileUrl.searchParams.set("custom_domain", `eq.${hostname}`);
+    profileUrl.searchParams.set("select", "tenant_id");
+    profileUrl.searchParams.set("limit", "1");
+    const profileResponse = await fetch(profileUrl, {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+      },
+      cache: "no-store",
+    });
+    if (!profileResponse.ok) return null;
+    const [profile] = (await profileResponse.json()) as PharmacyDomainLookup[];
+    if (!profile?.tenant_id) return null;
+
+    const tenantUrl = new URL(`${supabaseUrl}/rest/v1/tenants`);
+    tenantUrl.searchParams.set("id", `eq.${profile.tenant_id}`);
+    tenantUrl.searchParams.set("select", "slug");
+    tenantUrl.searchParams.set("limit", "1");
+    const tenantResponse = await fetch(tenantUrl, {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+      },
+      cache: "no-store",
+    });
+    if (!tenantResponse.ok) return null;
+    const [tenant] = (await tenantResponse.json()) as TenantLookup[];
+
+    return {
+      tenantId: profile.tenant_id,
+      slug: tenant?.slug?.replace(/^pharm-/, "") ?? hostname,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const hostname = request.headers.get("host") ?? "";
+  const hostname = (request.headers.get("host") ?? "").split(":")[0]?.toLowerCase() ?? "";
 
   if (
     pathname.startsWith("/_next") ||
@@ -19,6 +71,11 @@ export async function middleware(request: NextRequest) {
   const parts = hostname.split(".");
   const rawSubdomain = parts[0] ?? "";
 
+  const isSynapseManagedDomain =
+    hostname === "synapseos.tech" ||
+    hostname === "www.synapseos.tech" ||
+    hostname.endsWith(".synapseos.tech");
+
   const isRootDomain =
     hostname.startsWith("synapseos.") ||
     hostname.startsWith("www.") ||
@@ -26,6 +83,19 @@ export async function middleware(request: NextRequest) {
     hostname.includes("vercel.app");
 
   const subdomain = isRootDomain ? (request.nextUrl.searchParams.get("subdomain") ?? "") : rawSubdomain;
+
+  if (!isLocal && !hostname.includes("vercel.app") && !isSynapseManagedDomain) {
+    const pharmacyDomain = await resolvePharmacyCustomDomain(hostname);
+    if (pharmacyDomain) {
+      const response = NextResponse.rewrite(
+        new URL(`/pharmacy${pathname === "/" ? "" : pathname}`, request.url)
+      );
+      response.headers.set("x-pharmacy-custom-domain", hostname);
+      response.headers.set("x-pharmacy-tenant-id", pharmacyDomain.tenantId);
+      response.headers.set("x-pharmacy-subdomain", pharmacyDomain.slug);
+      return response;
+    }
+  }
 
   // ── DEMO subdomain ────────────────────────────────────────────────
   if (subdomain === "demo") {
@@ -79,7 +149,7 @@ export async function middleware(request: NextRequest) {
   if (subdomain.startsWith("pharm-")) {
     const pharmacySlug = subdomain.replace(/^pharm-/, "");
     const response = NextResponse.rewrite(
-      new URL(`/pharmacy/queue${pathname === "/" ? "" : pathname}`, request.url)
+      new URL(`/pharmacy${pathname === "/" ? "" : pathname}`, request.url)
     );
     response.headers.set("x-pharmacy-subdomain", pharmacySlug);
     return response;
