@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./admin": "./src/admin.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",
