@@ -26,14 +26,21 @@ export default function PlatformLoginPage() {
     setLoading(true);
     setError(null);
 
-    const supabase = createClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
-    if (authError) {
-      setError("Access denied. Check your credentials.");
+    const res = await fetch("/api/auth/password-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string };
+      setError(data.error ?? "Access denied. Check your credentials.");
       setLoading(false);
       return;
     }
-    await afterSignIn(supabase);
+
+    router.push("/platform");
+    router.refresh();
   }
 
   async function handleMagicLink(e: React.FormEvent) {

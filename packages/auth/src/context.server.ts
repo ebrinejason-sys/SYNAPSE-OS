@@ -70,6 +70,43 @@ export async function getContext(
     .single()
 
   if (profileError || !profile) redirect(redirectTo)
+
+  const user = {
+    id: profile.id as string,
+    email: profile.email as string,
+    role: profile.role as SynapseRole,
+    fullName: profile.full_name as string | null,
+    firstName: profile.first_name as string | null,
+    lastName: profile.last_name as string | null,
+    tenantId: (profile.tenant_id as string | null) ?? '',
+    synapseId: profile.synapse_id as string | null,
+    avatarUrl: profile.avatar_url as string | null,
+    isAdmin: (profile.is_admin as boolean) ?? false,
+    onboardingComplete: (profile.onboarding_complete as boolean) ?? false,
+    verificationStatus: profile.verification_status as string | null,
+    mustChangePassword: (profile.must_change_password as boolean) ?? false,
+  }
+
+  // Platform admins are not scoped to a tenant
+  if (profile.role === 'platform_admin' || profile.role === 'superadmin') {
+    return {
+      user,
+      tenant: {
+        id: '',
+        name: 'Synapse Platform',
+        slug: 'platform',
+        facilityType: 'platform',
+        status: 'active',
+        plan: 'platform',
+        modulesEnabled: [] as string[],
+        isNetworkMember: false,
+        onboardingCompleted: true,
+      },
+      app,
+      token,
+    }
+  }
+
   if (!profile.tenant_id) redirect(redirectTo)
 
   const { data: tenant, error: tenantError } = await supabaseAdmin
@@ -84,21 +121,7 @@ export async function getContext(
   if (tenantError || !tenant) redirect(redirectTo)
 
   return {
-    user: {
-      id: profile.id as string,
-      email: profile.email as string,
-      role: profile.role as SynapseRole,
-      fullName: profile.full_name as string | null,
-      firstName: profile.first_name as string | null,
-      lastName: profile.last_name as string | null,
-      tenantId: profile.tenant_id as string,
-      synapseId: profile.synapse_id as string | null,
-      avatarUrl: profile.avatar_url as string | null,
-      isAdmin: (profile.is_admin as boolean) ?? false,
-      onboardingComplete: (profile.onboarding_complete as boolean) ?? false,
-      verificationStatus: profile.verification_status as string | null,
-      mustChangePassword: (profile.must_change_password as boolean) ?? false,
-    },
+    user,
     tenant: {
       id: tenant.id as string,
       name: tenant.name as string,

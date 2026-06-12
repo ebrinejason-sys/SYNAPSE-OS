@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     sub: profile.id as string,
     email,
     role: profile.role as string,
-    tenant_id: profile.tenant_id as string,
+    tenant_id: (profile.tenant_id as string | null) ?? '',
     app: 'web',
     synapse_id: (profile.synapse_id as string | null) ?? undefined,
   })
