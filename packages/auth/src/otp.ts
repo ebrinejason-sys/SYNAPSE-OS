@@ -6,7 +6,7 @@ import { createHash, timingSafeEqual, randomInt } from 'node:crypto'
 import { supabaseAdmin } from '@synapse/db/admin'
 
 export function generateOTP(): string {
-  return String(randomInt(100000, 999999))
+  return String(randomInt(0, 1_000_000)).padStart(6, '0')
 }
 
 export function hashOTP(otp: string): string {
@@ -68,12 +68,14 @@ export async function verifyOTP(params: {
     .select('id, otp_hash, attempts, expires_at')
     .eq('target', params.target)
     .eq('used', false)
-    .gt('expires_at', new Date().toISOString())
     .order('created_at', { ascending: false })
     .limit(1)
     .single()
 
   if (fetchErr || !row) return { valid: false, error: 'NOT_FOUND' }
+  if (new Date(row.expires_at as string) < new Date()) {
+    return { valid: false, error: 'EXPIRED' }
+  }
   if ((row.attempts as number) >= 5) return { valid: false, error: 'TOO_MANY_ATTEMPTS' }
 
   const { error: updateErr } = await supabaseAdmin
@@ -87,6 +89,10 @@ export async function verifyOTP(params: {
     return { valid: false, error: 'INVALID' }
   }
 
-  await supabaseAdmin.from('auth_otps').update({ used: true }).eq('id', row.id as string)
+  const { error: markErr } = await supabaseAdmin
+    .from('auth_otps')
+    .update({ used: true })
+    .eq('id', row.id as string)
+  if (markErr) throw new Error(`Failed to mark OTP used: ${markErr.message}`)
   return { valid: true }
 }

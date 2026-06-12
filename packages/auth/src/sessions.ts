@@ -37,12 +37,16 @@ export async function validateSession(
   token: string
 ): Promise<{ valid: boolean; userId?: string }> {
   const tokenHash = hashToken(token)
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('synapse_sessions')
     .select('user_id, expires_at, revoked_at')
     .eq('token_hash', tokenHash)
     .single()
 
+  if (error) {
+    if (error.code === 'PGRST116') return { valid: false }
+    throw new Error(`Session lookup failed: ${error.message}`)
+  }
   if (!data) return { valid: false }
   if (data.revoked_at) return { valid: false }
   if (new Date(data.expires_at as string) < new Date()) return { valid: false }
@@ -56,7 +60,7 @@ export async function revokeSession(token: string): Promise<void> {
     .from('synapse_sessions')
     .update({ revoked_at: new Date().toISOString() })
     .eq('token_hash', tokenHash)
-  if (error) console.error('[SESSION] Failed to revoke session:', error.message)
+  if (error) throw new Error(`Failed to revoke session: ${error.message}`)
 }
 
 export async function revokeAllUserSessions(userId: string): Promise<void> {
@@ -65,5 +69,5 @@ export async function revokeAllUserSessions(userId: string): Promise<void> {
     .update({ revoked_at: new Date().toISOString() })
     .eq('user_id', userId)
     .is('revoked_at', null)
-  if (error) console.error('[SESSION] Failed to revoke all sessions for user:', userId, error.message)
+  if (error) throw new Error(`Failed to revoke all sessions for user ${userId}: ${error.message}`)
 }
