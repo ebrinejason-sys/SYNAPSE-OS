@@ -29,6 +29,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter()
 
   async function handleSignOut() {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')

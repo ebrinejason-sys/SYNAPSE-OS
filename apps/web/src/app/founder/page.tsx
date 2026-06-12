@@ -110,6 +110,7 @@ Provide 3 concise, specific, actionable strategic insights for the founders in p
   }
 
   async function handleSignOut() {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
     const sb = createClient()
     await sb.auth.signOut()
     router.push('/login')

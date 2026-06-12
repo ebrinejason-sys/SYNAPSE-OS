@@ -149,6 +149,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
   }, [query, remoteResults]);
 
   async function handleSignOut() {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/platform/login");

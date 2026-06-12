@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "../../../../lib/supabase/client";
 import { SynapseLogo } from "../../../../components/SynapseLogo";
 
 export default function PortalLoginPage({
@@ -20,13 +19,20 @@ export default function PortalLoginPage({
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const supabase = createClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
-    if (authError) {
-      setError("Invalid credentials. Check your email and password.");
+
+    const res = await fetch("/api/auth/password-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string };
+      setError(data.error ?? "Invalid credentials. Check your email and password.");
       setLoading(false);
       return;
     }
+
     const { slug } = await params;
     router.push(`/os/${slug}/dashboard`);
   }
