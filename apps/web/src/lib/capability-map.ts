@@ -8,24 +8,33 @@ export type CapTuple = readonly [module: string, resource: string, action: strin
 // Direct grants only — role_hierarchy handles inheritance
 const DIRECT_GRANTS: Record<string, readonly CapTuple[]> = {
   nurse: [
-    ['clinical', 'patient',   'read' ],
-    ['clinical', 'encounter', 'read' ],
-    ['clinical', 'encounter', 'write'],
+    ['clinical',     'patient',   'read' ],
+    ['clinical',     'encounter', 'read' ],
+    ['clinical',     'encounter', 'write'],
+    ['longitudinal', 'pattern',   'read' ],
   ],
 
   clinical_officer: [
-    ['clinical', 'patient',      'write'],
-    ['clinical', 'prescription', 'read' ],
-    ['clinical', 'prescription', 'write'],
+    ['clinical',     'patient',      'write'],
+    ['clinical',     'prescription', 'read' ],
+    ['clinical',     'prescription', 'write'],
+    ['insurance',    'preauth',      'read' ],
+    ['insurance',    'copilot',      'read' ],
+    ['longitudinal', 'context',      'read' ],
   ],
 
   doctor: [
-    ['clinical', 'patient',      'delete'],
-    ['clinical', 'encounter',    'delete'],
-    ['clinical', 'prescription', 'admin' ],
-    ['clinical', 'prescription', 'delete'],
-    ['clinical', 'report',       'read'  ],
-    ['clinical', 'report',       'write' ],
+    ['clinical',     'patient',      'delete'],
+    ['clinical',     'encounter',    'delete'],
+    ['clinical',     'prescription', 'admin' ],
+    ['clinical',     'prescription', 'delete'],
+    ['clinical',     'report',       'read'  ],
+    ['clinical',     'report',       'write' ],
+    ['insurance',    'preauth',      'read'  ],
+    ['insurance',    'copilot',      'read'  ],
+    ['longitudinal', 'pattern',      'read'  ],
+    ['longitudinal', 'context',      'read'  ],
+    ['longitudinal', 'outcome',      'write' ],
   ],
 
   receptionist: [
@@ -43,6 +52,15 @@ const DIRECT_GRANTS: Record<string, readonly CapTuple[]> = {
     ['pharmacy', 'supply',       'write'],
     ['pharmacy', 'report',       'read' ],
     ['clinical', 'prescription', 'read' ],
+    ['pos',      'sale',         'read' ],
+    ['pos',      'sale',         'write'],
+    ['pos',      'cart',         'write'],
+    ['pos',      'report',       'read' ],
+  ],
+
+  pharmacy_store_manager: [
+    ['pos', 'refund',  'write'],
+    ['pos', 'cashier', 'admin'],
   ],
 
   lab_tech: [
@@ -53,13 +71,31 @@ const DIRECT_GRANTS: Record<string, readonly CapTuple[]> = {
     ['lab', 'result', 'admin'],
   ],
 
-  // hospital_admin: all capabilities except platform module
-  // platform_admin: all capabilities
+  claims_officer: [
+    ['insurance', 'policy',  'read' ],
+    ['insurance', 'claim',   'read' ],
+    ['insurance', 'claim',   'write'],
+    ['insurance', 'preauth', 'read' ],
+    ['insurance', 'preauth', 'write'],
+    ['insurance', 'copilot', 'read' ],
+  ],
+
+  hospital_admin: [
+    ['subscription', 'plan',    'read'],
+    ['subscription', 'billing', 'read'],
+    ['insurance',    'policy',  'read'],
+    ['insurance',    'claim',   'read'],
+  ],
+
+  // insurance_officer inherits claims_officer (no direct extra grants)
+  // platform_admin: all capabilities (bypasses all checks)
 }
 
 const ROLE_INHERITANCE: Record<string, string> = {
-  doctor:           'clinical_officer',
-  clinical_officer: 'nurse',
+  doctor:                 'clinical_officer',
+  clinical_officer:       'nurse',
+  insurance_officer:      'claims_officer',
+  pharmacy_store_manager: 'pharmacist',
 }
 
 function expandRole(role: string): string[] {
@@ -80,7 +116,11 @@ export function canDo(
   action:   string,
 ): boolean {
   if (role === 'platform_admin') return true
-  if (role === 'hospital_admin') return module !== 'platform'
+  if (role === 'hospital_admin') {
+    const grants = DIRECT_GRANTS['hospital_admin'] ?? []
+    if (grants.some(([m, res, a]) => m === module && res === resource && a === action)) return true
+    return module !== 'platform' && module !== 'subscription' && module !== 'insurance'
+  }
 
   for (const r of expandRole(role)) {
     const grants = DIRECT_GRANTS[r] ?? []
