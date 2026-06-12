@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./context": "./src/context.server.ts",
-    "./tokens": "./src/tokens.ts"
+    "./tokens": "./src/tokens.ts",
+    "./capability": "./src/capability.ts"
   },
   "dependencies": {
     "@synapse/config": "*",

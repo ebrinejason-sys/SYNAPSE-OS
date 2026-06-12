@@ -15,3 +15,5 @@ export {
 export {
   createSession, validateSession, revokeSession, revokeAllUserSessions, hashToken,
 } from './sessions'
+
+export { requireCapability, checkCapability, CapabilityError } from './capability'
