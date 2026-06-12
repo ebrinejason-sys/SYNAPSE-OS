@@ -1,5 +1,18 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { verifyToken } from '@synapse/auth/tokens'
+import { SESSION_COOKIE } from '@synapse/config/constants'
+
+async function hasSynapseSession(request: NextRequest): Promise<boolean> {
+  const token = request.cookies.get(SESSION_COOKIE)?.value
+  if (!token) return false
+  try {
+    await verifyToken(token)
+    return true
+  } catch {
+    return false
+  }
+}
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -23,7 +36,12 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const synapseValid = await hasSynapseSession(request)
+  const { data: { user } } = synapseValid
+    ? { data: { user: null } }
+    : await supabase.auth.getUser()
+
+  const isAuthenticated = synapseValid || user !== null
 
   const { pathname } = request.nextUrl
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/auth')
@@ -35,11 +53,11 @@ export async function middleware(request: NextRequest) {
   // Public paths: auth pages, public API, invite links, onboarding
   const isPublicPath = isAuthPage || isPublicApi || isInvitePage || isOnboardingPage
 
-  if (!user && !isPublicPath) {
+  if (!isAuthenticated && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (user && isAuthPage && !isMfaPage) {
+  if (isAuthenticated && isAuthPage && !isMfaPage) {
     return NextResponse.redirect(new URL('/portal/dashboard', request.url))
   }
 
