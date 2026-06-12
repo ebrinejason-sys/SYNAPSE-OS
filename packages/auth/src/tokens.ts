@@ -64,5 +64,8 @@ export async function verifyShortToken(
   if (payload['purpose'] !== purpose) {
     throw new Error(`Token purpose mismatch: expected ${purpose}, got ${String(payload['purpose'])}`)
   }
-  return payload as { sub: string; purpose: string }
+  if (typeof payload.sub !== 'string') {
+    throw new Error('Token missing sub claim')
+  }
+  return { sub: payload.sub, purpose: payload['purpose'] as string }
 }
