@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyPassword, hashPassword, signToken, createSession } from '@synapse/auth'
+import { verifyPassword, hashPassword } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
+import { generateOtp, hashOtp } from '../../../../../lib/otp'
+import { sendOtpEmail } from '../../../../../lib/resend'
 
 const MAX_ATTEMPTS = 10
 const LOCKOUT_MINUTES = 30
+const OTP_RATE_LIMIT = 3
+const OTP_TTL_MIN = 10
 
 export async function POST(req: NextRequest) {
   const body     = await req.json().catch(() => ({}))
@@ -40,19 +42,12 @@ export async function POST(req: NextRequest) {
   if (profile.password_hash) {
     authenticated = await verifyPassword(password, profile.password_hash as string)
   } else {
-    // Lazy migration: user hasn't set a custom password yet — fall back to Supabase Auth
-    const { error: supabaseErr } = await supabaseAdmin.auth.signInWithPassword({
-      email,
-      password,
-    })
+    // Lazy migration: fall back to Supabase Auth, then store bcrypt hash
+    const { error: supabaseErr } = await supabaseAdmin.auth.signInWithPassword({ email, password })
     if (!supabaseErr) {
       authenticated = true
-      // Migrate: store the bcrypt hash so next login uses our system
       const hashed = await hashPassword(password)
-      await db
-        .from('profiles')
-        .update({ password_hash: hashed })
-        .eq('id', profile.id as string)
+      await db.from('profiles').update({ password_hash: hashed }).eq('id', profile.id as string)
     }
   }
 
@@ -73,34 +68,38 @@ export async function POST(req: NextRequest) {
     .update({ login_attempts: 0, locked_until: null as unknown as string })
     .eq('id', profile.id as string)
 
-  const token = await signToken({
-    sub: profile.id as string,
-    email,
-    role: profile.role as string,
-    tenant_id: (profile.tenant_id as string | null) ?? '',
-    app: 'web',
-    synapse_id: (profile.synapse_id as string | null) ?? undefined,
-  })
+  // Password verified — gate with email OTP as second factor
+  const { count } = await supabaseAdmin
+    .from('auth_otps')
+    .select('*', { count: 'exact', head: true })
+    .eq('target', email)
+    .eq('channel', 'email')
+    .gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString())
 
-  await createSession({
-    userId: profile.id as string,
-    token,
-    app: 'web',
-    ip: req.headers.get('x-forwarded-for') ?? undefined,
-    userAgent: req.headers.get('user-agent') ?? undefined,
-  })
+  if ((count ?? 0) >= OTP_RATE_LIMIT) {
+    return NextResponse.json(
+      { error: 'Too many verification requests. Please wait before trying again.' },
+      { status: 429 }
+    )
+  }
 
-  const cookieStore = await cookies()
-  const expires = new Date()
-  expires.setDate(expires.getDate() + SESSION_DURATION_DAYS)
+  const otp      = generateOtp()
+  const otpHash  = hashOtp(otp)
+  const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60 * 1000).toISOString()
 
-  cookieStore.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    expires,
-    path: '/',
-  })
+  const { error: insertErr } = await supabaseAdmin
+    .from('auth_otps')
+    .insert({ channel: 'email', target: email, otp_hash: otpHash, expires_at: expiresAt })
 
-  return NextResponse.json({ ok: true })
+  if (insertErr) {
+    return NextResponse.json({ error: 'Failed to create verification code.' }, { status: 500 })
+  }
+
+  try {
+    await sendOtpEmail(email, otp)
+  } catch {
+    return NextResponse.json({ error: 'Failed to send verification email.' }, { status: 500 })
+  }
+
+  return NextResponse.json({ otpSent: true })
 }
