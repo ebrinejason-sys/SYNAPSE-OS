@@ -47,14 +47,14 @@ export async function getPharmacyContext(): Promise<PharmacyContext> {
     .select(
       'id, name, slug, default_subdomain, custom_domain, status, is_active, plan, tier, is_network_member, accepts_refill_requests, modules_enabled, logo_url, district, address, phone, email, onboarding_completed, onboarding_step, lat, lng'
     )
-    .eq('id', session.profile.tenant_id!)
+    .eq('id', session.tenantId)
     .single()
 
   if (error || !tenantRow) redirect('/login?error=no_pharmacy')
 
   // Non-platform-admin users must belong to an active pharmacy
-  const isAdmin = session.profile.is_admin
-  const role = session.userSettings?.pharmacy_role
+  const isAdmin = session.isAdmin
+  const role = session.role
   if (!isAdmin && role !== 'platform_admin') {
     if (tenantRow.status === 'churned' || tenantRow.is_active === false) {
       redirect('/login?error=account_inactive')

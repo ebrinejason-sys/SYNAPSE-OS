@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '../../../../../lib/supabase/server'
-import { verifyOtpHash } from '../../../../../lib/otp'
+import { cookies } from 'next/headers'
+import { verifyOTP, signToken, createSession } from '@synapse/auth'
+import { supabaseAdmin } from '@synapse/db/admin'
+import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}))
+  const body  = await req.json().catch(() => ({}))
   const phone = typeof body.phone === 'string' ? body.phone.trim() : ''
   const otp   = typeof body.otp   === 'string' ? body.otp.trim()   : ''
 
@@ -11,72 +13,66 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'phone and 6-digit otp required' }, { status: 400 })
   }
 
-  const svc = createServiceClient()
-  const db  = svc as any
+  const result = await verifyOTP({ target: phone, otp })
 
-  const { data: row, error: fetchErr } = await db
-    .from('auth_otps')
-    .select('id, otp_hash, attempts')
-    .eq('target', phone)
-    .eq('channel', 'phone')
-    .eq('used', false)
-    .gt('expires_at', new Date().toISOString())
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
-
-  if (fetchErr || !row) {
+  if (!result.valid) {
+    const messages: Record<string, string> = {
+      NOT_FOUND: 'No active verification found. Request a new code.',
+      EXPIRED: 'Code has expired. Request a new code.',
+      INVALID: 'Incorrect code. Please try again.',
+      TOO_MANY_ATTEMPTS: 'Too many incorrect attempts. Request a new code.',
+    }
     return NextResponse.json(
-      { error: 'No active verification found for this number. Request a new code.' },
-      { status: 400 }
+      { error: messages[result.error ?? 'INVALID'] ?? 'Verification failed.' },
+      { status: result.error === 'TOO_MANY_ATTEMPTS' ? 429 : 401 }
     )
   }
 
-  if (row.attempts >= 5) {
-    return NextResponse.json(
-      { error: 'Too many incorrect attempts. Please request a new code.' },
-      { status: 429 }
-    )
-  }
-
-  await db.from('auth_otps').update({ attempts: row.attempts + 1 }).eq('id', row.id)
-
-  if (!verifyOtpHash(otp, row.otp_hash)) {
-    const remaining = 4 - row.attempts
-    return NextResponse.json(
-      { error: `Incorrect code. ${remaining > 0 ? `${remaining} attempt${remaining === 1 ? '' : 's'} remaining.` : 'No attempts remaining — request a new code.'}` },
-      { status: 401 }
-    )
-  }
-
-  await db.from('auth_otps').update({ used: true }).eq('id', row.id)
-
-  const { data: profile } = await db
+  const { data: profile, error: profileErr } = await supabaseAdmin
     .from('profiles')
-    .select('id, email')
+    .select('id, role, tenant_id, email')
     .eq('phone', phone)
-    .limit(1)
     .single()
 
-  if (!profile?.email) {
+  if (profileErr || !profile) {
     return NextResponse.json(
       { error: 'No Synapse OS account is linked to this phone number. Contact your hospital administrator.' },
       { status: 404 }
     )
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://synapseos.tech'
-
-  const { data: linkData, error: linkErr } = await svc.auth.admin.generateLink({
-    type: 'magiclink',
-    email: profile.email,
-    options: { redirectTo: `${appUrl}/health/dashboard` },
+  const token = await signToken({
+    sub: profile.id as string,
+    email: profile.email as string,
+    role: profile.role as string,
+    tenant_id: profile.tenant_id as string,
+    app: 'web',
   })
 
-  if (linkErr || !linkData?.properties?.hashed_token) {
-    console.error('generateLink error:', linkErr?.message)
-    return NextResponse.json({ error: 'Could not create session. Please try again.' }, { status: 500 })
-  }
+  await createSession({
+    userId: profile.id as string,
+    token,
+    app: 'web',
+    ip: req.headers.get('x-forwarded-for') ?? undefined,
+    userAgent: req.headers.get('user-agent') ?? undefined,
+  })
 
-  return NextResponse.json({ token_hash: linkData.properties.hashed_token })
+  await supabaseAdmin
+    .from('profiles')
+    .update({ login_attempts: 0 })
+    .eq('id', profile.id)
+
+  const cookieStore = await cookies()
+  const expires = new Date()
+  expires.setDate(expires.getDate() + SESSION_DURATION_DAYS)
+
+  cookieStore.set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    expires,
+    path: '/',
+  })
+
+  return NextResponse.json({ ok: true })
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { hashPassword, verifyPassword } from "@synapse/auth"
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,39 +14,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("password_hash")
+      .eq("id", session.userId)
+      .single()
 
-    // Verify current password by attempting sign-in
-    const userEmail = session.user.email
-    if (!userEmail) {
-      return NextResponse.json({ error: "User email not found" }, { status: 400 })
+    if (profileError || !profile) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const { error: verifyError } = await supabase.auth.signInWithPassword({
-      email: userEmail,
-      password: currentPassword,
-    })
-
-    if (verifyError) {
-      return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 })
+    if (profile.password_hash) {
+      const valid = await verifyPassword(currentPassword, profile.password_hash)
+      if (!valid) {
+        return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 })
+      }
+    } else {
+      // Lazy migration: user still on Supabase Auth — verify via admin
+      const { error: verifyError } = await supabaseAdmin.auth.signInWithPassword({
+        email: session.email,
+        password: currentPassword,
+      })
+      if (verifyError) {
+        return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 })
+      }
     }
 
-    // Update password via admin API
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      session.user.id,
-      { password: newPassword }
-    )
+    const newHash = await hashPassword(newPassword)
+
+    const { error: updateError } = await supabaseAdmin
+      .from("profiles")
+      .update({ password_hash: newHash, must_change_password: false })
+      .eq("id", session.userId)
 
     if (updateError) {
       console.error("Update password error:", updateError)
       return NextResponse.json({ error: "Failed to update password" }, { status: 500 })
     }
-
-    // Clear must_change_password flag
-    await supabaseAdmin
-      .from("pharmacy_user_settings")
-      .update({ must_change_password: false })
-      .eq("profile_id", session.user.id)
 
     return NextResponse.json({ success: true })
   } catch (error) {
