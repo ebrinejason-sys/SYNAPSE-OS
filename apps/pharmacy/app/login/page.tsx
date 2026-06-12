@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -16,14 +15,15 @@ export default function LoginPage() {
     setIsLoading(true)
     setError(null)
 
-    const supabase = createClient()
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
     })
+    const data = await res.json()
 
-    if (signInError) {
-      setError("Invalid email or password")
+    if (!res.ok) {
+      setError(data.error ?? 'Invalid email or password.')
       setIsLoading(false)
       return
     }
