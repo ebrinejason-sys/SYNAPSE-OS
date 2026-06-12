@@ -1,106 +1,63 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle, ShieldCheck, Smartphone } from "lucide-react";
-import { createClient } from "../../../lib/supabase/client";
+import { ShieldCheck, Smartphone, CheckCircle, Copy } from "lucide-react";
 import { SynapseLogo } from "../../../components/SynapseLogo";
 
-type Step = "checking" | "idle" | "enrolling" | "done" | "already_enrolled";
+type Step = "loading" | "idle" | "enrolling" | "done";
 
 export default function PlatformMfaPage() {
-  const [step, setStep] = useState<Step>("checking");
-  const [qrUrl, setQrUrl] = useState("");
+  const [step, setStep]     = useState<Step>("loading");
+  const [uri,  setUri]      = useState("");
   const [secret, setSecret] = useState("");
-  const [factorId, setFactorId] = useState("");
-  const [challengeId, setChallengeId] = useState("");
-  const [code, setCode] = useState("");
-  const [error, setError] = useState("");
+  const [code,   setCode]   = useState("");
+  const [error,  setError]  = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [userEmail, setUserEmail] = useState("");
   const router = useRouter();
 
   useEffect(() => {
-    async function checkEnrollment() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        // Password-login users (synapse_session) can't enroll TOTP here —
-        // TOTP requires a Supabase session. Redirect to platform; middleware handles auth.
-        router.replace("/platform");
-        return;
-      }
-
-      setUserEmail(user.email ?? "");
-      const { data: factors } = await supabase.auth.mfa.listFactors();
-      const hasTotp = factors?.totp?.some((factor) => factor.status === "verified");
-      if (hasTotp) {
-        // Already enrolled — no need to stop here, go straight to dashboard
-        router.replace("/platform");
-        return;
-      }
-      setStep("idle");
-    }
-
-    checkEnrollment();
-  }, [router]);
+    // Start enrollment immediately on mount — server reads the MFA pending cookie
+    startEnrollment();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function startEnrollment() {
     setLoading(true);
-    setError("");
-
-    const supabase = createClient();
-    const { data, error: enrollError } = await supabase.auth.mfa.enroll({
-      factorType: "totp",
-      friendlyName: "Synapse Platform Admin",
-    });
-
-    if (enrollError || !data) {
-      setError(enrollError?.message ?? "Failed to start authenticator setup.");
+    const res = await fetch("/api/auth/mfa/enroll", { method: "POST" });
+    if (res.status === 401) {
+      router.replace("/platform/login");
+      return;
+    }
+    if (!res.ok) {
+      setError("Could not start authenticator setup. Please try logging in again.");
+      setStep("idle");
       setLoading(false);
       return;
     }
-
-    const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
-      factorId: data.id,
-    });
-
-    if (challengeError || !challenge) {
-      setError(challengeError?.message ?? "Failed to create authenticator challenge.");
-      setLoading(false);
-      return;
-    }
-
-    setQrUrl(data.totp.qr_code);
-    setSecret(data.totp.secret);
-    setFactorId(data.id);
-    setChallengeId(challenge.id);
+    const data = await res.json() as { uri: string; secret: string };
+    setUri(data.uri);
+    setSecret(data.secret);
     setStep("enrolling");
     setLoading(false);
   }
 
-  async function verifyCode() {
-    if (code.length !== 6) {
-      setError("Enter the 6-digit code from your authenticator app.");
-      return;
-    }
-
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (code.length !== 6) { setError("Enter the 6-digit code from your authenticator app."); return; }
     setLoading(true);
-    setError("");
+    setError(null);
 
-    const { error: verifyError } = await createClient().auth.mfa.verify({
-      factorId,
-      challengeId,
-      code,
+    const res = await fetch("/api/auth/mfa/verify-setup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
     });
 
-    if (verifyError) {
-      setError("Incorrect authenticator code.");
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({})) as { error?: string };
+      setError(d.error ?? "Verification failed. Try again.");
+      if (res.status === 401) router.replace("/platform/login");
       setLoading(false);
       return;
     }
@@ -108,6 +65,10 @@ export default function PlatformMfaPage() {
     setStep("done");
     setLoading(false);
   }
+
+  const qrImageUrl = uri
+    ? `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(uri)}&size=200x200&margin=8`
+    : "";
 
   return (
     <div className="min-h-screen bg-[#07070A] px-4 py-8 text-white">
@@ -122,42 +83,18 @@ export default function PlatformMfaPage() {
               <ShieldCheck className="h-3.5 w-3.5" />
               Mandatory MFA
             </div>
-            <h1 className="text-xl font-bold">Platform authenticator</h1>
+            <h1 className="text-xl font-bold">Set up platform authenticator</h1>
             <p className="mt-1 text-sm text-slate-400">
-              Platform admins must use a Google Authenticator-compatible TOTP app.
+              Platform admin accounts require a TOTP authenticator app (Google Authenticator, Authy).
             </p>
           </div>
 
-          {step === "checking" && <p className="text-sm text-slate-400">Checking authenticator status...</p>}
-
-          {step === "already_enrolled" && (
-            <div className="space-y-4">
-              <div className="flex items-start gap-3 rounded-xl border border-green-500/20 bg-green-500/10 p-4">
-                <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-green-400" />
-                <div>
-                  <p className="text-sm font-semibold text-green-300">Authenticator already set up</p>
-                  <p className="mt-1 text-xs text-slate-400">{userEmail} has a verified TOTP factor.</p>
-                </div>
-              </div>
-              <Link href="/platform" className="block rounded-xl bg-[#F97316] py-3 text-center text-sm font-bold text-[#07070A]">
-                Open Platform Dashboard
-              </Link>
-            </div>
+          {step === "loading" && (
+            <p className="text-sm text-slate-400">Preparing authenticator setup&hellip;</p>
           )}
 
           {step === "idle" && (
             <div className="space-y-4">
-              <div className="rounded-xl border border-slate-800 bg-[#111117] p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#F97316]/10">
-                    <Smartphone className="h-5 w-5 text-[#F97316]" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">Set up your authenticator</p>
-                    <p className="text-xs text-slate-400">Scan a QR code, then enter the generated 6-digit code.</p>
-                  </div>
-                </div>
-              </div>
               {error && <p className="text-sm text-red-400">{error}</p>}
               <button
                 type="button"
@@ -165,55 +102,61 @@ export default function PlatformMfaPage() {
                 disabled={loading}
                 className="w-full rounded-xl bg-[#F97316] py-3 text-sm font-bold text-[#07070A] disabled:opacity-50"
               >
-                {loading ? "Starting..." : "Start Setup"}
+                {loading ? "Starting…" : "Start Setup"}
               </button>
             </div>
           )}
 
           {step === "enrolling" && (
-            <div className="space-y-5">
+            <form onSubmit={verifyCode} className="space-y-5">
               <div className="rounded-xl border border-slate-800 bg-[#111117] p-5 text-center">
-                <p className="mb-3 text-sm font-semibold">Scan with your authenticator app</p>
-                {qrUrl && (
-                  <div className="mb-3 flex justify-center">
-                    <Image
-                      src={qrUrl}
-                      alt="Platform authenticator QR code"
-                      width={184}
-                      height={184}
-                      unoptimized
-                      className="rounded-xl bg-white p-2"
-                    />
-                  </div>
+                <p className="mb-3 text-sm font-semibold">1. Scan with your authenticator app</p>
+                {qrImageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={qrImageUrl} alt="TOTP QR code" width={200} height={200}
+                    className="mx-auto mb-3 rounded-xl bg-white p-2" />
                 )}
-                <p className="mb-1 text-xs text-slate-500">Manual secret</p>
-                <code className="block break-all rounded-lg bg-[#F97316]/10 px-3 py-2 text-xs tracking-wide text-[#E8B84B]">
-                  {secret}
-                </code>
+                <p className="mb-1 text-xs text-slate-500">Or enter this secret manually</p>
+                <div className="flex items-center justify-center gap-2">
+                  <code className="break-all rounded-lg bg-[#E8B84B]/10 px-3 py-2 text-xs tracking-wide text-[#E8B84B]">
+                    {secret}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(secret)}
+                    className="shrink-0 text-slate-500 hover:text-slate-300"
+                    title="Copy secret"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
 
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="000000"
-                className="w-full rounded-xl border border-slate-700 bg-[#111117] px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] text-white outline-none focus:border-[#E8B84B]"
-              />
+              <div>
+                <p className="mb-2 text-sm font-semibold">2. Enter the 6-digit code to activate</p>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="000000"
+                  autoComplete="one-time-code"
+                  className="w-full rounded-xl border border-slate-700 bg-[#111117] px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] text-white outline-none focus:border-[#E8B84B]"
+                />
+              </div>
 
               {error && <p className="text-sm text-red-400">{error}</p>}
 
               <button
-                type="button"
-                onClick={verifyCode}
+                type="submit"
                 disabled={loading || code.length !== 6}
                 className="w-full rounded-xl bg-[#F97316] py-3 text-sm font-bold text-[#07070A] disabled:opacity-50"
               >
-                {loading ? "Verifying..." : "Verify and Activate"}
+                {loading ? "Verifying…" : "Activate Authenticator"}
               </button>
-            </div>
+            </form>
           )}
 
           {step === "done" && (
@@ -223,13 +166,23 @@ export default function PlatformMfaPage() {
               </div>
               <div>
                 <h2 className="text-lg font-bold">Authenticator activated</h2>
-                <p className="mt-1 text-sm text-slate-400">Your platform account now satisfies the MFA requirement.</p>
+                <p className="mt-1 text-sm text-slate-400">
+                  Your platform account is now protected with multi-factor authentication.
+                </p>
               </div>
-              <Link href="/platform" className="block rounded-xl bg-[#F97316] py-3 text-sm font-bold text-[#07070A]">
+              <a
+                href="/platform"
+                className="block rounded-xl bg-[#F97316] py-3 text-sm font-bold text-[#07070A]"
+              >
                 Open Platform Dashboard
-              </Link>
+              </a>
             </div>
           )}
+
+          <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+            <Smartphone className="h-3.5 w-3.5" />
+            <span>Use Google Authenticator, Authy, or any TOTP-compatible app.</span>
+          </div>
         </section>
       </main>
     </div>

@@ -50,10 +50,25 @@ export default function PlatformLoginPage() {
       body: JSON.stringify({ email, otp }),
     });
 
+    const data = await res.json().catch(() => ({})) as {
+      ok?: boolean;
+      mfaRequired?: boolean;
+      mfaSetupRequired?: boolean;
+      error?: string;
+    };
+
     if (!res.ok) {
-      const data = await res.json().catch(() => ({})) as { error?: string };
       setError(data.error ?? "Verification failed. Try again.");
       setLoading(false);
+      return;
+    }
+
+    if (data.mfaSetupRequired) {
+      router.push("/platform/mfa");
+      return;
+    }
+    if (data.mfaRequired) {
+      router.push("/platform/mfa-verify");
       return;
     }
 

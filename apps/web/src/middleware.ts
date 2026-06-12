@@ -134,38 +134,26 @@ export async function middleware(request: NextRequest) {
     const platformPath = pathname.startsWith("/platform")
       ? pathname
       : `/platform${pathname === "/" ? "" : pathname}`;
-    const isAuthPage = platformPath === "/platform/login" || platformPath === "/platform/mfa";
+    const isAuthPage =
+      platformPath === "/platform/login" ||
+      platformPath === "/platform/mfa" ||
+      platformPath === "/platform/mfa-verify";
 
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-      const url = request.nextUrl.clone();
-      url.pathname = platformPath;
-      return NextResponse.rewrite(url);
-    }
-
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      { cookies: { getAll: () => request.cookies.getAll(), setAll: () => {} } }
-    );
     const synapseValid = await hasSynapseSession(request)
-    let supabaseUser: { email?: string } | null = null
 
-    if (!synapseValid) {
-      const { data: { user } } = await supabase.auth.getUser()
-      supabaseUser = user
-    }
-
-    const isAuthenticated = synapseValid || supabaseUser !== null
-
-    if (!isAuthenticated && !isAuthPage) {
+    if (!synapseValid && !isAuthPage) {
+      // Check for MFA-pending cookie — user completed OTP but not TOTP yet
+      const mfaPending = request.cookies.get('synapse_mfa_pending')?.value
       const url = request.nextUrl.clone()
-      url.pathname = '/platform/login'
+      if (mfaPending) {
+        // Determine if user needs to set up or just verify TOTP.
+        // We can't decrypt the JWT in middleware (Edge), so redirect to mfa-verify.
+        // The route itself will redirect to mfa-setup if enrollment is missing.
+        url.pathname = '/platform/mfa-verify'
+      } else {
+        url.pathname = '/platform/login'
+      }
       return NextResponse.rewrite(url)
-    }
-
-    if (isAuthenticated && ADMIN_EMAILS.length > 0 && supabaseUser &&
-        !ADMIN_EMAILS.includes(supabaseUser.email ?? '') && !isAuthPage) {
-      return NextResponse.redirect(new URL('https://synapseos.tech?e=403', request.url))
     }
 
     const url = request.nextUrl.clone();
