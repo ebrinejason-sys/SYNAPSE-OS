@@ -63,3 +63,9 @@ export function hasPharmacyPermission(session: PharmacySession, permission: stri
   if (session.role === 'pharmacy_admin') return true
   return false
 }
+
+export const isPharmacyAdmin = (session: PharmacySession): boolean =>
+  session.isAdmin || session.role === 'pharmacy_admin'
+
+export const hasPermission = (session: PharmacySession, _permission: string): boolean =>
+  isPharmacyAdmin(session)
