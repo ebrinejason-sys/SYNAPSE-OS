@@ -70,6 +70,7 @@ export async function getContext(
     .single()
 
   if (profileError || !profile) redirect(redirectTo)
+  if (!profile.tenant_id) redirect(redirectTo)
 
   const { data: tenant, error: tenantError } = await supabaseAdmin
     .from('tenants')
