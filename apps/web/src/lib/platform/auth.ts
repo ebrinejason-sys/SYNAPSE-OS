@@ -1,40 +1,26 @@
-import { redirect } from "next/navigation";
-import { createClient, createServiceClient } from "../supabase/server";
+import { getContext, type SynapseContext } from '@synapse/auth/context'
 
-type PlatformAdminProfile = {
-  id: string;
-  role: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
-  email: string | null;
-};
+export type PlatformAdminProfile = {
+  id: string
+  role: string
+  fullName: string | null
+  avatarUrl: string | null
+  email: string
+}
 
 export async function requirePlatformAdmin(): Promise<PlatformAdminProfile> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const ctx: SynapseContext = await getContext('web', '/platform/login')
 
-  if (!user) {
-    redirect("/platform/login");
+  if (ctx.user.role !== 'platform_admin') {
+    const { redirect } = await import('next/navigation')
+    redirect('/platform/login')
   }
 
-  const supabaseAdmin = createServiceClient();
-  const { data: profile } = await (supabaseAdmin as any)
-    .from("profiles")
-    .select("id, role, full_name, avatar_url, email")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!profile || profile.role !== "platform_admin") {
-    redirect("/platform/login");
+  return {
+    id: ctx.user.id,
+    role: ctx.user.role,
+    fullName: ctx.user.fullName,
+    avatarUrl: ctx.user.avatarUrl,
+    email: ctx.user.email,
   }
-
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.currentLevel !== "aal2") {
-    // Redirect to MFA page — handles both first-time enrollment and challenge
-    redirect("/platform/mfa");
-  }
-
-  return profile as PlatformAdminProfile;
 }
