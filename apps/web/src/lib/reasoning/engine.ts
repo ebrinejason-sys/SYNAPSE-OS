@@ -7,11 +7,60 @@ import type {
   SessionState, ReasoningSession, ReasoningHypothesis, ReasoningEvidence,
   AIHypothesisProposal, ClinicalAction, EvidenceSource,
 } from './types'
+import { buildPatientContextPacket, type PatientContextPacket } from '../longitudinal/context'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabaseAdmin as any
 
 // ── Session management ──────────────────────────────────────────────────────
+
+/**
+ * Full session open: builds longitudinal context packet, persists snapshot,
+ * then starts reasoning session. Use this instead of startReasoningSession()
+ * for encounters with a known patient.
+ */
+export async function openReasoningSession(params: {
+  encounterId:    string
+  clinicianId:    string
+  tenantId:       string
+  patientId:      string
+  chiefComplaint: string
+}): Promise<{ session: ReasoningSession; context: PatientContextPacket }> {
+  // Build patient context (logs PHI access)
+  const context = await buildPatientContextPacket({
+    tenantId:           params.tenantId,
+    patientId:          params.patientId,
+    currentEncounterId: params.encounterId,
+    chiefComplaint:     params.chiefComplaint,
+    userId:             params.clinicianId,
+  })
+
+  // Start reasoning session
+  const session = await startReasoningSession({
+    encounterId: params.encounterId,
+    clinicianId: params.clinicianId,
+    tenantId:    params.tenantId,
+  })
+
+  // Persist context snapshot
+  await db.from('reasoning_context_snapshots').insert({
+    session_id:      session.id,
+    tenant_id:       params.tenantId,
+    patient_id:      params.patientId,
+    encounter_id:    params.encounterId,
+    chief_complaint: params.chiefComplaint,
+    age:             context.age,
+    sex:             context.sex,
+    vitals:          context.vitals,
+    active_patterns: context.activePatterns,
+    recent_outcomes: context.recentOutcomes,
+    active_meds:     context.activeMeds,
+    recent_labs:     context.recentLabs,
+    insurance_context: context.insuranceContext,
+  }).catch(() => {})
+
+  return { session, context }
+}
 
 export async function startReasoningSession(params: {
   encounterId: string
