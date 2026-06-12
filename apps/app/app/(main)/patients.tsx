@@ -26,6 +26,10 @@ export default function PatientsScreen() {
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const search = useCallback(async (q: string) => {
+    if (!token) {
+      setLoading(false)
+      return
+    }
     setSearching(true)
     try {
       const path = q ? `/api/mobile/patients?q=${encodeURIComponent(q)}` : '/api/mobile/patients'
@@ -39,7 +43,7 @@ export default function PatientsScreen() {
     }
   }, [token])
 
-  useEffect(() => { search('') }, [])
+  useEffect(() => { search('') }, [token])
 
   const handleQuery = (text: string) => {
     setQuery(text)

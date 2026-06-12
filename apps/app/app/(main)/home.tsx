@@ -44,6 +44,10 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false)
 
   async function loadQueue() {
+    if (!token) {
+      setLoading(false)
+      return
+    }
     try {
       const data = await apiRequest<{ queue: QueueEntry[]; stats: QueueStats }>(
         '/api/mobile/queue',
@@ -59,7 +63,7 @@ export default function HomeScreen() {
     }
   }
 
-  useEffect(() => { loadQueue() }, [])
+  useEffect(() => { loadQueue() }, [token])
 
   const onRefresh = () => {
     setRefreshing(true)

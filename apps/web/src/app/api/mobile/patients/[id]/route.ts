@@ -40,14 +40,16 @@ export async function GET(
     .order('created_at', { ascending: false })
     .limit(10)
 
+  const encounterIds = ((encounters ?? []) as Array<{ id: string }>).map(e => e.id)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: vitals } = await (supabaseAdmin as any)
-    .from('vitals')
-    .select('bp_systolic, bp_diastolic, heart_rate, temperature_c, spo2, created_at')
-    .eq('patient_id', id)
-    .eq('tenant_id', payload.tenant_id)
-    .order('created_at', { ascending: false })
-    .limit(1)
+  const { data: vitals } = encounterIds.length > 0
+    ? await (supabaseAdmin as any)
+        .from('vitals')
+        .select('bp_systolic, bp_diastolic, heart_rate, temperature_c, spo2, recorded_at')
+        .in('encounter_id', encounterIds)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+    : { data: [] }
 
   return NextResponse.json({
     patient: {
@@ -80,7 +82,7 @@ export async function GET(
           heartRate: vitals[0].heart_rate,
           temperatureC: vitals[0].temperature_c,
           spo2: vitals[0].spo2,
-          recordedAt: vitals[0].created_at,
+          recordedAt: vitals[0].recorded_at,
         }
       : null,
   })
