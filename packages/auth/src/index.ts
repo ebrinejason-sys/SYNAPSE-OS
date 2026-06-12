@@ -19,3 +19,5 @@ export {
 export { requireCapability, checkCapability, CapabilityError } from './capability'
 
 export { generateTotpSecret, totpUri, verifyTotp } from './totp'
+
+export { requireFeature, checkFeature, FeatureGateError } from './features'

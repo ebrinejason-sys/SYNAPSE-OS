@@ -6,7 +6,8 @@
     ".": "./src/index.ts",
     "./context": "./src/context.server.ts",
     "./tokens": "./src/tokens.ts",
-    "./capability": "./src/capability.ts"
+    "./capability": "./src/capability.ts",
+    "./features":   "./src/features.ts"
   },
   "dependencies": {
     "@synapse/config": "*",
