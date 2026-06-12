@@ -50,7 +50,7 @@ export default function PlatformLoginPage() {
       email,
       options: {
         shouldCreateUser: false,
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/platform/mfa`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/platform`,
       },
     });
 
@@ -71,7 +71,7 @@ export default function PlatformLoginPage() {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/platform/mfa`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/platform`,
       },
     });
   }

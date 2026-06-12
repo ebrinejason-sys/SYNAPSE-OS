@@ -30,14 +30,21 @@ export default function PlatformMfaPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.push("/platform/login");
+        // Password-login users (synapse_session) can't enroll TOTP here —
+        // TOTP requires a Supabase session. Redirect to platform; middleware handles auth.
+        router.replace("/platform");
         return;
       }
 
       setUserEmail(user.email ?? "");
       const { data: factors } = await supabase.auth.mfa.listFactors();
       const hasTotp = factors?.totp?.some((factor) => factor.status === "verified");
-      setStep(hasTotp ? "already_enrolled" : "idle");
+      if (hasTotp) {
+        // Already enrolled — no need to stop here, go straight to dashboard
+        router.replace("/platform");
+        return;
+      }
+      setStep("idle");
     }
 
     checkEnrollment();
