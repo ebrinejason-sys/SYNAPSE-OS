@@ -9,11 +9,15 @@ if (typeof window !== 'undefined') {
   )
 }
 
-export const supabaseAdmin = createClient<Database>(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: { autoRefreshToken: false, persistSession: false },
-    global: { headers: { 'x-synapse-client': 'service-role' } },
-  }
-)
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+if (!url || !key) {
+  throw new Error(
+    '[SYNAPSE] NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must both be set to use the service-role client.'
+  )
+}
+
+export const supabaseAdmin = createClient<Database>(url, key, {
+  auth: { autoRefreshToken: false, persistSession: false },
+  global: { headers: { 'x-synapse-client': 'service-role' } },
+})
