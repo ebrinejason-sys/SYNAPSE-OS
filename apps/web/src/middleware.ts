@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { verifyToken } from '@synapse/auth/tokens'
+import { SESSION_COOKIE } from '@synapse/config/constants'
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "").split(",").map((e) => e.trim()).filter(Boolean);
 
@@ -63,6 +65,17 @@ async function resolvePharmacyCustomDomain(hostname: string) {
     };
   } catch {
     return null;
+  }
+}
+
+async function hasSynapseSession(request: NextRequest): Promise<boolean> {
+  const token = request.cookies.get(SESSION_COOKIE)?.value
+  if (!token) return false
+  try {
+    await verifyToken(token)
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -134,15 +147,25 @@ export async function middleware(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       { cookies: { getAll: () => request.cookies.getAll(), setAll: () => {} } }
     );
-    const { data: { user } } = await supabase.auth.getUser();
+    const synapseValid = await hasSynapseSession(request)
+    let supabaseUser: { email?: string } | null = null
 
-    if (!user && !isAuthPage) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/platform/login";
-      return NextResponse.rewrite(url);
+    if (!synapseValid) {
+      const { data: { user } } = await supabase.auth.getUser()
+      supabaseUser = user
     }
-    if (user && ADMIN_EMAILS.length > 0 && !ADMIN_EMAILS.includes(user.email ?? "") && !isAuthPage) {
-      return NextResponse.redirect(new URL("https://synapseos.tech?e=403", request.url));
+
+    const isAuthenticated = synapseValid || supabaseUser !== null
+
+    if (!isAuthenticated && !isAuthPage) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/platform/login'
+      return NextResponse.rewrite(url)
+    }
+
+    if (isAuthenticated && ADMIN_EMAILS.length > 0 && supabaseUser &&
+        !ADMIN_EMAILS.includes(supabaseUser.email ?? '') && !isAuthPage) {
+      return NextResponse.redirect(new URL('https://synapseos.tech?e=403', request.url))
     }
 
     const url = request.nextUrl.clone();
@@ -188,6 +211,7 @@ export async function middleware(request: NextRequest) {
       }
     );
     const { data: { user } } = await supabase.auth.getUser();
+    const synapseValid = await hasSynapseSession(request)
 
     const isProtected =
       pathname.startsWith("/os/") ||
@@ -199,7 +223,7 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith("/admin/") ||
       pathname.startsWith("/patient/");
 
-    if (isProtected && !user) {
+    if (isProtected && !synapseValid && !user) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirectTo", pathname);
       return NextResponse.redirect(loginUrl);

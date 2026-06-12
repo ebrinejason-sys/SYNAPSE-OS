@@ -4,7 +4,8 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
-    "./context": "./src/context.server.ts"
+    "./context": "./src/context.server.ts",
+    "./tokens": "./src/tokens.ts"
   },
   "dependencies": {
     "@synapse/config": "*",
