@@ -147,28 +147,22 @@ export default function OnboardingPage() {
   // ── Fetch session on mount ─────────────────────────────────────────────────
 
   const loadSession = useCallback(async () => {
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    // Use synapse_session for auth check
+    const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' })
+    const sessionData = await sessionRes.json()
 
-    if (!user) {
+    if (!sessionData?.userId) {
       router.replace('/login')
       return
     }
 
-    const { data: profileRow } = await supabase
-      .from('profiles')
-      .select('tenant_id')
-      .eq('id', user.id)
-      .single()
-
-    if (!profileRow?.tenant_id) {
+    if (!sessionData?.tenantId) {
       router.replace('/login?error=no_pharmacy_access')
       return
     }
 
-    const tenantId = profileRow.tenant_id
+    const tenantId = sessionData.tenantId as string
+    const supabase = createClient()
 
     // Fetch tenant data
     const { data: tenant } = await supabase
@@ -191,7 +185,7 @@ export default function OnboardingPage() {
       .eq('tenant_id', tenantId)
       .maybeSingle()
 
-    setSession({ userId: user.id, tenantId, tenantName: tenant?.name ?? '' })
+    setSession({ userId: sessionData.userId, tenantId, tenantName: tenant?.name ?? '' })
 
     setProfile({
       pharmacyName: tenant?.name ?? '',
