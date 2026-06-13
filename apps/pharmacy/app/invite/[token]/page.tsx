@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Eye, EyeOff } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
 import { getInviteDetails, setupAccount } from "./actions"
 
 type PageState = "loading" | "invalid" | "already_used" | "valid" | "submitting" | "success"
@@ -73,19 +72,6 @@ export default function InvitePage() {
 
     if (!result.success) {
       setError(result.error ?? "An unexpected error occurred.")
-      setPageState("valid")
-      return
-    }
-
-    // Sign in with the newly set password
-    const supabase = createClient()
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: result.email!,
-      password,
-    })
-
-    if (signInError) {
-      setError("Account created, but sign-in failed. Please go to the login page.")
       setPageState("valid")
       return
     }
