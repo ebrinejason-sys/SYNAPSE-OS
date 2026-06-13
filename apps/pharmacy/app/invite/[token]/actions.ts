@@ -1,6 +1,9 @@
 'use server'
 
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { cookies } from 'next/headers'
+import { signToken, createSession } from '@synapse/auth'
+import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
 
 export async function getInviteDetails(
   token: string
@@ -98,6 +101,36 @@ export async function setupAccount(
       is_active: true,
     })
     .eq('id', onboarding.tenant_id)
+
+  // Create synapse_session so browser is authenticated immediately after invite
+  try {
+    const sessionToken = await signToken({
+      sub:       adminSettings.profile_id as string,
+      email:     adminEmail as string,
+      role:      'pharmacy_admin',
+      tenant_id: onboarding.tenant_id as string,
+      app:       'pharmacy',
+    })
+
+    await createSession({
+      userId: adminSettings.profile_id as string,
+      token:  sessionToken,
+      app:    'pharmacy',
+    })
+
+    const cookieStore = await cookies()
+    const expires = new Date()
+    expires.setDate(expires.getDate() + SESSION_DURATION_DAYS)
+    cookieStore.set(SESSION_COOKIE, sessionToken, {
+      httpOnly: true,
+      secure:   process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      expires,
+      path:     '/',
+    })
+  } catch (sessionErr) {
+    console.error('synapse_session creation failed after invite (non-fatal):', sessionErr)
+  }
 
   return { success: true, email: adminEmail }
 }
