@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Loading SYNAPSE Pharm...</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: 'Segoe UI', -apple-system, sans-serif;
+      color: white;
+      border-radius: 16px;
+      overflow: hidden;
+      -webkit-app-region: drag;
+    }
+
+    .logo-container {
+      width: 80px;
+      height: 80px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.2);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .logo-letter {
+      font-size: 36px;
+      font-weight: 800;
+      color: white;
+      letter-spacing: -1px;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 12px;
+      color: rgba(255,255,255,0.6);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 36px;
+    }
+
+    .progress-bar {
+      width: 200px;
+      height: 3px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #a78bfa, #60a5fa);
+      border-radius: 2px;
+      animation: progress 8s ease-in-out infinite;
+    }
+
+    .loading-text {
+      font-size: 12px;
+      color: rgba(255,255,255,0.5);
+      animation: blink 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(167,139,250,0.3); }
+      50% { transform: scale(1.05); box-shadow: 0 0 0 12px rgba(167,139,250,0); }
+    }
+
+    @keyframes progress {
+      0% { width: 5%; }
+      30% { width: 40%; }
+      60% { width: 70%; }
+      90% { width: 92%; }
+      100% { width: 95%; }
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="logo-container">
+    <span class="logo-letter">H</span>
+  </div>
+  <h1>SYNAPSE Pharm</h1>
+  <p class="subtitle">Point of Sale System</p>
+  <div class="progress-bar">
+    <div class="progress-fill"></div>
+  </div>
+  <p class="loading-text">Starting system, please wait...</p>
+</body>
+</html>

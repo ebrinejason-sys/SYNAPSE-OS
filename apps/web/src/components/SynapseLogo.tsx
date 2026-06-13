@@ -1,4 +1,3 @@
-import Image from 'next/image'
 import React from 'react'
 
 interface Props {
@@ -14,14 +13,18 @@ export function SynapseLogo({ size = 'md', variant = 'full', className = '' }: P
   const px = ICON_PX[size]
 
   const logoImg = (
-    <Image
-      src="/synapse-logo.png"
+    <img
+      src="/assets/logos/synapse-logo.png"
       alt="Synapse OS"
-      width={px}
-      height={px}
-      unoptimized
-      priority
-      style={{ borderRadius: Math.round(px * 0.22), display: 'block', flexShrink: 0 }}
+      style={{
+        width: px,
+        height: px,
+        borderRadius: Math.round(px * 0.22),
+        display: 'block',
+        flexShrink: 0,
+        border: '1px solid rgba(232,184,75,0.35)',
+        objectFit: 'cover',
+      }}
     />
   )
 

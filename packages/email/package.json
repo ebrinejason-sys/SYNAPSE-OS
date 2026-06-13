@@ -1,0 +1,11 @@
+{
+  "name": "@synapse/email",
+  "version": "1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "resend": "^3.0.0"
+  }
+}

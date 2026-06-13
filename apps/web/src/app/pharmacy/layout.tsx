@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { FlaskConical, Package, ShoppingCart, AlertTriangle, Zap, BarChart2, Layers } from 'lucide-react'
+import { FlaskConical, Package, ShoppingCart, AlertTriangle, Zap, BarChart2, Layers, UserRound } from 'lucide-react'
 import { SynapseLogo } from '../../components/SynapseLogo'
 
 const NAV = [
@@ -14,6 +14,7 @@ const NAV = [
   { href: '/pharmacy/expiry', label: 'Expiry', icon: AlertTriangle },
   { href: '/pharmacy/nms', label: 'NMS', icon: FlaskConical },
   { href: '/pharmacy/reports', label: 'Reports', icon: BarChart2 },
+  { href: '/pharmacy/account', label: 'Account', icon: UserRound },
 ]
 
 export default function PharmacyLayout({ children }: { children: React.ReactNode }) {

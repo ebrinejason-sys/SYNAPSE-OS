@@ -1,0 +1,1879 @@
+﻿"use client"
+
+import { useEffect, useState, useMemo, useCallback } from "react"
+import { usePharmacySession } from "@/hooks/use-pharmacy-session"
+
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useToast } from "@/hooks/use-toast"
+import { formatCurrency, generateTransactionNo } from "@/lib/utils"
+import { Search, ShoppingCart, Trash2, Printer, Clock, Eye, Calculator, Package, Wifi, WifiOff, Download } from "lucide-react"
+import { queueMutation, saveOfflineTransaction, getPendingActions, saveMetadata, getMetadata } from "@/lib/offlineStorage"
+
+// Debounce hook for search
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value)
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [value, delay])
+
+  return debouncedValue
+}
+
+interface ProductPackage {
+  id: string
+  name: string  // "Strip", "Box", "Dozen"
+  unitsPerPackage: number
+  price: number
+  isDefault: boolean
+}
+
+interface ProductBatch {
+  id: string
+  batchNumber: string
+  quantity: number
+  expiryDate: string
+  costPrice: number
+}
+
+interface Product {
+  id: string
+  name: string
+  sku: string
+  price: number
+  costPrice: number
+  quantity: number
+  unitOfMeasure: string
+  strength?: string
+  dosageForm?: string
+  activeIngredient?: string
+  genericName?: string
+  requiresPrescription?: boolean
+  supplierId?: string
+  supplier?: { name: string }
+  barcode?: string
+  expiryDate?: string
+  batchNumber?: string
+  packages?: ProductPackage[]
+  batches?: ProductBatch[]
+}
+
+interface CartItem extends Product {
+  cartQuantity: number  // Quantity in base units OR package units
+  costPrice: number  // Original price from inventory (constant)
+  sellingPrice: number  // Editable selling price (like Tally)
+  subtotal: number
+  expiryDate?: string  // Expiry date for receipt
+  batchNumber?: string  // Batch number for records
+  // Package info
+  selectedPackage?: ProductPackage | null  // Selected package (null = base units)
+  packageQuantity?: number  // Number of packages (e.g., 2 strips)
+  baseUnitsTotal?: number  // Total in base units (for stock deduction)
+  // Batch info  
+  selectedBatchId?: string
+}
+
+interface Settings {
+  pharmacyName: string
+  location: string
+  contact: string
+  email: string
+  logo?: string
+  footerText?: string
+  currency: string
+  taxRate: number
+}
+
+interface StaffMember {
+  id: string
+  name: string
+  email: string
+}
+
+export default function POSPage() {
+  const { user } = usePharmacySession()
+  const [products, setProducts] = useState<Product[]>([])
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [paymentMethod, setPaymentMethod] = useState<string>("CASH")
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [settings, setSettings] = useState<Settings | null>(null)
+  const [showOrderDialog, setShowOrderDialog] = useState(false)
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false)
+  const [amountPaid, setAmountPaid] = useState("")
+  const [displayCount, setDisplayCount] = useState(20)
+  const [showMobileCart, setShowMobileCart] = useState(false)
+  const [showStaffDialog, setShowStaffDialog] = useState(false)
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([])
+  const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null)
+  const [showPrintPrompt, setShowPrintPrompt] = useState(false)
+  const [pendingTransaction, setPendingTransaction] = useState<any>(null)
+  const [receiptStaffNamePending, setReceiptStaffNamePending] = useState<string>("")
+  const [pendingReceiptMeta, setPendingReceiptMeta] = useState<{ paymentMethod: string; amountPaid: string; change: number } | null>(null)
+  const [showClientNameBeforePrintDialog, setShowClientNameBeforePrintDialog] = useState(false)
+  const [clientNameBeforePrint, setClientNameBeforePrint] = useState("")
+  const [isSavingClientNameBeforePrint, setIsSavingClientNameBeforePrint] = useState(false)
+  const [showClientDetailsBeforeSaleDialog, setShowClientDetailsBeforeSaleDialog] = useState(false)
+  const [clientDetailsBeforeSale, setClientDetailsBeforeSale] = useState({ name: "", phone: "", address: "" })
+  const [isSavingClientDetailsBeforeSale, setIsSavingClientDetailsBeforeSale] = useState(false)
+  const [printReceiptData, setPrintReceiptData] = useState<any>(null)
+  const [isPrintingReceipt, setIsPrintingReceipt] = useState(false)
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+  const [pendingSyncCount, setPendingSyncCount] = useState(0)
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const { toast } = useToast()
+
+  // Debounce search query for better performance
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+
+  // Load cart from localStorage on mount
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+
+    const savedCart = localStorage.getItem('pos-cart')
+    if (savedCart) {
+      try {
+        setCart(JSON.parse(savedCart))
+      } catch (e) {
+        console.error('Failed to parse saved cart:', e)
+      }
+    }
+    fetchProducts()
+    fetchSettings()
+    fetchStaffMembers()
+    updatePendingSyncCount()
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    }
+  }, [])
+
+  const updatePendingSyncCount = async () => {
+    const pending = await getPendingActions()
+    setPendingSyncCount(pending.length)
+  }
+
+  // Check for sync updates periodically or when online status changes
+  useEffect(() => {
+    const interval = setInterval(updatePendingSyncCount, 10000)
+    updatePendingSyncCount()
+    return () => clearInterval(interval)
+  }, [isOnline])
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return
+    deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null)
+    }
+  }
+
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    if (cart.length > 0) {
+      localStorage.setItem('pos-cart', JSON.stringify(cart))
+    } else {
+      localStorage.removeItem('pos-cart')
+    }
+  }, [cart])
+
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      setIsPrintingReceipt(false)
+      setPrintReceiptData(null)
+    }
+    window.addEventListener("afterprint", handleAfterPrint)
+    return () => window.removeEventListener("afterprint", handleAfterPrint)
+  }, [])
+
+  const triggerReliablePrint = () => {
+    // Wait for React to paint the print tree before opening the print dialog.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setTimeout(() => window.print(), 50)
+      })
+    })
+  }
+
+  // Check if current user is SYNAPSE PHARM master account
+  const isSynapsePharmAccount = useMemo(() => {
+    return user?.fullName === "SYNAPSE POS" || user?.email === "pos@synapseos.tech"
+  }, [user])
+
+  const fetchStaffMembers = async () => {
+    try {
+      if (navigator.onLine) {
+        const response = await fetch("/api/admin/staff-list")
+        if (response.ok) {
+          const data = await response.json()
+          setStaffMembers(data)
+          saveMetadata('staff-members', data)
+          return
+        }
+      }
+      // Offline fallback
+      const cachedStaff = await getMetadata('staff-members')
+      if (Array.isArray(cachedStaff)) setStaffMembers(cachedStaff as StaffMember[])
+    } catch (error) {
+      console.error("Failed to fetch staff:", error)
+      const cachedStaff = await getMetadata('staff-members')
+      if (Array.isArray(cachedStaff)) setStaffMembers(cachedStaff as StaffMember[])
+    }
+  }
+
+  const fetchSettings = async () => {
+    try {
+      if (navigator.onLine) {
+        const response = await fetch("/api/admin/settings")
+        if (response.ok) {
+          const data = await response.json()
+          setSettings(data)
+          saveMetadata('settings', data)
+          return
+        }
+      }
+      // Offline fallback
+      const cachedSettings = await getMetadata('settings')
+      if (cachedSettings && typeof cachedSettings === 'object') setSettings(cachedSettings as Settings)
+    } catch (error) {
+      console.error("Failed to fetch settings:", error)
+      const cachedSettings = await getMetadata('settings')
+      if (cachedSettings && typeof cachedSettings === 'object') setSettings(cachedSettings as Settings)
+    }
+  }
+
+  const fetchProducts = async () => {
+    try {
+      if (navigator.onLine) {
+        const response = await fetch("/api/admin/inventory")
+        if (response.ok) {
+          const data = await response.json()
+          const productList = Array.isArray(data) ? data : []
+          setProducts(productList)
+          saveMetadata('products', productList)
+          return
+        }
+        throw new Error('Failed to fetch products')
+      }
+      // Offline fallback
+      const cachedProducts = await getMetadata('products')
+      if (Array.isArray(cachedProducts)) setProducts(cachedProducts as Product[])
+    } catch (error) {
+      console.error("Failed to fetch products:", error)
+      const cachedProducts = await getMetadata('products')
+      if (Array.isArray(cachedProducts)) setProducts(cachedProducts as Product[])
+
+      if (navigator.onLine) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch products",
+        })
+      }
+    }
+  }
+
+  // Use memoized filtered products with debounced search for better INP
+  const allFilteredProducts = useMemo(() => {
+    const query = debouncedSearchQuery.toLowerCase()
+    if (!query) return products
+    return products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(query) ||
+        p.sku.toLowerCase().includes(query) ||
+        (p.barcode && p.barcode.toLowerCase().includes(query))
+    )
+  }, [products, debouncedSearchQuery])
+
+  // Paginate: show displayCount items, or all when searching
+  const filteredProducts = useMemo(() => {
+    if (debouncedSearchQuery) return allFilteredProducts
+    return allFilteredProducts.slice(0, displayCount)
+  }, [allFilteredProducts, displayCount, debouncedSearchQuery])
+
+  const hasMoreProducts = !debouncedSearchQuery && displayCount < products.length
+
+  const addToCart = (product: Product, selectedPackage?: ProductPackage | null) => {
+    const existingItem = cart.find((item) => item.id === product.id &&
+      item.selectedPackage?.id === selectedPackage?.id)
+
+    // Get the first active batch (FIFO - earliest expiry first)
+    const firstBatch = product.batches && product.batches.length > 0 ? product.batches[0] : null
+
+    // Determine price: use package price if selected, otherwise base price
+    const priceToUse = selectedPackage ? selectedPackage.price : product.price
+
+    if (existingItem) {
+      // Allow selling beyond stock (negative stock allowed)
+      // Move updated item to top of cart
+      const newQty = existingItem.cartQuantity + 1
+      const baseUnits = selectedPackage ? newQty * selectedPackage.unitsPerPackage : newQty
+      const updatedItem = {
+        ...existingItem,
+        cartQuantity: newQty,
+        packageQuantity: selectedPackage ? newQty : undefined,
+        baseUnitsTotal: baseUnits,
+        subtotal: newQty * existingItem.sellingPrice,
+      }
+      setCart([
+        updatedItem,
+        ...cart.filter((item) => !(item.id === product.id && item.selectedPackage?.id === selectedPackage?.id))
+      ])
+    } else {
+      // Add new item at the top of cart
+      const baseUnits = selectedPackage ? 1 * selectedPackage.unitsPerPackage : 1
+      setCart([
+        {
+          ...product,
+          cartQuantity: 1,
+          costPrice: firstBatch?.costPrice || product.costPrice,
+          sellingPrice: priceToUse,
+          subtotal: priceToUse,
+          selectedPackage: selectedPackage || null,
+          packageQuantity: selectedPackage ? 1 : undefined,
+          baseUnitsTotal: baseUnits,
+          selectedBatchId: firstBatch?.id,
+          batchNumber: firstBatch?.batchNumber || product.batchNumber,
+          expiryDate: firstBatch?.expiryDate || product.expiryDate,
+        },
+        ...cart,
+      ])
+    }
+  }
+
+  const removeFromCart = (productId: string) => {
+    setCart(cart.filter((item) => item.id !== productId))
+  }
+
+  const updateCartQuantity = (productId: string, quantity: number, packageId?: string) => {
+    // Allow any quantity (negative stock allowed for continuous sales)
+    if (quantity <= 0) {
+      removeFromCart(productId)
+      return
+    }
+
+    setCart(
+      cart.map((item) => {
+        // Match by product id and optionally package id
+        const matches = item.id === productId &&
+          (packageId === undefined || item.selectedPackage?.id === packageId)
+        if (!matches) return item
+
+        const baseUnits = item.selectedPackage
+          ? quantity * item.selectedPackage.unitsPerPackage
+          : quantity
+
+        return {
+          ...item,
+          cartQuantity: quantity,
+          packageQuantity: item.selectedPackage ? quantity : undefined,
+          baseUnitsTotal: baseUnits,
+          subtotal: quantity * item.sellingPrice,
+        }
+      })
+    )
+  }
+
+  // Update selling price for an item (Tally-like flexible pricing)
+  const updateSellingPrice = (productId: string, newPrice: number) => {
+    if (newPrice < 0) return
+
+    setCart(
+      cart.map((item) =>
+        item.id === productId
+          ? {
+            ...item,
+            sellingPrice: newPrice,
+            subtotal: item.cartQuantity * newPrice,
+          }
+          : item
+      )
+    )
+  }
+
+  const total = cart.reduce((sum, item) => sum + item.subtotal, 0)
+  const taxRate = settings?.taxRate || 0
+  const taxAmount = total * (taxRate / 100)
+  const grandTotal = total + taxAmount
+  const change = amountPaid ? parseFloat(amountPaid) - grandTotal : 0
+
+  // For SYNAPSE PHARM account, use selected staff name; otherwise use logged-in user
+  const staffName = isSynapsePharmAccount && selectedStaff
+    ? `${selectedStaff.name} of SYNAPSE PHARM`
+    : user?.fullName ?? "Staff"
+
+  // The actual staff ID for transaction recording
+  const transactionStaffId = isSynapsePharmAccount && selectedStaff
+    ? selectedStaff.id
+    : user?.id
+
+  const handleCompleteSale = () => {
+    if (cart.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Cart is empty",
+      })
+      return
+    }
+
+    // If logged in as SYNAPSE PHARM, show staff selection dialog
+    if (isSynapsePharmAccount && !selectedStaff) {
+      setShowStaffDialog(true)
+      return
+    }
+    // Show client details dialog before processing transaction
+    setClientNameBeforePrint("")
+    setShowClientDetailsBeforeSaleDialog(true)
+  }
+
+  const processTransaction = async (staffForReceipt: StaffMember | null, client: { name: string; phone: string; address: string }) => {
+    setIsProcessing(true)
+
+    // Determine staff name for this specific transaction
+    const receiptStaffName = isSynapsePharmAccount && staffForReceipt
+      ? `${staffForReceipt.name} of SYNAPSE PHARM`
+      : user?.fullName ?? "Staff"
+
+    const receiptStaffId = isSynapsePharmAccount && staffForReceipt
+      ? staffForReceipt.id
+      : user?.id
+
+    const txnNo = generateTransactionNo()
+
+    const transactionPayload = {
+      transactionNo: txnNo,
+      items: cart.map((item) => ({
+        productId: item.id,
+        quantity: item.baseUnitsTotal || item.cartQuantity,
+        unitPrice: item.sellingPrice,
+        costPrice: item.costPrice,
+        packageName: item.selectedPackage?.name || null,
+        packageQuantity: item.packageQuantity || null,
+        batchId: item.selectedBatchId || null,
+      })),
+      paymentMethod,
+      staffId: receiptStaffId,
+      staffName: receiptStaffName,
+      clientName: client.name,
+      clientPhone: client.phone,
+      clientAddress: client.address,
+    };
+
+    if (!navigator.onLine) {
+      // Offline: Store locally and queue for sync
+      try {
+        // Create mock transaction for printing
+        const mockTransaction = {
+          id: `offline-${Date.now()}`,
+          transactionNo: txnNo,
+          createdAt: new Date().toISOString(),
+          clientName: client.name,
+          clientPhone: client.phone,
+          clientAddress: client.address,
+          totalAmount: total,
+          tax: taxAmount,
+          netAmount: grandTotal,
+          paymentMethod,
+          items: cart.map((item, idx) => ({
+            id: `item-${idx}`,
+            quantity: item.baseUnitsTotal || item.cartQuantity,
+            unitPrice: item.sellingPrice,
+            totalPrice: item.subtotal,
+            packageName: item.selectedPackage?.name || null,
+            packageQuantity: item.packageQuantity || null,
+            product: {
+              name: item.name,
+              sku: item.sku
+            },
+            batch: item.batchNumber ? {
+              batchNumber: item.batchNumber,
+              expiryDate: item.expiryDate
+            } : null
+          }))
+        }
+
+        await saveOfflineTransaction(mockTransaction)
+        await queueMutation("/api/admin/pos/transaction", "POST", transactionPayload);
+
+        // Register sync via service worker if available
+        if ('serviceWorker' in navigator && (navigator as any).serviceWorker.ready) {
+          (navigator as any).serviceWorker.ready.then((sw: any) => {
+            if (sw.sync) sw.sync.register('sync-mutations');
+          });
+        }
+
+        toast({
+          title: "Stored Offline",
+          description: "Transaction saved locally. Will sync when online.",
+        });
+
+        // Set pending for printing
+        setPendingTransaction(mockTransaction)
+        setReceiptStaffNamePending(receiptStaffName)
+        setPendingReceiptMeta({ paymentMethod, amountPaid, change })
+        setShowPrintPrompt(true)
+
+        // Clear cart and proceed as if successful
+        setCart([]);
+        localStorage.removeItem('pos-cart');
+        setSelectedStaff(null);
+        setAmountPaid("");
+        // We can't really fetchProducts while offline, but we can try
+        fetchProducts();
+      } catch (err) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Unable to access offline storage",
+        });
+      }
+      setIsProcessing(false);
+      return;
+    } else {
+      // Online: Proceed with API call
+      try {
+        const response = await fetch("/api/admin/pos/transaction", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(transactionPayload),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          // Transaction successfully recorded to database
+          toast({
+            title: "Success",
+            description: "Transaction completed successfully",
+          })
+
+          // Store the transaction for potential printing and show print prompt
+          setPendingTransaction(data.transaction)
+          setReceiptStaffNamePending(receiptStaffName)
+          setPendingReceiptMeta({ paymentMethod, amountPaid, change })
+          setShowPrintPrompt(true)
+
+          // Clear cart and localStorage immediately after successful recording
+          setCart([])
+          localStorage.removeItem('pos-cart')
+
+          // Reset selected staff for next transaction
+          setSelectedStaff(null)
+
+          // Reset payment fields
+          setAmountPaid("")
+
+          // Refresh products
+          fetchProducts()
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: data.error || "Failed to process transaction",
+          })
+        }
+      } catch (error) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "An error occurred",
+        })
+      }
+    }
+
+    setIsProcessing(false);
+  }
+
+  const resetPendingPrintFlow = () => {
+    setPendingTransaction(null)
+    setReceiptStaffNamePending("")
+    setPendingReceiptMeta(null)
+    setShowPrintPrompt(false)
+    setShowClientNameBeforePrintDialog(false)
+    setClientNameBeforePrint("")
+    setIsSavingClientNameBeforePrint(false)
+  }
+
+  const handlePrintPromptResponse = (shouldPrint: boolean) => {
+    if (!shouldPrint) {
+      resetPendingPrintFlow()
+      return
+    }
+
+    if (!pendingTransaction) {
+      resetPendingPrintFlow()
+      return
+    }
+
+    setClientNameBeforePrint(pendingTransaction.clientName || "")
+    setShowPrintPrompt(false)
+    setShowClientNameBeforePrintDialog(true)
+  }
+
+  const confirmClientNameBeforePrint = async () => {
+    if (!pendingTransaction) {
+      resetPendingPrintFlow()
+      return
+    }
+
+    const desiredClientName = clientNameBeforePrint.trim()
+
+    setIsSavingClientNameBeforePrint(true)
+    let updatedTransaction = pendingTransaction
+
+    try {
+      const response = await fetch(`/api/admin/transactions/${pendingTransaction.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientName: desiredClientName }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data?.transaction) {
+          updatedTransaction = data.transaction
+        }
+      }
+    } catch (error) {
+      console.error("Failed to update client name before printing:", error)
+    } finally {
+      setIsSavingClientNameBeforePrint(false)
+    }
+
+    setPrintReceiptData({
+      transaction: updatedTransaction,
+      staffName: receiptStaffNamePending,
+      meta: pendingReceiptMeta,
+      settings,
+    })
+    setIsPrintingReceipt(true)
+    triggerReliablePrint()
+
+    resetPendingPrintFlow()
+  }
+
+  const confirmClientDetailsBeforeSale = async () => {
+    setIsSavingClientDetailsBeforeSale(true)
+    
+    try {
+      // Proceed with transaction using the entered client details
+      processTransaction(selectedStaff, {
+        name: clientDetailsBeforeSale.name.trim(),
+        phone: clientDetailsBeforeSale.phone.trim(),
+        address: clientDetailsBeforeSale.address.trim(),
+      })
+      
+      // Close the dialog after processing
+      setShowClientDetailsBeforeSaleDialog(false)
+    } catch (error) {
+      console.error("Error processing client details:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to process transaction",
+      })
+    } finally {
+      setIsSavingClientDetailsBeforeSale(false)
+    }
+  }
+
+  const saveAsOrder = () => {
+    if (cart.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Cart is empty",
+      })
+      return
+    }
+    setShowOrderDialog(true)
+  }
+
+  return (
+    <div>
+      {isPrintingReceipt && printReceiptData && (
+        <div className="print-area fixed inset-0 z-[9999] bg-card p-4 overflow-visible">
+          <TransactionReceipt
+            transaction={printReceiptData.transaction}
+            staffName={printReceiptData.staffName}
+            settings={printReceiptData.settings}
+            meta={printReceiptData.meta}
+          />
+        </div>
+      )}
+
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Point of Sale</h1>
+          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
+            Process sales and generate receipts
+            {isSynapsePharmAccount && selectedStaff && (
+              <span className="ml-2 text-primary font-medium">
+                * Selling as: {selectedStaff.name}
+              </span>
+            )}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {deferredPrompt && (
+            <Button
+              onClick={handleInstallClick}
+              variant="outline"
+              size="sm"
+              className="border-primary/25 bg-primary/10 text-primary hover:bg-primary/15"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Install POS
+            </Button>
+          )}
+
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${isOnline ? 'bg-green-50 border-green-200 text-[#22C55E]' : 'bg-orange-50 border-orange-200 text-orange-700'
+            }`}>
+            {isOnline ? (
+              <><Wifi className="h-3 w-3" /> Online</>
+            ) : (
+              <><WifiOff className="h-3 w-3" /> Offline Mode</>
+            )}
+          </div>
+
+          {pendingSyncCount > 0 && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-accent/10 border border-accent/25 text-[#E8B84B] animate-pulse">
+              <Clock className="h-3 w-3" />
+              {pendingSyncCount} pending sync
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Staff Selection Dialog for SYNAPSE PHARM account */}
+      {showStaffDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Who is making this sale?</CardTitle>
+              <p className="text-sm text-muted-foreground">Select your name to complete the sale</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {staffMembers.map((staff) => (
+                  <button
+                    key={staff.id}
+                    onClick={() => {
+                      setSelectedStaff(staff)
+                      setShowStaffDialog(false)
+                      processTransaction(staff, { name: "", phone: "", address: "" })
+                    }}
+                    className="w-full p-3 text-left border rounded-lg hover:bg-muted/20 hover:border-primary transition-colors"
+                  >
+                    <div className="font-medium">{staff.name}</div>
+                    <div className="text-xs text-muted-foreground">{staff.email}</div>
+                  </button>
+                ))}
+                {staffMembers.length === 0 && (
+                  <p className="text-center text-muted-foreground py-4">No staff members found</p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setShowStaffDialog(false)}
+              >
+                Cancel
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {showClientDetailsBeforeSaleDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Client Details</CardTitle>
+              <p className="text-sm text-muted-foreground">Enter client information for the receipt (optional)</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="clientName">Client Name</Label>
+                <Input
+                  id="clientName"
+                  value={clientDetailsBeforeSale.name}
+                  onChange={(e) => setClientDetailsBeforeSale({ ...clientDetailsBeforeSale, name: e.target.value })}
+                  placeholder="e.g. John Doe"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="clientPhone">Phone Number</Label>
+                <Input
+                  id="clientPhone"
+                  value={clientDetailsBeforeSale.phone}
+                  onChange={(e) => setClientDetailsBeforeSale({ ...clientDetailsBeforeSale, phone: e.target.value })}
+                  placeholder="e.g. 0741234567"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="clientAddress">Address</Label>
+                <Input
+                  id="clientAddress"
+                  value={clientDetailsBeforeSale.address}
+                  onChange={(e) => setClientDetailsBeforeSale({ ...clientDetailsBeforeSale, address: e.target.value })}
+                  placeholder="e.g. Kampala, Uganda"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowClientDetailsBeforeSaleDialog(false)}
+                  disabled={isSavingClientDetailsBeforeSale}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={confirmClientDetailsBeforeSale}
+                  disabled={isSavingClientDetailsBeforeSale}
+                >
+                  {isSavingClientDetailsBeforeSale ? "Processing..." : "Proceed"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {showClientNameBeforePrintDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Client Name</CardTitle>
+              <p className="text-sm text-muted-foreground">Optional: set a client name before printing</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="clientNameBeforePrint">Client Name</Label>
+                <Input
+                  id="clientNameBeforePrint"
+                  value={clientNameBeforePrint}
+                  onChange={(e) => setClientNameBeforePrint(e.target.value)}
+                  placeholder="e.g. John Doe"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={resetPendingPrintFlow}
+                  disabled={isSavingClientNameBeforePrint}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={confirmClientNameBeforePrint}
+                  disabled={isSavingClientNameBeforePrint}
+                >
+                  Print
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {showOrderDialog && (
+        <SaveOrderDialog
+          cart={cart}
+          onClose={() => setShowOrderDialog(false)}
+          onSuccess={() => {
+            setCart([])
+            setShowOrderDialog(false)
+            fetchProducts()
+          }}
+        />
+      )}
+
+      {showReceiptPreview && (
+        <ReceiptPreviewDialog
+          cart={cart}
+          settings={settings}
+          total={total}
+          taxRate={taxRate}
+          taxAmount={taxAmount}
+          grandTotal={grandTotal}
+          amountPaid={amountPaid}
+          change={change}
+          paymentMethod={paymentMethod}
+          staffName={staffName}
+          onClose={() => setShowReceiptPreview(false)}
+        />
+      )}
+
+      {showPrintPrompt && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-sm">
+            <CardHeader>
+              <CardTitle>Print Receipt?</CardTitle>
+              <p className="text-sm text-muted-foreground mt-2">Your sale has been recorded successfully. Would you like to print the receipt?</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-accent/10 border border-accent/25 rounded-lg p-3">
+                <p className="text-sm text-foreground">
+                  <strong>Important:</strong> The transaction has already been saved to the system regardless of your choice.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => handlePrintPromptResponse(false)}
+                >
+                  Skip Printing
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={() => handlePrintPromptResponse(true)}
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print Receipt
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Products */}
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Products</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Showing {filteredProducts.length} of {debouncedSearchQuery ? allFilteredProducts.length : products.length} products
+                  </p>
+                </div>
+              </div>
+              <div className="relative mt-4">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, SKU, or scan barcode..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value)
+                    setDisplayCount(20) // Reset display count when searching
+                  }}
+                  className="pl-10"
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[600px] overflow-y-auto">
+                {filteredProducts.map((product) => (
+                  <div
+                    key={product.id}
+                    className="p-4 border rounded-lg hover:bg-muted/20 text-left transition-colors"
+                  >
+                    <button
+                      onClick={() => addToCart(product)}
+                      className="w-full text-left"
+                    >
+                      <div className="font-medium text-sm">{product.name} {product.strength && <span className="text-muted-foreground text-[10px]">({product.strength})</span>}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{product.activeIngredient}</div>
+                      <div className="text-xs text-muted-foreground mt-1">{product.sku}</div>
+                      <div className="mt-2 space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-muted-foreground">Cost:</span>
+                          <span className="text-xs text-muted-foreground font-medium">{formatCurrency(product.costPrice)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-[#22C55E]">Sell:</span>
+                          <span className="text-primary font-bold">{formatCurrency(product.price)}</span>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1 pt-1 border-t">Stock: {product.quantity}</div>
+                    </button>
+                    {/* Package options */}
+                    {product.packages && product.packages.length > 0 && (
+                      <div className="mt-2 pt-2 border-t space-y-1">
+                        <div className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Package className="h-3 w-3" />
+                          Packages:
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {product.packages.map((pkg) => (
+                            <button
+                              key={pkg.id}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                addToCart(product, pkg)
+                              }}
+                              className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full hover:bg-primary/15 transition-colors"
+                              title={`${pkg.name}: ${pkg.unitsPerPackage} units @ ${formatCurrency(pkg.price)}`}
+                            >
+                              {pkg.name} ({pkg.unitsPerPackage})
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {/* Batch expiry info */}
+                    {product.batches && product.batches.length > 0 && (
+                      <div className="text-xs text-primary mt-1">
+                        Exp: {new Date(product.batches[0].expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {hasMoreProducts && (
+                <div className="flex justify-center mt-4 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={() => setDisplayCount((prev) => prev + 20)}
+                  >
+                    Load More ({products.length - displayCount} remaining)
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Cart */}
+        <div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <ShoppingCart className="h-5 w-5 mr-2" />
+                Cart ({cart.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                {cart.map((item) => (
+                  <div key={`${item.id}-${item.selectedPackage?.id || 'base'}`} className="border rounded-lg p-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{item.name}</div>
+                        {item.selectedPackage && (
+                          <div className="text-xs text-primary flex items-center gap-1">
+                            <Package className="h-3 w-3" />
+                            {item.selectedPackage.name} ({item.selectedPackage.unitsPerPackage} {item.unitOfMeasure}s)
+                          </div>
+                        )}
+                        <div className="text-xs text-muted-foreground">Cost: {formatCurrency(item.costPrice)}</div>
+                        {item.batchNumber && (
+                          <div className="text-xs text-muted-foreground">
+                            Batch: {item.batchNumber}
+                            {item.expiryDate && ` | Exp: ${new Date(item.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`}
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeFromCart(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                    {/* Editable Selling Price (Tally-like) */}
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="flex-1">
+                        <Label className="text-xs text-muted-foreground">
+                          {item.selectedPackage ? `Price/${item.selectedPackage.name}` : 'Selling Price'}
+                        </Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.sellingPrice}
+                          onChange={(e) =>
+                            updateSellingPrice(item.id, parseFloat(e.target.value) || 0)
+                          }
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <Label className="text-xs text-muted-foreground">
+                          {item.selectedPackage ? `${item.selectedPackage.name}s` : 'Qty'}
+                        </Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.cartQuantity}
+                          onChange={(e) =>
+                            updateCartQuantity(item.id, parseInt(e.target.value), item.selectedPackage?.id)
+                          }
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+                    {/* Show base units if package selected */}
+                    {item.selectedPackage && item.baseUnitsTotal && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        = {item.baseUnitsTotal} {item.unitOfMeasure}s total
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t">
+                      <span className="text-xs text-muted-foreground">Subtotal</span>
+                      <div className="font-semibold">{formatCurrency(item.subtotal)}</div>
+                    </div>
+                    {item.sellingPrice !== item.costPrice && (
+                      <div className={`text-xs mt-1 ${item.sellingPrice > item.costPrice ? 'text-[#22C55E]' : 'text-primary'}`}>
+                        {item.sellingPrice > item.costPrice
+                          ? `+${formatCurrency(item.sellingPrice - item.costPrice)} margin`
+                          : `${formatCurrency(item.sellingPrice - item.costPrice)} discount`}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t mt-4 pt-4 space-y-3" data-checkout-section>
+                <div className="flex justify-between text-sm">
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(total)}</span>
+                </div>
+                {taxRate > 0 && (
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Tax ({taxRate}%)</span>
+                    <span>{formatCurrency(taxAmount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-lg font-bold">
+                  <span>Total</span>
+                  <span>{formatCurrency(grandTotal)}</span>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Payment Method</label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    title="Select Payment Method"
+                    aria-label="Payment Method"
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="CARD">Card</option>
+                    <option value="MOBILE_MONEY">Mobile Money</option>
+                  </select>
+                </div>
+
+                {paymentMethod === "CASH" && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center">
+                      <Calculator className="h-4 w-4 mr-1" />
+                      Amount Paid
+                    </label>
+                    <Input
+                      type="number"
+                      placeholder="Enter amount paid"
+                      value={amountPaid}
+                      onChange={(e) => setAmountPaid(e.target.value)}
+                    />
+                    {amountPaid && parseFloat(amountPaid) >= grandTotal && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                        <div className="flex justify-between text-green-800 font-semibold">
+                          <span>Change</span>
+                          <span>{formatCurrency(change)}</span>
+                        </div>
+                      </div>
+                    )}
+                    {amountPaid && parseFloat(amountPaid) < grandTotal && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-2">
+                        <div className="text-red-800 text-sm">
+                          Insufficient amount. Need {formatCurrency(grandTotal - parseFloat(amountPaid))} more.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowReceiptPreview(true)}
+                  disabled={cart.length === 0}
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Preview Receipt
+                </Button>
+
+                <Button
+                  onClick={handleCompleteSale}
+                  className="w-full"
+                  disabled={isProcessing || cart.length === 0}
+                >
+                  {isProcessing ? "Processing..." : "Complete Sale"}
+                </Button>
+
+                <Button
+                  onClick={saveAsOrder}
+                  variant="outline"
+                  className="w-full"
+                  disabled={cart.length === 0}
+                >
+                  <Clock className="h-4 w-4 mr-2" />
+                  Save as Order (Tab)
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Floating Cart Button for Mobile */}
+      <button
+        onClick={() => setShowMobileCart(!showMobileCart)}
+        className="lg:hidden fixed bottom-6 right-6 z-50 bg-gradient-to-r from-[#F97316] to-[#E8B84B] text-white p-4 rounded-full shadow-2xl hover:shadow-[#F97316]/30 transition-all duration-300 hover:scale-110 active:scale-95"
+        aria-label="Shopping Cart"
+      >
+        <div className="relative">
+          <ShoppingCart className="h-6 w-6" />
+          {cart.length > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+              {cart.length}
+            </span>
+          )}
+        </div>
+      </button>
+
+      {/* Mobile Cart Modal */}
+      {showMobileCart && (
+        <div className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end">
+          <div className="bg-card w-full max-h-[85vh] rounded-t-3xl overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300">
+            {/* Mobile Cart Header */}
+            <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-[#F97316] to-[#E8B84B] text-white">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" />
+                Cart ({cart.length})
+              </h3>
+              <button
+                onClick={() => setShowMobileCart(false)}
+                className="p-2 hover:bg-card/20 rounded-full transition-colors"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Mobile Cart Content */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {cart.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <ShoppingCart className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                  <p>Your cart is empty</p>
+                </div>
+              ) : (
+                cart.map((item) => (
+                  <div key={item.id} className="bg-muted/20 rounded-xl p-3 border">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-sm truncate">{item.name}</h4>
+                        <p className="text-xs text-muted-foreground">{item.sku}</p>
+                      </div>
+                      <button
+                        onClick={() => removeFromCart(item.id)}
+                        className="ml-2 p-1 text-destructive hover:bg-red-50 rounded"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => updateCartQuantity(item.id, item.cartQuantity - 1)}
+                          className="w-8 h-8 bg-card border rounded-lg flex items-center justify-center hover:bg-muted/30 active:scale-95"
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          value={item.cartQuantity}
+                          onChange={(e) => updateCartQuantity(item.id, parseInt(e.target.value) || 1)}
+                          className="w-14 h-8 text-center border rounded-lg font-semibold"
+                        />
+                        <button
+                          onClick={() => updateCartQuantity(item.id, item.cartQuantity + 1)}
+                          className="w-8 h-8 bg-card border rounded-lg flex items-center justify-center hover:bg-muted/30 active:scale-95"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">
+                          @ {formatCurrency(item.sellingPrice)}
+                        </p>
+                        <p className="font-bold text-[#22C55E]">
+                          {formatCurrency(item.subtotal)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Mobile Cart Footer */}
+            {cart.length > 0 && (
+              <div className="border-t p-4 bg-card space-y-3">
+                <div className="flex justify-between items-center text-lg font-bold">
+                  <span>Total:</span>
+                  <span className="text-[#22C55E]">
+                    {formatCurrency(cart.reduce((sum, item) => sum + item.subtotal, 0))}
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowMobileCart(false)
+                    // Scroll to checkout section
+                    const checkoutSection = document.querySelector('[data-checkout-section]')
+                    checkoutSection?.scrollIntoView({ behavior: 'smooth' })
+                  }}
+                  className="w-full bg-gradient-to-r from-[#F97316] to-[#E8B84B] text-white py-3 rounded-xl font-semibold hover:shadow-lg active:scale-95 transition-all"
+                >
+                  Proceed to Checkout
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface SaveOrderDialogProps {
+  cart: CartItem[]
+  onClose: () => void
+  onSuccess: () => void
+}
+
+function SaveOrderDialog({ cart, onClose, onSuccess }: SaveOrderDialogProps) {
+  const [customers, setCustomers] = useState<any[]>([])
+  const [selectedCustomer, setSelectedCustomer] = useState("")
+  const [notes, setNotes] = useState("")
+  const [deliveryAddress, setDeliveryAddress] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast()
+
+  useEffect(() => {
+    fetchCustomers()
+  }, [])
+
+  const fetchCustomers = async () => {
+    try {
+      const response = await fetch("/api/admin/customers")
+      const data = await response.json()
+      if (Array.isArray(data)) {
+        setCustomers(data)
+      } else {
+        setCustomers([])
+      }
+    } catch (error) {
+      console.error("Failed to fetch customers:", error)
+      setCustomers([])
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!selectedCustomer) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select a customer",
+      })
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      const response = await fetch("/api/admin/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: selectedCustomer,
+          items: cart.map((item) => ({
+            productId: item.id,
+            quantity: item.cartQuantity,
+          })),
+          notes,
+          deliveryAddress,
+        }),
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Order saved successfully",
+        })
+        onSuccess()
+      } else {
+        const data = await response.json()
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: data.error || "Failed to save order",
+        })
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "An error occurred",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Save as Order</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="customer">Customer *</Label>
+              <select
+                id="customer"
+                value={selectedCustomer}
+                onChange={(e) => setSelectedCustomer(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                required
+                title="Select Customer"
+              >
+                <option value="">Select Customer</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name} - {customer.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="deliveryAddress">Delivery Address</Label>
+              <Input
+                id="deliveryAddress"
+                value={deliveryAddress}
+                onChange={(e) => setDeliveryAddress(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes</Label>
+              <Input
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+
+            <div className="border-t pt-4">
+              <div className="text-sm space-y-1 mb-3">
+                <div className="flex justify-between">
+                  <span>Items:</span>
+                  <span>{cart.length}</span>
+                </div>
+                <div className="flex justify-between font-semibold">
+                  <span>Total:</span>
+                  <span>{formatCurrency(cart.reduce((sum, item) => sum + item.subtotal, 0))}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Saving..." : "Save Order"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+interface ReceiptPreviewDialogProps {
+  cart: CartItem[]
+  settings: Settings | null
+  total: number
+  taxRate: number
+  taxAmount: number
+  grandTotal: number
+  amountPaid: string
+  change: number
+  paymentMethod: string
+  staffName: string
+  onClose: () => void
+}
+
+function ReceiptPreviewDialog({
+  cart,
+  settings,
+  total,
+  taxRate,
+  taxAmount,
+  grandTotal,
+  amountPaid,
+  change,
+  paymentMethod,
+  staffName,
+  onClose,
+}: ReceiptPreviewDialogProps) {
+  const currency = settings?.currency || "UGX"
+  const pharmacyName = settings?.pharmacyName || "SYNAPSE Pharm"
+  const location = settings?.location || ""
+  const contact = "0787599099"
+  const email = settings?.email || "info@synapseos.tech"
+  const footerText = settings?.footerText || "Thank you for your purchase!"
+  const currentDate = new Date()
+
+  const handlePrint = () => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setTimeout(() => window.print(), 50)
+      })
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <Card className="w-full max-w-xl my-8">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between border-b">
+          <CardTitle className="flex items-center gap-2">
+            <Printer className="h-5 w-5" />
+            Receipt Preview
+          </CardTitle>
+          <Button variant="ghost" size="sm" onClick={onClose}>Ã—</Button>
+        </CardHeader>
+        <CardContent className="p-4">
+          {/* Receipt Preview - Compact B&W Style */}
+          <div className="print-area border border-black p-4 bg-card text-black">
+            {/* Header */}
+            <div className="text-center border-b border-dashed border-black pb-2 mb-2">
+              {settings?.logo && (
+                <img
+                  src={settings.logo}
+                  alt="Logo"
+                  className="w-14 h-14 mx-auto object-contain mb-2"
+                />
+              )}
+              <h2 className="text-base font-bold">{pharmacyName}</h2>
+              {location && <p className="text-[10px]">{location}</p>}
+              {contact && <p className="text-[10px]">Tel: {contact}{email ? ` | ${email}` : ""}</p>}
+            </div>
+
+            {/* Receipt Title */}
+            <div className="text-center mb-2">
+              <h3 className="text-xs font-bold tracking-widest">SALES RECEIPT</h3>
+            </div>
+
+            {/* Receipt Info */}
+            <div className="flex justify-between border border-black p-2 mb-2 text-[10px]">
+              <div className="text-center">
+                <p className="text-[8px] uppercase">Receipt No</p>
+                <p className="font-semibold">TXN-PREVIEW</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[8px] uppercase">Date</p>
+                <p className="font-semibold">{currentDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[8px] uppercase">Time</p>
+                <p className="font-semibold">{currentDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</p>
+              </div>
+            </div>
+
+            {/* Items Table */}
+            <div className="mb-2">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="bg-black text-white">
+                    <th className="text-left py-1 px-2 font-medium">Item</th>
+                    <th className="text-center py-1 px-1 font-medium">Qty</th>
+                    <th className="text-right py-1 px-1 font-medium">Price</th>
+                    <th className="text-right py-1 px-2 font-medium">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cart.map((item) => (
+                    <tr key={item.id} className="border-b border-border print-no-break">
+                      <td className="py-1 px-2">
+                        <span className="font-medium text-[10px]">{item.name}</span>
+                        {item.sku && <span className="text-[8px] text-muted-foreground block">{item.sku}</span>}
+                        {item.batchNumber && <span className="text-[8px] text-muted-foreground block">Batch: {item.batchNumber}</span>}
+                        {item.expiryDate && <span className="text-[8px] text-muted-foreground block">Exp: {new Date(item.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</span>}
+                      </td>
+                      <td className="text-center py-1 px-1">{item.cartQuantity}</td>
+                      <td className="text-right py-1 px-1">{formatCurrency(item.sellingPrice, currency)}</td>
+                      <td className="text-right py-1 px-2 font-semibold">{formatCurrency(item.subtotal, currency)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Totals */}
+            <div className="border-t border-dashed border-black pt-2">
+              <div className="max-w-[150px] ml-auto space-y-0.5 text-[10px]">
+                <div className="flex justify-between">
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(total, currency)}</span>
+                </div>
+                {taxAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span>Tax</span>
+                    <span>{formatCurrency(taxAmount, currency)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm font-bold border-t-2 border-black pt-1 mt-1">
+                  <span>TOTAL</span>
+                  <span>{formatCurrency(grandTotal, currency)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Info */}
+            <div className="border border-black p-2 my-2 text-[10px]">
+              <div className="flex justify-between">
+                <span>Payment:</span>
+                <span className="font-semibold">{paymentMethod === "MOBILE_MONEY" ? "Mobile Money" : paymentMethod}</span>
+              </div>
+              {paymentMethod === "CASH" && amountPaid && (
+                <>
+                  <div className="flex justify-between mt-0.5">
+                    <span>Paid:</span>
+                    <span className="font-semibold">{formatCurrency(parseFloat(amountPaid), currency)}</span>
+                  </div>
+                  <div className="flex justify-between mt-0.5">
+                    <span>Change:</span>
+                    <span className="font-bold">{formatCurrency(Math.max(0, change), currency)}</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="text-center border-t border-dashed border-black pt-2 mt-2 space-y-1">
+              <p className="font-semibold text-[10px]">Served by: {staffName}</p>
+              <p className="text-[10px]">{footerText}</p>
+              <p className="text-[8px]">Keep this receipt for your records</p>
+            </div>
+          </div>
+
+          <div className="mt-3 flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
+            <Button size="sm" onClick={handlePrint}>
+              <Printer className="h-4 w-4 mr-2" />
+              Print Receipt
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function TransactionReceipt({
+  transaction,
+  staffName,
+  settings,
+  meta,
+}: {
+  transaction: any
+  staffName: string
+  settings: Settings | null
+  meta: { paymentMethod: string; amountPaid: string; change: number } | null
+}) {
+  const currency = settings?.currency || "UGX"
+  const pharmacyName = settings?.pharmacyName || "SYNAPSE Pharm"
+  const location = settings?.location || ""
+  const contact = "0787599099"
+  const email = settings?.email || "info@synapseos.tech"
+  const footerText = settings?.footerText || "Thank you for your purchase!"
+
+  const receiptDate = transaction?.createdAt ? new Date(transaction.createdAt) : new Date()
+  const items = Array.isArray(transaction?.items) ? transaction.items : []
+
+  const subtotal = typeof transaction?.totalAmount === "number" ? transaction.totalAmount : 0
+  const taxAmount = typeof transaction?.tax === "number" ? transaction.tax : 0
+  const grandTotal = typeof transaction?.netAmount === "number" ? transaction.netAmount : subtotal + taxAmount
+  const payment = meta?.paymentMethod || transaction?.paymentMethod || ""
+
+  return (
+    <div className="print-sheet mx-auto w-full text-black">
+      <div className="border border-black p-4 bg-card text-black">
+        <div className="text-center border-b border-dashed border-black pb-2 mb-2">
+          {settings?.logo && (
+            <img
+              src={settings.logo}
+              alt="Logo"
+              className="w-14 h-14 mx-auto object-contain mb-2"
+            />
+          )}
+          <h2 className="text-base font-bold">{pharmacyName}</h2>
+          {location && <p className="text-[10px]">{location}</p>}
+          {contact && <p className="text-[10px]">Tel: {contact}{email ? ` | ${email}` : ""}</p>}
+        </div>
+
+        <div className="text-center mb-2">
+          <h3 className="text-xs font-bold tracking-widest">SALES RECEIPT</h3>
+        </div>
+
+        <div className="flex justify-between border border-black p-2 mb-2 text-[10px]">
+          <div className="text-center">
+            <p className="text-[8px] uppercase">Receipt No</p>
+            <p className="font-semibold">{transaction?.transactionNo || "-"}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[8px] uppercase">Date</p>
+            <p className="font-semibold">{receiptDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[8px] uppercase">Time</p>
+            <p className="font-semibold">{receiptDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</p>
+          </div>
+        </div>
+
+        <div className="border border-black p-2 mb-2 text-[10px]">
+          <div className="flex justify-between gap-4">
+            <span className="font-medium">Client:</span>
+            <span className="text-right flex-1">{transaction?.clientName || "-"}</span>
+          </div>
+          <div className="flex justify-between gap-4 mt-0.5">
+            <span className="font-medium">Phone:</span>
+            <span className="text-right flex-1">{transaction?.clientPhone || "-"}</span>
+          </div>
+          <div className="flex justify-between gap-4 mt-0.5">
+            <span className="font-medium">Address:</span>
+            <span className="text-right flex-1">{transaction?.clientAddress || "-"}</span>
+          </div>
+        </div>
+
+        <div className="mb-2">
+          <table className="w-full text-[10px]">
+            <thead>
+              <tr className="bg-black text-white">
+                <th className="text-left py-1 px-2 font-medium">Item</th>
+                <th className="text-center py-1 px-1 font-medium">Qty</th>
+                <th className="text-right py-1 px-1 font-medium">Price</th>
+                <th className="text-right py-1 px-2 font-medium">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item: any) => (
+                <tr key={item.id} className="border-b border-border print-no-break">
+                  <td className="py-1 px-2">
+                    <span className="font-medium text-[10px]">{item.product?.name || "-"}</span>
+                    {item.product?.strength && <span className="text-[10px] font-medium ml-1">({item.product.strength})</span>}
+                    {item.product?.sku && <span className="text-[8px] text-muted-foreground block">{item.product.sku}</span>}
+                    {item.product?.dosageForm && <span className="text-[8px] text-muted-foreground block">{item.product.dosageForm}</span>}
+                    {item.packageName && <span className="text-[8px] text-primary block">{item.packageQuantity || ""} {item.packageName}</span>}
+                    {item.batch?.batchNumber && <span className="text-[8px] text-muted-foreground block">Batch: {item.batch.batchNumber}</span>}
+                    {item.batch?.expiryDate && <span className="text-[8px] text-muted-foreground block">Exp: {new Date(item.batch.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</span>}
+                  </td>
+                  <td className="text-center py-1 px-1">{item.quantity}</td>
+                  <td className="text-right py-1 px-1">{formatCurrency(item.unitPrice, currency)}</td>
+                  <td className="text-right py-1 px-2 font-semibold">{formatCurrency(item.totalPrice, currency)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="border-t border-dashed border-black pt-2">
+          <div className="max-w-[170px] ml-auto space-y-0.5 text-[10px]">
+            <div className="flex justify-between">
+              <span>Subtotal</span>
+              <span>{formatCurrency(subtotal, currency)}</span>
+            </div>
+            {taxAmount > 0 && (
+              <div className="flex justify-between">
+                <span>Tax</span>
+                <span>{formatCurrency(taxAmount, currency)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm font-bold border-t-2 border-black pt-1 mt-1">
+              <span>TOTAL</span>
+              <span>{formatCurrency(grandTotal, currency)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="border border-black p-2 my-2 text-[10px]">
+          <div className="flex justify-between">
+            <span>Payment:</span>
+            <span className="font-semibold">{payment === "MOBILE_MONEY" ? "Mobile Money" : payment}</span>
+          </div>
+          {payment === "CASH" && meta?.amountPaid && (
+            <>
+              <div className="flex justify-between mt-0.5">
+                <span>Paid:</span>
+                <span className="font-semibold">{formatCurrency(parseFloat(meta.amountPaid), currency)}</span>
+              </div>
+              <div className="flex justify-between mt-0.5">
+                <span>Change:</span>
+                <span className="font-bold">{formatCurrency(Math.max(0, meta.change), currency)}</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="text-center border-t border-dashed border-black pt-2 mt-2 space-y-1">
+          <p className="font-semibold text-[10px]">Served by: {staffName}</p>
+          <p className="text-[10px]">{footerText}</p>
+          <p className="text-[8px]">Keep this receipt for your records</p>
+          <p className="font-mono text-[10px] tracking-wider">{transaction?.transactionNo || ""}</p>
+        </div>
+      </div>
+    </div>
+  )
+}

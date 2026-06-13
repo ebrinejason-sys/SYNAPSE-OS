@@ -125,26 +125,16 @@ function LoginContent() {
   async function handlePassword(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError('')
-    const supabase = createClient()
-    const { error: authErr } = await supabase.auth.signInWithPassword({ email, password })
-    if (authErr) {
-      setError('Invalid email or password.')
-      setLoading(false)
+    const res = await fetch('/api/auth/password-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    const data = await res.json()
+    setLoading(false)
+    if (!res.ok) {
+      setError(data.error ?? 'Invalid email or password.')
       return
-    }
-    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-    if (aal?.nextLevel === 'aal2' && aal.nextLevel !== aal.currentLevel) {
-      const { data: factors } = await supabase.auth.mfa.listFactors()
-      const totp = factors?.totp?.[0]
-      if (totp) {
-        const { data: ch, error: chErr } = await supabase.auth.mfa.challenge({ factorId: totp.id })
-        if (chErr || !ch) { setError('Could not initiate 2FA.'); setLoading(false); return }
-        setFactorId(totp.id)
-        setChallengeId(ch.id)
-        setSubStep('totp')
-        setLoading(false)
-        return
-      }
     }
     router.push(next)
   }
@@ -184,11 +174,6 @@ function LoginContent() {
     })
     const data = await res.json()
     if (!res.ok) { setError(data.error ?? 'Verification failed.'); setLoading(false); return }
-    const { error: sessionErr } = await createClient().auth.verifyOtp({
-      token_hash: data.token_hash,
-      type: 'magiclink',
-    })
-    if (sessionErr) { setError('Could not create session. Please try again.'); setLoading(false); return }
     router.push(next)
   }
 
@@ -218,11 +203,6 @@ function LoginContent() {
     })
     const data = await res.json()
     if (!res.ok) { setError(data.error ?? 'Verification failed.'); setLoading(false); return }
-    const { error: sessionErr } = await createClient().auth.verifyOtp({
-      token_hash: data.token_hash,
-      type: 'magiclink',
-    })
-    if (sessionErr) { setError('Could not create session. Please try again.'); setLoading(false); return }
     router.push(next)
   }
 

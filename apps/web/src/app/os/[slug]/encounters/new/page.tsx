@@ -2,7 +2,6 @@
 
 import { Suspense, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { createClient } from "../../../../../lib/supabase/client";
 
 type Differential = {
   condition: string;
@@ -75,22 +74,26 @@ function NewEncounterInner() {
 
   async function saveEncounter() {
     setSaving(true);
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
-      .from("encounters")
-      .insert({
-        patient_id: patientId || null,
-        chief_complaint: complaint,
-        clinical_stage: selectedDx ?? undefined,
-        status: "open",
+    const res = await fetch("/api/encounters", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        patientId: patientId || undefined,
+        chiefComplaint: complaint,
+        clinicalStage: selectedDx ?? null,
         metadata: aiResult ? { ai_differential: aiResult } : undefined,
-        clinician_id: user?.id,
-      });
-    router.push(`/os/${params.slug}/patients${patientId ? `/${patientId}` : ""}`);
+        vitals: {
+          temperature_c: temperature ? Number(temperature) : undefined,
+          heart_rate: heartRate ? Number(heartRate) : undefined,
+          bp_systolic: bpSystolic ? Number(bpSystolic) : undefined,
+          bp_diastolic: bpDiastolic ? Number(bpDiastolic) : undefined,
+          spo2: spo2 ? Number(spo2) : undefined,
+        },
+      }),
+    });
+    if (res.ok) {
+      router.push(`/os/${params.slug}/patients${patientId ? `/${patientId}` : ""}`);
+    }
     setSaving(false);
   }
 

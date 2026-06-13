@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '../../../../../lib/supabase/server'
-import { verifyOtpHash } from '../../../../../lib/otp'
+import { cookies } from 'next/headers'
+import { verifyOTP, signToken, createSession } from '@synapse/auth'
+import { supabaseAdmin } from '@synapse/db/admin'
+import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
+import { SignJWT } from 'jose'
+
+const ISSUER   = 'synapse-health-technologies'
+const AUDIENCE = 'synapse-platform'
+const MFA_COOKIE = 'synapse_mfa_pending'
+const MFA_TTL_SECONDS = 300 // 5 minutes
+
+function getJwtSecret(): Uint8Array {
+  const s = process.env.SYNAPSE_JWT_SECRET
+  if (!s) throw new Error('SYNAPSE_JWT_SECRET not set')
+  return new TextEncoder().encode(s)
+}
 
 export async function POST(req: NextRequest) {
   const body  = await req.json().catch(() => ({}))
@@ -11,58 +25,103 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'email and 6-digit otp required' }, { status: 400 })
   }
 
-  const svc = createServiceClient()
-  const db  = svc as any
+  const result = await verifyOTP({ target: email, otp })
 
-  const { data: row, error: fetchErr } = await db
-    .from('auth_otps')
-    .select('id, otp_hash, attempts')
-    .eq('target', email)
-    .eq('channel', 'email')
-    .eq('used', false)
-    .gt('expires_at', new Date().toISOString())
-    .order('created_at', { ascending: false })
-    .limit(1)
+  if (!result.valid) {
+    const messages: Record<string, string> = {
+      NOT_FOUND: 'No active verification found. Request a new code.',
+      EXPIRED: 'Code has expired. Request a new code.',
+      INVALID: 'Incorrect code. Please try again.',
+      TOO_MANY_ATTEMPTS: 'Too many incorrect attempts. Request a new code.',
+    }
+    return NextResponse.json(
+      { error: messages[result.error ?? 'INVALID'] ?? 'Verification failed.' },
+      { status: result.error === 'TOO_MANY_ATTEMPTS' ? 429 : 401 }
+    )
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: profile, error: profileErr } = await (supabaseAdmin as any)
+    .from('profiles')
+    .select('id, role, tenant_id, synapse_id')
+    .eq('email', email)
     .single()
 
-  if (fetchErr || !row) {
-    return NextResponse.json(
-      { error: 'No active verification found for this email. Request a new code.' },
-      { status: 400 }
-    )
+  if (profileErr || !profile) {
+    return NextResponse.json({ error: 'Account not found.' }, { status: 404 })
   }
 
-  if (row.attempts >= 5) {
-    return NextResponse.json(
-      { error: 'Too many incorrect attempts. Please request a new code.' },
-      { status: 429 }
-    )
+  const cookieStore = await cookies()
+
+  // platform_admin requires TOTP as third factor
+  if (profile.role === 'platform_admin') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: enrollment } = await (supabaseAdmin as any)
+      .from('mfa_enrollments')
+      .select('id, verified')
+      .eq('user_id', profile.id)
+      .eq('verified', true)
+      .maybeSingle()
+
+    const preAuthToken = await new SignJWT({ sub: profile.id, email, purpose: 'totp_pending' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setIssuer(ISSUER)
+      .setAudience(AUDIENCE)
+      .setExpirationTime(`${MFA_TTL_SECONDS}s`)
+      .sign(getJwtSecret())
+
+    const mfaCookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      maxAge: MFA_TTL_SECONDS,
+      path: '/',
+    }
+
+    cookieStore.set(MFA_COOKIE, preAuthToken, mfaCookieOptions)
+
+    if (enrollment) {
+      return NextResponse.json({ mfaRequired: true })
+    } else {
+      return NextResponse.json({ mfaSetupRequired: true })
+    }
   }
 
-  await db.from('auth_otps').update({ attempts: row.attempts + 1 }).eq('id', row.id)
-
-  if (!verifyOtpHash(otp, row.otp_hash)) {
-    const remaining = 4 - row.attempts
-    return NextResponse.json(
-      { error: `Incorrect code. ${remaining > 0 ? `${remaining} attempt${remaining === 1 ? '' : 's'} remaining.` : 'No attempts remaining — request a new code.'}` },
-      { status: 401 }
-    )
-  }
-
-  await db.from('auth_otps').update({ used: true }).eq('id', row.id)
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://synapseos.tech'
-
-  const { data: linkData, error: linkErr } = await svc.auth.admin.generateLink({
-    type: 'magiclink',
+  // Non-platform_admin: issue full session immediately
+  const token = await signToken({
+    sub:        profile.id,
     email,
-    options: { redirectTo: `${appUrl}/health/dashboard` },
+    role:       profile.role,
+    tenant_id:  profile.tenant_id,
+    app:        'web',
+    synapse_id: profile.synapse_id ?? undefined,
   })
 
-  if (linkErr || !linkData?.properties?.hashed_token) {
-    console.error('generateLink error:', linkErr?.message)
-    return NextResponse.json({ error: 'Could not create session. Please try again.' }, { status: 500 })
-  }
+  await createSession({
+    userId:    profile.id,
+    token,
+    app:       'web',
+    ip:        req.headers.get('x-forwarded-for') ?? undefined,
+    userAgent: req.headers.get('user-agent') ?? undefined,
+  })
 
-  return NextResponse.json({ token_hash: linkData.properties.hashed_token })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabaseAdmin as any)
+    .from('profiles')
+    .update({ login_attempts: 0 })
+    .eq('id', profile.id)
+
+  const expires = new Date()
+  expires.setDate(expires.getDate() + SESSION_DURATION_DAYS)
+
+  cookieStore.set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    expires,
+    path: '/',
+  })
+
+  return NextResponse.json({ ok: true })
 }

@@ -1,0 +1,21 @@
+{
+  "name": "@synapse/auth",
+  "version": "1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./context": "./src/context.server.ts",
+    "./tokens": "./src/tokens.ts",
+    "./capability": "./src/capability.ts",
+    "./features":   "./src/features.ts"
+  },
+  "dependencies": {
+    "@synapse/config": "*",
+    "@synapse/db": "*",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.10.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6"
+  }
+}

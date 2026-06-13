@@ -1,6 +1,21 @@
 import { Resend } from 'resend'
 
-export const resend = new Resend(process.env.RESEND_API_KEY)
+let resendClient: Resend | null = null
+
+export function getResend(): Resend {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY is not configured')
+  }
+  resendClient ??= new Resend(apiKey)
+  return resendClient
+}
+
+export const resend = {
+  emails: {
+    send: (...args: Parameters<Resend['emails']['send']>) => getResend().emails.send(...args),
+  },
+}
 
 export const NOTIFY_EMAILS = ['ebrinetushabe@gmail.com', 'nathandavid762@gmail.com']
 export const FROM_EMAIL    = process.env.RESEND_FROM_EMAIL ?? 'noreply@synapseos.tech'
@@ -54,7 +69,7 @@ export function brandedEmail({
           <tr>
             <td style="padding:32px 40px 24px;">
               <div style="margin-bottom:24px;">
-                <img src="https://synapseos.tech/synapse-logo.png" alt="Synapse OS" width="40" height="40"
+                <img src="https://synapseos.tech/assets/logos/synapse-logo.png" alt="Synapse OS" width="40" height="40"
                   style="border-radius:9px;display:inline-block;vertical-align:middle;margin-right:10px;" />
                 <span style="font-size:22px;font-weight:800;letter-spacing:-0.02em;vertical-align:middle;">
                   <span style="color:#F97316;">Synapse</span><span style="color:#E8B84B;">OS</span>
@@ -123,6 +138,50 @@ export async function sendWelcomeEmail(email: string, name: string): Promise<voi
           style="display:inline-block;background:#F97316;color:#07070A;font-weight:700;font-size:13px;padding:12px 24px;border-radius:8px;text-decoration:none;">
           Open Dashboard →
         </a>
+      `,
+    }),
+  })
+}
+
+/* Transactional: pharmacy admin invite — sent on enrollment */
+export async function sendPharmacyInviteEmail({
+  to,
+  pharmacyName,
+  adminName,
+  inviteToken,
+}: {
+  to: string
+  pharmacyName: string
+  adminName: string
+  inviteToken: string
+}): Promise<void> {
+  const pharmacyAppUrl = process.env.NEXT_PUBLIC_PHARMACY_APP_URL ?? "https://pharm.synapseos.tech"
+  const inviteUrl = `${pharmacyAppUrl.replace(/\/$/, "")}/invite/${inviteToken}`
+  const firstName = adminName.split(' ')[0] || 'there'
+  await resend.emails.send({
+    from: `Synapse Health <${FROM_EMAIL}>`,
+    to: [to],
+    subject: `You've been enrolled on Synapse Pharmacy — ${pharmacyName}`,
+    html: brandedEmail({
+      subject: `You've been enrolled on Synapse Pharmacy`,
+      body: `
+        <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#F5F5F7;">
+          Welcome to Synapse Pharmacy, ${firstName}.
+        </h2>
+        <p style="font-size:14px;line-height:1.7;color:#A0A0B0;margin:0 0 8px;">
+          <strong style="color:#F5F5F7;">${pharmacyName}</strong> has been enrolled on
+          Synapse Health Technologies. You are the pharmacy administrator.
+        </p>
+        <p style="font-size:14px;line-height:1.7;color:#A0A0B0;margin:0 0 24px;">
+          Click below to set up your account and get started.
+        </p>
+        <a href="${inviteUrl}"
+          style="display:inline-block;background:#F97316;color:#fff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;">
+          Set Up Your Account →
+        </a>
+        <p style="font-size:12px;color:#60607A;margin:20px 0 0;">
+          This link expires in 7 days. If you didn't expect this email, you can safely ignore it.
+        </p>
       `,
     }),
   })

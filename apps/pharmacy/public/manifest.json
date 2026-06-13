@@ -1,0 +1,21 @@
+{
+  "name": "SYNAPSE Pharm POS",
+  "short_name": "SYNAPSE Pharm",
+  "description": "SYNAPSE Pharm point of sale system with offline support",
+  "start_url": "/login",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0e7490",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
