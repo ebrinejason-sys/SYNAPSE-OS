@@ -4,6 +4,9 @@ node_modules/
 build/
 dist/
 coverage/
+/public/synapse-logo.jpg
+/public/synapse-logo.png
+/public/team/
 .DS_Store
 *.log
 *.tsbuildinfo

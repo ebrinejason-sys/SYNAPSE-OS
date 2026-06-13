@@ -79,6 +79,7 @@ export default function PatientSignupPage() {
               <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>First Name</label>
               <input
                 required
+                autoComplete="given-name"
                 value={form.first_name}
                 onChange={e => set('first_name', e.target.value)}
                 placeholder="Jane"
@@ -90,6 +91,7 @@ export default function PatientSignupPage() {
               <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>Last Name</label>
               <input
                 required
+                autoComplete="family-name"
                 value={form.last_name}
                 onChange={e => set('last_name', e.target.value)}
                 placeholder="Nakato"
@@ -104,6 +106,7 @@ export default function PatientSignupPage() {
             <input
               required
               type="email"
+              autoComplete="email"
               value={form.email}
               onChange={e => set('email', e.target.value)}
               placeholder="jane@example.com"
@@ -115,6 +118,8 @@ export default function PatientSignupPage() {
           <div>
             <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>Phone Number</label>
             <input
+              type="tel"
+              autoComplete="tel"
               value={form.phone}
               onChange={e => set('phone', e.target.value)}
               placeholder="+256 7XX XXX XXX"
@@ -128,6 +133,7 @@ export default function PatientSignupPage() {
               <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>Date of Birth</label>
               <input
                 type="date"
+                autoComplete="bday"
                 value={form.dob}
                 onChange={e => set('dob', e.target.value)}
                 className={inputCls}
