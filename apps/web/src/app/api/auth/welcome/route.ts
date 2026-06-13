@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '../../../../lib/supabase/server'
 import { sendWelcomeEmail } from '../../../../lib/resend'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 export async function POST(_req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
@@ -16,7 +17,7 @@ export async function POST(_req: NextRequest) {
     .eq('id', user.id)
     .single()
 
-  const name  = profile?.full_name ?? user.user_metadata?.full_name ?? 'there'
+  const name  = profile?.full_name ?? 'there'
   const email = profile?.email     ?? user.email
 
   if (!email) {

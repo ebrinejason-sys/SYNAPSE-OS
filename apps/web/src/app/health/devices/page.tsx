@@ -1,9 +1,10 @@
-'use client'
+﻿'use client'
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import { Activity, Smartphone, Wifi, WifiOff } from 'lucide-react'
 import { createClient } from '../../../lib/supabase/client'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Reading {
   id: string
@@ -27,7 +28,7 @@ export default function HealthDevicesPage() {
   useEffect(() => {
     async function load() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getCurrentUser()
       if (!user) { setLoading(false); return }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

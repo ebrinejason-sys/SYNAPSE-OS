@@ -1,9 +1,10 @@
-'use client'
+﻿'use client'
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import { Activity, CheckCircle, Circle, Flame, Plus, X } from 'lucide-react'
 import { createClient } from '../../../lib/supabase/client'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Habit {
   id: string
@@ -38,7 +39,7 @@ export default function HealthHabitsPage() {
 
   async function loadHabits() {
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getCurrentUser()
     if (!user) { setLoading(false); return }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any)
@@ -55,7 +56,7 @@ export default function HealthHabitsPage() {
     if (!form.name.trim()) return
     setSaving(true)
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getCurrentUser()
     if (!user) { setSaving(false); return }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from('health_habits').insert({
@@ -75,7 +76,7 @@ export default function HealthHabitsPage() {
   async function logHabit(habit: Habit) {
     setLoggingId(habit.id)
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getCurrentUser()
     if (!user) { setLoggingId(null); return }
     const today = new Date().toISOString().split('T')[0] ?? ''
     const alreadyLoggedToday = habit.last_logged_at?.startsWith(today)

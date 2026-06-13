@@ -31,48 +31,69 @@ export function useIdentity() {
   const [identity, setIdentity] = useState<Identity | null | 'loading'>('loading')
 
   useEffect(() => {
-    const supabase = createClient()
-
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setIdentity(null); return }
+      // Try synapse_session first
+      let userId: string | null = null
+      let email = ''
 
+      const meRes = await fetch('/api/auth/me').catch(() => null)
+      if (meRes?.ok) {
+        const { user } = await meRes.json()
+        if (user?.id) {
+          userId = user.id
+          email  = user.email ?? ''
+        }
+      }
+
+      // Fall back to Supabase Auth for legacy sessions
+      if (!userId) {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          userId = user.id
+          email  = user.email ?? ''
+        }
+      }
+
+      if (!userId) { setIdentity(null); return }
+
+      const supabase = createClient()
       const [{ data: sp }, { data: pp }] = await Promise.all([
         (supabase as any).from('profiles')
           .select('id,full_name,role,hospital_id,tenant_id,department_id,is_admin')
-          .eq('id', user.id).single(),
+          .eq('id', userId).single(),
         (supabase as any).from('patient_profiles')
           .select('id,full_name,hospital_id,phone')
-          .eq('id', user.id).single(),
+          .eq('id', userId).single(),
       ])
 
       const both = !!(sp && pp)
-      const stored = localStorage.getItem(`synapse-mode-${user.id}`) as 'staff' | 'patient' | null
+      const stored = localStorage.getItem(`synapse-mode-${userId}`) as 'staff' | 'patient' | null
       const defaultMode: 'staff' | 'patient' = stored || (sp ? 'staff' : 'patient')
 
       const switchMode = (m: 'staff' | 'patient') => {
-        localStorage.setItem(`synapse-mode-${user.id}`, m)
+        localStorage.setItem(`synapse-mode-${userId}`, m)
         setIdentity(prev => prev && prev !== 'loading' ? { ...prev, activeMode: m } : prev)
       }
 
       setIdentity({
-        userId: user.id,
-        email: user.email || '',
+        userId,
+        email,
         activeMode: defaultMode,
         staffProfile: sp ? {
-          id: sp.id,
-          fullName: sp.full_name,
-          role: sp.role as StaffRole,
-          hospitalId: sp.hospital_id,
-          tenantId: sp.tenant_id,
+          id:           sp.id,
+          fullName:     sp.full_name,
+          role:         sp.role as StaffRole,
+          hospitalId:   sp.hospital_id,
+          tenantId:     sp.tenant_id,
           departmentId: sp.department_id,
-          isAdmin: sp.is_admin || false,
+          isAdmin:      sp.is_admin || false,
         } : undefined,
         patientProfile: pp ? {
-          id: pp.id,
-          fullName: pp.full_name,
+          id:         pp.id,
+          fullName:   pp.full_name,
           hospitalId: pp.hospital_id,
-          phone: pp.phone,
+          phone:      pp.phone,
         } : undefined,
         hasBothModes: both,
         switchMode,

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 export const dynamic = 'force-dynamic'
 
 import { Suspense, useEffect, useState } from 'react'
@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Bot, Copy, CheckCheck } from 'lucide-react'
 import { createClient } from '../../../../lib/supabase/client'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Claim {
   id: string
@@ -38,7 +39,7 @@ function AdminAppealsInner() {
   useEffect(() => {
     async function load() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getCurrentUser()
       if (!user) return
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Calendar, Clock, MessageSquare, Star, Video } from 'lucide-react'
 import { createClient } from '../../lib/supabase/client'
 import { SynapseLogo } from '../../components/SynapseLogo'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Provider {
   id: string
@@ -33,7 +34,7 @@ export default function TelePage() {
   useEffect(() => {
     async function load() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getCurrentUser()
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any

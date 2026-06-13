@@ -1,9 +1,10 @@
-'use client'
+﻿'use client'
 export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
 import { FlaskConical, CheckCircle } from 'lucide-react'
 import { createClient } from '../../../lib/supabase/client'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 export default function PharmacyDispensePage() {
   const [form, setForm] = useState({
@@ -26,7 +27,7 @@ export default function PharmacyDispensePage() {
     setSaving(true)
     setError('')
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getCurrentUser()
     if (!user) { setSaving(false); return }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = supabase as any

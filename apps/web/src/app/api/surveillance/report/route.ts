@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '../../../../lib/supabase/server'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
@@ -10,7 +11,7 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
 
   const reportId = 'RPT-' + Math.random().toString(36).slice(2, 10).toUpperCase()
 

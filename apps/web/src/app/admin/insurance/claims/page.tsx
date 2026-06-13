@@ -1,8 +1,9 @@
-'use client'
+﻿'use client'
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, FileText, RefreshCw } from 'lucide-react'
 import { createClient } from '../../../../lib/supabase/client'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Claim {
   id: string
@@ -36,7 +37,7 @@ export default function AdminClaimsPage() {
   useEffect(() => {
     async function load() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getCurrentUser()
       if (!user) return
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: profile } = await (supabase as any).from('profiles').select('hospital_id').eq('id', user.id).single() as { data: { hospital_id: string } | null }
