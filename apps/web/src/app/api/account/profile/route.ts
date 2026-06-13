@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceClient } from "../../../../lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
 const PROFILE_SELECT =
   "id, full_name, first_name, last_name, email, phone, role, tenant_id, hospital_id, department_id, verification_status, is_admin, updated_at";
@@ -10,14 +11,7 @@ function cleanText(value: unknown, maxLength = 120) {
 }
 
 async function getSignedInUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user) return null;
-  return user;
+  return await getCurrentUser();
 }
 
 export async function GET() {
@@ -52,7 +46,6 @@ export async function GET() {
     user: {
       id: user.id,
       email: user.email,
-      lastSignInAt: user.last_sign_in_at,
     },
     profile,
     tenant,

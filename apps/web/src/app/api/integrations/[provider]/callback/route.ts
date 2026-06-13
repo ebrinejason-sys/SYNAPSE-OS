@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '../../../../../lib/supabase/server'
+import { createServiceClient } from '../../../../../lib/supabase/server'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 // GOD_MODE_TODO: Add per-provider token exchange once OAuth credentials are configured in Vercel env vars.
 // Each provider needs: CLIENT_ID, CLIENT_SECRET env vars and its own token endpoint.
@@ -16,8 +17,7 @@ export async function GET(
     return NextResponse.redirect(new URL('/patient/devices?error=no_code', req.url))
   }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
 
   if (!user) {
     return NextResponse.redirect(new URL('/login', req.url))
@@ -25,6 +25,7 @@ export async function GET(
 
   // GOD_MODE_TODO: exchange code for access_token via provider-specific token endpoint
   // For now: store a placeholder device record showing the intent to connect
+  const supabase = createServiceClient()
   try {
     await (supabase as any).from('medical_devices').upsert({
       patient_id: user.id,

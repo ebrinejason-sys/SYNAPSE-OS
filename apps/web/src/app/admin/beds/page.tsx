@@ -1,8 +1,9 @@
-'use client'
+﻿'use client'
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '../../../lib/supabase/client'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Bed {
   id: string
@@ -29,7 +30,7 @@ export default function AdminBedsPage() {
 
   async function load() {
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getCurrentUser()
     if (!user) return
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = supabase as any
@@ -49,7 +50,7 @@ export default function AdminBedsPage() {
     if (!form.bed_number.trim()) return
     setSaving(true)
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getCurrentUser()
     if (!user) { setSaving(false); return }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = supabase as any

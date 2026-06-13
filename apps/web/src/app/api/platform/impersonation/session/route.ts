@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient, createServiceClient } from "../../../../../lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { logPlatformEvent } from "../../../../platform/_lib/platform-data";
 
 type ImpersonationSession = {
@@ -14,15 +15,9 @@ type ImpersonationSession = {
 };
 
 async function requireAdminUserId() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return null;
-
-  const supabaseAdmin = createServiceClient();
-  const { data: profile } = await (supabaseAdmin as any).from("profiles").select("role").eq("id", user.id).maybeSingle();
-  return profile?.role === "platform_admin" ? user.id : null;
+  return user.role === "platform_admin" ? user.id : null;
 }
 
 function parseSession(value: string | undefined): ImpersonationSession | null {

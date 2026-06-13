@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useRef } from 'react'
@@ -16,6 +16,7 @@ import {
 import { createClient } from '../../../lib/supabase/client'
 import { useIdentity } from '../../../hooks/useIdentity'
 import { ModeSwitcher } from '../../../components/ModeSwitcher'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Tab = 'home' | 'vitals' | 'report' | 'profile'
@@ -223,7 +224,7 @@ function VitalsTab() {
     setSaving(true)
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getCurrentUser()
       const payload = {
         user_id: user?.id,
         heart_rate: form.heart_rate ? Number(form.heart_rate) : null,

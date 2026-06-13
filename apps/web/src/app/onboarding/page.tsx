@@ -1,10 +1,11 @@
-'use client'
+﻿'use client'
 export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
 import { Stethoscope, User, ArrowLeft, CheckCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../lib/supabase/client'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Path = 'staff' | 'patient' | null
@@ -268,7 +269,7 @@ function PatientStep({ onBack }: { onBack: () => void }) {
     setLoading(true)
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getCurrentUser()
       if (!user) throw new Error('Not signed in')
 
       const { error: dbErr } = await (supabase as any)

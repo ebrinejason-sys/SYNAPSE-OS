@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 export const dynamic = 'force-dynamic'
 
 import { Suspense, useEffect, useState } from 'react'
@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Calendar, CheckCircle, Clock, Star } from 'lucide-react'
 import { createClient } from '../../../lib/supabase/client'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Provider {
   id: string
@@ -75,7 +76,7 @@ function TeleBookInner() {
     if (!selected || !slot) return
     setBooking(true)
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getCurrentUser()
     if (!user) { router.push('/login'); return }
 
     const scheduledFor = new Date()

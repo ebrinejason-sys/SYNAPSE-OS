@@ -1,10 +1,11 @@
-'use client'
+﻿'use client'
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Bot, Send, User } from 'lucide-react'
 import { createClient } from '../../../lib/supabase/client'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Message {
   role: 'user' | 'bot'
@@ -50,7 +51,7 @@ export default function TeleIntakePage() {
 
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getCurrentUser()
 
       const res = await fetch('/api/tele/intake', {
         method: 'POST',

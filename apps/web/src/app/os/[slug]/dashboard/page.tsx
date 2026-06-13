@@ -1,5 +1,6 @@
-import { createClient } from "../../../../lib/supabase/server";
 import { headers } from "next/headers";
+import { getCurrentUser } from "../../../../lib/auth/getCurrentUser";
+import { createServiceClient } from "../../../../lib/supabase/server";
 import { resolveTenant } from "../../../../lib/tenant";
 import Link from "next/link";
 
@@ -14,11 +15,9 @@ export default async function DashboardPage({
   const tenant = await resolveTenant(subdomain);
   if (!tenant) return <div className="p-8 text-red-400">Tenant not found</div>;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
+  const supabase = createServiceClient();
   const [patientRes, encounterRes] = await Promise.all([
     supabase
       .from("patients")

@@ -1,8 +1,9 @@
-'use client'
+﻿'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Plus, Search, UserRound } from 'lucide-react'
 import { createClient } from '../../../lib/supabase/client'
+import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface StaffMember {
   id: string
@@ -24,7 +25,7 @@ export default function AdminStaffPage() {
   useEffect(() => {
     async function load() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getCurrentUser()
       if (!user) return
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
