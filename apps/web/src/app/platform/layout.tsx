@@ -48,6 +48,8 @@ type ImpersonationSession = {
 const SIDEBAR_ITEMS = [
   { href: "/platform", label: "Overview", icon: Activity, exact: true },
   { href: "/platform/hospitals", label: "Facilities", icon: Building2 },
+  { href: "/platform/tenants", label: "All Tenants", icon: ShieldCheck },
+  { href: "/platform/tenants/provision", label: "Provision", icon: Pill },
   { href: "/platform/users", label: "Users + KYC", icon: Users },
   { href: "/platform/billing", label: "Revenue + Billing", icon: CreditCard },
   { href: "/platform/public-health", label: "SynapseEPI", icon: Radio },
