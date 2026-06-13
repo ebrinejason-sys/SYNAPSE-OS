@@ -136,7 +136,41 @@ function LoginContent() {
       setError(data.error ?? 'Invalid email or password.')
       return
     }
+    setOtpEmail(email)
+    setEmailCode('')
+    setSubStep('otp')
+  }
+
+  async function verifyPasswordCode(e: React.FormEvent) {
+    e.preventDefault()
+    if (emailCode.length !== 6) { setError('Enter the 6-digit code from your email.'); return }
+    setLoading(true); setError('')
+    const res = await fetch('/api/auth/email-otp/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, otp: emailCode }),
+    })
+    const data = await res.json().catch(() => ({})) as {
+      ok?: boolean
+      mfaRequired?: boolean
+      mfaSetupRequired?: boolean
+      error?: string
+    }
+    setLoading(false)
+    if (!res.ok) { setError(data.error ?? 'Verification failed.'); return }
+    if (data.mfaSetupRequired) { router.push('/platform/mfa'); return }
+    if (data.mfaRequired) { router.push('/platform/mfa-verify'); return }
     router.push(next)
+  }
+
+  async function resendPasswordCode() {
+    if (!email || !password) return
+    setError('')
+    await fetch('/api/auth/password-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    }).catch(() => null)
   }
 
   async function handleTOTP(e: React.FormEvent) {
@@ -269,7 +303,38 @@ function LoginContent() {
           )}
 
           {/* ── Tabs + main forms ── */}
-          {!(tab === 'password' && subStep === 'totp') && (
+          {tab === 'password' && subStep === 'otp' && (
+            <>
+              <div className="text-center mb-8">
+                <h1 className="font-display font-bold text-2xl mb-2" style={{ letterSpacing: '-0.02em' }}>Check your email</h1>
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  Enter the 6-digit code sent to<br/>
+                  <strong style={{ color: 'var(--text-primary)' }}>{email}</strong>
+                </p>
+              </div>
+              <form onSubmit={verifyPasswordCode} className="space-y-4">
+                <OtpInput
+                  value={emailCode}
+                  onChange={v => { setEmailCode(v); if (error) setError('') }}
+                  onFocus={e => (e.target.style.borderColor = 'var(--brand-orange)')}
+                  onBlur={e => (e.target.style.borderColor = 'var(--border-edge)')}
+                />
+                {error && <ErrorBox msg={error} />}
+                <button type="submit" disabled={loading || emailCode.length !== 6}
+                  className="w-full py-3 rounded-xl font-bold text-sm transition-all"
+                  style={{ background: 'var(--brand-orange)', color: '#07070A', opacity: loading || emailCode.length !== 6 ? 0.6 : 1 }}>
+                  {loading ? 'Verifyingâ€¦' : 'Verify & Sign In'}
+                </button>
+                <ResendTimer onResend={resendPasswordCode} />
+                <button type="button" onClick={() => { setSubStep('form'); setEmailCode(''); setError('') }}
+                  className="w-full py-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+                  â† Back
+                </button>
+              </form>
+            </>
+          )}
+
+          {!(tab === 'password' && (subStep === 'totp' || subStep === 'otp')) && (
             <>
               <div className="text-center mb-7">
                 <h1 className="font-display font-bold text-2xl mb-1.5" style={{ letterSpacing: '-0.02em' }}>Welcome back</h1>
