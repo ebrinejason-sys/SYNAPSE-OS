@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const encounterId = req.nextUrl.searchParams.get('encounter_id')
   if (!encounterId) return NextResponse.json({ error: 'encounter_id required' }, { status: 400 })
 
-  const tenantId = ctx.user.tenant_id
+  const tenantId = ctx.user.tenantId
 
   const [sessionRes, patientsRes, coverageRes, stockRes] = await Promise.all([
 

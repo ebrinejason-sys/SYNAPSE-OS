@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPassword, hashPassword } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { generateOtp, hashOtp } from '../../../../../lib/otp'
-import { sendOtpEmail } from '../../../../../lib/resend'
+import { generateOtp, hashOtp } from '../../../../lib/otp'
+import { sendOtpEmail } from '../../../../lib/resend'
 
 const MAX_ATTEMPTS = 10
 const LOCKOUT_MINUTES = 30

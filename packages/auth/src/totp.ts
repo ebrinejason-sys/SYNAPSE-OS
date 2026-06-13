@@ -46,9 +46,13 @@ async function totpCode(secret: string, counter: number): Promise<string> {
   new DataView(buf.buffer).setBigUint64(0, BigInt(counter), false)
   const ck = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign'])
   const mac = new Uint8Array(await crypto.subtle.sign('HMAC', ck, buf))
-  const off = mac[19] & 0xf
-  const num = (((mac[off] & 0x7f) << 24) | ((mac[off+1] & 0xff) << 16) |
-               ((mac[off+2] & 0xff) << 8)  |  (mac[off+3] & 0xff)) % 1_000_000
+  // HMAC-SHA1 is always 20 bytes; non-null assertions are safe here
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const off = mac[19]! & 0xf
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const num = (((mac[off]! & 0x7f) << 24) | ((mac[off+1]! & 0xff) << 16) |
+               // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+               ((mac[off+2]! & 0xff) << 8)  |  (mac[off+3]! & 0xff)) % 1_000_000
   return num.toString().padStart(6, '0')
 }
 

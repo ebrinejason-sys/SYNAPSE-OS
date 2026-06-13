@@ -3,8 +3,6 @@
 // Call requireCapability() in API routes and server actions AFTER getContext().
 
 import { supabaseAdmin } from '@synapse/db/admin'
-import type { SynapseTokenPayload } from './tokens'
-
 export class CapabilityError extends Error {
   readonly status = 403 as const
   constructor(message = 'Insufficient permissions') {
@@ -13,18 +11,8 @@ export class CapabilityError extends Error {
   }
 }
 
-/**
- * Throws CapabilityError if the token holder cannot perform the action.
- * platform_admin bypasses all capability checks.
- *
- * @param payload    - Decoded synapse JWT payload from getContext()
- * @param module     - Capability module: 'clinical' | 'pharmacy' | 'lab' | 'admin' | 'platform'
- * @param resource   - Resource type: 'patient' | 'encounter' | 'prescription' | ...
- * @param action     - Operation: 'read' | 'write' | 'delete' | 'admin'
- * @param facilityType - Tenant facility type; defaults to 'any' (most permissive)
- */
 export async function requireCapability(
-  payload:      SynapseTokenPayload,
+  payload:      { role: string },
   module:       string,
   resource:     string,
   action:       string,
@@ -51,7 +39,7 @@ export async function requireCapability(
  * Boolean variant — no throw; useful for conditional rendering guards.
  */
 export async function checkCapability(
-  payload:      SynapseTokenPayload,
+  payload:      { role: string },
   module:       string,
   resource:     string,
   action:       string,
