@@ -140,7 +140,36 @@ export async function sendWelcomeEmail(email: string, name: string): Promise<voi
   })
 }
 
-/* Transactional: pharmacy admin invite — sent on enrollment */
+/* Transactional: email activation after account creation */
+export async function sendActivationEmail(email: string, name: string, activationUrl: string): Promise<void> {
+  const firstName = name.split(' ')[0] || 'there'
+  await resend.emails.send({
+    from: `${FROM_NAME} <${FROM_EMAIL}>`,
+    to: [email],
+    subject: `Activate your Synapse OS account`,
+    html: brandedEmail({
+      subject: `Activate your Synapse OS account`,
+      body: `
+        <h2 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#F5F5F7;">
+          Confirm your email, ${firstName}.
+        </h2>
+        <p style="font-size:15px;line-height:1.7;color:#A0A0B0;margin:0 0 22px;">
+          Your Synapse OS account has been created, but it is locked until this email address is activated.
+          Use the secure link below to activate your account. This link expires in 24 hours.
+        </p>
+        <a href="${activationUrl}"
+          style="display:inline-block;background:#F97316;color:#07070A;font-weight:700;font-size:13px;padding:12px 24px;border-radius:8px;text-decoration:none;">
+          Activate Account
+        </a>
+        <p style="font-size:13px;color:#60607A;margin:22px 0 0;">
+          If you did not create this account, you can safely ignore this email.
+        </p>
+      `,
+    }),
+  })
+}
+
+/* Transactional: password reset */
 export async function sendPasswordResetEmail(email: string, name: string, resetUrl: string): Promise<void> {
   const firstName = name.split(' ')[0] || 'there'
   await resend.emails.send({

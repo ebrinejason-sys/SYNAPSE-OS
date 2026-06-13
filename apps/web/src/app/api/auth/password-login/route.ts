@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyPassword } from '@synapse/auth'
+import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyPassword } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { generateOtp, hashOtp } from '../../../../lib/otp'
 import { sendOtpEmail } from '../../../../lib/resend'
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   const db = supabaseAdmin as any
   const { data: profile, error: profileErr } = await db
     .from('profiles')
-    .select('id, email, role, tenant_id, synapse_id, password_hash, login_attempts, locked_until')
+    .select('id, email, role, tenant_id, synapse_id, password_hash, login_attempts, locked_until, verification_status, email_verified_at, is_deleted')
     .eq('email', email)
     .single()
 
@@ -57,6 +57,10 @@ export async function POST(req: NextRequest) {
     .from('profiles')
     .update({ login_attempts: 0, locked_until: null as unknown as string })
     .eq('id', profile.id as string)
+
+  if (!isAccountActivated(profile)) {
+    return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
+  }
 
   // Password verified — gate with email OTP as second factor
   const { count } = await supabaseAdmin

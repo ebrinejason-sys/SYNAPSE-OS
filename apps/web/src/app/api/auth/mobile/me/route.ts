@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken, validateSession } from '@synapse/auth'
+import { isAccountActivated, verifyToken, validateSession } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 
 export async function GET(req: NextRequest) {
@@ -20,11 +20,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Session expired' }, { status: 401 })
   }
 
-  const { data: profile, error } = await supabaseAdmin
+  const db = supabaseAdmin as any
+  const { data: profile, error } = await db
     .from('profiles')
     .select(`
       id, email, role, tenant_id,
-      full_name, first_name, last_name, is_admin, must_change_password
+      full_name, first_name, last_name, is_admin, must_change_password,
+      verification_status, email_verified_at, is_deleted
     `)
     .eq('id', payload.sub)
     .single()
@@ -33,7 +35,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
   }
 
-  const { data: tenant } = await supabaseAdmin
+  if (!isAccountActivated(profile)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { data: tenant } = await db
     .from('tenants')
     .select('name')
     .eq('id', profile.tenant_id ?? '')

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@synapse/auth/tokens'
-import { validateSession } from '@synapse/auth'
+import { isAccountActivated, validateSession } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE } from '@synapse/config/constants'
 
@@ -19,13 +19,14 @@ export async function GET() {
     if (!valid) return NextResponse.json({ user: null }, { status: 401 })
 
     // Fetch profile + patient profile in parallel
+    const db = supabaseAdmin as any
     const [{ data: profile }, { data: patientProfile }] = await Promise.all([
-      supabaseAdmin
+      db
         .from('profiles')
-        .select('id, email, full_name, first_name, last_name, role, tenant_id, hospital_id, department_id, is_admin, avatar_url')
+        .select('id, email, full_name, first_name, last_name, role, tenant_id, hospital_id, department_id, is_admin, avatar_url, verification_status, email_verified_at, is_deleted')
         .eq('id', payload.sub)
         .maybeSingle(),
-      supabaseAdmin
+      db
         .from('patient_profiles')
         .select('id, full_name, hospital_id, phone')
         .eq('id', payload.sub)
@@ -33,6 +34,7 @@ export async function GET() {
     ])
 
     if (!profile) return NextResponse.json({ user: null }, { status: 401 })
+    if (!isAccountActivated(profile)) return NextResponse.json({ user: null }, { status: 401 })
 
     return NextResponse.json({
       user: {

@@ -1,15 +1,14 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, MailCheck } from 'lucide-react'
 import { SynapseLogo } from '../../../components/SynapseLogo'
 
 export default function PatientSignupPage() {
-  const router = useRouter()
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [submittedEmail, setSubmittedEmail] = useState('')
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -45,7 +44,8 @@ export default function PatientSignupPage() {
       return
     }
 
-    router.push('/health/dashboard')
+    setSubmittedEmail(form.email)
+    setLoading(false)
   }
 
   const inputCls = 'w-full rounded-xl px-4 py-3 text-sm outline-none transition-all'
@@ -53,6 +53,37 @@ export default function PatientSignupPage() {
     background: 'var(--bg-surface)',
     border: '1px solid var(--border-edge)',
     color: 'var(--text-primary)',
+  }
+
+  if (submittedEmail) {
+    return (
+      <main
+        className="min-h-screen flex flex-col items-center justify-center px-4 py-12"
+        style={{ background: 'var(--bg-base)' }}
+      >
+        <div className="w-full max-w-md text-center">
+          <div className="mb-8 flex justify-center">
+            <SynapseLogo size="md" />
+          </div>
+          <div
+            className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full"
+            style={{ background: 'rgba(249,115,22,0.12)', color: 'var(--brand-orange)' }}
+          >
+            <MailCheck className="h-7 w-7" />
+          </div>
+          <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+            Check your email
+          </h1>
+          <p className="text-sm leading-6 mb-6" style={{ color: 'var(--text-secondary)' }}>
+            We sent an activation link to <strong style={{ color: 'var(--text-primary)' }}>{submittedEmail}</strong>.
+            Your account will stay locked until you open that link.
+          </p>
+          <Link href="/login" className="btn-primary block w-full">
+            Back to sign in
+          </Link>
+        </div>
+      </main>
+    )
   }
 
   return (

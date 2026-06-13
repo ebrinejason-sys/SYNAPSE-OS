@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { createSession, hashPassword, signToken, validatePasswordStrength } from '@synapse/auth'
-import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
+import { hashPassword, signShortToken, validatePasswordStrength } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { sendWelcomeEmail } from '../../../../../lib/resend'
+import { sendActivationEmail } from '../../../../../lib/resend'
 
 export async function POST(req: NextRequest) {
   let userId: string | null = null
@@ -30,7 +29,7 @@ export async function POST(req: NextRequest) {
     const db = supabaseAdmin as any
     const { data: existing, error: existingErr } = await db
       .from('profiles')
-      .select('id')
+      .select('id, email, full_name, first_name, verification_status, email_verified_at')
       .eq('email', email)
       .maybeSingle()
 
@@ -40,12 +39,34 @@ export async function POST(req: NextRequest) {
     }
 
     if (existing) {
+      const existingStatus = String(existing.verification_status ?? '').toLowerCase()
+      const canResendActivation =
+        !existing.email_verified_at &&
+        existing.email &&
+        !['deleted', 'disabled', 'suspended'].includes(existingStatus)
+
+      if (canResendActivation) {
+        const token = await signShortToken({ sub: existing.id as string, purpose: 'verify' }, '24h')
+        const activationUrl = `${req.nextUrl.origin}/api/auth/activate?token=${encodeURIComponent(token)}`
+        await db
+          .from('profiles')
+          .update({ activation_sent_at: new Date().toISOString() })
+          .eq('id', existing.id as string)
+        await sendActivationEmail(
+          existing.email as string,
+          (existing.full_name as string | null) ?? (existing.first_name as string | null) ?? 'there',
+          activationUrl
+        )
+        return NextResponse.json({ ok: true, userId: existing.id, activationRequired: true })
+      }
+
       return NextResponse.json({ error: 'An account already exists for this email.' }, { status: 409 })
     }
 
     userId = randomUUID()
     const fullName = `${firstName} ${lastName}`.trim()
     const passwordHash = await hashPassword(password)
+    const now = new Date().toISOString()
 
     const { error: profileErr } = await db.from('profiles').insert({
       id: userId,
@@ -58,9 +79,11 @@ export async function POST(req: NextRequest) {
       date_of_birth: dob || null,
       role: 'patient',
       password_hash: passwordHash,
-      password_changed_at: new Date().toISOString(),
+      password_changed_at: now,
       onboarding_complete: false,
-      verification_status: 'verified',
+      verification_status: 'pending',
+      email_verified_at: null,
+      activation_sent_at: now,
       app_user: true,
     })
 
@@ -86,38 +109,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: patientErr.message ?? 'Could not create patient profile.' }, { status: 500 })
     }
 
-    const token = await signToken({
-      sub: userId,
-      email,
-      role: 'patient',
-      tenant_id: '',
-      app: 'web',
-    })
+    const token = await signShortToken({ sub: userId, purpose: 'verify' }, '24h')
+    const activationUrl = `${req.nextUrl.origin}/api/auth/activate?token=${encodeURIComponent(token)}`
 
-    await createSession({
-      userId,
-      token,
-      app: 'web',
-      ip: req.headers.get('x-forwarded-for') ?? undefined,
-      userAgent: req.headers.get('user-agent') ?? undefined,
-    })
+    try {
+      await sendActivationEmail(email, fullName, activationUrl)
+    } catch (emailErr) {
+      console.error('[auth/signup/patient] activation email failed', emailErr)
+      await db.from('patient_profiles').delete().eq('id', userId)
+      await db.from('profiles').delete().eq('id', userId)
+      return NextResponse.json(
+        { error: 'Could not send activation email. Please try again.' },
+        { status: 500 }
+      )
+    }
 
-    const res = NextResponse.json({ ok: true, userId })
-    const expires = new Date()
-    expires.setDate(expires.getDate() + SESSION_DURATION_DAYS)
-    res.cookies.set(SESSION_COOKIE, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      expires,
-    })
-
-    await sendWelcomeEmail(email, fullName).catch((emailErr) => {
-      console.error('[auth/signup/patient] welcome email failed', emailErr)
-    })
-
-    return res
+    return NextResponse.json({ ok: true, userId, activationRequired: true })
   } catch (error) {
     console.error('[auth/signup/patient] unexpected failure', error)
 

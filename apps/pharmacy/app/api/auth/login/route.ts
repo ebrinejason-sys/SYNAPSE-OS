@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyPassword, createAndSendOTP } from '@synapse/auth'
+import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyPassword, createAndSendOTP } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { sendOTP } from '@synapse/email'
 
@@ -15,9 +15,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
   }
 
-  const { data: profile, error: profileErr } = await supabaseAdmin
+  const db = supabaseAdmin as any
+  const { data: profile, error: profileErr } = await db
     .from('profiles')
-    .select('id, email, full_name, role, tenant_id, synapse_id, password_hash, login_attempts, locked_until')
+    .select('id, email, full_name, role, tenant_id, synapse_id, password_hash, login_attempts, locked_until, verification_status, email_verified_at, is_deleted')
     .eq('email', email)
     .single()
 
@@ -44,14 +45,18 @@ export async function POST(req: NextRequest) {
       lockedUntil.setMinutes(lockedUntil.getMinutes() + LOCKOUT_MINUTES)
       updateData.locked_until = lockedUntil.toISOString()
     }
-    await supabaseAdmin.from('profiles').update(updateData).eq('id', profile.id as string)
+    await db.from('profiles').update(updateData).eq('id', profile.id as string)
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
   }
 
-  await supabaseAdmin
+  await db
     .from('profiles')
     .update({ login_attempts: 0, locked_until: null as unknown as string })
     .eq('id', profile.id as string)
+
+  if (!isAccountActivated(profile)) {
+    return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
+  }
 
   // Password verified — gate with email OTP as second factor
   try {

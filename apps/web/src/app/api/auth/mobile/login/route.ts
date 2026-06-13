@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyPassword, signToken, createSession } from '@synapse/auth'
+import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyPassword, signToken, createSession } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_DURATION_DAYS } from '@synapse/config/constants'
 
@@ -15,12 +15,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
   }
 
-  const { data: profile, error: profileErr } = await supabaseAdmin
+  const db = supabaseAdmin as any
+  const { data: profile, error: profileErr } = await db
     .from('profiles')
     .select(`
       id, email, role, tenant_id, synapse_id,
       password_hash, login_attempts, locked_until,
-      full_name, first_name, last_name, is_admin, must_change_password
+      full_name, first_name, last_name, is_admin, must_change_password,
+      verification_status, email_verified_at, is_deleted
     `)
     .eq('email', email)
     .single()
@@ -45,12 +47,12 @@ export async function POST(req: NextRequest) {
     if (attempts >= MAX_ATTEMPTS) {
       const until = new Date()
       until.setMinutes(until.getMinutes() + LOCKOUT_MINUTES)
-      await supabaseAdmin
+      await db
         .from('profiles')
         .update({ login_attempts: attempts, locked_until: until.toISOString() })
         .eq('id', profile.id)
     } else {
-      await supabaseAdmin
+      await db
         .from('profiles')
         .update({ login_attempts: attempts })
         .eq('id', profile.id)
@@ -58,10 +60,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
   }
 
-  await supabaseAdmin
+  await db
     .from('profiles')
     .update({ login_attempts: 0, locked_until: null })
     .eq('id', profile.id)
+
+  if (!isAccountActivated(profile)) {
+    return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
+  }
 
   const token = await signToken({
     sub: profile.id,
@@ -83,7 +89,7 @@ export async function POST(req: NextRequest) {
     userAgent: req.headers.get('user-agent') ?? undefined,
   })
 
-  const { data: tenant } = await supabaseAdmin
+  const { data: tenant } = await db
     .from('tenants')
     .select('name')
     .eq('id', profile.tenant_id ?? '')

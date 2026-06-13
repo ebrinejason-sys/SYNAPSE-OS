@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { verifyOTP, signToken, createSession } from '@synapse/auth'
+import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyOTP, signToken, createSession } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
 
@@ -28,9 +28,10 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { data: profile, error: profileErr } = await supabaseAdmin
+  const db = supabaseAdmin as any
+  const { data: profile, error: profileErr } = await db
     .from('profiles')
-    .select('id, role, tenant_id, email')
+    .select('id, role, tenant_id, email, verification_status, email_verified_at, is_deleted')
     .eq('phone', phone)
     .single()
 
@@ -39,6 +40,10 @@ export async function POST(req: NextRequest) {
       { error: 'No Synapse OS account is linked to this phone number. Contact your hospital administrator.' },
       { status: 404 }
     )
+  }
+
+  if (!isAccountActivated(profile)) {
+    return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
   }
 
   const token = await signToken({
@@ -57,7 +62,7 @@ export async function POST(req: NextRequest) {
     userAgent: req.headers.get('user-agent') ?? undefined,
   })
 
-  await supabaseAdmin
+  await db
     .from('profiles')
     .update({ login_attempts: 0 })
     .eq('id', profile.id)

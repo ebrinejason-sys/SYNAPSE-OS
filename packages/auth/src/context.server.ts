@@ -8,6 +8,7 @@ import { validateSession } from './sessions'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE } from '@synapse/config/constants'
 import type { AppSurface, SynapseRole } from '@synapse/config/constants'
+import { isAccountActivated } from './activation'
 
 export interface SynapseContext {
   user: {
@@ -59,17 +60,19 @@ export async function getContext(
   const { valid } = await validateSession(token)
   if (!valid) redirect(redirectTo)
 
-  const { data: profile, error: profileError } = await supabaseAdmin
+  const { data: profile, error: profileError } = await (supabaseAdmin as any)
     .from('profiles')
     .select(`
       id, email, role, full_name, first_name, last_name,
       tenant_id, synapse_id, is_admin, onboarding_complete,
-      verification_status, avatar_url, must_change_password
+      verification_status, avatar_url, must_change_password,
+      email_verified_at, is_deleted
     `)
     .eq('id', payload.sub)
     .single()
 
   if (profileError || !profile) redirect(redirectTo)
+  if (!isAccountActivated(profile)) redirect(redirectTo)
 
   const user = {
     id: profile.id as string,

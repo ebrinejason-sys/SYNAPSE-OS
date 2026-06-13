@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { verifyOTP, signToken, createSession } from '@synapse/auth'
+import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyOTP, signToken, createSession } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
 import { SignJWT } from 'jose'
@@ -43,12 +43,16 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: profile, error: profileErr } = await (supabaseAdmin as any)
     .from('profiles')
-    .select('id, role, tenant_id, synapse_id')
+    .select('id, role, tenant_id, synapse_id, verification_status, email_verified_at, is_deleted')
     .eq('email', email)
     .single()
 
   if (profileErr || !profile) {
     return NextResponse.json({ error: 'Account not found.' }, { status: 404 })
+  }
+
+  if (!isAccountActivated(profile)) {
+    return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
   }
 
   const cookieStore = await cookies()

@@ -5,6 +5,8 @@
 export { signToken, verifyToken, signShortToken, verifyShortToken } from './tokens'
 export type { SynapseTokenPayload } from './tokens'
 
+export { ACCOUNT_ACTIVATION_ERROR, isAccountActivated } from './activation'
+
 export { hashPassword, verifyPassword, validatePasswordStrength } from './password'
 
 export {

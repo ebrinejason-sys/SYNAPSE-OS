@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated } from '@synapse/auth'
 import { createServiceClient } from '../../../../../lib/supabase/server'
 import { generateOtp, hashOtp } from '../../../../../lib/otp'
 import { sendOtpEmail } from '../../../../../lib/resend'
@@ -15,6 +16,25 @@ export async function POST(req: NextRequest) {
   }
 
   const db = createServiceClient() as any
+
+  const { data: profile, error: profileErr } = await db
+    .from('profiles')
+    .select('id, verification_status, email_verified_at, is_deleted')
+    .eq('email', email)
+    .maybeSingle()
+
+  if (profileErr) {
+    console.error('email otp profile lookup error:', profileErr.message)
+    return NextResponse.json({ error: 'Could not check account status.' }, { status: 500 })
+  }
+
+  if (!profile) {
+    return NextResponse.json({ ok: true })
+  }
+
+  if (!isAccountActivated(profile)) {
+    return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
+  }
 
   const { count } = await db
     .from('auth_otps')

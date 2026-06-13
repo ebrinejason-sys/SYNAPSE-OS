@@ -43,13 +43,13 @@ export async function verifyToken(token: string): Promise<SynapseTokenPayload> {
 export async function signShortToken(params: {
   sub: string
   purpose: 'reset' | 'verify' | 'invite'
-}): Promise<string> {
+}, expiresIn: string = '15m'): Promise<string> {
   return new SignJWT(params)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
-    .setExpirationTime('15m')
+    .setExpirationTime(expiresIn)
     .sign(getSecret())
 }
 

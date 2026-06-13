@@ -84,6 +84,17 @@ function ErrorBox({ msg }: { msg: string }) {
   )
 }
 
+function NoticeBox({ msg }: { msg: string }) {
+  return (
+    <div
+      className="px-4 py-3 rounded-xl text-sm"
+      style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.22)', color: '#22C55E' }}
+    >
+      {msg}
+    </div>
+  )
+}
+
 function LoginContent() {
   const [tab,      setTab]      = useState<AuthTab>('password')
   const [subStep,  setSubStep]  = useState<SubStep>('form')
@@ -106,6 +117,9 @@ function LoginContent() {
   const router      = useRouter()
   const searchParams = useSearchParams()
   const next        = searchParams.get('next') || '/health/dashboard'
+  const activated   = searchParams.get('activated') === '1'
+  const activationStatus = searchParams.get('activation')
+  const activationEmail = searchParams.get('email')
 
   function switchTab(t: AuthTab) {
     setTab(t)
@@ -286,6 +300,22 @@ function LoginContent() {
                 <h1 className="font-display font-bold text-2xl mb-1.5" style={{ letterSpacing: '-0.02em' }}>Welcome back</h1>
                 <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Sign in to your Synapse account</p>
               </div>
+
+              {activated && (
+                <div className="mb-4">
+                  <NoticeBox msg={`Email activated${activationEmail ? ` for ${activationEmail}` : ''}. Sign in to continue.`} />
+                </div>
+              )}
+              {activationStatus === 'invalid' && (
+                <div className="mb-4">
+                  <ErrorBox msg="That activation link is invalid or expired. Create the account again or request a new activation link." />
+                </div>
+              )}
+              {activationStatus === 'failed' && (
+                <div className="mb-4">
+                  <ErrorBox msg="We could not activate this account. Contact Synapse OS support." />
+                </div>
+              )}
 
               {/* Tab bar */}
               <div
