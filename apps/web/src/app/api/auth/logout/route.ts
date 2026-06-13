@@ -22,8 +22,9 @@ export async function POST(_req: NextRequest) {
       const supabase = createServerClient(supabaseUrl, supabaseKey, {
         cookies: {
           getAll: () => cookieStore.getAll(),
-          setAll: (toSet) => toSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options ?? {})),
+          setAll: (toSet: { name: string; value: string; options?: Record<string, unknown> }[]) =>
+            toSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, (options ?? {}) as Parameters<typeof cookieStore.set>[2])),
         },
       })
       await supabase.auth.signOut()
