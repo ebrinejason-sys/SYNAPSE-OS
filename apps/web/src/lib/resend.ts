@@ -36,6 +36,12 @@ function formatResendError(error: NonNullable<ResendSendResult['error']>): strin
   return [error.name, error.message].filter(Boolean).join(': ') || 'Unknown Resend error'
 }
 
+function formatLogDomains(payload: ResendSendPayload | undefined): string {
+  const fromDomain = domainFromAddress(payload?.from) ?? 'unknown'
+  const recipientDomains = toDomains(payload?.to).join(',') || 'unknown'
+  return `fromDomain=${fromDomain} toDomains=${recipientDomains}`
+}
+
 export const resend = {
   emails: {
     send: async (...args: ResendSendArgs) => {
@@ -45,29 +51,20 @@ export const resend = {
       try {
         result = (await getResend().emails.send(...args)) as ResendSendResult
       } catch (error) {
-        console.error('[resend] email send threw', {
-          error: error instanceof Error ? error.message : String(error),
-          fromDomain: domainFromAddress(payload?.from),
-          toDomains: toDomains(payload?.to),
-        })
+        const message = error instanceof Error ? error.message : String(error)
+        console.error(`[resend] email send threw error="${message}" ${formatLogDomains(payload)}`)
         throw error
       }
 
       if (result.error) {
         const message = formatResendError(result.error)
-        console.error('[resend] email rejected', {
-          error: message,
-          fromDomain: domainFromAddress(payload?.from),
-          toDomains: toDomains(payload?.to),
-        })
+        console.error(`[resend] email rejected error="${message}" ${formatLogDomains(payload)}`)
         throw new Error(`Resend rejected email: ${message}`)
       }
 
-      console.info('[resend] email accepted', {
-        id: result.data?.id ?? null,
-        fromDomain: domainFromAddress(payload?.from),
-        toDomains: toDomains(payload?.to),
-      })
+      console.info(
+        `[resend] email accepted id="${result.data?.id ?? 'unknown'}" ${formatLogDomains(payload)}`
+      )
 
       return result
     },
