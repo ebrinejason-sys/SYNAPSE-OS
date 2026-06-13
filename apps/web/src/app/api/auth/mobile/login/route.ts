@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyPassword, hashPassword, signToken, createSession } from '@synapse/auth'
+import { verifyPassword, signToken, createSession } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_DURATION_DAYS } from '@synapse/config/constants'
 
@@ -36,21 +36,9 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let authenticated = false
-
-  if (profile.password_hash) {
-    authenticated = await verifyPassword(password, profile.password_hash)
-  } else {
-    const { error: supabaseErr } = await supabaseAdmin.auth.signInWithPassword({ email, password })
-    if (!supabaseErr) {
-      authenticated = true
-      const hashed = await hashPassword(password)
-      await supabaseAdmin
-        .from('profiles')
-        .update({ password_hash: hashed })
-        .eq('id', profile.id)
-    }
-  }
+  const authenticated = profile.password_hash
+    ? await verifyPassword(password, profile.password_hash)
+    : false
 
   if (!authenticated) {
     const attempts = (profile.login_attempts ?? 0) + 1

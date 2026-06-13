@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient, createServiceClient } from "../../../../lib/supabase/server";
+import { createServiceClient } from "../../../../lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
 const PROFILE_SELECT =
@@ -83,15 +83,6 @@ export async function PATCH(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
-
-  await supabaseAdmin.auth.admin.updateUserById(user.id, {
-    user_metadata: {
-      full_name: fullName,
-      first_name: firstName,
-      last_name: lastName,
-      phone,
-    },
-  });
 
   return NextResponse.json({ profile });
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyPassword, hashPassword, createAndSendOTP } from '@synapse/auth'
+import { verifyPassword, createAndSendOTP } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { sendOTP } from '@synapse/email'
 
@@ -32,22 +32,9 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let authenticated = false
-
-  if (profile.password_hash) {
-    authenticated = await verifyPassword(password, profile.password_hash as string)
-  } else {
-    // Lazy migration: fall back to Supabase Auth, then store bcrypt hash
-    const { error: supabaseErr } = await supabaseAdmin.auth.signInWithPassword({ email, password })
-    if (!supabaseErr) {
-      authenticated = true
-      const hashed = await hashPassword(password)
-      await supabaseAdmin
-        .from('profiles')
-        .update({ password_hash: hashed })
-        .eq('id', profile.id as string)
-    }
-  }
+  const authenticated = profile.password_hash
+    ? await verifyPassword(password, profile.password_hash as string)
+    : false
 
   if (!authenticated) {
     const attempts = (profile.login_attempts as number ?? 0) + 1

@@ -6,7 +6,6 @@ import {
   FileText, LayoutDashboard, Package, Settings, ShieldCheck,
   Stethoscope, UserRound, Users, Wallet,
 } from 'lucide-react'
-import { createClient } from '../../lib/supabase/client'
 import { SynapseLogo } from '../../components/SynapseLogo'
 
 const NAV = [
@@ -30,8 +29,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   async function handleSignOut() {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
-    const supabase = createClient()
-    await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
   }

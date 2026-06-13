@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
 import { SynapseLogo } from '../../../components/SynapseLogo'
-import { createClient } from '../../../lib/supabase/client'
 
 export default function PatientSignupPage() {
   const router = useRouter()
@@ -33,37 +32,19 @@ export default function PatientSignupPage() {
     }
     setLoading(true)
     setError('')
-    const supabase = createClient()
-    const { data, error: authError } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: {
-        data: {
-          full_name: `${form.first_name} ${form.last_name}`,
-          role: 'patient',
-        },
-      },
+
+    const res = await fetch('/api/auth/signup/patient', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
     })
-    if (authError) {
-      setError(authError.message)
+    const data = await res.json().catch(() => ({})) as { error?: string }
+    if (!res.ok) {
+      setError(data.error ?? 'Could not create account.')
       setLoading(false)
       return
     }
-    if (data.user) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from('profiles').upsert({
-        id: data.user.id,
-        first_name: form.first_name,
-        last_name: form.last_name,
-        full_name: `${form.first_name} ${form.last_name}`,
-        email: form.email,
-        phone: form.phone || null,
-        gender: form.gender || null,
-        role: 'patient',
-        onboarding_complete: false,
-        verification_status: 'verified',
-      })
-    }
+
     router.push('/health/dashboard')
   }
 
@@ -175,6 +156,7 @@ export default function PatientSignupPage() {
               <input
                 required
                 type={showPw ? 'text' : 'password'}
+                autoComplete="new-password"
                 value={form.password}
                 onChange={e => set('password', e.target.value)}
                 placeholder="Minimum 8 characters"

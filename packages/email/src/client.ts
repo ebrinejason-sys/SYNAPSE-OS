@@ -12,6 +12,10 @@ export function getResend(): Resend {
 
 export const FROM_ADDRESS = 'Synapse Health <noreply@synapseos.tech>'
 export const SUPPORT_EMAIL = 'support@synapseos.tech'
+export const MAILING_ADDRESS = "Ebrine's Residence; Katuuso Cresecent; Buziga"
+export const DEFAULT_UNSUBSCRIBE_URL =
+  process.env.NEXT_PUBLIC_UNSUBSCRIBE_URL ?? 'https://synapseos.tech/unsubscribed'
+export const LOGO_URL = process.env.NEXT_PUBLIC_EMAIL_LOGO_URL ?? 'https://synapseos.tech/synapse-logo.png'
 
 const ORANGE = '#F97316'
 const GOLD = '#E8B84B'
@@ -21,22 +25,16 @@ const BORDER = 'rgba(255,255,255,0.1)'
 const DIM = '#60607A'
 
 export function brandedHtml(body: string, unsubscribeUrl?: string): string {
-  const footer = unsubscribeUrl
-    ? `<p style="margin:0 0 6px;font-size:12px;color:${DIM};">
-        Synapse Health Technologies Ltd · Kampala, Uganda<br/>
-        <a href="https://synapseos.tech" style="color:${ORANGE};text-decoration:none;">synapseos.tech</a>
-        &nbsp;·&nbsp;
-        <a href="mailto:${SUPPORT_EMAIL}" style="color:${DIM};text-decoration:none;">${SUPPORT_EMAIL}</a>
-       </p>
-       <p style="margin:0;font-size:11px;color:${DIM};">
-         <a href="${unsubscribeUrl}" style="color:${DIM};text-decoration:underline;">Unsubscribe</a>
-       </p>`
-    : `<p style="margin:0;font-size:12px;color:${DIM};">
-        Synapse Health Technologies Ltd · Kampala, Uganda<br/>
-        <a href="https://synapseos.tech" style="color:${ORANGE};text-decoration:none;">synapseos.tech</a>
-        &nbsp;·&nbsp;
-        <a href="mailto:${SUPPORT_EMAIL}" style="color:${DIM};text-decoration:none;">${SUPPORT_EMAIL}</a>
-       </p>`
+  const unsubscribeHref = unsubscribeUrl ?? DEFAULT_UNSUBSCRIBE_URL
+  const footer = `<p style="margin:0 0 6px;font-size:12px;color:${DIM};">
+      Synapse Health Technologies Ltd &middot; ${MAILING_ADDRESS}<br/>
+      <a href="https://synapseos.tech" style="color:${ORANGE};text-decoration:none;">synapseos.tech</a>
+      &nbsp;&middot;&nbsp;
+      <a href="mailto:${SUPPORT_EMAIL}" style="color:${DIM};text-decoration:none;">${SUPPORT_EMAIL}</a>
+     </p>
+     <p style="margin:0;font-size:11px;color:${DIM};">
+       Email preferences: <a href="${unsubscribeHref}" style="color:${DIM};text-decoration:underline;">Unsubscribe</a>
+     </p>`
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -50,7 +48,9 @@ export function brandedHtml(body: string, unsubscribeUrl?: string): string {
         <tr>
           <td style="padding:32px 40px 24px;">
             <div style="margin-bottom:24px;">
-              <span style="font-size:22px;font-weight:800;letter-spacing:-0.02em;">
+              <img src="${LOGO_URL}" alt="Synapse OS" width="40" height="40"
+                style="border-radius:9px;display:inline-block;vertical-align:middle;margin-right:10px;" />
+              <span style="font-size:22px;font-weight:800;letter-spacing:0;vertical-align:middle;">
                 <span style="color:${ORANGE};">Synapse</span><span style="color:${GOLD};">OS</span>
               </span>
             </div>

@@ -1,7 +1,6 @@
 'use client'
 import { useState } from 'react'
 import { SynapseLogo } from '../../components/SynapseLogo'
-import { createClient } from '../../lib/supabase/client'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -11,10 +10,11 @@ export default function ForgotPasswordPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    const supabase = createClient()
-    await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    })
+    await fetch('/api/auth/password-reset/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    }).catch(() => null)
     setSent(true)
     setLoading(false)
   }
@@ -32,22 +32,22 @@ export default function ForgotPasswordPage() {
           <div className="p-6 rounded-2xl text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-gold)' }}>
             <p className="font-semibold mb-1">Check your inbox</p>
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Sent a reset link to <strong>{email}</strong>
+              If that account exists, we sent a reset link to <strong>{email}</strong>
             </p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
+            <input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)}
                    placeholder="Email address"
                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)', color: 'var(--text-primary)' }} />
             <button type="submit" disabled={loading} className="btn-primary w-full disabled:opacity-50">
-              {loading ? 'Sending…' : 'Send reset link'}
+              {loading ? 'Sending...' : 'Send reset link'}
             </button>
           </form>
         )}
         <p className="text-center text-sm mt-6">
-          <a href="/login" style={{ color: 'var(--brand-orange)' }}>← Back to sign in</a>
+          <a href="/login" style={{ color: 'var(--brand-orange)' }}>Back to sign in</a>
         </p>
       </div>
     </main>

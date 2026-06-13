@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { KeyRound, Loader2, Save, ShieldCheck, UserRound } from "lucide-react";
-import { createClient } from "../lib/supabase/client";
 
 type DashboardKind = "platform" | "admin" | "pharmacy";
 
@@ -143,13 +142,14 @@ export function AccountProfileManager({ dashboard }: { dashboard: DashboardKind 
     setError(null);
     setMessage(null);
 
-    const supabase = createClient();
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`,
+    const response = await fetch("/api/auth/password-reset/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
     });
 
-    if (resetError) {
-      setError(resetError.message);
+    if (!response.ok) {
+      setError("Could not send password reset email.");
     } else {
       setMessage("Password reset email sent.");
     }

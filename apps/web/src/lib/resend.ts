@@ -20,6 +20,10 @@ export const resend = {
 export const NOTIFY_EMAILS = ['ebrinetushabe@gmail.com', 'nathandavid762@gmail.com']
 export const FROM_EMAIL    = process.env.RESEND_FROM_EMAIL ?? 'noreply@synapseos.tech'
 export const FROM_NAME     = 'Synapse OS'
+export const MAILING_ADDRESS = "Ebrine's Residence; Katuuso Cresecent; Buziga"
+export const DEFAULT_UNSUBSCRIBE_URL =
+  process.env.NEXT_PUBLIC_UNSUBSCRIBE_URL ?? 'https://synapseos.tech/unsubscribed'
+export const LOGO_URL = process.env.NEXT_PUBLIC_EMAIL_LOGO_URL ?? 'https://synapseos.tech/synapse-logo.png'
 
 /* Branded HTML wrapper.
  * Pass unsubscribeUrl for marketing emails (newsletter) — required by CAN-SPAM.
@@ -33,23 +37,16 @@ export function brandedEmail({
   body: string
   unsubscribeUrl?: string
 }): string {
-  const footer = unsubscribeUrl
-    ? `<p style="margin:0 0 6px;font-size:12px;color:#60607A;">
-        Synapse Health Technologies Ltd &middot; Ebrine's Residence, Buziga Hill, Katuuso Crescent, Kampala, Uganda<br/>
-        <a href="https://synapseos.tech" style="color:#F97316;text-decoration:none;">synapseos.tech</a>
-        &nbsp;&middot;&nbsp;
-        <a href="mailto:hello@synapseos.tech" style="color:#60607A;text-decoration:none;">hello@synapseos.tech</a>
-      </p>
-      <p style="margin:0;font-size:11px;color:#40405A;">
-        You're receiving this because you subscribed at synapseos.tech. &nbsp;
-        <a href="${unsubscribeUrl}" style="color:#60607A;text-decoration:underline;">Unsubscribe</a>
-      </p>`
-    : `<p style="margin:0;font-size:12px;color:#60607A;">
-        Synapse Health Technologies Ltd &middot; Ebrine's Residence, Buziga Hill, Katuuso Crescent, Kampala, Uganda<br/>
-        <a href="https://synapseos.tech" style="color:#F97316;text-decoration:none;">synapseos.tech</a>
-        &nbsp;&middot;&nbsp;
-        <a href="mailto:hello@synapseos.tech" style="color:#60607A;text-decoration:none;">hello@synapseos.tech</a>
-      </p>`
+  const unsubscribeHref = unsubscribeUrl ?? DEFAULT_UNSUBSCRIBE_URL
+  const footer = `<p style="margin:0 0 6px;font-size:12px;color:#60607A;">
+      Synapse Health Technologies Ltd &middot; ${MAILING_ADDRESS}<br/>
+      <a href="https://synapseos.tech" style="color:#F97316;text-decoration:none;">synapseos.tech</a>
+      &nbsp;&middot;&nbsp;
+      <a href="mailto:hello@synapseos.tech" style="color:#60607A;text-decoration:none;">hello@synapseos.tech</a>
+    </p>
+    <p style="margin:0;font-size:11px;color:#40405A;">
+      Email preferences: <a href="${unsubscribeHref}" style="color:#60607A;text-decoration:underline;">Unsubscribe</a>
+    </p>`
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -69,7 +66,7 @@ export function brandedEmail({
           <tr>
             <td style="padding:32px 40px 24px;">
               <div style="margin-bottom:24px;">
-                <img src="https://synapseos.tech/assets/logos/synapse-logo.png" alt="Synapse OS" width="40" height="40"
+                <img src="${LOGO_URL}" alt="Synapse OS" width="40" height="40"
                   style="border-radius:9px;display:inline-block;vertical-align:middle;margin-right:10px;" />
                 <span style="font-size:22px;font-weight:800;letter-spacing:-0.02em;vertical-align:middle;">
                   <span style="color:#F97316;">Synapse</span><span style="color:#E8B84B;">OS</span>
@@ -144,6 +141,33 @@ export async function sendWelcomeEmail(email: string, name: string): Promise<voi
 }
 
 /* Transactional: pharmacy admin invite — sent on enrollment */
+export async function sendPasswordResetEmail(email: string, name: string, resetUrl: string): Promise<void> {
+  const firstName = name.split(' ')[0] || 'there'
+  await resend.emails.send({
+    from: `${FROM_NAME} <${FROM_EMAIL}>`,
+    to: [email],
+    subject: `Reset your Synapse OS password`,
+    html: brandedEmail({
+      subject: `Reset your Synapse OS password`,
+      body: `
+        <h2 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#F5F5F7;">
+          Reset your password, ${firstName}.
+        </h2>
+        <p style="font-size:15px;line-height:1.7;color:#A0A0B0;margin:0 0 22px;">
+          Use the secure link below to set a new Synapse OS password. This link expires in 15 minutes.
+        </p>
+        <a href="${resetUrl}"
+          style="display:inline-block;background:#F97316;color:#07070A;font-weight:700;font-size:13px;padding:12px 24px;border-radius:8px;text-decoration:none;">
+          Reset Password
+        </a>
+        <p style="font-size:13px;color:#60607A;margin:22px 0 0;">
+          If you didn't request this, you can safely ignore this email.
+        </p>
+      `,
+    }),
+  })
+}
+
 export async function sendPharmacyInviteEmail({
   to,
   pharmacyName,

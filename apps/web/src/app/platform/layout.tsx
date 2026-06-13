@@ -24,7 +24,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { createClient } from "../../lib/supabase/client";
 import { SynapseLogo } from "../../components/SynapseLogo";
 import { ThemeToggle } from "../../components/ThemeToggle";
 import { PlatformBreadcrumb } from "./_components/breadcrumb";
@@ -150,8 +149,6 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
   async function handleSignOut() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
-    const supabase = createClient();
-    await supabase.auth.signOut();
     router.push("/platform/login");
     router.refresh();
   }

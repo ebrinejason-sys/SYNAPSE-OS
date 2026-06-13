@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { verifyToken } from '@synapse/auth/tokens'
 import { SESSION_COOKIE } from '@synapse/config/constants'
 
@@ -76,6 +75,30 @@ async function hasSynapseSession(request: NextRequest): Promise<{ valid: boolean
     return { valid: true, tenantId: payload.tenant_id ?? undefined }
   } catch {
     return { valid: false }
+  }
+}
+async function isTenantActive(tenantId: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) return true;
+
+  try {
+    const tenantUrl = new URL(`${supabaseUrl}/rest/v1/tenants`);
+    tenantUrl.searchParams.set("id", `eq.${tenantId}`);
+    tenantUrl.searchParams.set("select", "is_active");
+    tenantUrl.searchParams.set("limit", "1");
+    const tenantResponse = await fetch(tenantUrl, {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+      },
+      cache: "no-store",
+    });
+    if (!tenantResponse.ok) return true;
+    const [tenant] = (await tenantResponse.json()) as { is_active?: boolean | null }[];
+    return tenant?.is_active !== false;
+  } catch {
+    return true;
   }
 }
 
@@ -175,86 +198,32 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // ── Root domain: session refresh ──────────────────────────────────
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return NextResponse.next({ request });
+  const { valid: synapseValid, tenantId: synapseTenantId } = await hasSynapseSession(request)
+
+  const isProtected =
+    pathname.startsWith("/os/") ||
+    pathname.startsWith("/doctor/") ||
+    pathname.startsWith("/nurse/") ||
+    pathname.startsWith("/encounter/") ||
+    pathname.startsWith("/lab/") ||
+    pathname.startsWith("/pharmacy/") ||
+    pathname.startsWith("/admin/") ||
+    pathname.startsWith("/patient/");
+
+  if (isProtected && !synapseValid) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
-  let supabaseResponse = NextResponse.next({ request });
-  type CookieToSet = { name: string; value: string; options?: Parameters<typeof supabaseResponse.cookies.set>[2] };
-
-  try {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() { return request.cookies.getAll(); },
-          setAll(cookiesToSet: CookieToSet[]) {
-            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-            supabaseResponse = NextResponse.next({ request });
-            cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options));
-          },
-        },
-      }
-    );
-    const { data: { user } } = await supabase.auth.getUser();
-    const { valid: synapseValid, tenantId: synapseTenantId } = await hasSynapseSession(request)
-
-    const isProtected =
-      pathname.startsWith("/os/") ||
-      pathname.startsWith("/doctor/") ||
-      pathname.startsWith("/nurse/") ||
-      pathname.startsWith("/encounter/") ||
-      pathname.startsWith("/lab/") ||
-      pathname.startsWith("/pharmacy/") ||
-      pathname.startsWith("/admin/") ||
-      pathname.startsWith("/patient/");
-
-    if (isProtected && !synapseValid && !user) {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("redirectTo", pathname);
-      return NextResponse.redirect(loginUrl);
+  if (isProtected && synapseValid && synapseTenantId) {
+    const tenantActive = await isTenantActive(synapseTenantId);
+    if (!tenantActive) {
+      return NextResponse.redirect(new URL("/login?error=account_inactive", request.url));
     }
-
-    // Tenant suspension check for synapse_session users (Supabase users checked below)
-    if (isProtected && synapseValid && synapseTenantId) {
-      const { data: synapseTenant } = await supabase
-        .from("tenants")
-        .select("is_active")
-        .eq("id", synapseTenantId)
-        .maybeSingle();
-      if (synapseTenant && !synapseTenant.is_active) {
-        return NextResponse.redirect(new URL("/login?error=account_inactive", request.url));
-      }
-    }
-
-    if (isProtected && user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("tenant_id, is_admin, role")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      const isPrivileged = profile?.is_admin || profile?.role === "platform_admin";
-
-      if (profile && !isPrivileged && profile.tenant_id) {
-        const { data: tenant } = await supabase
-          .from("tenants")
-          .select("is_active")
-          .eq("id", profile.tenant_id)
-          .maybeSingle();
-
-        if (!tenant || !tenant.is_active) {
-          return NextResponse.redirect(new URL("/login?error=account_inactive", request.url));
-        }
-      }
-    }
-  } catch {
-    return NextResponse.next({ request });
   }
 
-  return supabaseResponse;
+  return NextResponse.next({ request });
 }
 
 export const config = {

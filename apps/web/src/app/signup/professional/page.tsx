@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Camera, CheckCircle, Eye, EyeOff, Upload } from 'lucide-react'
 import { SynapseLogo } from '../../../components/SynapseLogo'
-import { createClient } from '../../../lib/supabase/client'
 
 const SPECIALTIES = [
   'General Practice', 'Internal Medicine', 'Surgery', 'Paediatrics',
@@ -103,46 +102,32 @@ export default function ProfessionalSignupPage() {
   async function handleSubmit() {
     setLoading(true)
     setError('')
-    const supabase = createClient()
-    const { data, error: authError } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: {
-        data: { full_name: `${form.first_name} ${form.last_name}`, role: 'clinician' },
-      },
+
+    const res = await fetch('/api/auth/signup/professional', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        first_name: form.first_name,
+        last_name: form.last_name,
+        email: form.email,
+        phone: form.phone,
+        gender: form.gender,
+        password: form.password,
+        specialty: form.specialty,
+        license_number: form.license_number,
+        institution: form.institution,
+        years_experience: form.years_experience,
+        license_b64: form.license_b64,
+        license_mime: form.license_mime,
+      }),
     })
-    if (authError) {
-      setError(authError.message)
+    const data = await res.json().catch(() => ({})) as { error?: string }
+    if (!res.ok) {
+      setError(data.error ?? 'Could not submit application.')
       setLoading(false)
       return
     }
-    if (data.user) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from('profiles').upsert({
-        id: data.user.id,
-        first_name: form.first_name,
-        last_name: form.last_name,
-        full_name: `${form.first_name} ${form.last_name}`,
-        email: form.email,
-        phone: form.phone || null,
-        gender: form.gender || null,
-        role: 'clinician',
-        specialty_confirmed: form.specialty,
-        license_number: form.license_number,
-        years_experience: parseInt(form.years_experience) || 0,
-        verification_status: 'pending',
-        onboarding_complete: false,
-      })
-      if (form.license_b64) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).from('verification_documents').insert({
-          profile_id: data.user.id,
-          document_type: 'medical_license',
-          document_url: `data:${form.license_mime};base64,${form.license_b64}`,
-          status: 'pending_review',
-        })
-      }
-    }
+
     setStep(5)
     setLoading(false)
   }
@@ -257,6 +242,7 @@ export default function ProfessionalSignupPage() {
                 <input
                   required
                   type={showPw ? 'text' : 'password'}
+                  autoComplete="new-password"
                   value={form.password}
                   onChange={e => set('password', e.target.value)}
                   placeholder="Minimum 8 characters"
