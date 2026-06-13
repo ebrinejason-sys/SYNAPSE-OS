@@ -1,11 +1,11 @@
 'use client'
 
 import { useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { SynapseLogo } from '../../components/SynapseLogo'
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const token = useSearchParams().get('token') ?? ''
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -100,5 +100,13 @@ export default function ResetPasswordPage() {
         )}
       </div>
     </main>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense>
+      <ResetPasswordContent />
+    </Suspense>
   )
 }
