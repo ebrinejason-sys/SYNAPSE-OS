@@ -2,6 +2,16 @@ import { Resend } from 'resend'
 
 let resendClient: Resend | null = null
 
+type ResendSendArgs = Parameters<Resend['emails']['send']>
+type ResendSendPayload = {
+  from?: string
+  to?: string | string[]
+}
+type ResendSendResult = {
+  data?: { id?: string } | null
+  error?: { name?: string; message?: string } | null
+}
+
 export function getResend(): Resend {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
@@ -11,9 +21,45 @@ export function getResend(): Resend {
   return resendClient
 }
 
+function domainFromAddress(value: string | undefined): string | null {
+  if (!value) return null
+  const match = value.match(/@([^>\s]+)>?$/)
+  return match?.[1]?.toLowerCase() ?? null
+}
+
+function toDomains(to: ResendSendPayload['to']): string[] {
+  const recipients = Array.isArray(to) ? to : to ? [to] : []
+  return Array.from(new Set(recipients.map(domainFromAddress).filter(Boolean) as string[]))
+}
+
+function formatResendError(error: NonNullable<ResendSendResult['error']>): string {
+  return [error.name, error.message].filter(Boolean).join(': ') || 'Unknown Resend error'
+}
+
 export const resend = {
   emails: {
-    send: (...args: Parameters<Resend['emails']['send']>) => getResend().emails.send(...args),
+    send: async (...args: ResendSendArgs) => {
+      const payload = args[0] as ResendSendPayload | undefined
+      const result = (await getResend().emails.send(...args)) as ResendSendResult
+
+      if (result.error) {
+        const message = formatResendError(result.error)
+        console.error('[resend] email rejected', {
+          error: message,
+          fromDomain: domainFromAddress(payload?.from),
+          toDomains: toDomains(payload?.to),
+        })
+        throw new Error(`Resend rejected email: ${message}`)
+      }
+
+      console.info('[resend] email accepted', {
+        id: result.data?.id ?? null,
+        fromDomain: domainFromAddress(payload?.from),
+        toDomains: toDomains(payload?.to),
+      })
+
+      return result
+    },
   },
 }
 

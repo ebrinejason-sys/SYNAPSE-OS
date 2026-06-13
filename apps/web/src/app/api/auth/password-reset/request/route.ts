@@ -22,7 +22,11 @@ export async function POST(req: NextRequest) {
     const origin = req.nextUrl.origin
     const resetUrl = `${origin}/reset-password?token=${encodeURIComponent(token)}`
     const name = (profile.full_name as string | null) ?? (profile.first_name as string | null) ?? 'there'
-    await sendPasswordResetEmail(profile.email as string, name, resetUrl).catch(() => {})
+    await sendPasswordResetEmail(profile.email as string, name, resetUrl).catch((error) => {
+      console.error('[auth/password-reset/request] reset email failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
   }
 
   return NextResponse.json({ ok: true })
