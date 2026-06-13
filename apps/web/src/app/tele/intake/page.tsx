@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Bot, Send, User } from 'lucide-react'
 import { createClient } from '../../../lib/supabase/client'
-import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Message {
   role: 'user' | 'bot'
@@ -51,7 +50,8 @@ export default function TeleIntakePage() {
 
     try {
       const supabase = createClient()
-      const user = await getCurrentUser()
+      const meRes = await fetch('/api/auth/me')
+      const { user } = meRes.ok ? await meRes.json() : { user: null }
 
       const res = await fetch('/api/tele/intake', {
         method: 'POST',

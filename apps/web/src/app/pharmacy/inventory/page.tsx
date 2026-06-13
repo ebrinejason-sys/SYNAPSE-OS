@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { Package, AlertTriangle } from 'lucide-react'
 import { createClient } from '../../../lib/supabase/client'
-import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Drug {
   id: string
@@ -27,7 +26,8 @@ export default function PharmacyInventoryPage() {
   useEffect(() => {
     async function load() {
       const supabase = createClient()
-      const user = await getCurrentUser()
+      const meRes = await fetch('/api/auth/me')
+      const { user } = meRes.ok ? await meRes.json() : { user: null }
       if (!user) return
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any

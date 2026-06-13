@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useRef, useState } from 'react'
 import { Bot, Send, User } from 'lucide-react'
 import { createClient } from '../../../lib/supabase/client'
-import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Message {
   id: string
@@ -30,7 +29,8 @@ export default function HealthCoachPage() {
   useEffect(() => {
     async function init() {
       const supabase = createClient()
-      const user = await getCurrentUser()
+      const meRes = await fetch('/api/auth/me')
+      const { user } = meRes.ok ? await meRes.json() : { user: null }
       if (!user) return
       setUserId(user.id)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

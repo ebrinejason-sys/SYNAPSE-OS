@@ -1,6 +1,4 @@
-// Server-side user resolver — synapse_session first, Supabase Auth fallback.
-// Drop-in replacement for: const { data: { user } } = await supabase.auth.getUser()
-// Usage: const user = await getCurrentUser()
+import 'server-only'
 
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'

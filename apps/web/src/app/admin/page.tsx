@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Activity, BedDouble, Building2, ShieldCheck, Users, Wallet } from 'lucide-react'
 import { createClient } from '../../lib/supabase/client'
-import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Stats {
   staff: number
@@ -21,7 +20,8 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     async function load() {
       const supabase = createClient()
-      const user = await getCurrentUser()
+      const meRes = await fetch('/api/auth/me')
+      const { user } = meRes.ok ? await meRes.json() : { user: null }
       if (!user) return
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

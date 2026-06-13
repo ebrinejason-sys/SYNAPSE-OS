@@ -6,7 +6,6 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Calendar, CheckCircle, Clock, Star } from 'lucide-react'
 import { createClient } from '../../../lib/supabase/client'
-import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Provider {
   id: string
@@ -76,7 +75,8 @@ function TeleBookInner() {
     if (!selected || !slot) return
     setBooking(true)
     const supabase = createClient()
-    const user = await getCurrentUser()
+    const meRes = await fetch('/api/auth/me')
+    const { user } = meRes.ok ? await meRes.json() : { user: null }
     if (!user) { router.push('/login'); return }
 
     const scheduledFor = new Date()

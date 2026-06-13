@@ -5,7 +5,6 @@ import { useState } from 'react'
 import { Stethoscope, User, ArrowLeft, CheckCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../lib/supabase/client'
-import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Path = 'staff' | 'patient' | null
@@ -269,7 +268,8 @@ function PatientStep({ onBack }: { onBack: () => void }) {
     setLoading(true)
     try {
       const supabase = createClient()
-      const user = await getCurrentUser()
+      const meRes = await fetch('/api/auth/me')
+      const { user } = meRes.ok ? await meRes.json() : { user: null }
       if (!user) throw new Error('Not signed in')
 
       const { error: dbErr } = await (supabase as any)

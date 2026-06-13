@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { Calendar, Clock, MessageSquare, Star, Video } from 'lucide-react'
 import { createClient } from '../../lib/supabase/client'
 import { SynapseLogo } from '../../components/SynapseLogo'
-import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Provider {
   id: string
@@ -34,7 +33,8 @@ export default function TelePage() {
   useEffect(() => {
     async function load() {
       const supabase = createClient()
-      const user = await getCurrentUser()
+      const meRes = await fetch('/api/auth/me')
+      const { user } = meRes.ok ? await meRes.json() : { user: null }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any

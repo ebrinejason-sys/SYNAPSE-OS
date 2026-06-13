@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, FileText, RefreshCw } from 'lucide-react'
 import { createClient } from '../../../../lib/supabase/client'
-import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Claim {
   id: string
@@ -37,7 +36,8 @@ export default function AdminClaimsPage() {
   useEffect(() => {
     async function load() {
       const supabase = createClient()
-      const user = await getCurrentUser()
+      const meRes = await fetch('/api/auth/me')
+      const { user } = meRes.ok ? await meRes.json() : { user: null }
       if (!user) return
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: profile } = await (supabase as any).from('profiles').select('hospital_id').eq('id', user.id).single() as { data: { hospital_id: string } | null }

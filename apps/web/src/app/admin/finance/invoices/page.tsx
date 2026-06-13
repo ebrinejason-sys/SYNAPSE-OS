@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, FileText } from 'lucide-react'
 import { createClient } from '../../../../lib/supabase/client'
-import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Invoice {
   id: string
@@ -34,7 +33,8 @@ export default function AdminInvoicesPage() {
   useEffect(() => {
     async function load() {
       const supabase = createClient()
-      const user = await getCurrentUser()
+      const meRes = await fetch('/api/auth/me')
+      const { user } = meRes.ok ? await meRes.json() : { user: null }
       if (!user) return
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any

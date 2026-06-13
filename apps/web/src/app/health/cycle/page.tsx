@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { Moon, Plus, X } from 'lucide-react'
 import { createClient } from '../../../lib/supabase/client'
-import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Cycle {
   id: string
@@ -47,7 +46,8 @@ export default function HealthCyclePage() {
 
   async function load() {
     const supabase = createClient()
-    const user = await getCurrentUser()
+    const meRes = await fetch('/api/auth/me')
+    const { user } = meRes.ok ? await meRes.json() : { user: null }
     if (!user) { setLoading(false); return }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any)
@@ -70,7 +70,8 @@ export default function HealthCyclePage() {
   async function handleSave() {
     setSaving(true)
     const supabase = createClient()
-    const user = await getCurrentUser()
+    const meRes = await fetch('/api/auth/me')
+    const { user } = meRes.ok ? await meRes.json() : { user: null }
     if (!user) { setSaving(false); return }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from('menstrual_cycles').insert({

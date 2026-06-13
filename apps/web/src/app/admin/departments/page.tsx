@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react'
 import { Building2, Plus, Trash2 } from 'lucide-react'
 import { createClient } from '../../../lib/supabase/client'
-import { getCurrentUser } from '@/lib/auth/getCurrentUser'
 
 interface Dept {
   id: string
@@ -25,7 +24,8 @@ export default function AdminDepartmentsPage() {
   useEffect(() => {
     async function load() {
       const supabase = createClient()
-      const user = await getCurrentUser()
+      const meRes = await fetch('/api/auth/me')
+      const { user } = meRes.ok ? await meRes.json() : { user: null }
       if (!user) return
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: profile } = await (supabase as any).from('profiles').select('hospital_id').eq('id', user.id).single() as { data: { hospital_id: string } | null }
