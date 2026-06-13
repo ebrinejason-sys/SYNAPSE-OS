@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
@@ -16,25 +16,57 @@ import { usePharmacySession } from "@/hooks/use-pharmacy-session"
 
 export const dynamic = "force-dynamic"
 
-const navigation = [
-  { name: "Dashboard",       href: "/portal/dashboard",       icon: LayoutDashboard },
-  { name: "Users",           href: "/portal/users",           icon: Users,       permission: "MANAGE_USERS" },
-  { name: "Inventory",       href: "/portal/inventory",       icon: Package,     permission: "MANAGE_INVENTORY" },
-  { name: "Suppliers",       href: "/portal/suppliers",       icon: Truck,       permission: "MANAGE_INVENTORY" },
-  { name: "Purchase Orders", href: "/portal/purchase-orders", icon: FileText,    permission: "MANAGE_INVENTORY" },
-  { name: "POS",             href: "/portal/pos",             icon: ShoppingCart,permission: "MANAGE_POS" },
-  { name: "Customers",       href: "/portal/customers",       icon: UserCheck,   permission: "MANAGE_POS" },
-  { name: "Refills",         href: "/portal/refills",         icon: CalendarClock,permission: "MANAGE_POS" },
-  { name: "Credit Ledger",   href: "/portal/credit-ledger",   icon: WalletCards, permission: "VIEW_TRANSACTIONS" },
-  { name: "Import Assistant",href: "/portal/import-assistant",icon: BrainCircuit,permission: "MANAGE_INVENTORY" },
-  { name: "Orders",          href: "/portal/orders",          icon: ClipboardList,permission: "MANAGE_POS" },
-  { name: "Transactions",    href: "/portal/transactions",    icon: DollarSign,  permission: "VIEW_TRANSACTIONS" },
-  { name: "Reports",         href: "/portal/reports",         icon: BarChart3,   permission: "VIEW_REPORTS" },
-  { name: "Refunds",         href: "/portal/refunds",         icon: RotateCcw,   permission: "MANAGE_TRANSACTIONS" },
-  { name: "Inquiries",       href: "/portal/inquiries",       icon: MessageSquare, adminOnly: true },
-  { name: "Activity Log",    href: "/portal/activity-log",    icon: Activity,    adminOnly: true },
-  { name: "Settings",        href: "/portal/settings",        icon: Settings,    permission: "MANAGE_SETTINGS" },
-  { name: "Network",         href: "/portal/network",         icon: Wifi,        permission: "MANAGE_SETTINGS" },
+const NAV_GROUPS = [
+  {
+    label: 'Main',
+    items: [
+      { name: 'Dashboard', href: '/portal/dashboard', icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: 'Inventory',
+    items: [
+      { name: 'Inventory',        href: '/portal/inventory',        icon: Package,      permission: 'MANAGE_INVENTORY' },
+      { name: 'Suppliers',        href: '/portal/suppliers',        icon: Truck,        permission: 'MANAGE_INVENTORY' },
+      { name: 'Purchase Orders',  href: '/portal/purchase-orders',  icon: FileText,     permission: 'MANAGE_INVENTORY' },
+      { name: 'Import Assistant', href: '/portal/import-assistant', icon: BrainCircuit, permission: 'MANAGE_INVENTORY' },
+    ],
+  },
+  {
+    label: 'Sales',
+    items: [
+      { name: 'POS',       href: '/portal/pos',       icon: ShoppingCart,  permission: 'MANAGE_POS' },
+      { name: 'Orders',    href: '/portal/orders',    icon: ClipboardList, permission: 'MANAGE_POS' },
+      { name: 'Customers', href: '/portal/customers', icon: UserCheck,     permission: 'MANAGE_POS' },
+      { name: 'Refills',   href: '/portal/refills',   icon: CalendarClock, permission: 'MANAGE_POS' },
+    ],
+  },
+  {
+    label: 'Finance',
+    items: [
+      { name: 'Transactions',  href: '/portal/transactions',  icon: DollarSign,  permission: 'VIEW_TRANSACTIONS' },
+      { name: 'Credit Ledger', href: '/portal/credit-ledger', icon: WalletCards, permission: 'VIEW_TRANSACTIONS' },
+      { name: 'Refunds',       href: '/portal/refunds',       icon: RotateCcw,   permission: 'MANAGE_TRANSACTIONS' },
+      { name: 'Reports',       href: '/portal/reports',       icon: BarChart3,   permission: 'VIEW_REPORTS' },
+    ],
+  },
+  {
+    label: 'Admin',
+    items: [
+      { name: 'Users',        href: '/portal/users',        icon: Users,         permission: 'MANAGE_USERS' },
+      { name: 'Network',      href: '/portal/network',      icon: Wifi,          permission: 'MANAGE_SETTINGS' },
+      { name: 'Inquiries',    href: '/portal/inquiries',    icon: MessageSquare, adminOnly: true },
+      { name: 'Activity Log', href: '/portal/activity-log', icon: Activity,      adminOnly: true },
+      { name: 'Settings',     href: '/portal/settings',     icon: Settings,      permission: 'MANAGE_SETTINGS' },
+    ],
+  },
+]
+
+const BOTTOM_TABS = [
+  { name: 'Dashboard', href: '/portal/dashboard',  icon: LayoutDashboard },
+  { name: 'Inventory', href: '/portal/inventory',  icon: Package },
+  { name: 'POS',       href: '/portal/pos',        icon: ShoppingCart },
+  { name: 'Orders',    href: '/portal/orders',     icon: ClipboardList },
 ]
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
@@ -61,8 +93,6 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     if (isAdminRole) return true
     return user.permissions.includes(permission)
   }
-
-  const filteredNav = navigation.filter(item => hasPermission(item.permission, item.adminOnly))
 
   const handleSignOut = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
@@ -121,25 +151,43 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {filteredNav.map((item) => {
-            const Icon = item.icon
-            const isActive = pathname === item.href
+        <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
+          {NAV_GROUPS.map((group) => {
+            const visibleItems = group.items.filter(item =>
+              hasPermission(
+                (item as { permission?: string; adminOnly?: boolean }).permission,
+                (item as { permission?: string; adminOnly?: boolean }).adminOnly
+              )
+            )
+            if (visibleItems.length === 0) return null
             return (
-              <Link
-                key={item.name}
-                href={item.href}
-                onClick={() => setIsSidebarOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
-                  isActive
-                    ? "bg-primary/10 text-primary border-l-2 border-primary"
-                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span>{item.name}</span>
-              </Link>
+              <div key={group.label}>
+                <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  {group.label}
+                </p>
+                <div className="space-y-0.5">
+                  {visibleItems.map((item) => {
+                    const Icon = item.icon
+                    const isActive = pathname === item.href
+                    return (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        onClick={() => setIsSidebarOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+                          isActive
+                            ? "bg-primary/10 text-primary border-l-2 border-primary"
+                            : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                        )}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span>{item.name}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
             )
           })}
         </nav>
@@ -173,7 +221,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           </Button>
 
           <h1 className="text-base font-semibold text-foreground hidden lg:block">
-            {filteredNav.find(item => item.href === pathname)?.name ?? "Dashboard"}
+            {NAV_GROUPS.flatMap(g => g.items).find(item => item.href === pathname)?.name ?? "Dashboard"}
           </h1>
 
           <div className="flex items-center gap-3 ml-auto">
@@ -194,9 +242,39 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           </div>
         </header>
 
-        <main className="p-4 lg:p-6 xl:p-8 max-w-[1920px] mx-auto">
+        <main className="p-4 pb-20 lg:p-6 xl:p-8 lg:pb-8 max-w-[1920px] mx-auto">
           {children}
         </main>
+
+        {/* Mobile bottom tab bar */}
+        <nav className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-card/95 backdrop-blur-md border-t border-border">
+          <div className="flex items-center justify-around px-1 py-1">
+            {BOTTOM_TABS.map((tab) => {
+              const Icon = tab.icon
+              const isActive = pathname === tab.href
+              return (
+                <Link
+                  key={tab.href}
+                  href={tab.href}
+                  className={cn(
+                    "flex flex-col items-center gap-0.5 px-3 py-2 transition-colors min-w-0",
+                    isActive ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className="text-[9px] font-medium">{tab.name}</span>
+                </Link>
+              )
+            })}
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="flex flex-col items-center gap-0.5 px-3 py-2 text-muted-foreground"
+            >
+              <Menu className="h-5 w-5" />
+              <span className="text-[9px] font-medium">More</span>
+            </button>
+          </div>
+        </nav>
       </div>
     </div>
   )
