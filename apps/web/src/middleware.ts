@@ -68,14 +68,14 @@ async function resolvePharmacyCustomDomain(hostname: string) {
   }
 }
 
-async function hasSynapseSession(request: NextRequest): Promise<boolean> {
+async function hasSynapseSession(request: NextRequest): Promise<{ valid: boolean; tenantId?: string }> {
   const token = request.cookies.get(SESSION_COOKIE)?.value
-  if (!token) return false
+  if (!token) return { valid: false }
   try {
-    await verifyToken(token)
-    return true
+    const payload = await verifyToken(token)
+    return { valid: true, tenantId: payload.tenant_id ?? undefined }
   } catch {
-    return false
+    return { valid: false }
   }
 }
 
@@ -139,7 +139,7 @@ export async function middleware(request: NextRequest) {
       platformPath === "/platform/mfa" ||
       platformPath === "/platform/mfa-verify";
 
-    const synapseValid = await hasSynapseSession(request)
+    const { valid: synapseValid } = await hasSynapseSession(request)
 
     if (!synapseValid && !isAuthPage) {
       // Check for MFA-pending cookie — user completed OTP but not TOTP yet
@@ -199,7 +199,7 @@ export async function middleware(request: NextRequest) {
       }
     );
     const { data: { user } } = await supabase.auth.getUser();
-    const synapseValid = await hasSynapseSession(request)
+    const { valid: synapseValid, tenantId: synapseTenantId } = await hasSynapseSession(request)
 
     const isProtected =
       pathname.startsWith("/os/") ||
@@ -215,6 +215,18 @@ export async function middleware(request: NextRequest) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirectTo", pathname);
       return NextResponse.redirect(loginUrl);
+    }
+
+    // Tenant suspension check for synapse_session users (Supabase users checked below)
+    if (isProtected && synapseValid && synapseTenantId) {
+      const { data: synapseTenant } = await supabase
+        .from("tenants")
+        .select("is_active")
+        .eq("id", synapseTenantId)
+        .maybeSingle();
+      if (synapseTenant && !synapseTenant.is_active) {
+        return NextResponse.redirect(new URL("/login?error=account_inactive", request.url));
+      }
     }
 
     if (isProtected && user) {

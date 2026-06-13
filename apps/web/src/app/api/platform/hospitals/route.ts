@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "../../../../lib/supabase/server";
+import { getCurrentUser } from "../../../../lib/auth/getCurrentUser";
 import { logPlatformEvent } from "../../../platform/_lib/platform-data";
 
 const DEFAULT_DEPARTMENTS = ["Administration", "Front Desk", "Pharmacy", "Lab", "Finance"];
@@ -58,6 +59,11 @@ async function insertTenantWithFallback(supabaseAdmin: ReturnType<typeof createS
 }
 
 export async function GET(request: Request) {
+  const actor = await getCurrentUser();
+  if (!actor || actor.role !== "platform_admin") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const url = new URL(request.url);
   const slug = url.searchParams.get("slug");
   if (!slug) {
@@ -75,6 +81,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const actor = await getCurrentUser();
+  if (!actor || actor.role !== "platform_admin") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const supabaseAdmin = createServiceClient();
 
@@ -174,7 +185,7 @@ export async function POST(request: Request) {
 
   if (createUserError) {
     await logPlatformEvent({
-      actorId: tenantId,
+      actorId: actor.id,
       action: "hospital.admin_user_failed",
       entityType: "tenant",
       entityId: tenantId,
@@ -213,7 +224,7 @@ export async function POST(request: Request) {
   }
 
   await logPlatformEvent({
-    actorId: adminUser.user.id,
+    actorId: actor.id,
     action: "hospital.onboarded",
     entityType: "tenant",
     entityId: tenantId,

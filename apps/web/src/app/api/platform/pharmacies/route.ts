@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient, createServiceClient } from "../../../../lib/supabase/server";
+import { createServiceClient } from "../../../../lib/supabase/server";
+import { getCurrentUser } from "../../../../lib/auth/getCurrentUser";
 import { provisionVercelProjectDomain } from "../../../../lib/vercel-domains";
 import { logPlatformEvent } from "../../../platform/_lib/platform-data";
 import { sendPharmacyInviteEmail } from "../../../../lib/resend";
@@ -26,18 +27,6 @@ function slugify(value: string) {
 function pharmacyRouteForSlug(slug: string) {
   const tenantSlug = slug.replace(/^pharm-/, "");
   return `https://pharm.synapseos.tech/${tenantSlug}`;
-}
-
-async function requirePlatformAdminId() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const supabaseAdmin = createServiceClient();
-  const { data: profile } = await (supabaseAdmin as any).from("profiles").select("role").eq("id", user.id).maybeSingle();
-  return profile?.role === "platform_admin" ? user.id : null;
 }
 
 async function insertTenantWithFallback(supabaseAdmin: ReturnType<typeof createServiceClient>, row: Record<string, unknown>) {
@@ -78,6 +67,11 @@ async function insertTenantWithFallback(supabaseAdmin: ReturnType<typeof createS
 }
 
 export async function GET(request: Request) {
+  const actor = await getCurrentUser();
+  if (!actor || actor.role !== "platform_admin") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const slug = slugify(new URL(request.url).searchParams.get("slug") ?? "");
   if (!slug) {
     return NextResponse.json({ available: false }, { status: 400 });
@@ -90,10 +84,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const actorId = await requirePlatformAdminId();
-  if (!actorId) {
+  const actor = await getCurrentUser();
+  if (!actor || actor.role !== "platform_admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const actorId = actor.id;
 
   const body = await request.json();
   const pharmacyName = String(body.pharmacyName ?? "").trim();
