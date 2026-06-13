@@ -7,8 +7,11 @@ import { SynapseLogo } from '../../../components/SynapseLogo'
 export default function PatientSignupPage() {
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [resending, setResending] = useState(false)
   const [error, setError] = useState('')
   const [submittedEmail, setSubmittedEmail] = useState('')
+  const [activationEmailSent, setActivationEmailSent] = useState(true)
+  const [activationNotice, setActivationNotice] = useState('')
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -37,15 +40,48 @@ export default function PatientSignupPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form),
     })
-    const data = await res.json().catch(() => ({})) as { error?: string }
+    const data = await res.json().catch(() => ({})) as {
+      error?: string
+      activationRequired?: boolean
+      activationEmailSent?: boolean
+    }
     if (!res.ok) {
       setError(data.error ?? 'Could not create account.')
       setLoading(false)
       return
     }
 
+    setActivationEmailSent(data.activationEmailSent !== false)
+    setActivationNotice('')
     setSubmittedEmail(form.email)
     setLoading(false)
+  }
+
+  async function resendActivation() {
+    if (!submittedEmail) return
+    setResending(true)
+    setActivationNotice('')
+    const res = await fetch('/api/auth/activation/resend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: submittedEmail }),
+    })
+    const data = await res.json().catch(() => ({})) as {
+      activationEmailSent?: boolean
+      error?: string
+    }
+    setResending(false)
+    if (!res.ok) {
+      setActivationNotice(data.error ?? 'Could not resend activation email.')
+      return
+    }
+    const sent = data.activationEmailSent !== false
+    setActivationEmailSent(sent)
+    setActivationNotice(
+      sent
+        ? 'Activation email sent. Check your inbox and spam folder.'
+        : 'The account is still pending, but email delivery is currently unavailable.'
+    )
   }
 
   const inputCls = 'w-full rounded-xl px-4 py-3 text-sm outline-none transition-all'
@@ -75,9 +111,33 @@ export default function PatientSignupPage() {
             Check your email
           </h1>
           <p className="text-sm leading-6 mb-6" style={{ color: 'var(--text-secondary)' }}>
-            We sent an activation link to <strong style={{ color: 'var(--text-primary)' }}>{submittedEmail}</strong>.
-            Your account will stay locked until you open that link.
+            {activationEmailSent ? (
+              <>
+                We sent an activation link to <strong style={{ color: 'var(--text-primary)' }}>{submittedEmail}</strong>.
+                Your account will stay locked until you open that link.
+              </>
+            ) : (
+              <>
+                Your account was created for <strong style={{ color: 'var(--text-primary)' }}>{submittedEmail}</strong>,
+                but the activation email could not be sent. Your account remains locked until email activation succeeds.
+              </>
+            )}
           </p>
+          {!activationEmailSent && (
+            <button
+              type="button"
+              onClick={resendActivation}
+              disabled={resending}
+              className="btn-primary mb-3 block w-full disabled:opacity-50"
+            >
+              {resending ? 'Sending...' : 'Resend activation email'}
+            </button>
+          )}
+          {activationNotice && (
+            <p className="mb-4 text-sm" style={{ color: activationEmailSent ? '#22C55E' : '#EF4444' }}>
+              {activationNotice}
+            </p>
+          )}
           <Link href="/login" className="btn-primary block w-full">
             Back to sign in
           </Link>

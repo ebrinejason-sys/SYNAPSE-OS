@@ -14,6 +14,8 @@ const inputStyle = {
   color: 'var(--text-primary)',
 }
 
+const ACTIVATION_REQUIRED_MESSAGE = 'Activate your account from the email we sent before signing in.'
+
 function OtpInput({
   value,
   onChange,
@@ -112,6 +114,7 @@ function LoginContent() {
   const [phoneCode, setPhoneCode] = useState('')
 
   const [error,   setError]   = useState('')
+  const [notice,  setNotice]  = useState('')
   const [loading, setLoading] = useState(false)
 
   const router      = useRouter()
@@ -125,8 +128,34 @@ function LoginContent() {
     setTab(t)
     setSubStep('form')
     setError('')
+    setNotice('')
     setEmailCode('')
     setPhoneCode('')
+  }
+
+  async function resendActivation(emailAddress: string) {
+    if (!emailAddress) return
+    setNotice('')
+    const res = await fetch('/api/auth/activation/resend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: emailAddress }),
+    })
+    const data = await res.json().catch(() => ({})) as {
+      activationEmailSent?: boolean
+      error?: string
+    }
+
+    if (!res.ok) {
+      setNotice(data.error ?? 'Could not resend activation email.')
+      return
+    }
+
+    setNotice(
+      data.activationEmailSent === false
+        ? 'The account is still pending, but email delivery is currently unavailable.'
+        : 'Activation email sent. Check your inbox and spam folder.'
+    )
   }
 
   // ─── Password login ────────────────────────────────────────
@@ -386,6 +415,17 @@ function LoginContent() {
                     </div>
                   </div>
                   {error && <ErrorBox msg={error} />}
+                  {error === ACTIVATION_REQUIRED_MESSAGE && (
+                    <button
+                      type="button"
+                      onClick={() => resendActivation(email)}
+                      className="w-full py-2 text-sm font-semibold"
+                      style={{ color: 'var(--brand-orange)' }}
+                    >
+                      Resend activation email
+                    </button>
+                  )}
+                  {notice && <NoticeBox msg={notice} />}
                   <button type="submit" disabled={loading || !email || !password}
                     className="w-full py-3 rounded-xl font-bold text-sm transition-all"
                     style={{ background: 'var(--brand-orange)', color: '#07070A', opacity: loading || !email || !password ? 0.6 : 1 }}>

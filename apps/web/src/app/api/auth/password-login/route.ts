@@ -81,9 +81,11 @@ export async function POST(req: NextRequest) {
   const otpHash  = hashOtp(otp)
   const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60 * 1000).toISOString()
 
-  const { error: insertErr } = await supabaseAdmin
+  const { data: otpRow, error: insertErr } = await supabaseAdmin
     .from('auth_otps')
     .insert({ channel: 'email', target: email, otp_hash: otpHash, expires_at: expiresAt })
+    .select('id')
+    .single()
 
   if (insertErr) {
     return NextResponse.json({ error: 'Failed to create verification code.' }, { status: 500 })
@@ -92,6 +94,9 @@ export async function POST(req: NextRequest) {
   try {
     await sendOtpEmail(email, otp)
   } catch (error) {
+    if (otpRow?.id) {
+      await supabaseAdmin.from('auth_otps').delete().eq('id', otpRow.id as string)
+    }
     console.error('[auth/password-login] otp email failed', {
       error: error instanceof Error ? error.message : String(error),
     })

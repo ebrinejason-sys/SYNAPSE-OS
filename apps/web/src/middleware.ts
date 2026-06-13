@@ -67,11 +67,57 @@ async function resolvePharmacyCustomDomain(hostname: string) {
   }
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function isSessionStored(token: string, userId: string): Promise<boolean> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseKey) return false;
+
+  try {
+    const tokenHash = await sha256Hex(token);
+    const sessionUrl = new URL(`${supabaseUrl}/rest/v1/synapse_sessions`);
+    sessionUrl.searchParams.set("token_hash", `eq.${tokenHash}`);
+    sessionUrl.searchParams.set("select", "user_id,expires_at,revoked_at");
+    sessionUrl.searchParams.set("limit", "1");
+
+    const response = await fetch(sessionUrl, {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+      },
+      cache: "no-store",
+    });
+
+    if (!response.ok) return false;
+    const [session] = (await response.json()) as {
+      user_id?: string | null;
+      expires_at?: string | null;
+      revoked_at?: string | null;
+    }[];
+
+    if (!session || session.user_id !== userId) return false;
+    if (session.revoked_at) return false;
+    if (!session.expires_at || new Date(session.expires_at) < new Date()) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function hasSynapseSession(request: NextRequest): Promise<{ valid: boolean; tenantId?: string }> {
   const token = request.cookies.get(SESSION_COOKIE)?.value
   if (!token) return { valid: false }
   try {
     const payload = await verifyToken(token)
+    const stored = await isSessionStored(token, payload.sub)
+    if (!stored) return { valid: false }
     return { valid: true, tenantId: payload.tenant_id ?? undefined }
   } catch {
     return { valid: false }

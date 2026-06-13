@@ -54,9 +54,11 @@ export async function POST(req: NextRequest) {
   const otpHash = hashOtp(otp)
   const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60 * 1000).toISOString()
 
-  const { error: insertErr } = await db
+  const { data: otpRow, error: insertErr } = await db
     .from('auth_otps')
     .insert({ channel: 'email', target: email, otp_hash: otpHash, expires_at: expiresAt })
+    .select('id')
+    .single()
 
   if (insertErr) {
     console.error('auth_otps insert error:', insertErr.message)
@@ -66,6 +68,9 @@ export async function POST(req: NextRequest) {
   try {
     await sendOtpEmail(email, otp)
   } catch (err) {
+    if (otpRow?.id) {
+      await db.from('auth_otps').delete().eq('id', otpRow.id as string)
+    }
     console.error('Email OTP send error:', err)
     return NextResponse.json({ error: 'Failed to send email. Please try again.' }, { status: 500 })
   }

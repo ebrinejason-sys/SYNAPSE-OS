@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated } from '@synapse/auth'
 import { createServiceClient } from '../../../../../lib/supabase/server'
 import { generateOtp, hashOtp } from '../../../../../lib/otp'
 
@@ -41,6 +42,31 @@ export async function POST(req: NextRequest) {
 
   const db = createServiceClient() as any
 
+  const { data: profile, error: profileErr } = await db
+    .from('profiles')
+    .select('id, verification_status, email_verified_at, is_deleted')
+    .eq('phone', phone)
+    .maybeSingle()
+
+  if (profileErr) {
+    console.error('[auth/phone/send] profile lookup error:', profileErr.message)
+    return NextResponse.json({ error: 'Could not check account status.' }, { status: 500 })
+  }
+
+  if (!profile) {
+    return NextResponse.json(
+      { error: 'No Synapse OS account is linked to this phone number.' },
+      { status: 404 }
+    )
+  }
+
+  if (!isAccountActivated(profile)) {
+    return NextResponse.json(
+      { error: ACCOUNT_ACTIVATION_ERROR },
+      { status: 403 }
+    )
+  }
+
   const { count } = await db
     .from('auth_otps')
     .select('*', { count: 'exact', head: true })
@@ -59,9 +85,11 @@ export async function POST(req: NextRequest) {
   const otpHash = hashOtp(otp)
   const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60 * 1000).toISOString()
 
-  const { error: insertErr } = await db
+  const { data: otpRow, error: insertErr } = await db
     .from('auth_otps')
     .insert({ channel: 'phone', target: phone, otp_hash: otpHash, expires_at: expiresAt })
+    .select('id')
+    .single()
 
   if (insertErr) {
     console.error('auth_otps insert error:', insertErr.message)
@@ -74,6 +102,9 @@ export async function POST(req: NextRequest) {
       `Your Synapse OS code is ${otp}. Valid for ${OTP_TTL_MIN} minutes. Do not share this code.`
     )
   } catch (err) {
+    if (otpRow?.id) {
+      await db.from('auth_otps').delete().eq('id', otpRow.id as string)
+    }
     console.error('SMS send error:', err)
     return NextResponse.json({ error: 'Failed to send SMS. Check the number and try again.' }, { status: 500 })
   }

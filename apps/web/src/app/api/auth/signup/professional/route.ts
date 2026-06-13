@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { hashPassword, signShortToken, validatePasswordStrength } from '@synapse/auth'
+import { hashPassword, validatePasswordStrength } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { sendActivationEmail } from '../../../../../lib/resend'
+import { activationResponse, trySendActivationEmail } from '../../../../../lib/auth/activation-email'
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
@@ -41,18 +41,25 @@ export async function POST(req: NextRequest) {
       !['deleted', 'disabled', 'suspended'].includes(existingStatus)
 
     if (canResendActivation) {
-      const token = await signShortToken({ sub: existing.id as string, purpose: 'verify' }, '24h')
-      const activationUrl = `${req.nextUrl.origin}/api/auth/activate?token=${encodeURIComponent(token)}`
-      await db
-        .from('profiles')
-        .update({ activation_sent_at: new Date().toISOString() })
-        .eq('id', existing.id as string)
-      await sendActivationEmail(
-        existing.email as string,
-        (existing.full_name as string | null) ?? (existing.first_name as string | null) ?? 'there',
-        activationUrl
+      const emailResult = await trySendActivationEmail({
+        origin: req.nextUrl.origin,
+        userId: existing.id as string,
+        email: existing.email as string,
+        name: (existing.full_name as string | null) ?? (existing.first_name as string | null) ?? 'there',
+        logContext: 'auth/signup/professional',
+      })
+
+      if (emailResult.sent) {
+        await db
+          .from('profiles')
+          .update({ activation_sent_at: new Date().toISOString() })
+          .eq('id', existing.id as string)
+      }
+
+      return NextResponse.json(
+        activationResponse({ userId: existing.id as string, emailSent: emailResult.sent }),
+        { status: emailResult.sent ? 200 : 202 }
       )
-      return NextResponse.json({ ok: true, userId: existing.id, activationRequired: true })
     }
 
     return NextResponse.json({ error: 'An account already exists for this email.' }, { status: 409 })
@@ -79,7 +86,7 @@ export async function POST(req: NextRequest) {
     password_changed_at: now,
     verification_status: 'pending',
     email_verified_at: null,
-    activation_sent_at: now,
+    activation_sent_at: null,
     onboarding_complete: false,
     app_user: true,
   })
@@ -97,20 +104,23 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  const token = await signShortToken({ sub: userId, purpose: 'verify' }, '24h')
-  const activationUrl = `${req.nextUrl.origin}/api/auth/activate?token=${encodeURIComponent(token)}`
+  const emailResult = await trySendActivationEmail({
+    origin: req.nextUrl.origin,
+    userId,
+    email,
+    name: fullName,
+    logContext: 'auth/signup/professional',
+  })
 
-  try {
-    await sendActivationEmail(email, fullName, activationUrl)
-  } catch (emailErr) {
-    console.error('[auth/signup/professional] activation email failed', emailErr)
-    await db.from('verification_documents').delete().eq('profile_id', userId)
-    await db.from('profiles').delete().eq('id', userId)
-    return NextResponse.json(
-      { error: 'Could not send activation email. Please try again.' },
-      { status: 500 }
-    )
+  if (emailResult.sent) {
+    await db
+      .from('profiles')
+      .update({ activation_sent_at: new Date().toISOString() })
+      .eq('id', userId)
   }
 
-  return NextResponse.json({ ok: true, userId, activationRequired: true })
+  return NextResponse.json(
+    activationResponse({ userId, emailSent: emailResult.sent }),
+    { status: emailResult.sent ? 200 : 202 }
+  )
 }
