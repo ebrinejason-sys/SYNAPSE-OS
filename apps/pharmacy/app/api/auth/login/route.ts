@@ -51,11 +51,11 @@ export async function POST(req: NextRequest) {
 
   if (!authenticated) {
     const attempts = (profile.login_attempts as number ?? 0) + 1
-    const updateData: Record<string, unknown> = { login_attempts: attempts }
+    const updateData: { login_attempts: number; locked_until?: string } = { login_attempts: attempts }
     if (attempts >= MAX_ATTEMPTS) {
       const lockedUntil = new Date()
       lockedUntil.setMinutes(lockedUntil.getMinutes() + LOCKOUT_MINUTES)
-      updateData['locked_until'] = lockedUntil.toISOString()
+      updateData.locked_until = lockedUntil.toISOString()
     }
     await supabaseAdmin.from('profiles').update(updateData).eq('id', profile.id as string)
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })

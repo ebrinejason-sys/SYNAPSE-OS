@@ -14,6 +14,9 @@ export type PharmacySession = {
   tenantStatus: string
   modulesEnabled: string[]
   mustChangePassword: boolean
+  // Backwards-compat aliases used by existing route files
+  profile: { tenant_id: string; is_admin: boolean; full_name: string | null; first_name: string | null; last_name: string | null }
+  user: { id: string; email: string }
 }
 
 export async function getPharmacySession(): Promise<PharmacySession | null> {
@@ -33,6 +36,8 @@ export async function getPharmacySession(): Promise<PharmacySession | null> {
       tenantStatus: ctx.tenant.status,
       modulesEnabled: ctx.tenant.modulesEnabled,
       mustChangePassword: ctx.user.mustChangePassword,
+      profile: { tenant_id: ctx.user.tenantId, is_admin: ctx.user.isAdmin, full_name: ctx.user.fullName, first_name: ctx.user.firstName, last_name: ctx.user.lastName },
+      user: { id: ctx.user.id, email: ctx.user.email },
     }
   } catch {
     return null
@@ -55,6 +60,8 @@ export async function requirePharmacySession(): Promise<PharmacySession> {
     tenantStatus: ctx.tenant.status,
     modulesEnabled: ctx.tenant.modulesEnabled,
     mustChangePassword: ctx.user.mustChangePassword,
+    profile: { tenant_id: ctx.user.tenantId, is_admin: ctx.user.isAdmin, full_name: ctx.user.fullName, first_name: ctx.user.firstName, last_name: ctx.user.lastName },
+    user: { id: ctx.user.id, email: ctx.user.email },
   }
 }
 
