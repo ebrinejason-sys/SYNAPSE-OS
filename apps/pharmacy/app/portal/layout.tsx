@@ -13,7 +13,6 @@ import { NotificationBell } from "@/components/ui/notification-bell"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { usePharmacySession } from "@/hooks/use-pharmacy-session"
-import { createClient } from "@/lib/supabase/client"
 
 export const dynamic = "force-dynamic"
 
@@ -66,8 +65,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const filteredNav = navigation.filter(item => hasPermission(item.permission, item.adminOnly))
 
   const handleSignOut = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
     router.push("/login")
     router.refresh()
   }
