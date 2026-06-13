@@ -91,7 +91,10 @@ export async function POST(req: NextRequest) {
 
   try {
     await sendOtpEmail(email, otp)
-  } catch {
+  } catch (error) {
+    console.error('[auth/password-login] otp email failed', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return NextResponse.json({ error: 'Failed to send verification email.' }, { status: 500 })
   }
 

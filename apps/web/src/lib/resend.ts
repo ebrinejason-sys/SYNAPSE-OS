@@ -40,7 +40,18 @@ export const resend = {
   emails: {
     send: async (...args: ResendSendArgs) => {
       const payload = args[0] as ResendSendPayload | undefined
-      const result = (await getResend().emails.send(...args)) as ResendSendResult
+      let result: ResendSendResult
+
+      try {
+        result = (await getResend().emails.send(...args)) as ResendSendResult
+      } catch (error) {
+        console.error('[resend] email send threw', {
+          error: error instanceof Error ? error.message : String(error),
+          fromDomain: domainFromAddress(payload?.from),
+          toDomains: toDomains(payload?.to),
+        })
+        throw error
+      }
 
       if (result.error) {
         const message = formatResendError(result.error)
