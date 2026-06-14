@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Palette, Globe, BookOpen, Building2, ShieldCheck } from 'lucide-react'
+import { Palette, Globe, BookOpen, Building2 } from 'lucide-react'
 
 export default function AdminSettingsPage() {
   return (
@@ -15,7 +15,6 @@ export default function AdminSettingsPage() {
           { href: '/admin/settings/domain', icon: Globe, title: 'Custom Domain', desc: 'Set up your own subdomain', color: '#3B82F6' },
           { href: '/admin/settings/guidelines', icon: BookOpen, title: 'Clinical Guidelines', desc: 'Upload protocols and SOPs', color: '#22C55E' },
           { href: '/admin', icon: Building2, title: 'Hospital Profile', desc: 'Update contact and location info', color: '#F97316' },
-          { href: '/admin/settings/mfa', icon: ShieldCheck, title: 'Authenticator App', desc: 'Set up TOTP for your account', color: '#EC4899' },
         ].map(card => (
           <Link key={card.href} href={card.href}
             className="flex items-start gap-4 rounded-2xl p-5 transition-all hover:border-orange-500/30"

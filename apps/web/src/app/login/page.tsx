@@ -234,8 +234,16 @@ function LoginContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: otpEmail, otp: emailCode }),
     })
-    const data = await res.json()
+    const data = await res.json().catch(() => ({})) as {
+      ok?: boolean
+      mfaRequired?: boolean
+      mfaSetupRequired?: boolean
+      error?: string
+    }
     if (!res.ok) { setError(data.error ?? 'Verification failed.'); setLoading(false); return }
+    setLoading(false)
+    if (data.mfaSetupRequired) { router.push('/platform/mfa'); return }
+    if (data.mfaRequired) { router.push('/platform/mfa-verify'); return }
     router.push(next)
   }
 

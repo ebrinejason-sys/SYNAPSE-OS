@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd ../.. && NODE_OPTIONS=--max-old-space-size=4096 npm run build --workspace @synapse/pharmacy",
+  "installCommand": "cd ../.. && npm install",
+  "outputDirectory": ".next",
+  "framework": "nextjs"
+}
