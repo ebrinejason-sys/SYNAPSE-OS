@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { ShieldCheck, Mail, KeyRound } from "lucide-react";
 import { SynapseLogo } from "../../../components/SynapseLogo";
 
@@ -15,7 +14,6 @@ export default function PlatformLoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resendMsg, setResendMsg] = useState<string | null>(null);
-  const router = useRouter();
 
   async function handleCredentials(e: React.FormEvent) {
     e.preventDefault();
@@ -41,7 +39,7 @@ export default function PlatformLoginPage() {
     }
 
     if (data.mfaRequired) {
-      router.push("/platform/mfa-verify");
+      window.location.href = "/platform/mfa-verify";
       return;
     }
 
@@ -74,16 +72,15 @@ export default function PlatformLoginPage() {
     }
 
     if (data.mfaSetupRequired) {
-      router.push("/platform/mfa");
+      window.location.href = "/platform/mfa";
       return;
     }
     if (data.mfaRequired) {
-      router.push("/platform/mfa-verify");
+      window.location.href = "/platform/mfa-verify";
       return;
     }
 
-    router.push("/platform");
-    router.refresh();
+    window.location.href = "/platform";
   }
 
   async function handleResend() {

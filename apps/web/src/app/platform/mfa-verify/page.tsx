@@ -40,8 +40,12 @@ export default function PlatformMfaVerifyPage() {
 
     if (!res.ok) {
       const d = await res.json().catch(() => ({})) as { error?: string };
-      setError(d.error ?? "Verification failed.");
-      if (res.status === 401) { window.location.href = "/platform/login"; return; }
+      const msg = d.error ?? "Verification failed."
+      // Only hard-redirect for expired/invalid session — not for a wrong code
+      const isSessionError = res.status === 401 &&
+        (msg.toLowerCase().includes('session') || msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('log in again'))
+      if (isSessionError) { window.location.href = "/platform/login"; return; }
+      setError(msg);
       setLoading(false);
       return;
     }
