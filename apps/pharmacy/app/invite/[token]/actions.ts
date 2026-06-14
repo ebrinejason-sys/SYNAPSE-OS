@@ -14,7 +14,15 @@ export async function getInviteDetails(
     .eq('invite_token', token)
     .single()
 
-  if (!onboarding) return { status: 'invalid' }
+  if (!onboarding) {
+    const { error } = await supabaseAdmin
+      .from('pharmacy_onboarding')
+      .select('id')
+      .eq('invite_token', token)
+      .single()
+    console.error('[invite] getInviteDetails: no row for token. Supabase error:', error)
+    return { status: 'invalid' }
+  }
   if (onboarding.current_step >= 1) return { status: 'already_used' }
   if (new Date(onboarding.invite_expires_at) < new Date()) return { status: 'invalid' }
 

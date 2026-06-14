@@ -6,6 +6,7 @@ import { createServiceClient } from "../../../lib/supabase/server";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
 import { formatDateTime, safeCount, safeRows } from "../_lib/platform-data";
 import { PharmacyEditModal } from "./PharmacyEditModal";
+import { DomainCell } from "./DomainCell";
 import { setPharmacyOperationalStatus, deletePharmacy } from "./actions";
 
 type PharmacyRow = {
@@ -180,10 +181,11 @@ export default async function PharmacyNetworkPage() {
                       </td>
                       <td className="px-4 py-3 text-xs text-secondary-color">{pharmacy.district ?? "—"}</td>
                       <td className="px-4 py-3">
-                        <p className="max-w-[180px] truncate font-mono text-xs text-[#E8B84B]">{displayDomain}</p>
-                        <span className={`mt-0.5 inline-block rounded-full border px-1.5 py-px text-[9px] ${pharmacyProfile?.custom_domain_verified ? "border-green-500/25 bg-green-500/10 text-green-300" : "border-subtle text-muted-color"}`}>
-                          {pharmacyProfile?.custom_domain_verified ? "custom ✓" : customDomain ? "DNS pending" : "default"}
-                        </span>
+                        <DomainCell
+                          displayDomain={displayDomain}
+                          isVerified={Boolean(pharmacyProfile?.custom_domain_verified)}
+                          hasCustom={Boolean(customDomain)}
+                        />
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-xs text-secondary-color">{rows.length}</td>
                       <td className="px-4 py-3 text-xs text-muted-color">{formatDateTime(latestSync)}</td>
