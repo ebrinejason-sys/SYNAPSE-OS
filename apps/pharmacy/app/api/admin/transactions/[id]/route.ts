@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 /**
@@ -33,10 +32,10 @@ export async function DELETE(
     }
 
     // Fetch the transaction with all its items
-    const supabase = await createClient()
-    const { data: transaction, error: fetchError } = await supabase
+    const { data: transaction, error: fetchError } = await (supabaseAdmin as any)
       .from("pharmacy_transactions")
       .select("*, items:pharmacy_transaction_items(*)")
+      .eq("tenant_id", tenantId)
       .eq("id", id)
       .single()
 

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin, hasPermission } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { generateTransactionNo } from "@/lib/utils"
 
@@ -23,9 +22,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Order ID is required" }, { status: 400 })
     }
 
-    const supabase = await createClient()
-
-    const { data: order, error: orderError } = await supabase
+    const { data: order, error: orderError } = await (supabaseAdmin as any)
       .from("pharmacy_orders")
       .select(
         `
@@ -33,8 +30,8 @@ export async function POST(request: NextRequest) {
         items:pharmacy_order_items(id, product_id, product_name, quantity, unit_price, total_price)
       `
       )
-      .eq("id", orderId)
       .eq("tenant_id", tenantId)
+      .eq("id", orderId)
       .single()
 
     if (orderError || !order) {
@@ -64,11 +61,11 @@ export async function POST(request: NextRequest) {
     // Validate stock before processing
     for (const item of orderItems) {
       if (item.product_id) {
-        const { data: product } = await supabase
+        const { data: product } = await (supabaseAdmin as any)
           .from("pharmacy_products")
           .select("quantity, name")
-          .eq("id", item.product_id)
           .eq("tenant_id", tenantId)
+          .eq("id", item.product_id)
           .single()
 
         if (!product) {
@@ -132,11 +129,11 @@ export async function POST(request: NextRequest) {
     for (const item of orderItems) {
       if (!item.product_id) continue
 
-      const { data: product } = await supabase
+      const { data: product } = await (supabaseAdmin as any)
         .from("pharmacy_products")
         .select("quantity")
-        .eq("id", item.product_id)
         .eq("tenant_id", tenantId)
+        .eq("id", item.product_id)
         .single()
 
       const previousQty = product?.quantity ?? 0

@@ -1,56 +1,206 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { verifyToken } from '@synapse/auth/tokens'
+import {
+  PHARM_MFA_SATISFIED_COOKIE,
+  verifyPharmMfaSatisfiedToken,
+} from '@synapse/auth/mfa'
 import { SESSION_COOKIE } from '@synapse/config/constants'
 
-async function hasSynapseSession(request: NextRequest): Promise<boolean> {
-  const token = request.cookies.get(SESSION_COOKIE)?.value
-  if (!token) return false
+type PharmacyProfile = {
+  id: string
+  is_admin: boolean | null
+  tenant_id: string | null
+}
+
+type PharmacyUserSettings = {
+  pharmacy_role: string | null
+  two_factor_enabled: boolean | null
+}
+
+type TenantRow = {
+  is_active: boolean | null
+  facility_type: string | null
+}
+
+type OnboardingRow = {
+  current_step: number | null
+}
+
+function serviceRoleHeaders(): Record<string, string> | null {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !supabaseKey) return null
+  return {
+    apikey: supabaseKey,
+    Authorization: `Bearer ${supabaseKey}`,
+  }
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+async function isSessionStored(token: string, userId: string): Promise<boolean> {
+  const headers = serviceRoleHeaders()
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!headers || !supabaseUrl) return false
+
   try {
-    await verifyToken(token)
+    const tokenHash = await sha256Hex(token)
+    const sessionUrl = new URL(`${supabaseUrl}/rest/v1/synapse_sessions`)
+    sessionUrl.searchParams.set('token_hash', `eq.${tokenHash}`)
+    sessionUrl.searchParams.set('select', 'user_id,expires_at,revoked_at')
+    sessionUrl.searchParams.set('limit', '1')
+
+    const response = await fetch(sessionUrl, { headers, cache: 'no-store' })
+    if (!response.ok) return false
+
+    const [session] = (await response.json()) as {
+      user_id?: string | null
+      expires_at?: string | null
+      revoked_at?: string | null
+    }[]
+
+    if (!session || session.user_id !== userId) return false
+    if (session.revoked_at) return false
+    if (!session.expires_at || new Date(session.expires_at) < new Date()) return false
     return true
   } catch {
     return false
   }
 }
 
-export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
+async function getSynapseUserId(request: NextRequest): Promise<string | null> {
+  const token = request.cookies.get(SESSION_COOKIE)?.value
+  if (!token) return null
+  try {
+    const payload = await verifyToken(token)
+    const stored = await isSessionStored(token, payload.sub)
+    return stored ? payload.sub : null
+  } catch {
+    return null
+  }
+}
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
+async function restGet<T>(table: string, filters: Record<string, string>, select: string): Promise<T | null> {
+  const headers = serviceRoleHeaders()
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!headers || !supabaseUrl) return null
+
+  const url = new URL(`${supabaseUrl}/rest/v1/${table}`)
+  for (const [key, value] of Object.entries(filters)) {
+    url.searchParams.set(key, value)
+  }
+  url.searchParams.set('select', select)
+  url.searchParams.set('limit', '1')
+
+  try {
+    const response = await fetch(url, { headers, cache: 'no-store' })
+    if (!response.ok) return null
+    const [row] = (await response.json()) as T[]
+    return row ?? null
+  } catch {
+    return null
+  }
+}
+
+function roleRequiresMfa(settings: PharmacyUserSettings | null): boolean {
+  return (
+    settings?.pharmacy_role === 'pharmacy_ceo' ||
+    settings?.pharmacy_role === 'pharmacy_admin' ||
+    settings?.two_factor_enabled === true
+  )
+}
+
+async function pharmMfaSatisfied(request: NextRequest, userId: string): Promise<boolean> {
+  const token = request.cookies.get(PHARM_MFA_SATISFIED_COOKIE)?.value
+  if (!token) return false
+  return verifyPharmMfaSatisfiedToken(token, userId)
+}
+
+async function runPharmacyAccessChecks(params: {
+  request: NextRequest
+  profile: PharmacyProfile
+  pathname: string
+  isPublicPath: boolean
+  isMfaPage: boolean
+}): Promise<NextResponse | null> {
+  const { request, profile, pathname, isPublicPath, isMfaPage } = params
+
+  if (!profile.tenant_id && !profile.is_admin) {
+    return NextResponse.redirect(new URL('/login?error=no_pharmacy_access', request.url))
+  }
+
+  if (!profile.is_admin && profile.tenant_id) {
+    const tenant = await restGet<TenantRow>(
+      'tenants',
+      { id: `eq.${profile.tenant_id}` },
+      'is_active,facility_type'
+    )
+
+    if (!tenant || tenant.is_active === false || tenant.facility_type !== 'pharmacy') {
+      return NextResponse.redirect(new URL('/login?error=account_inactive', request.url))
     }
+  }
+
+  const userSettings = await restGet<PharmacyUserSettings>(
+    'pharmacy_user_settings',
+    { profile_id: `eq.${profile.id}` },
+    'pharmacy_role,two_factor_enabled'
   )
 
-  const synapseValid = await hasSynapseSession(request)
-  const { data: { user } } = synapseValid
-    ? { data: { user: null } }
-    : await supabase.auth.getUser()
+  const requiresMfa = roleRequiresMfa(userSettings)
 
-  const isAuthenticated = synapseValid || user !== null
+  if (isMfaPage) {
+    if (!requiresMfa) {
+      return NextResponse.redirect(new URL('/portal/dashboard', request.url))
+    }
+    return null
+  }
+
+  if (!isPublicPath && requiresMfa) {
+    const satisfied = await pharmMfaSatisfied(request, profile.id)
+    if (!satisfied) {
+      const url = new URL('/auth/2fa', request.url)
+      url.searchParams.set('next', pathname)
+      return NextResponse.redirect(url)
+    }
+  }
+
+  if (!isPublicPath && profile.tenant_id) {
+    const onboarding = await restGet<OnboardingRow>(
+      'pharmacy_onboarding',
+      { tenant_id: `eq.${profile.tenant_id}` },
+      'current_step'
+    )
+
+    if (onboarding && (onboarding.current_step ?? 0) < 5) {
+      return NextResponse.redirect(new URL('/onboarding', request.url))
+    }
+  }
+
+  return null
+}
+
+export async function middleware(request: NextRequest) {
+  const synapseUserId = await getSynapseUserId(request)
+  const synapseValid = synapseUserId !== null
+  const isAuthenticated = synapseValid
 
   const { pathname } = request.nextUrl
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/auth')
-  const isPublicApi = pathname.startsWith('/api/public') || pathname === '/api/auth/cloud-verify'
+  const isPublicApi =
+    pathname.startsWith('/api/public') ||
+    pathname === '/api/auth/cloud-verify' ||
+    pathname.startsWith('/api/auth/mfa')
   const isMfaPage = pathname === '/auth/2fa'
   const isOnboardingPage = pathname.startsWith('/onboarding')
   const isInvitePage = pathname.startsWith('/invite')
 
-  // Public paths: auth pages, public API, invite links, onboarding
   const isPublicPath = isAuthPage || isPublicApi || isInvitePage || isOnboardingPage
 
   if (!isAuthenticated && !isPublicPath) {
@@ -61,85 +211,26 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/portal/dashboard', request.url))
   }
 
-  if (user && !isPublicPath) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin, tenant_id')
-      .eq('id', user.id)
-      .single()
+  if (synapseValid && synapseUserId) {
+    const profile = await restGet<PharmacyProfile>(
+      'profiles',
+      { id: `eq.${synapseUserId}` },
+      'id,is_admin,tenant_id'
+    )
 
-    if (!profile?.tenant_id && !profile?.is_admin) {
-      await supabase.auth.signOut()
-      return NextResponse.redirect(new URL('/login?error=no_pharmacy_access', request.url))
-    }
-
-    // Tenant validation: verify the tenant is active and is a pharmacy
-    // Skip for platform admins (is_admin = true)
-    if (!profile.is_admin && profile.tenant_id) {
-      const { data: tenant } = await supabase
-        .from('tenants')
-        .select('is_active, facility_type')
-        .eq('id', profile.tenant_id)
-        .maybeSingle()
-
-      if (!tenant || !tenant.is_active || tenant.facility_type !== 'pharmacy') {
-        await supabase.auth.signOut()
-        return NextResponse.redirect(new URL('/login?error=account_inactive', request.url))
-      }
-    }
-
-    const { data: userSettings } = await supabase
-      .from('pharmacy_user_settings')
-      .select('pharmacy_role, two_factor_enabled')
-      .eq('profile_id', user.id)
-      .maybeSingle()
-
-    const roleRequiresMfa =
-      userSettings?.pharmacy_role === 'pharmacy_ceo' ||
-      userSettings?.pharmacy_role === 'pharmacy_admin' ||
-      userSettings?.two_factor_enabled === true
-
-    if (roleRequiresMfa) {
-      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-      if (aal?.currentLevel !== 'aal2') {
-        const url = new URL('/auth/2fa', request.url)
-        url.searchParams.set('next', pathname)
-        return NextResponse.redirect(url)
-      }
-    }
-
-    // Onboarding redirect: if not yet on onboarding/invite, check if setup is incomplete
-    if (profile.tenant_id) {
-      const { data: onboarding } = await supabase
-        .from('pharmacy_onboarding')
-        .select('current_step')
-        .eq('tenant_id', profile.tenant_id)
-        .maybeSingle()
-
-      if (onboarding && onboarding.current_step < 5) {
-        return NextResponse.redirect(new URL('/onboarding', request.url))
-      }
+    if (profile) {
+      const redirect = await runPharmacyAccessChecks({
+        request,
+        profile,
+        pathname,
+        isPublicPath,
+        isMfaPage,
+      })
+      if (redirect) return redirect
     }
   }
 
-  if (user && isMfaPage) {
-    const { data: userSettings } = await supabase
-      .from('pharmacy_user_settings')
-      .select('pharmacy_role, two_factor_enabled')
-      .eq('profile_id', user.id)
-      .maybeSingle()
-
-    const roleRequiresMfa =
-      userSettings?.pharmacy_role === 'pharmacy_ceo' ||
-      userSettings?.pharmacy_role === 'pharmacy_admin' ||
-      userSettings?.two_factor_enabled === true
-
-    if (!roleRequiresMfa) {
-      return NextResponse.redirect(new URL('/portal/dashboard', request.url))
-    }
-  }
-
-  return supabaseResponse
+  return NextResponse.next()
 }
 
 export const config = {

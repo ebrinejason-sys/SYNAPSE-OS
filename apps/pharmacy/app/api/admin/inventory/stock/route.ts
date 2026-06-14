@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function POST(request: NextRequest) {
@@ -9,8 +8,6 @@ export async function POST(request: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
     const tenantId = session.profile.tenant_id
-
-    const supabase = await createClient()
 
     const { productId, quantity, type, reason, batchNumber, expiryDate } =
       (await request.json()) as {
@@ -29,10 +26,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Fetch product (RLS-scoped to tenant)
-    const { data: product } = await supabase
+    // Fetch product (scoped to tenant)
+    const { data: product } = await (supabaseAdmin as any)
       .from("pharmacy_products")
       .select("id, name, quantity, batch_number, expiry_date")
+      .eq("tenant_id", tenantId)
       .eq("id", productId)
       .maybeSingle()
 

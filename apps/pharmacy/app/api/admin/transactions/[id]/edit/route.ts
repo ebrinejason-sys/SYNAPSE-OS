@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 interface EditItemRequest {
@@ -44,9 +43,8 @@ export async function PUT(
       )
     }
 
-    // Get existing transaction with items (RLS scoped read)
-    const supabase = await createClient()
-    const { data: existingTransaction, error: fetchError } = await supabase
+    // Get existing transaction with items (scoped to tenant)
+    const { data: existingTransaction, error: fetchError } = await (supabaseAdmin as any)
       .from("pharmacy_transactions")
       .select(`
         *,
@@ -56,6 +54,7 @@ export async function PUT(
           product:pharmacy_products ( id, name, sku, cost_price )
         )
       `)
+      .eq("tenant_id", tenantId)
       .eq("id", id)
       .single()
 
@@ -255,8 +254,7 @@ export async function GET(
 
     const { id } = await params
 
-    const supabase = await createClient()
-    const { data: edits, error } = await supabase
+    const { data: edits, error } = await (supabaseAdmin as any)
       .from("pharmacy_transaction_edits")
       .select("*")
       .eq("transaction_id", id)

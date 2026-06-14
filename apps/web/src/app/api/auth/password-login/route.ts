@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyPassword } from '@synapse/auth'
+import { cookies } from 'next/headers'
+import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyPassword, createAndSendOTP } from '@synapse/auth'
+import { signMfaPendingToken, mfaCookieOptions, MFA_PENDING_COOKIE } from '@synapse/auth/mfa'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { generateOtp, hashOtp } from '../../../../lib/otp'
 import { sendOtpEmail } from '../../../../lib/resend'
 
-const MAX_ATTEMPTS = 10
+const MAX_ATTEMPTS    = 10
 const LOCKOUT_MINUTES = 30
-const OTP_RATE_LIMIT = 3
-const OTP_TTL_MIN = 10
 
 export async function POST(req: NextRequest) {
   const body     = await req.json().catch(() => ({}))
@@ -31,10 +30,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (profile.locked_until && new Date(profile.locked_until as string) > new Date()) {
-    return NextResponse.json(
-      { error: 'Account temporarily locked. Try again later.' },
-      { status: 429 }
-    )
+    return NextResponse.json({ error: 'Account temporarily locked. Try again later.' }, { status: 429 })
   }
 
   const authenticated = profile.password_hash
@@ -62,43 +58,50 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
   }
 
-  // Password verified — gate with email OTP as second factor
-  const { count } = await supabaseAdmin
-    .from('auth_otps')
-    .select('*', { count: 'exact', head: true })
-    .eq('target', email)
-    .eq('channel', 'email')
-    .gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString())
+  // platform_admin: if MFA is already enrolled, skip OTP and go straight to TOTP
+  if (profile.role === 'platform_admin') {
+    const { data: enrollment } = await db
+      .from('mfa_enrollments')
+      .select('id')
+      .eq('user_id', profile.id)
+      .eq('verified', true)
+      .maybeSingle()
 
-  if ((count ?? 0) >= OTP_RATE_LIMIT) {
-    return NextResponse.json(
-      { error: 'Too many verification requests. Please wait before trying again.' },
-      { status: 429 }
-    )
+    if (enrollment) {
+      const preAuthToken = await signMfaPendingToken({
+        sub: profile.id as string,
+        email: profile.email as string,
+      })
+
+      const cookieStore = await cookies()
+      cookieStore.set(MFA_PENDING_COOKIE, preAuthToken, mfaCookieOptions)
+
+      return NextResponse.json({ mfaRequired: true })
+    }
+    // No MFA enrolled yet — fall through to OTP for initial setup
   }
 
-  const otp      = generateOtp()
-  const otpHash  = hashOtp(otp)
-  const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60 * 1000).toISOString()
-
-  const { data: otpRow, error: insertErr } = await supabaseAdmin
-    .from('auth_otps')
-    .insert({ channel: 'email', target: email, otp_hash: otpHash, expires_at: expiresAt })
-    .select('id')
-    .single()
-
-  if (insertErr) {
+  let otp: string
+  try {
+    otp = await createAndSendOTP({ channel: 'email', target: email })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : ''
+    if (msg === 'TOO_MANY_REQUESTS') {
+      return NextResponse.json(
+        { error: 'Too many verification requests. Please wait before trying again.' },
+        { status: 429 }
+      )
+    }
     return NextResponse.json({ error: 'Failed to create verification code.' }, { status: 500 })
   }
 
   try {
     await sendOtpEmail(email, otp)
   } catch (error) {
-    console.error('[auth/password-login] otp email failed (non-fatal, otp preserved)', {
+    console.error('[auth/password-login] otp email failed', {
       error: error instanceof Error ? error.message : String(error),
     })
-    // Email failure is non-fatal — the OTP row stays in DB so the user can still
-    // enter the code manually (e.g. from an admin-provided fallback).
+    return NextResponse.json({ error: 'Failed to send verification email. Please try again.' }, { status: 500 })
   }
 
   return NextResponse.json({ otpSent: true })

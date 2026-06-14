@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(
@@ -14,11 +13,11 @@ export async function GET(
     }
 
     const { id } = await params
-    const supabase = await createClient()
 
-    const { data: client, error } = await supabase
+    const { data: client, error } = await (supabaseAdmin as any)
       .from("pharmacy_clients")
       .select("*")
+      .eq("tenant_id", session.profile.tenant_id!)
       .eq("id", id)
       .single()
 

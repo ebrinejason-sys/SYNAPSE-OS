@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail } from "@/lib/email"
 
@@ -13,11 +12,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const supabase = await createClient()
-
-    const { data: inquiries, error } = await supabase
+    const { data: inquiries, error } = await (supabaseAdmin as any)
       .from("pharmacy_inquiries")
       .select("*")
+      .eq("tenant_id", session.profile.tenant_id!)
       .order("created_at", { ascending: false })
 
     if (error) throw error

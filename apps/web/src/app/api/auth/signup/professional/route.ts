@@ -4,6 +4,16 @@ import { hashPassword, validatePasswordStrength } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { activationResponse, trySendActivationEmail } from '../../../../../lib/auth/activation-email'
 
+function roleForSpecialty(specialty: string): 'doctor' | 'nurse' | 'pharmacist' | 'lab_scientist' | 'radiologist' | 'clinical_officer' {
+  const normalized = specialty.trim().toLowerCase()
+  if (normalized === 'nursing') return 'nurse'
+  if (normalized === 'pharmacy') return 'pharmacist'
+  if (normalized === 'laboratory') return 'lab_scientist'
+  if (normalized === 'radiology') return 'radiologist'
+  if (normalized === 'other') return 'clinical_officer'
+  return 'doctor'
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const firstName = typeof body.first_name === 'string' ? body.first_name.trim() : ''
@@ -78,7 +88,7 @@ export async function POST(req: NextRequest) {
     email,
     phone: phone || null,
     gender: gender || null,
-    role: 'clinician',
+    role: roleForSpecialty(specialty),
     specialty_confirmed: specialty,
     license_number: licenseNumber,
     years_experience: yearsExperience,

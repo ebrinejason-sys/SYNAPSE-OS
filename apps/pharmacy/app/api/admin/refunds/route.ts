@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin, hasPermission } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 // GET - List refunds
@@ -19,9 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
     }
 
-    // RLS automatically scopes to the tenant
-    const supabase = await createClient()
-    const { data: refunds, error } = await supabase
+    const { data: refunds, error } = await (supabaseAdmin as any)
       .from("pharmacy_transactions")
       .select(`
         *,
@@ -31,6 +28,7 @@ export async function GET(request: NextRequest) {
           product:pharmacy_products ( name, sku )
         )
       `)
+      .eq("tenant_id", session.profile.tenant_id!)
       .eq("status", "REFUNDED")
       .order("updated_at", { ascending: false })
 
@@ -76,9 +74,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get the original transaction (RLS scoped)
-    const supabase = await createClient()
-    const { data: transaction, error: fetchError } = await supabase
+    // Get the original transaction (scoped to tenant)
+    const { data: transaction, error: fetchError } = await (supabaseAdmin as any)
       .from("pharmacy_transactions")
       .select(`
         *,
@@ -87,6 +84,7 @@ export async function POST(request: NextRequest) {
           product:pharmacy_products ( id, name, quantity )
         )
       `)
+      .eq("tenant_id", tenantId)
       .eq("id", transactionId)
       .single()
 

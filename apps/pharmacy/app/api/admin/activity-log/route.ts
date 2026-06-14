@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
+import { supabaseAdmin } from "@/lib/supabase/admin"
 
 // GET - List all activity logs (admin only)
 export async function GET(request: NextRequest) {
@@ -11,11 +11,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const supabase = await createClient()
-
-    const { data: logs, error } = await supabase
+    const { data: logs, error } = await (supabaseAdmin as any)
       .from("pharmacy_audit_logs")
       .select("*, profiles(full_name, first_name, last_name)")
+      .eq("tenant_id", session.profile.tenant_id)
       .order("created_at", { ascending: false })
       .limit(1000)
 

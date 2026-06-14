@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
@@ -14,11 +13,10 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search")
     const limit = parseInt(searchParams.get("limit") || "10")
 
-    const supabase = await createClient()
-
-    let query = supabase
+    let query = (supabaseAdmin as any)
       .from("pharmacy_clients")
       .select("id, name, phone, address, notes, last_visit")
+      .eq("tenant_id", session.profile.tenant_id!)
       .eq("is_active", true)
       .order("last_visit", { ascending: false })
       .limit(limit)

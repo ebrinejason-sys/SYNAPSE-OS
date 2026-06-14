@@ -6,15 +6,29 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    await fetch('/api/auth/password-reset/request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    }).catch(() => null)
+    setError(null)
+    try {
+      const res = await fetch('/api/auth/password-reset/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string }
+        setError(d.error ?? 'Something went wrong. Please try again.')
+        setLoading(false)
+        return
+      }
+    } catch {
+      setError('Network error. Please check your connection.')
+      setLoading(false)
+      return
+    }
     setSent(true)
     setLoading(false)
   }
@@ -41,6 +55,7 @@ export default function ForgotPasswordPage() {
                    placeholder="Email address"
                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)', color: 'var(--text-primary)' }} />
+            {error && <p className="text-sm text-red-400">{error}</p>}
             <button type="submit" disabled={loading} className="btn-primary w-full disabled:opacity-50">
               {loading ? 'Sending...' : 'Send reset link'}
             </button>

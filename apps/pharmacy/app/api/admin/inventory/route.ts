@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
@@ -9,15 +8,14 @@ export async function GET(request: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
 
-    const supabase = await createClient()
-
-    const { data: products, error } = await supabase
+    const { data: products, error } = await (supabaseAdmin as any)
       .from("pharmacy_products")
       .select(`
         *,
         pharmacy_product_packages(*),
         pharmacy_product_batches(*)
       `)
+      .eq("tenant_id", session.profile.tenant_id!)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
 
@@ -51,13 +49,13 @@ export async function POST(request: NextRequest) {
     if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
     const tenantId = session.profile.tenant_id
 
-    const supabase = await createClient()
     const data: Record<string, unknown> = await request.json()
 
-    // Check if SKU already exists (RLS-scoped to tenant)
-    const { data: existingProduct } = await supabase
+    // Check if SKU already exists (scoped to tenant)
+    const { data: existingProduct } = await (supabaseAdmin as any)
       .from("pharmacy_products")
       .select("id")
+      .eq("tenant_id", tenantId)
       .eq("sku", data.sku as string)
       .maybeSingle()
 
@@ -171,17 +169,17 @@ export async function PATCH(request: NextRequest) {
     if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
     const tenantId = session.profile.tenant_id
 
-    const supabase = await createClient()
     const data: Record<string, unknown> = await request.json()
 
     if (!data.id) {
       return NextResponse.json({ error: "Product ID is required" }, { status: 400 })
     }
 
-    // Verify product exists (RLS-scoped)
-    const { data: existingProduct } = await supabase
+    // Verify product exists (scoped to tenant)
+    const { data: existingProduct } = await (supabaseAdmin as any)
       .from("pharmacy_products")
       .select("id")
+      .eq("tenant_id", tenantId)
       .eq("id", data.id as string)
       .maybeSingle()
 

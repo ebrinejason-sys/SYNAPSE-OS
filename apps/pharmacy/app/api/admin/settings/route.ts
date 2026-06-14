@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
@@ -11,9 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const supabase = await createClient()
-
-    const { data: settings, error } = await supabase
+    const { data: settings, error } = await (supabaseAdmin as any)
       .from("pharmacy_settings")
       .select("*")
       .eq("tenant_id", session.profile.tenant_id!)

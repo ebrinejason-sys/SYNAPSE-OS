@@ -10,7 +10,6 @@ import {
   ClipboardList,
   CreditCard,
   DatabaseZap,
-  Eye,
   Flag,
   HeartPulse,
   LifeBuoy,
@@ -35,16 +34,6 @@ type CommandResult = {
   type: string;
 };
 
-type ImpersonationSession = {
-  userId: string;
-  name: string;
-  email: string;
-  role: string;
-  tenantId: string | null;
-  startedAt: string;
-  startedBy: string;
-};
-
 const SIDEBAR_ITEMS = [
   { href: "/platform", label: "Overview", icon: Activity, exact: true },
   { href: "/platform/hospitals", label: "Facilities", icon: Building2 },
@@ -58,7 +47,6 @@ const SIDEBAR_ITEMS = [
   { href: "/platform/flags", label: "Feature Flags", icon: Flag },
   { href: "/platform/support", label: "Support Tickets", icon: LifeBuoy },
   { href: "/platform/dhis2", label: "DHIS2 Exports", icon: DatabaseZap },
-  { href: "/platform/impersonation", label: "Impersonation", icon: Eye },
   { href: "/platform/audit-log", label: "Audit Log", icon: ClipboardList },
   { href: "/platform/account", label: "Account", icon: UserRound },
   { href: "/platform/settings", label: "Settings", icon: Settings },
@@ -78,8 +66,6 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [remoteResults, setRemoteResults] = useState<CommandResult[]>([]);
-  const [impersonation, setImpersonation] = useState<ImpersonationSession | null>(null);
-
   useEffect(() => {
     function onKeydown(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -118,24 +104,6 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
     };
   }, [paletteOpen, query]);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadImpersonation() {
-      try {
-        const res = await fetch("/api/platform/impersonation/session", { cache: "no-store" });
-        if (!res.ok) return;
-        const data = (await res.json()) as { session?: ImpersonationSession | null };
-        if (!cancelled) setImpersonation(data.session ?? null);
-      } catch {
-        if (!cancelled) setImpersonation(null);
-      }
-    }
-    loadImpersonation();
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname]);
-
   const commandResults = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const local = normalized
@@ -155,13 +123,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
     router.refresh();
   }
 
-  async function endImpersonation() {
-    await fetch("/api/platform/impersonation/session", { method: "DELETE" });
-    setImpersonation(null);
-    router.refresh();
-  }
-
-  if (pathname === "/platform/login" || pathname === "/platform/mfa") {
+  if (pathname === "/platform/login" || pathname === "/platform/mfa" || pathname === "/platform/mfa-verify") {
     return <>{children}</>;
   }
 
@@ -271,19 +233,6 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
               </button>
             </div>
           </header>
-
-          {impersonation ? (
-            <div className="border-b border-[#F97316]/30 bg-[#F97316] px-4 py-2 text-sm font-semibold text-[#07070A] lg:px-6">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span>
-                  You are impersonating {impersonation.name} ({impersonation.role}) for support visibility.
-                </span>
-                <button type="button" onClick={endImpersonation} className="rounded-lg bg-[#07070A] px-3 py-1 text-xs font-bold text-white">
-                  End session
-                </button>
-              </div>
-            </div>
-          ) : null}
 
           <main className="flex-1 bg-[#07070A] p-4 lg:p-6">{children}</main>
         </section>

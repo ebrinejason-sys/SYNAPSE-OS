@@ -80,7 +80,7 @@ export const DEFAULT_UNSUBSCRIBE_URL =
 export const LOGO_URL = process.env.NEXT_PUBLIC_EMAIL_LOGO_URL ?? 'https://synapseos.tech/synapse-logo.png'
 
 /* Branded HTML wrapper.
- * Pass unsubscribeUrl for marketing emails (newsletter) — required by CAN-SPAM.
+ * Pass unsubscribeUrl for marketing emails (newsletter) - required by CAN-SPAM.
  * Omit for transactional emails (OTP, welcome, confirmation). */
 export function brandedEmail({
   subject,
@@ -148,7 +148,7 @@ export async function sendOtpEmail(email: string, otp: string): Promise<void> {
   await resend.emails.send({
     from: `${FROM_NAME} <${FROM_EMAIL}>`,
     to: [email],
-    subject: `${otp} — Your Synapse OS verification code`,
+    subject: `${otp} - Your Synapse OS verification code`,
     html: brandedEmail({
       subject: `Your Synapse OS verification code`,
       body: `
@@ -182,12 +182,12 @@ export async function sendWelcomeEmail(email: string, name: string): Promise<voi
           Welcome, ${firstName}. Your account is ready.
         </h2>
         <p style="font-size:15px;line-height:1.7;color:#A0A0B0;margin:0 0 20px;">
-          You've successfully joined Synapse OS — Africa's sovereign AI-powered health platform.
+          You have successfully joined Synapse OS - Africa's sovereign AI-powered health platform.
           Your hospital's clinical workflows, records, and analytics are now at your fingertips.
         </p>
         <a href="https://synapseos.tech/health/dashboard"
           style="display:inline-block;background:#F97316;color:#07070A;font-weight:700;font-size:13px;padding:12px 24px;border-radius:8px;text-decoration:none;">
-          Open Dashboard →
+          Open Dashboard
         </a>
       `,
     }),
@@ -268,7 +268,7 @@ export async function sendPharmacyInviteEmail({
   await resend.emails.send({
     from: `Synapse Health <${FROM_EMAIL}>`,
     to: [to],
-    subject: `You've been enrolled on Synapse Pharmacy — ${pharmacyName}`,
+    subject: `You have been enrolled on Synapse Pharmacy - ${pharmacyName}`,
     html: brandedEmail({
       subject: `You've been enrolled on Synapse Pharmacy`,
       body: `
@@ -284,7 +284,7 @@ export async function sendPharmacyInviteEmail({
         </p>
         <a href="${inviteUrl}"
           style="display:inline-block;background:#F97316;color:#fff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;">
-          Set Up Your Account →
+          Set Up Your Account
         </a>
         <p style="font-size:12px;color:#60607A;margin:20px 0 0;">
           This link expires in 7 days. If you didn't expect this email, you can safely ignore it.

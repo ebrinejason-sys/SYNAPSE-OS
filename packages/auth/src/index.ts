@@ -22,4 +22,15 @@ export { requireCapability, checkCapability, CapabilityError } from './capabilit
 
 export { generateTotpSecret, totpUri, verifyTotp } from './totp'
 
+export {
+  MFA_PENDING_COOKIE,
+  PHARM_MFA_SATISFIED_COOKIE,
+  signMfaPendingToken,
+  verifyMfaPendingToken,
+  signPharmMfaSatisfiedToken,
+  verifyPharmMfaSatisfiedToken,
+  mfaCookieOptions,
+  pharmMfaCookieOptions,
+} from './mfa'
+
 export { requireFeature, checkFeature, FeatureGateError } from './features'

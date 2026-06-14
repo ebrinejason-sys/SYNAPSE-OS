@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin, hasPermission } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { generateOrderNo, generateTransactionNo } from "@/lib/utils"
 
@@ -12,9 +11,7 @@ export async function GET(request: NextRequest) {
     const tenantId = session.profile.tenant_id
     if (!tenantId) return NextResponse.json({ error: "Tenant not found" }, { status: 400 })
 
-    const supabase = await createClient()
-
-    const { data: orders, error } = await supabase
+    const { data: orders, error } = await (supabaseAdmin as any)
       .from("pharmacy_orders")
       .select(
         `
@@ -42,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     const profileNameMap = new Map<string, string>()
     if (profileIds.size > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles } = await supabaseAdmin
         .from("profiles")
         .select("id, full_name, first_name, last_name")
         .in("id", Array.from(profileIds))
@@ -102,8 +99,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Items are required" }, { status: 400 })
     }
 
-    const supabase = await createClient()
-
     let finalCustomerId: string | null = customerId ?? null
 
     // If customer order with no existing customer, create one
@@ -149,11 +144,11 @@ export async function POST(request: NextRequest) {
       totalAmount += totalPrice
 
       if (orderType === "CUSTOMER" && item.productId) {
-        const { data: product } = await supabase
+        const { data: product } = await (supabaseAdmin as any)
           .from("pharmacy_products")
           .select("quantity, name")
-          .eq("id", item.productId)
           .eq("tenant_id", tenantId)
+          .eq("id", item.productId)
           .single()
 
         if (product && product.quantity < item.quantity) {
@@ -260,13 +255,11 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 })
     }
 
-    const supabase = await createClient()
-
-    const { data: order, error: orderFetchError } = await supabase
+    const { data: order, error: orderFetchError } = await (supabaseAdmin as any)
       .from("pharmacy_orders")
       .select("id, order_no, order_type, total_amount, customer_id, status, items:pharmacy_order_items(*)")
-      .eq("id", id)
       .eq("tenant_id", tenantId)
+      .eq("id", id)
       .single()
 
     if (orderFetchError || !order) {
@@ -341,11 +334,11 @@ export async function PATCH(request: NextRequest) {
           for (const item of itemsWithProducts) {
             if (!item.product_id) continue
 
-            const { data: product } = await supabase
+            const { data: product } = await (supabaseAdmin as any)
               .from("pharmacy_products")
               .select("quantity")
-              .eq("id", item.product_id)
               .eq("tenant_id", tenantId)
+              .eq("id", item.product_id)
               .single()
 
             const previousQty = product?.quantity ?? 0
@@ -425,12 +418,11 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Order ID is required" }, { status: 400 })
     }
 
-    const supabase = await createClient()
-    const { data: order, error: orderFetchError } = await supabase
+    const { data: order, error: orderFetchError } = await (supabaseAdmin as any)
       .from("pharmacy_orders")
       .select("id, order_no, status")
-      .eq("id", id)
       .eq("tenant_id", tenantId)
+      .eq("id", id)
       .single()
 
     if (orderFetchError || !order) {

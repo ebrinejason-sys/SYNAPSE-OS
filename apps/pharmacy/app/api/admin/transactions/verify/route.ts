@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 /**
@@ -32,8 +31,6 @@ export async function GET(request: NextRequest) {
     if (!tenantId) {
       return NextResponse.json({ error: "No tenant" }, { status: 403 })
     }
-
-    const supabase = await createClient()
 
     const report: {
       timestamp: string
@@ -77,32 +74,36 @@ export async function GET(request: NextRequest) {
 
     // 1. Count total records
     const [{ count: txCount }, { count: itemCount }] = await Promise.all([
-      supabase
+      (supabaseAdmin as any)
         .from("pharmacy_transactions")
-        .select("*", { count: "exact", head: true }),
-      supabase
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenantId),
+      (supabaseAdmin as any)
         .from("pharmacy_transaction_items")
-        .select("*", { count: "exact", head: true }),
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenantId),
     ])
 
     report.totalTransactions = txCount ?? 0
     report.totalTransactionItems = itemCount ?? 0
 
     // 2. Fetch all transaction items with product join
-    const { data: allItems } = await supabase
+    const { data: allItems } = await (supabaseAdmin as any)
       .from("pharmacy_transaction_items")
       .select(`
         id, transaction_id, product_id, quantity, unit_price, cost_price, batch_id,
         product:pharmacy_products ( id, name )
       `)
+      .eq("tenant_id", tenantId)
 
     // 3. Fetch all transactions with cashier join
-    const { data: allTransactions } = await supabase
+    const { data: allTransactions } = await (supabaseAdmin as any)
       .from("pharmacy_transactions")
       .select(`
         id, transaction_no, cashier_id, net_amount, total_amount, tax,
         items:pharmacy_transaction_items ( id, cost_price )
       `)
+      .eq("tenant_id", tenantId)
 
     // Build a set of valid transaction IDs
     const validTransactionIds = new Set(
@@ -434,10 +435,10 @@ export async function POST(request: NextRequest) {
 
     // Single transaction verification — confirm it exists, no write needed
     if (id) {
-      const supabase = await createClient()
-      const { data: transaction, error } = await supabase
+      const { data: transaction, error } = await (supabaseAdmin as any)
         .from("pharmacy_transactions")
         .select("id, transaction_no")
+        .eq("tenant_id", tenantId)
         .eq("id", id)
         .single()
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
+import { supabaseAdmin } from "@/lib/supabase/admin"
 
 // Returns staff members for POS staff selection.
 // Available to any authenticated user.
@@ -12,13 +12,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const supabase = await createClient()
-
-    const { data, error } = await supabase
+    const { data, error } = await (supabaseAdmin as any)
       .from("pharmacy_user_settings")
       .select(
         "profile_id, username, pharmacy_role, is_active, profiles(id, full_name, first_name, last_name)"
       )
+      .eq("tenant_id", session.profile.tenant_id!)
       .eq("is_active", true)
 
     if (error) throw error

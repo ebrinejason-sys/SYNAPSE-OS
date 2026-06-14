@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { hashPassword, revokeAllUserSessions, validatePasswordStrength, verifyShortToken } from '@synapse/auth'
+import { hashPassword, hashToken, revokeAllUserSessions, validatePasswordStrength, verifyShortToken } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 
 export async function POST(req: NextRequest) {
@@ -20,6 +20,26 @@ export async function POST(req: NextRequest) {
   try {
     payload = await verifyShortToken(token, 'reset')
   } catch {
+    return NextResponse.json({ error: 'This reset link is invalid or expired.' }, { status: 400 })
+  }
+
+  const db = supabaseAdmin as any
+  const tokenHash = hashToken(token)
+  const now = new Date().toISOString()
+  const { data: resetToken, error: tokenErr } = await db
+    .from('password_reset_tokens')
+    .update({ used_at: now })
+    .eq('token_hash', tokenHash)
+    .eq('user_id', payload.sub)
+    .is('used_at', null)
+    .gte('expires_at', now)
+    .select('id, user_id')
+    .maybeSingle()
+
+  if (
+    tokenErr ||
+    !resetToken
+  ) {
     return NextResponse.json({ error: 'This reset link is invalid or expired.' }, { status: 400 })
   }
 

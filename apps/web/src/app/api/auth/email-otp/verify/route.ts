@@ -1,20 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyOTP, signToken, createSession } from '@synapse/auth'
+import { signMfaPendingToken, mfaCookieOptions, MFA_PENDING_COOKIE } from '@synapse/auth/mfa'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
-import { SignJWT } from 'jose'
-
-const ISSUER   = 'synapse-health-technologies'
-const AUDIENCE = 'synapse-platform'
-const MFA_COOKIE = 'synapse_mfa_pending'
-const MFA_TTL_SECONDS = 300 // 5 minutes
-
-function getJwtSecret(): Uint8Array {
-  const s = process.env.SYNAPSE_JWT_SECRET
-  if (!s) throw new Error('SYNAPSE_JWT_SECRET not set')
-  return new TextEncoder().encode(s)
-}
 
 export async function POST(req: NextRequest) {
   const body  = await req.json().catch(() => ({}))
@@ -67,23 +56,12 @@ export async function POST(req: NextRequest) {
       .eq('verified', true)
       .maybeSingle()
 
-    const preAuthToken = await new SignJWT({ sub: profile.id, email, purpose: 'totp_pending' })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setIssuedAt()
-      .setIssuer(ISSUER)
-      .setAudience(AUDIENCE)
-      .setExpirationTime(`${MFA_TTL_SECONDS}s`)
-      .sign(getJwtSecret())
+    const preAuthToken = await signMfaPendingToken({
+      sub: profile.id as string,
+      email,
+    })
 
-    const mfaCookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
-      maxAge: MFA_TTL_SECONDS,
-      path: '/',
-    }
-
-    cookieStore.set(MFA_COOKIE, preAuthToken, mfaCookieOptions)
+    cookieStore.set(MFA_PENDING_COOKIE, preAuthToken, mfaCookieOptions)
 
     if (enrollment) {
       return NextResponse.json({ mfaRequired: true })

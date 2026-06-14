@@ -41,12 +41,12 @@ export default function PlatformMfaVerifyPage() {
     if (!res.ok) {
       const d = await res.json().catch(() => ({})) as { error?: string };
       setError(d.error ?? "Verification failed.");
-      if (res.status === 401) router.replace("/platform/login");
+      if (res.status === 401) { window.location.href = "/platform/login"; return; }
       setLoading(false);
       return;
     }
 
-    router.replace("/platform");
+    window.location.href = "/platform";
   }
 
   if (checking) {

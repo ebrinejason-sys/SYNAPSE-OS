@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 // GET batches for a product (ordered by expiry date for FIFO)
@@ -17,9 +16,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Product ID is required" }, { status: 400 })
     }
 
-    const supabase = await createClient()
-
-    const { data: batches, error } = await supabase
+    const { data: batches, error } = await (supabaseAdmin as any)
       .from("pharmacy_product_batches")
       .select("*")
       .eq("product_id", productId)
@@ -43,7 +40,6 @@ export async function POST(request: NextRequest) {
     if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
     const tenantId = session.profile.tenant_id
 
-    const supabase = await createClient()
     const data: Record<string, unknown> = await request.json()
 
     if (!data.productId || !data.batchNumber || !data.quantity || !data.expiryDate) {
@@ -53,8 +49,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if batch with same number already exists for this product (RLS-scoped)
-    const { data: existing } = await supabase
+    // Check if batch with same number already exists for this product
+    const { data: existing } = await (supabaseAdmin as any)
       .from("pharmacy_product_batches")
       .select("id")
       .eq("product_id", data.productId as string)
@@ -68,10 +64,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get product to use its cost price if not provided (RLS-scoped)
-    const { data: product } = await supabase
+    // Get product to use its cost price if not provided
+    const { data: product } = await (supabaseAdmin as any)
       .from("pharmacy_products")
       .select("id, cost_price, quantity")
+      .eq("tenant_id", tenantId)
       .eq("id", data.productId as string)
       .maybeSingle()
 
@@ -132,17 +129,17 @@ export async function PATCH(request: NextRequest) {
     if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
     const tenantId = session.profile.tenant_id
 
-    const supabase = await createClient()
     const data: Record<string, unknown> = await request.json()
 
     if (!data.id) {
       return NextResponse.json({ error: "Batch ID is required" }, { status: 400 })
     }
 
-    // Fetch existing batch (RLS-scoped)
-    const { data: existingBatch } = await supabase
+    // Fetch existing batch (scoped to tenant)
+    const { data: existingBatch } = await (supabaseAdmin as any)
       .from("pharmacy_product_batches")
       .select("id, product_id, batch_number, quantity")
+      .eq("tenant_id", tenantId)
       .eq("id", data.id as string)
       .maybeSingle()
 
@@ -177,9 +174,10 @@ export async function PATCH(request: NextRequest) {
     // Update product total quantity if quantity changed
     if (quantityDiff !== 0) {
       // Fetch current product quantity
-      const { data: product } = await supabase
+      const { data: product } = await (supabaseAdmin as any)
         .from("pharmacy_products")
         .select("quantity")
+        .eq("tenant_id", tenantId)
         .eq("id", existingBatch.product_id)
         .maybeSingle()
 
@@ -217,8 +215,6 @@ export async function DELETE(request: NextRequest) {
     if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
     const tenantId = session.profile.tenant_id
 
-    const supabase = await createClient()
-
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")
 
@@ -226,10 +222,11 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Batch ID is required" }, { status: 400 })
     }
 
-    // Fetch batch to get product_id and remaining quantity (RLS-scoped)
-    const { data: existingBatch } = await supabase
+    // Fetch batch to get product_id and remaining quantity (scoped to tenant)
+    const { data: existingBatch } = await (supabaseAdmin as any)
       .from("pharmacy_product_batches")
       .select("id, product_id, batch_number, quantity")
+      .eq("tenant_id", tenantId)
       .eq("id", id)
       .maybeSingle()
 
@@ -248,9 +245,10 @@ export async function DELETE(request: NextRequest) {
 
     // Subtract remaining quantity from product total
     if (existingBatch.quantity > 0) {
-      const { data: product } = await supabase
+      const { data: product } = await (supabaseAdmin as any)
         .from("pharmacy_products")
         .select("quantity")
+        .eq("tenant_id", tenantId)
         .eq("id", existingBatch.product_id)
         .maybeSingle()
 

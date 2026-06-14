@@ -1,9 +1,25 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "../../../../lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
 export const dynamic = "force-dynamic";
 
+async function isPlatformAdmin(userId: string) {
+  const supabaseAdmin = createServiceClient();
+  const { data } = await (supabaseAdmin as any)
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  return data?.role === "platform_admin";
+}
+
 export async function GET() {
+  const user = await getCurrentUser();
+  if (!user || !(await isPlatformAdmin(user.id))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const supabaseAdmin = createServiceClient();
 

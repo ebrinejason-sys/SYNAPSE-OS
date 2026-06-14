@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 // GET packages for a product
@@ -17,9 +16,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Product ID is required" }, { status: 400 })
     }
 
-    const supabase = await createClient()
-
-    const { data: packages, error } = await supabase
+    const { data: packages, error } = await (supabaseAdmin as any)
       .from("pharmacy_product_packages")
       .select("*")
       .eq("product_id", productId)
@@ -42,7 +39,6 @@ export async function POST(request: NextRequest) {
     if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
     const tenantId = session.profile.tenant_id
 
-    const supabase = await createClient()
     const data: Record<string, unknown> = await request.json()
 
     if (!data.productId || !data.name || !data.unitsPerPackage || !data.price) {
@@ -52,8 +48,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if package with same name already exists for this product (RLS-scoped)
-    const { data: existing } = await supabase
+    // Check if package with same name already exists for this product
+    const { data: existing } = await (supabaseAdmin as any)
       .from("pharmacy_product_packages")
       .select("id")
       .eq("product_id", data.productId as string)
@@ -153,8 +149,6 @@ export async function DELETE(request: NextRequest) {
     if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
     const tenantId = session.profile.tenant_id
 
-    const supabase = await createClient()
-
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")
 
@@ -162,10 +156,11 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Package ID is required" }, { status: 400 })
     }
 
-    // Fetch package name for audit log (RLS-scoped)
-    const { data: existingPackage } = await supabase
+    // Fetch package name for audit log (scoped to tenant)
+    const { data: existingPackage } = await (supabaseAdmin as any)
       .from("pharmacy_product_packages")
       .select("id, name")
+      .eq("tenant_id", tenantId)
       .eq("id", id)
       .maybeSingle()
 

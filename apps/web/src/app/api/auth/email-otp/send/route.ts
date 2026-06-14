@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated } from '@synapse/auth'
+import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, createAndSendOTP } from '@synapse/auth'
 import { createServiceClient } from '../../../../../lib/supabase/server'
-import { generateOtp, hashOtp } from '../../../../../lib/otp'
 import { sendOtpEmail } from '../../../../../lib/resend'
-
-const RATE_LIMIT = 3
-const OTP_TTL_MIN = 10
 
 export async function POST(req: NextRequest) {
   const body  = await req.json().catch(() => ({}))
@@ -36,41 +32,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
   }
 
-  const { count } = await db
-    .from('auth_otps')
-    .select('*', { count: 'exact', head: true })
-    .eq('target', email)
-    .eq('channel', 'email')
-    .gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString())
-
-  if ((count ?? 0) >= RATE_LIMIT) {
-    return NextResponse.json(
-      { error: 'Too many attempts. Please wait before requesting another code.' },
-      { status: 429 }
-    )
-  }
-
-  const otp     = generateOtp()
-  const otpHash = hashOtp(otp)
-  const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60 * 1000).toISOString()
-
-  const { data: otpRow, error: insertErr } = await db
-    .from('auth_otps')
-    .insert({ channel: 'email', target: email, otp_hash: otpHash, expires_at: expiresAt })
-    .select('id')
-    .single()
-
-  if (insertErr) {
-    console.error('auth_otps insert error:', insertErr.message)
+  let otp: string
+  try {
+    otp = await createAndSendOTP({ channel: 'email', target: email })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : ''
+    if (msg === 'TOO_MANY_REQUESTS') {
+      return NextResponse.json(
+        { error: 'Too many attempts. Please wait before requesting another code.' },
+        { status: 429 }
+      )
+    }
     return NextResponse.json({ error: 'Failed to create verification' }, { status: 500 })
   }
 
   try {
     await sendOtpEmail(email, otp)
   } catch (err) {
-    if (otpRow?.id) {
-      await db.from('auth_otps').delete().eq('id', otpRow.id as string)
-    }
     console.error('Email OTP send error:', err)
     return NextResponse.json({ error: 'Failed to send email. Please try again.' }, { status: 500 })
   }

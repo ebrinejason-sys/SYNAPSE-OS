@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin, hasPermission } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
+import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,8 +21,6 @@ export async function GET(request: NextRequest) {
       hasPermission(session, "VIEW_TRANSACTIONS") ||
       hasPermission(session, "MANAGE_TRANSACTIONS")
 
-    const supabase = await createClient()
-
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
     const todayStartISO = todayStart.toISOString()
@@ -33,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     if (adminUser) {
       // Fetch settings first to get low_stock_threshold
-      const { data: settings } = await supabase
+      const { data: settings } = await (supabaseAdmin as any)
         .from("pharmacy_settings")
         .select("low_stock_threshold")
         .eq("tenant_id", session.profile.tenant_id!)
@@ -51,47 +49,54 @@ export async function GET(request: NextRequest) {
         staffSettingsResult,
       ] = await Promise.all([
         // Total active products
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_products")
           .select("id", { count: "exact", head: true })
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("is_active", true),
         // Total revenue
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_transactions")
           .select("net_amount")
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("status", "COMPLETED"),
         // Today's sales
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_transactions")
           .select("net_amount")
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("status", "COMPLETED")
           .gte("created_at", todayStartISO),
         // Low stock count
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_products")
           .select("id", { count: "exact", head: true })
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("is_active", true)
           .lte("quantity", lowStockThreshold),
         // Expiring in 30 days
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_products")
           .select("id, name, sku, expiry_date, quantity")
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("is_active", true)
           .lte("expiry_date", thirtyDaysFromNow)
           .gte("expiry_date", nowISO)
           .order("expiry_date", { ascending: true }),
         // Recent activity logs
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_audit_logs")
           .select("*, profiles(full_name, first_name, last_name)")
+          .eq("tenant_id", session.profile.tenant_id!)
           .order("created_at", { ascending: false })
           .limit(8),
         // Staff with their roles
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_user_settings")
           .select(
             "profile_id, pharmacy_role, profiles(id, full_name, first_name, last_name)"
           )
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("is_active", true),
       ])
 
@@ -122,9 +127,10 @@ export async function GET(request: NextRequest) {
 
       const userStats = await Promise.all(
         staffSettings.map(async (pu) => {
-          const { data: txs } = await supabase
+          const { data: txs } = await (supabaseAdmin as any)
             .from("pharmacy_transactions")
             .select("net_amount")
+            .eq("tenant_id", session.profile.tenant_id!)
             .eq("cashier_id", pu.profile_id)
             .eq("status", "COMPLETED")
             .gte("created_at", todayStartISO)
@@ -175,24 +181,26 @@ export async function GET(request: NextRequest) {
     }
 
     if (hasPOSAccess || hasInventoryAccess) {
-      const { count } = await supabase
+      const { count } = await (supabaseAdmin as any)
         .from("pharmacy_products")
         .select("id", { count: "exact", head: true })
+        .eq("tenant_id", session.profile.tenant_id!)
         .eq("is_active", true)
       dashboardData.totalProducts = count ?? 0
     }
 
     if (hasInventoryAccess) {
-      const { data: settings } = await supabase
+      const { data: settings } = await (supabaseAdmin as any)
         .from("pharmacy_settings")
         .select("low_stock_threshold")
         .eq("tenant_id", session.profile.tenant_id!)
         .single()
 
       const threshold = settings?.low_stock_threshold ?? 10
-      const { count } = await supabase
+      const { count } = await (supabaseAdmin as any)
         .from("pharmacy_products")
         .select("id", { count: "exact", head: true })
+        .eq("tenant_id", session.profile.tenant_id!)
         .eq("is_active", true)
         .lte("quantity", threshold)
       dashboardData.lowStockCount = count ?? 0
@@ -200,15 +208,17 @@ export async function GET(request: NextRequest) {
 
     if (hasPOSAccess) {
       const [myTodayTxs, myAllTxs] = await Promise.all([
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_transactions")
           .select("net_amount")
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("cashier_id", session.user.id)
           .eq("status", "COMPLETED")
           .gte("created_at", todayStartISO),
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_transactions")
           .select("net_amount")
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("cashier_id", session.user.id)
           .eq("status", "COMPLETED"),
       ])
@@ -229,9 +239,10 @@ export async function GET(request: NextRequest) {
     }
 
     if (hasTransactionAccess) {
-      const { data: recentTransactions } = await supabase
+      const { data: recentTransactions } = await (supabaseAdmin as any)
         .from("pharmacy_transactions")
         .select("id, transaction_no, net_amount, created_at")
+        .eq("tenant_id", session.profile.tenant_id!)
         .eq("cashier_id", session.user.id)
         .order("created_at", { ascending: false })
         .limit(5)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin, hasPermission } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
+import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   try {
@@ -60,7 +60,6 @@ export async function GET(request: NextRequest) {
         dateFrom = new Date(new Date().setHours(0, 0, 0, 0))
     }
 
-    const supabase = await createClient()
     const dateFromISO = dateFrom.toISOString()
     const dateToISO = dateTo.toISOString()
 
@@ -68,21 +67,23 @@ export async function GET(request: NextRequest) {
     if (reportType === "sales") {
       const [txResult, itemsResult] = await Promise.all([
         // All completed transactions in range
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_transactions")
           .select(
             "id, transaction_no, net_amount, discount, tax, payment_method, client_name, cashier_id, created_at, profiles(full_name, first_name, last_name)"
           )
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("status", "COMPLETED")
           .gte("created_at", dateFromISO)
           .lte("created_at", dateToISO)
           .order("created_at", { ascending: false }),
         // All transaction items in range (for category + top products)
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_transaction_items")
           .select(
             "product_id, quantity, total_price, unit_price, pharmacy_transactions!inner(status, created_at), pharmacy_products(name, sku, category)"
           )
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("pharmacy_transactions.status", "COMPLETED")
           .gte("pharmacy_transactions.created_at", dateFromISO)
           .lte("pharmacy_transactions.created_at", dateToISO),
@@ -295,7 +296,7 @@ export async function GET(request: NextRequest) {
     // ── INVENTORY REPORT ─────────────────────────────────────────────────────
     if (reportType === "inventory") {
       // Get low stock threshold from settings
-      const { data: settingsRow } = await supabase
+      const { data: settingsRow } = await (supabaseAdmin as any)
         .from("pharmacy_settings")
         .select("low_stock_threshold")
         .eq("tenant_id", session.profile.tenant_id!)
@@ -316,42 +317,48 @@ export async function GET(request: NextRequest) {
         stockMovementsResult,
       ] = await Promise.all([
         // All active products (for totals, value calc, category grouping)
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_products")
           .select("id, name, sku, category, quantity, cost_price, price, reorder_level, expiry_date, is_active")
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("is_active", true),
         // Low stock (between 1 and threshold)
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_products")
           .select("*")
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("is_active", true)
           .gt("quantity", 0)
           .lte("quantity", lowStockThreshold)
           .order("quantity", { ascending: true }),
         // Out of stock
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_products")
           .select("*")
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("is_active", true)
           .lte("quantity", 0),
         // Expiring in 30 days
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_products")
           .select("*")
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("is_active", true)
           .gte("expiry_date", nowISO)
           .lte("expiry_date", thirtyDaysFromNow)
           .order("expiry_date", { ascending: true }),
         // Already expired
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_products")
           .select("*")
+          .eq("tenant_id", session.profile.tenant_id!)
           .eq("is_active", true)
           .lt("expiry_date", nowISO),
         // Recent stock adjustments in range
-        supabase
+        (supabaseAdmin as any)
           .from("pharmacy_stock_adjustments")
           .select("*, pharmacy_products(name, sku)")
+          .eq("tenant_id", session.profile.tenant_id!)
           .gte("created_at", dateFromISO)
           .lte("created_at", dateToISO)
           .order("created_at", { ascending: false })
@@ -434,11 +441,12 @@ export async function GET(request: NextRequest) {
 
     // ── PROFIT REPORT ─────────────────────────────────────────────────────────
     if (reportType === "profit") {
-      const { data: txItems, error: txItemsError } = await supabase
+      const { data: txItems, error: txItemsError } = await (supabaseAdmin as any)
         .from("pharmacy_transaction_items")
         .select(
           "product_id, quantity, total_price, cost_price, pharmacy_transactions!inner(id, status, created_at), pharmacy_products(name, category, cost_price)"
         )
+        .eq("tenant_id", session.profile.tenant_id!)
         .eq("pharmacy_transactions.status", "COMPLETED")
         .gte("pharmacy_transactions.created_at", dateFromISO)
         .lte("pharmacy_transactions.created_at", dateToISO)

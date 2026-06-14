@@ -5,6 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 
 type Step = "loading" | "setup" | "verify"
+type AuthMode = "custom" | "supabase" | null
+
+function totpQrUrl(uri: string): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(uri)}`
+}
 
 function TwoFactorContent() {
   const router = useRouter()
@@ -12,10 +17,12 @@ function TwoFactorContent() {
   const next = searchParams.get("next") || "/portal/dashboard"
   const supabase = useMemo(() => createClient(), [])
 
+  const [authMode, setAuthMode] = useState<AuthMode>(null)
   const [step, setStep] = useState<Step>("loading")
   const [factorId, setFactorId] = useState("")
   const [challengeId, setChallengeId] = useState("")
   const [qrCode, setQrCode] = useState("")
+  const [setupUri, setSetupUri] = useState("")
   const [code, setCode] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -23,7 +30,49 @@ function TwoFactorContent() {
   useEffect(() => {
     let mounted = true
 
-    async function prepareMfa() {
+    async function prepareCustomMfa() {
+      const statusRes = await fetch("/api/auth/mfa/status")
+      if (!statusRes.ok) {
+        if (mounted) setAuthMode("supabase")
+        return
+      }
+
+      const status = (await statusRes.json()) as {
+        enrolled?: boolean
+        satisfied?: boolean
+        hasPendingEnrollment?: boolean
+      }
+
+      if (status.satisfied) {
+        router.replace(next)
+        return
+      }
+
+      if (mounted) setAuthMode("custom")
+
+      if (status.enrolled) {
+        if (mounted) setStep("verify")
+        return
+      }
+
+      const enrollRes = await fetch("/api/auth/mfa/enroll", { method: "POST" })
+      if (!enrollRes.ok) {
+        if (mounted) {
+          setError("Could not create your authenticator setup.")
+          setStep("setup")
+        }
+        return
+      }
+
+      const enrollData = (await enrollRes.json()) as { uri?: string }
+      if (mounted) {
+        setSetupUri(enrollData.uri ?? "")
+        setQrCode(enrollData.uri ? totpQrUrl(enrollData.uri) : "")
+        setStep("setup")
+      }
+    }
+
+    async function prepareSupabaseMfa() {
       const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
       if (aal?.currentLevel === "aal2") {
         router.replace(next)
@@ -78,6 +127,19 @@ function TwoFactorContent() {
       }
     }
 
+    async function prepareMfa() {
+      const sessionRes = await fetch("/api/auth/session")
+      if (sessionRes.ok) {
+        const session = await sessionRes.json()
+        if (session) {
+          await prepareCustomMfa()
+          return
+        }
+      }
+      if (mounted) setAuthMode("supabase")
+      await prepareSupabaseMfa()
+    }
+
     prepareMfa()
 
     return () => {
@@ -85,16 +147,26 @@ function TwoFactorContent() {
     }
   }, [next, router, supabase])
 
-  async function verifyCode(event: React.FormEvent) {
-    event.preventDefault()
-    if (code.length !== 6 || !factorId) {
-      setError("Enter the 6-digit code from your authenticator app.")
+  async function verifyCustomCode() {
+    const endpoint = step === "setup" ? "/api/auth/mfa/verify-setup" : "/api/auth/mfa/verify"
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    })
+
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string }
+      setError(data.error ?? "Incorrect code. Try again.")
+      setIsLoading(false)
       return
     }
 
-    setIsLoading(true)
-    setError(null)
+    router.replace(next)
+    router.refresh()
+  }
 
+  async function verifySupabaseCode() {
     let activeChallengeId = challengeId
     if (!activeChallengeId) {
       const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({ factorId })
@@ -123,6 +195,24 @@ function TwoFactorContent() {
     router.refresh()
   }
 
+  async function verifyCode(event: React.FormEvent) {
+    event.preventDefault()
+    if (code.length !== 6) {
+      setError("Enter the 6-digit code from your authenticator app.")
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    if (authMode === "custom") {
+      await verifyCustomCode()
+      return
+    }
+
+    await verifySupabaseCode()
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-[#07070A]">
       <div className="w-full max-w-sm">
@@ -145,13 +235,17 @@ function TwoFactorContent() {
             </div>
           ) : (
             <form onSubmit={verifyCode} className="space-y-4">
-              {step === "setup" && qrCode && (
+              {step === "setup" && (qrCode || setupUri) && (
                 <div className="space-y-3">
                   <p className="text-sm leading-6 text-zinc-300">
                     Scan this QR code with Google Authenticator, Microsoft Authenticator, or a compatible TOTP app.
                   </p>
                   <div className="rounded-xl bg-white p-3">
-                    <img src={qrCode} alt="Two-factor setup QR code" className="w-full" />
+                    {qrCode ? (
+                      <img src={qrCode} alt="Two-factor setup QR code" className="w-full" />
+                    ) : (
+                      <p className="break-all text-xs text-zinc-700">{setupUri}</p>
+                    )}
                   </div>
                 </div>
               )}

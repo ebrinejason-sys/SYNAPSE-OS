@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 // Get notifications for the current user
@@ -16,11 +15,10 @@ export async function GET(request: NextRequest) {
     const unreadOnly = searchParams.get("unread") === "true"
     const limit = parseInt(searchParams.get("limit") || "20")
 
-    const supabase = await createClient()
-
-    let query = supabase
+    let query = (supabaseAdmin as any)
       .from("pharmacy_notifications")
       .select("*")
+      .eq("tenant_id", session.profile.tenant_id!)
       .eq("profile_id", session.user.id)
       .order("created_at", { ascending: false })
       .limit(limit)
@@ -33,9 +31,10 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
-    const { count: unreadCount, error: countError } = await supabase
+    const { count: unreadCount, error: countError } = await (supabaseAdmin as any)
       .from("pharmacy_notifications")
       .select("id", { count: "exact", head: true })
+      .eq("tenant_id", session.profile.tenant_id!)
       .eq("profile_id", session.user.id)
       .eq("is_read", false)
 

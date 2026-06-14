@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { revokeSession } from '@synapse/auth'
+import { verifyToken } from '@synapse/auth/tokens'
+import { validateSession, revokeSession } from '@synapse/auth'
+import {
+  MFA_PENDING_COOKIE,
+  PHARM_MFA_SATISFIED_COOKIE,
+} from '@synapse/auth/mfa'
 import { SESSION_COOKIE } from '@synapse/config/constants'
 
 export async function POST(_req: NextRequest) {
@@ -12,6 +17,8 @@ export async function POST(_req: NextRequest) {
   }
 
   cookieStore.delete(SESSION_COOKIE)
+  cookieStore.delete(MFA_PENDING_COOKIE)
+  cookieStore.delete(PHARM_MFA_SATISFIED_COOKIE)
 
   return NextResponse.json({ ok: true })
 }

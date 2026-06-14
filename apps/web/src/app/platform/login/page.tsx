@@ -28,10 +28,20 @@ export default function PlatformLoginPage() {
       body: JSON.stringify({ email, password }),
     });
 
+    const data = await res.json().catch(() => ({})) as {
+      otpSent?: boolean;
+      mfaRequired?: boolean;
+      error?: string;
+    };
+
     if (!res.ok) {
-      const data = await res.json().catch(() => ({})) as { error?: string };
       setError(data.error ?? "Access denied. Check your credentials.");
       setLoading(false);
+      return;
+    }
+
+    if (data.mfaRequired) {
+      router.push("/platform/mfa-verify");
       return;
     }
 

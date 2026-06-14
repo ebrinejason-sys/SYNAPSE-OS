@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, hasPermission, isPharmacyAdmin } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 const FIELD_PATTERNS: Record<string, RegExp[]> = {
@@ -52,8 +51,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const supabase = await createClient()
-    const { data, error } = await supabase
+    const { data, error } = await (supabaseAdmin as any)
       .from("pharmacy_import_sessions")
       .select("*")
       .eq("tenant_id", session.profile.tenant_id!)

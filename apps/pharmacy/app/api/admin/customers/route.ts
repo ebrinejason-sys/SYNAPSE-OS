@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
@@ -11,11 +10,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const supabase = await createClient()
-
-    const { data: customers, error } = await supabase
+    const { data: customers, error } = await (supabaseAdmin as any)
       .from("pharmacy_customers")
       .select("*")
+      .eq("tenant_id", session.profile.tenant_id!)
       .order("created_at", { ascending: false })
 
     if (error) throw error
@@ -47,14 +45,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = await createClient()
-
     // Check if email already exists for this tenant
-    const { data: existing } = await supabase
+    const { data: existing } = await (supabaseAdmin as any)
       .from("pharmacy_customers")
       .select("id")
-      .eq("email", email)
       .eq("tenant_id", session.profile.tenant_id!)
+      .eq("email", email)
       .single()
 
     if (existing) {

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, hasPermission, isPharmacyAdmin } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 function canManageRefills(session: NonNullable<Awaited<ReturnType<typeof getPharmacySession>>>) {
@@ -16,9 +15,7 @@ export async function GET(request: NextRequest) {
 
     const status = new URL(request.url).searchParams.get("status") ?? "due"
     const today = new Date().toISOString().slice(0, 10)
-    const supabase = await createClient()
-
-    let query = supabase
+    let query = (supabaseAdmin as any)
       .from("refill_reminders")
       .select("*, customer:pharmacy_customers(id, name, email, phone)")
       .eq("tenant_id", session.profile.tenant_id!)

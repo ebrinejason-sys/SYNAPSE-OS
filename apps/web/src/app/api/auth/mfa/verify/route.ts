@@ -1,19 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { jwtVerify } from 'jose'
+import { verifyMfaPendingToken, MFA_PENDING_COOKIE } from '@synapse/auth/mfa'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { signToken, createSession, verifyTotp } from '@synapse/auth'
 import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
-
-const ISSUER     = 'synapse-health-technologies'
-const AUDIENCE   = 'synapse-platform'
-const MFA_COOKIE = 'synapse_mfa_pending'
-
-function getJwtSecret(): Uint8Array {
-  const s = process.env.SYNAPSE_JWT_SECRET
-  if (!s) throw new Error('SYNAPSE_JWT_SECRET not set')
-  return new TextEncoder().encode(s)
-}
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
@@ -24,7 +14,7 @@ export async function POST(req: NextRequest) {
   }
 
   const cookieStore  = await cookies()
-  const pendingToken = cookieStore.get(MFA_COOKIE)?.value
+  const pendingToken = cookieStore.get(MFA_PENDING_COOKIE)?.value
 
   if (!pendingToken) {
     return NextResponse.json({ error: 'MFA session expired. Please log in again.' }, { status: 401 })
@@ -33,10 +23,9 @@ export async function POST(req: NextRequest) {
   let userId: string
   let email: string
   try {
-    const { payload } = await jwtVerify(pendingToken, getJwtSecret(), { issuer: ISSUER, audience: AUDIENCE })
-    if (payload['purpose'] !== 'totp_pending') throw new Error('wrong purpose')
-    userId = payload.sub as string
-    email  = payload['email'] as string
+    const payload = await verifyMfaPendingToken(pendingToken)
+    userId = payload.sub
+    email  = payload.email
   } catch {
     return NextResponse.json({ error: 'MFA session invalid. Please log in again.' }, { status: 401 })
   }
@@ -58,7 +47,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Incorrect code. Check your authenticator app.' }, { status: 401 })
   }
 
-  // Record last_used
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabaseAdmin as any)
     .from('mfa_enrollments')
@@ -93,7 +81,7 @@ export async function POST(req: NextRequest) {
     userAgent: req.headers.get('user-agent') ?? undefined,
   })
 
-  cookieStore.delete(MFA_COOKIE)
+  cookieStore.delete(MFA_PENDING_COOKIE)
   const expires = new Date()
   expires.setDate(expires.getDate() + SESSION_DURATION_DAYS)
   cookieStore.set(SESSION_COOKIE, token, {

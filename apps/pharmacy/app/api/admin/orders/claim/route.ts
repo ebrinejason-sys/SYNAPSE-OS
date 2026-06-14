@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin, hasPermission } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail } from "@/lib/email"
 
@@ -29,14 +28,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Order ID is required" }, { status: 400 })
     }
 
-    const supabase = await createClient()
-
     // Fetch the order
-    const { data: order, error: orderError } = await supabase
+    const { data: order, error: orderError } = await (supabaseAdmin as any)
       .from("pharmacy_orders")
       .select("id, order_no, status, claimed_by, customer_id")
-      .eq("id", orderId)
       .eq("tenant_id", tenantId)
+      .eq("id", orderId)
       .single()
 
     if (orderError || !order) {
@@ -45,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     if (order.claimed_by) {
       // Get the name of who claimed it
-      const { data: claimedProfile } = await supabase
+      const { data: claimedProfile } = await supabaseAdmin
         .from("profiles")
         .select("full_name, first_name, last_name")
         .eq("id", order.claimed_by)
@@ -133,11 +130,11 @@ export async function POST(request: NextRequest) {
 
     // Send email to customer if applicable
     if (order.customer_id) {
-      const { data: customer } = await supabase
+      const { data: customer } = await (supabaseAdmin as any)
         .from("pharmacy_customers")
         .select("name, email")
-        .eq("id", order.customer_id)
         .eq("tenant_id", tenantId)
+        .eq("id", order.customer_id)
         .single()
 
       if (customer?.email) {
@@ -201,12 +198,11 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Order ID is required" }, { status: 400 })
     }
 
-    const supabase = await createClient()
-    const { data: order, error: orderError } = await supabase
+    const { data: order, error: orderError } = await (supabaseAdmin as any)
       .from("pharmacy_orders")
       .select("id, order_no, claimed_by")
-      .eq("id", orderId)
       .eq("tenant_id", tenantId)
+      .eq("id", orderId)
       .single()
 
     if (orderError || !order) {

@@ -210,6 +210,25 @@ export async function middleware(request: NextRequest) {
 
     const { valid: synapseValid } = await hasSynapseSession(request)
 
+    if (synapseValid && ADMIN_EMAILS.length > 0 && !isAuthPage) {
+      const token = request.cookies.get(SESSION_COOKIE)?.value;
+      if (token) {
+        try {
+          const payload = await verifyToken(token);
+          if (!ADMIN_EMAILS.includes(payload.email)) {
+            const url = request.nextUrl.clone();
+            url.pathname = "/platform/login";
+            url.searchParams.set("error", "unauthorized");
+            return NextResponse.rewrite(url);
+          }
+        } catch {
+          const url = request.nextUrl.clone();
+          url.pathname = "/platform/login";
+          return NextResponse.rewrite(url);
+        }
+      }
+    }
+
     if (!synapseValid && !isAuthPage) {
       // Check for MFA-pending cookie — user completed OTP but not TOTP yet
       const mfaPending = request.cookies.get('synapse_mfa_pending')?.value

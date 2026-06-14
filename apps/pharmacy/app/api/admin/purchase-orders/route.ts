@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail } from "@/lib/email"
 
@@ -22,9 +21,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const supplierId = searchParams.get("supplierId")
 
-    const supabase = await createClient()
-
-    let query = supabase
+    let query = (supabaseAdmin as any)
       .from("pharmacy_purchase_orders")
       .select(
         `
@@ -70,13 +67,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Supplier and items are required" }, { status: 400 })
     }
 
-    const supabase = await createClient()
-
-    const { data: supplier, error: supplierError } = await supabase
+    const { data: supplier, error: supplierError } = await (supabaseAdmin as any)
       .from("pharmacy_suppliers")
       .select("id, name, email, contact_person")
-      .eq("id", supplierId)
       .eq("tenant_id", tenantId)
+      .eq("id", supplierId)
       .single()
 
     if (supplierError || !supplier) {
@@ -232,9 +227,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Purchase order ID required" }, { status: 400 })
     }
 
-    const supabase = await createClient()
-
-    const { data: purchaseOrder, error: poFetchError } = await supabase
+    const { data: purchaseOrder, error: poFetchError } = await (supabaseAdmin as any)
       .from("pharmacy_purchase_orders")
       .select(
         `
@@ -243,8 +236,8 @@ export async function PATCH(request: NextRequest) {
         items:pharmacy_purchase_order_items(id, product_id, product_name, quantity, unit_price, total_price)
       `
       )
-      .eq("id", id)
       .eq("tenant_id", tenantId)
+      .eq("id", id)
       .single()
 
     if (poFetchError || !purchaseOrder) {
@@ -274,11 +267,11 @@ export async function PATCH(request: NextRequest) {
         if (!item.product_id) continue
 
         // Get current quantity before incrementing
-        const { data: currentProduct } = await supabase
+        const { data: currentProduct } = await (supabaseAdmin as any)
           .from("pharmacy_products")
           .select("quantity")
-          .eq("id", item.product_id)
           .eq("tenant_id", tenantId)
+          .eq("id", item.product_id)
           .single()
 
         const previousQty = currentProduct?.quantity ?? 0
@@ -415,12 +408,11 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Purchase order ID required" }, { status: 400 })
     }
 
-    const supabase = await createClient()
-    const { data: purchaseOrder, error: poFetchError } = await supabase
+    const { data: purchaseOrder, error: poFetchError } = await (supabaseAdmin as any)
       .from("pharmacy_purchase_orders")
       .select("id, order_no, status")
-      .eq("id", id)
       .eq("tenant_id", tenantId)
+      .eq("id", id)
       .single()
 
     if (poFetchError || !purchaseOrder) {

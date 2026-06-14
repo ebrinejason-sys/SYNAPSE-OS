@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 interface TransactionItemRow {
@@ -90,10 +89,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const supabase = await createClient()
+    const tenantId = session.profile.tenant_id
+    if (!tenantId) {
+      return NextResponse.json({ error: "No tenant" }, { status: 403 })
+    }
 
-    // List completed transactions (RLS filters by tenant automatically)
-    const { data: transactions, error: txError } = await supabase
+    // List completed transactions (scoped to tenant)
+    const { data: transactions, error: txError } = await (supabaseAdmin as any)
       .from("pharmacy_transactions")
       .select(`
         *,
@@ -103,6 +105,7 @@ export async function GET(request: NextRequest) {
           product:pharmacy_products ( name, sku, cost_price )
         )
       `)
+      .eq("tenant_id", tenantId)
       .eq("status", "COMPLETED")
       .order("created_at", { ascending: false })
       .limit(100)
@@ -128,7 +131,7 @@ export async function GET(request: NextRequest) {
       { data: weekTransactions },
       { data: monthTransactions },
     ] = await Promise.all([
-      supabase
+      (supabaseAdmin as any)
         .from("pharmacy_transactions")
         .select(`
           net_amount,
@@ -137,9 +140,10 @@ export async function GET(request: NextRequest) {
             product:pharmacy_products ( cost_price )
           )
         `)
+        .eq("tenant_id", tenantId)
         .eq("status", "COMPLETED")
         .gte("created_at", today.toISOString()),
-      supabase
+      (supabaseAdmin as any)
         .from("pharmacy_transactions")
         .select(`
           net_amount,
@@ -148,9 +152,10 @@ export async function GET(request: NextRequest) {
             product:pharmacy_products ( cost_price )
           )
         `)
+        .eq("tenant_id", tenantId)
         .eq("status", "COMPLETED")
         .gte("created_at", weekAgo.toISOString()),
-      supabase
+      (supabaseAdmin as any)
         .from("pharmacy_transactions")
         .select(`
           net_amount,
@@ -159,6 +164,7 @@ export async function GET(request: NextRequest) {
             product:pharmacy_products ( cost_price )
           )
         `)
+        .eq("tenant_id", tenantId)
         .eq("status", "COMPLETED")
         .gte("created_at", monthAgo.toISOString()),
     ])

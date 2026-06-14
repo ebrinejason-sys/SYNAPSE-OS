@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import Papa from "papaparse"
 import * as XLSX from "xlsx"
@@ -65,8 +64,6 @@ export async function POST(request: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
     const tenantId = session.profile.tenant_id
-
-    const supabase = await createClient()
 
     const formData = await request.formData()
     const file = formData.get("file") as File | null
@@ -201,10 +198,11 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // Check for duplicate SKU in database (RLS-scoped to tenant)
-      const { data: existingProduct } = await supabase
+      // Check for duplicate SKU in database (scoped to tenant)
+      const { data: existingProduct } = await (supabaseAdmin as any)
         .from("pharmacy_products")
         .select("id")
+        .eq("tenant_id", tenantId)
         .eq("sku", sku)
         .maybeSingle()
 

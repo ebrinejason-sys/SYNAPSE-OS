@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
-import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail, generateWelcomeEmail } from "@/lib/email"
 import { generatePassword } from "@/lib/utils"
@@ -18,8 +17,7 @@ export async function GET(request: NextRequest) {
     if (!tenantId) return NextResponse.json({ error: "Tenant not found" }, { status: 400 })
 
     // Get all pharmacy_user_settings for this tenant
-    const supabase = await createClient()
-    const { data: userSettings, error: settingsError } = await supabase
+    const { data: userSettings, error: settingsError } = await (supabaseAdmin as any)
       .from("pharmacy_user_settings")
       .select("profile_id, username, pharmacy_role, permissions, is_active, created_at")
       .eq("tenant_id", tenantId)
@@ -44,7 +42,7 @@ export async function GET(request: NextRequest) {
     const profileIds = userSettings.map((s) => s.profile_id)
 
     // Get profiles for name info
-    const { data: profiles } = await supabase
+    const { data: profiles } = await supabaseAdmin
       .from("profiles")
       .select("id, full_name, first_name, last_name")
       .in("id", profileIds)
