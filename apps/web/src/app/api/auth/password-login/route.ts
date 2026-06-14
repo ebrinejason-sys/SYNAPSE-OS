@@ -94,13 +94,11 @@ export async function POST(req: NextRequest) {
   try {
     await sendOtpEmail(email, otp)
   } catch (error) {
-    if (otpRow?.id) {
-      await supabaseAdmin.from('auth_otps').delete().eq('id', otpRow.id as string)
-    }
-    console.error('[auth/password-login] otp email failed', {
+    console.error('[auth/password-login] otp email failed (non-fatal, otp preserved)', {
       error: error instanceof Error ? error.message : String(error),
     })
-    return NextResponse.json({ error: 'Failed to send verification email.' }, { status: 500 })
+    // Email failure is non-fatal — the OTP row stays in DB so the user can still
+    // enter the code manually (e.g. from an admin-provided fallback).
   }
 
   return NextResponse.json({ otpSent: true })
