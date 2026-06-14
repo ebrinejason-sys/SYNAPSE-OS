@@ -242,9 +242,9 @@ function LoginContent() {
     }
     if (!res.ok) { setError(data.error ?? 'Verification failed.'); setLoading(false); return }
     setLoading(false)
-    if (data.mfaSetupRequired) { router.push('/platform/mfa'); return }
-    if (data.mfaRequired) { router.push('/platform/mfa-verify'); return }
-    router.push(next)
+    if (data.mfaSetupRequired) { window.location.href = '/platform/mfa'; return }
+    if (data.mfaRequired) { window.location.href = '/platform/mfa-verify'; return }
+    window.location.href = next
   }
 
   // ─── Phone OTP ─────────────────────────────────────────────

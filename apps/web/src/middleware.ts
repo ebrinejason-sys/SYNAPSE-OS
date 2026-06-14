@@ -200,12 +200,6 @@ export async function middleware(request: NextRequest) {
 
   // ── ADMIN subdomain: email-gated ──────────────────────────────────
   if (subdomain === "admin") {
-    if (pathname === "/platform" || pathname.startsWith("/platform/")) {
-      const canonicalUrl = request.nextUrl.clone();
-      canonicalUrl.pathname = pathname.replace(/^\/platform/, "") || "/";
-      return NextResponse.redirect(canonicalUrl);
-    }
-
     const platformPath = pathname.startsWith("/platform")
       ? pathname
       : `/platform${pathname === "/" ? "" : pathname}`;
