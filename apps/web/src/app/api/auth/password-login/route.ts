@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyPassword, createAndSendOTP } from '@synapse/auth'
 import { signMfaPendingToken, mfaCookieOptions, MFA_PENDING_COOKIE } from '@synapse/auth/mfa'
 import { supabaseAdmin } from '@synapse/db/admin'
@@ -73,10 +72,10 @@ export async function POST(req: NextRequest) {
         email: profile.email as string,
       })
 
-      const cookieStore = await cookies()
-      cookieStore.set(MFA_PENDING_COOKIE, preAuthToken, mfaCookieOptions)
-
-      return NextResponse.json({ mfaRequired: true })
+      // Set cookie directly on response — cookies().set() does not propagate in Next.js 15 Route Handlers
+      const r = NextResponse.json({ mfaRequired: true })
+      r.cookies.set(MFA_PENDING_COOKIE, preAuthToken, mfaCookieOptions)
+      return r
     }
     // No MFA enrolled yet — fall through to OTP for initial setup
   }

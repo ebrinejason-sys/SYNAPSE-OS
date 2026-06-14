@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyOTP, signToken, createSession } from '@synapse/auth'
 import { signMfaPendingToken, mfaCookieOptions, MFA_PENDING_COOKIE } from '@synapse/auth/mfa'
 import { supabaseAdmin } from '@synapse/db/admin'
@@ -44,8 +43,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
   }
 
-  const cookieStore = await cookies()
-
   // platform_admin requires TOTP as third factor
   if (profile.role === 'platform_admin') {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,13 +58,10 @@ export async function POST(req: NextRequest) {
       email,
     })
 
-    cookieStore.set(MFA_PENDING_COOKIE, preAuthToken, mfaCookieOptions)
-
-    if (enrollment) {
-      return NextResponse.json({ mfaRequired: true })
-    } else {
-      return NextResponse.json({ mfaSetupRequired: true })
-    }
+    // Set cookie directly on response — cookies().set() does not propagate in Next.js 15 Route Handlers
+    const mfaResponse = NextResponse.json(enrollment ? { mfaRequired: true } : { mfaSetupRequired: true })
+    mfaResponse.cookies.set(MFA_PENDING_COOKIE, preAuthToken, mfaCookieOptions)
+    return mfaResponse
   }
 
   // Non-platform_admin: issue full session immediately
@@ -97,13 +91,14 @@ export async function POST(req: NextRequest) {
   const expires = new Date()
   expires.setDate(expires.getDate() + SESSION_DURATION_DAYS)
 
-  cookieStore.set(SESSION_COOKIE, token, {
+  // Set cookie directly on response — cookies().set() does not propagate in Next.js 15 Route Handlers
+  const response = NextResponse.json({ ok: true })
+  response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     expires,
     path: '/',
   })
-
-  return NextResponse.json({ ok: true })
+  return response
 }

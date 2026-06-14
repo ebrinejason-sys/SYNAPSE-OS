@@ -81,16 +81,19 @@ export async function POST(req: NextRequest) {
     userAgent: req.headers.get('user-agent') ?? undefined,
   })
 
-  cookieStore.delete(MFA_PENDING_COOKIE)
   const expires = new Date()
   expires.setDate(expires.getDate() + SESSION_DURATION_DAYS)
-  cookieStore.set(SESSION_COOKIE, token, {
+
+  // Set cookies directly on the response object — the only reliable pattern
+  // in Next.js 15 Route Handlers (cookies().set() does not propagate to NextResponse).
+  const response = NextResponse.json({ ok: true })
+  response.cookies.delete(MFA_PENDING_COOKIE)
+  response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure:   process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     expires,
     path:     '/',
   })
-
-  return NextResponse.json({ ok: true })
+  return response
 }

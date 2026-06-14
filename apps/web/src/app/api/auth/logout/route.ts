@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { verifyToken } from '@synapse/auth/tokens'
-import { validateSession, revokeSession } from '@synapse/auth'
+import { revokeSession } from '@synapse/auth'
 import {
   MFA_PENDING_COOKIE,
   PHARM_MFA_SATISFIED_COOKIE,
@@ -16,9 +15,10 @@ export async function POST(_req: NextRequest) {
     await revokeSession(token).catch(() => {})
   }
 
-  cookieStore.delete(SESSION_COOKIE)
-  cookieStore.delete(MFA_PENDING_COOKIE)
-  cookieStore.delete(PHARM_MFA_SATISFIED_COOKIE)
-
-  return NextResponse.json({ ok: true })
+  // Delete cookies directly on response — cookies().delete() does not propagate in Next.js 15 Route Handlers
+  const response = NextResponse.json({ ok: true })
+  response.cookies.delete(SESSION_COOKIE)
+  response.cookies.delete(MFA_PENDING_COOKIE)
+  response.cookies.delete(PHARM_MFA_SATISFIED_COOKIE)
+  return response
 }
