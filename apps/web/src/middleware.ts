@@ -215,7 +215,8 @@ export async function middleware(request: NextRequest) {
       if (token) {
         try {
           const payload = await verifyToken(token);
-          if (!ADMIN_EMAILS.includes(payload.email)) {
+          // platform_admin role is the canonical gate; email list is a secondary allow-list
+          if (payload.role !== 'platform_admin' && !ADMIN_EMAILS.includes(payload.email)) {
             const url = request.nextUrl.clone();
             url.pathname = "/platform/login";
             url.searchParams.set("error", "unauthorized");
