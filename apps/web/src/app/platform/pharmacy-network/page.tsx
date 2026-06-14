@@ -679,7 +679,7 @@ export default async function PharmacyNetworkPage() {
           <div className="space-y-2">
             {inventory.length === 0 ? <p className="rounded-lg border border-slate-800 bg-[#07070A] p-4 text-sm text-slate-500">No network inventory yet.</p> : null}
             {inventory.slice(0, 12).map((item) => (
-              <div key={item.id ?? item.drug_name ?? crypto.randomUUID()} className="rounded-lg border border-slate-800 bg-[#07070A] p-3">
+              <div key={item.id ?? `${item.pharmacy_tenant_id}-${item.drug_name}-${item.strength}`} className="rounded-lg border border-slate-800 bg-[#07070A] p-3">
                 <p className="text-sm font-semibold text-slate-100">{item.drug_name ?? "Unnamed drug"}</p>
                 <p className="mt-1 text-xs text-slate-500">{item.generic_name ?? "Generic not set"} · {item.strength ?? "strength n/a"}</p>
                 <p className="mt-1 text-xs text-[#E8B84B]">{Number(item.quantity_in_stock ?? 0).toLocaleString()} in stock</p>
