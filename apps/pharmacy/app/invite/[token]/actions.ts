@@ -2,7 +2,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { cookies } from 'next/headers'
-import { signToken, createSession } from '@synapse/auth'
+import { signToken, createSession, hashPassword } from '@synapse/auth'
 import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
 
 export async function getInviteDetails(
@@ -46,7 +46,7 @@ export async function setupAccount(
   if (onboarding.current_step >= 1) return { success: false, error: 'already_used' }
   if (new Date(onboarding.invite_expires_at) < new Date()) return { success: false, error: 'Token has expired' }
 
-  // 2. Find the pharmacy admin via pharmacy_user_settings (reliable — enrollment always creates this)
+  // 2. Find the pharmacy admin via pharmacy_user_settings
   const { data: adminSettings } = await supabaseAdmin
     .from('pharmacy_user_settings')
     .select('profile_id')
@@ -56,24 +56,23 @@ export async function setupAccount(
 
   if (!adminSettings) return { success: false, error: 'Admin account not found' }
 
-  // 3. Get admin email from Supabase Auth
-  const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(adminSettings.profile_id)
-  if (!authUserData?.user) return { success: false, error: 'Admin user not found' }
-  const adminEmail = authUserData.user.email
+  // 3. Get admin email from profiles table (custom auth — no Supabase Auth users)
+  const { data: profileRow } = await supabaseAdmin
+    .from('profiles')
+    .select('email')
+    .eq('id', adminSettings.profile_id)
+    .single()
 
-  // 4. Update auth user password and metadata
+  if (!profileRow?.email) return { success: false, error: 'Admin user not found' }
+  const adminEmail = profileRow.email as string
+
+  // 4. Hash password using custom auth and update the profile directly
+  const passwordHash = await hashPassword(password)
   const nameParts = fullName.trim().split(' ')
   const firstName = nameParts[0]
   const lastName = nameParts.slice(1).join(' ') || ''
 
-  const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(adminSettings.profile_id, {
-    password,
-    user_metadata: { full_name: fullName },
-  })
-  if (updateError) return { success: false, error: updateError.message }
-
-  // 5. Update profile — set tenant_id (critical for RLS) + name
-  await supabaseAdmin
+  const { error: updateError } = await supabaseAdmin
     .from('profiles')
     .update({
       full_name: fullName,
@@ -81,10 +80,15 @@ export async function setupAccount(
       last_name: lastName,
       tenant_id: onboarding.tenant_id,
       role: 'pharmacy_admin',
+      password_hash: passwordHash,
+      email_verified_at: new Date().toISOString(),
+      verification_status: 'verified',
     })
     .eq('id', adminSettings.profile_id)
 
-  // 6. Update onboarding step
+  if (updateError) return { success: false, error: updateError.message }
+
+  // 5. Update onboarding step
   await supabaseAdmin
     .from('pharmacy_onboarding')
     .update({
@@ -93,7 +97,7 @@ export async function setupAccount(
     })
     .eq('id', onboarding.id)
 
-  // 7. Activate the tenant
+  // 6. Activate the tenant
   await supabaseAdmin
     .from('tenants')
     .update({
@@ -102,11 +106,11 @@ export async function setupAccount(
     })
     .eq('id', onboarding.tenant_id)
 
-  // Create synapse_session so browser is authenticated immediately after invite
+  // 7. Issue session so the browser is authenticated immediately
   try {
     const sessionToken = await signToken({
       sub:       adminSettings.profile_id as string,
-      email:     adminEmail as string,
+      email:     adminEmail,
       role:      'pharmacy_admin',
       tenant_id: onboarding.tenant_id as string,
       app:       'pharmacy',

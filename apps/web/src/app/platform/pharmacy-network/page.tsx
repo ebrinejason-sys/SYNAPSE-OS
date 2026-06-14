@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { Fragment } from "react";
 import { revalidatePath } from "next/cache";
-import { Download, Globe2, Mail, MapPinned, Pill, Power, RefreshCcw, Save, UploadCloud } from "lucide-react";
+import { Download, Globe2, Mail, MapPinned, Pill, Power, RefreshCcw, Save, Trash2, UploadCloud } from "lucide-react";
 import { createServiceClient } from "../../../lib/supabase/server";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
 import { provisionVercelProjectDomain, verifyVercelProjectDomain } from "../../../lib/vercel-domains";
@@ -403,6 +403,43 @@ async function resendPharmacySetupInvite(formData: FormData) {
   revalidatePath("/platform/pharmacy-network");
 }
 
+async function deletePharmacy(formData: FormData) {
+  "use server";
+  const profile = await requirePlatformAdmin();
+  const tenantId = String(formData.get("tenant_id") ?? "");
+  if (!tenantId) return;
+
+  const supabaseAdmin = createServiceClient();
+  await (supabaseAdmin as any)
+    .from("tenants")
+    .update({
+      status: "deleted",
+      is_active: false,
+      is_network_member: false,
+      accepts_refill_requests: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", tenantId)
+    .eq("facility_type", "pharmacy");
+
+  await (supabaseAdmin as any)
+    .from("pharmacy_profiles")
+    .upsert(
+      { tenant_id: tenantId, is_network_visible: false, delivery_available: false, updated_at: new Date().toISOString() },
+      { onConflict: "tenant_id" }
+    );
+
+  await logPlatformEvent({
+    actorId: profile.id,
+    action: "pharmacy.deleted",
+    entityType: "tenant",
+    entityId: tenantId,
+    tenantId,
+    metadata: { deleted_at: new Date().toISOString() },
+  });
+  revalidatePath("/platform/pharmacy-network");
+}
+
 function pharmacyRouteForSlug(slug?: string | null) {
   const cleanSlug = (slug || "pharmacy").replace(/^pharm-/, "");
   return `https://pharm.synapseos.tech/${cleanSlug}`;
@@ -435,6 +472,7 @@ export default async function PharmacyNetworkPage() {
     ),
   ]);
 
+  const activePharmacies = pharmacies.filter((p) => p.status !== "deleted");
   const inventoryByPharmacy = new Map<string, InventoryRow[]>();
   const profileByTenant = new Map(profiles.map((profile) => [profile.tenant_id, profile]));
   const onboardingByTenant = new Map(onboardingRows.map((row) => [row.tenant_id, row]));
@@ -465,7 +503,7 @@ export default async function PharmacyNetworkPage() {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ["Pharmacies", pharmacies.length],
+          ["Active pharmacies", activePharmacies.length],
           ["Network drug rows", inventory.length],
           ["Synced rows", syncedRecently],
           ["Visible to patients", profiles.filter((profile) => profile.is_network_visible !== false).length],
@@ -498,7 +536,7 @@ export default async function PharmacyNetworkPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {pharmacies.map((pharmacy) => {
+                {activePharmacies.map((pharmacy) => {
                   const rows = inventoryByPharmacy.get(pharmacy.id ?? "") ?? [];
                   const pharmacyProfile = profileByTenant.get(pharmacy.id ?? "");
                   const onboarding = onboardingByTenant.get(pharmacy.id ?? "");
@@ -543,14 +581,14 @@ export default async function PharmacyNetworkPage() {
                           <div className="flex min-w-64 flex-wrap gap-2">
                             <form action={forceInventorySync}>
                               <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
-                              <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">
+                              <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:border-slate-500 transition-colors">
                                 <RefreshCcw className="h-3 w-3" />
                                 Force sync
                               </button>
                             </form>
                             <form action={resendPharmacySetupInvite}>
                               <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
-                              <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-[#E8B84B]/30 px-2 py-1 text-xs text-[#E8B84B]">
+                              <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-[#E8B84B]/30 px-2 py-1 text-xs text-[#E8B84B] hover:border-[#E8B84B]/60 transition-colors">
                                 <Mail className="h-3 w-3" />
                                 Resend invite
                               </button>
@@ -559,11 +597,26 @@ export default async function PharmacyNetworkPage() {
                               <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
                               <input type="hidden" name="status" value={isActive ? "suspended" : "active"} />
                               <input type="hidden" name="reason" value={isActive ? "Platform admin suspended pharmacy" : "Platform admin reactivated pharmacy"} />
-                              <button type="submit" className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs ${isActive ? "border-red-500/30 text-red-300" : "border-green-500/30 text-green-300"}`}>
+                              <button type="submit" className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs transition-colors ${isActive ? "border-amber-500/30 text-amber-300 hover:border-amber-500/60" : "border-green-500/30 text-green-300 hover:border-green-500/60"}`}>
                                 <Power className="h-3 w-3" />
                                 {isActive ? "Suspend" : "Reactivate"}
                               </button>
                             </form>
+                            <details className="relative">
+                              <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-lg border border-red-500/30 px-2 py-1 text-xs text-red-400 hover:border-red-500/60 transition-colors">
+                                <Trash2 className="h-3 w-3" />
+                                Delete
+                              </summary>
+                              <div className="absolute bottom-full left-0 z-10 mb-1 w-44 rounded-xl border border-red-500/30 bg-[#180808] p-3 shadow-xl">
+                                <p className="mb-2 text-xs text-red-300">Delete <strong>{pharmacy.name}</strong>? This cannot be undone.</p>
+                                <form action={deletePharmacy}>
+                                  <input type="hidden" name="tenant_id" value={pharmacy.id ?? ""} />
+                                  <button type="submit" className="w-full rounded-lg border border-red-500/40 bg-red-500/20 px-2 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/30 transition-colors">
+                                    Confirm delete
+                                  </button>
+                                </form>
+                              </div>
+                            </details>
                           </div>
                         </td>
                       </tr>
@@ -663,7 +716,7 @@ export default async function PharmacyNetworkPage() {
                     </Fragment>
                   );
                 })}
-                {pharmacies.length === 0 ? (
+                {activePharmacies.length === 0 ? (
                   <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-500">No pharmacy tenants found.</td></tr>
                 ) : null}
               </tbody>
