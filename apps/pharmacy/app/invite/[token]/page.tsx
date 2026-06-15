@@ -59,7 +59,13 @@ export default async function InvitePage({
   return (
     <Shell>
       <Logo />
-      <InviteForm token={token} pharmacyName={details.pharmacyName} />
+      <InviteForm
+        token={token}
+        pharmacyName={details.pharmacyName}
+        adminEmail={details.adminEmail}
+        adminName={details.adminName}
+        profileExists={details.profileExists}
+      />
     </Shell>
   )
 }
