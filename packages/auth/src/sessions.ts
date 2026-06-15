@@ -45,7 +45,10 @@ export async function validateSession(
 
   if (error) {
     if (error.code === 'PGRST116') return { valid: false }
-    throw new Error(`Session lookup failed: ${error.message}`)
+    // Non-PGRST116 errors (DB connectivity, schema issues) — log for Vercel logs
+    // and return invalid rather than throw, which would crash the RSC stream
+    console.error(`[SYNAPSE] Session validation error (code=${error.code}): ${error.message}`)
+    return { valid: false }
   }
   if (!data) return { valid: false }
   if (data.revoked_at) return { valid: false }
