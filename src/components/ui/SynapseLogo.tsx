@@ -14,7 +14,7 @@ export function SynapseLogo({ className = '' }: SynapseLogoProps) {
       <img
         src="/assets/logos/synapse-logo.png"
         alt="SynapseOS"
-        className="w-8 h-8 rounded-lg object-cover"
+        className="w-8 h-8 rounded-lg object-contain"
       />
       <span className="font-display font-extrabold text-xl tracking-tight uppercase">
         Synapse<span className="text-gold">OS</span>
@@ -30,7 +30,7 @@ export function SynapseIcon({ size = 64, className = '' }: SynapseIconProps) {
       alt="SynapseOS"
       width={size}
       height={size}
-      className={`rounded-2xl object-cover ${className}`}
+      className={`rounded-2xl object-contain ${className}`}
     />
   );
 }
