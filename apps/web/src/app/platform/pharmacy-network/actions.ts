@@ -265,16 +265,35 @@ export async function deletePharmacy(formData: FormData) {
   const tenantId = String(formData.get("tenant_id") ?? "");
   if (!tenantId) return;
 
-  const supabaseAdmin = createServiceClient();
-  await (supabaseAdmin as any).from("tenants").update({
-    status: "deleted", is_active: false, is_network_member: false,
-    accepts_refill_requests: false, updated_at: new Date().toISOString(),
-  }).eq("id", tenantId).eq("facility_type", "pharmacy");
+  const db = createServiceClient() as any;
 
-  await (supabaseAdmin as any).from("pharmacy_profiles").upsert(
-    { tenant_id: tenantId, is_network_visible: false, delivery_available: false, updated_at: new Date().toISOString() },
-    { onConflict: "tenant_id" }
-  );
+  // Verify it's a pharmacy before deleting
+  const { data: tenant } = await db
+    .from("tenants")
+    .select("id, facility_type")
+    .eq("id", tenantId)
+    .eq("facility_type", "pharmacy")
+    .maybeSingle();
+
+  if (!tenant) return;
+
+  // Delete child tables first (not all have ON DELETE CASCADE on tenants)
+  await db.from("pharmacy_onboarding").delete().eq("tenant_id", tenantId);
+  await db.from("pharmacy_profiles").delete().eq("tenant_id", tenantId);
+  await db.from("pharmacy_user_settings").delete().eq("tenant_id", tenantId);
+  await db.from("tenant_subscriptions").delete().eq("tenant_id", tenantId);
+  // profiles cascade via ON DELETE CASCADE on tenant_id FK
+  // Delete the tenant itself
+  const { error } = await db
+    .from("tenants")
+    .delete()
+    .eq("id", tenantId)
+    .eq("facility_type", "pharmacy");
+
+  if (error) {
+    console.error("[deletePharmacy] failed:", error.message);
+    throw new Error(`Could not delete pharmacy: ${error.message}`);
+  }
 
   await logPlatformEvent({
     actorId: profile.id, action: "pharmacy.deleted",
