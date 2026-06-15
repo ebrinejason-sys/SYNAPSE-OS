@@ -22,8 +22,7 @@ export function SynapseLogo({ size = 'md', variant = 'full', className = '' }: P
         borderRadius: Math.round(px * 0.22),
         display: 'block',
         flexShrink: 0,
-        border: '1px solid rgba(232,184,75,0.35)',
-        objectFit: 'cover',
+        objectFit: 'contain',
       }}
     />
   )
