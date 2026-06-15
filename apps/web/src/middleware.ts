@@ -200,6 +200,11 @@ export async function middleware(request: NextRequest) {
 
   // ── ADMIN subdomain: email-gated ──────────────────────────────────
   if (subdomain === "admin") {
+    // Invite redemption is public — don't rewrite or gate it
+    if (pathname.startsWith("/invite/")) {
+      return NextResponse.next();
+    }
+
     const platformPath = pathname.startsWith("/platform")
       ? pathname
       : `/platform${pathname === "/" ? "" : pathname}`;
