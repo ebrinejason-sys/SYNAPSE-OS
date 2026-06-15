@@ -20,7 +20,11 @@ export async function getInviteDetails(
       .select('id')
       .eq('invite_token', token)
       .single()
-    console.error('[invite] getInviteDetails: no row for token. Supabase error:', error)
+    console.error(
+      '[invite] getInviteDetails: no row for token.',
+      'Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'NOT SET',
+      'Error:', JSON.stringify(error)
+    )
     return { status: 'invalid' }
   }
   if (onboarding.current_step >= 1) return { status: 'already_used' }
