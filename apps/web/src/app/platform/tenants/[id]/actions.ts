@@ -33,7 +33,7 @@ export async function resendPharmacyInvite(tenantId: string): Promise<{ ok: bool
     .update({ invite_expires_at: newExpiry.toISOString() })
     .eq('tenant_id', tenantId)
 
-  const baseUrl = process.env.PHARMACY_APP_URL ?? 'https://pharmacy.synapseos.tech'
+  const baseUrl = process.env.NEXT_PUBLIC_PHARMACY_APP_URL ?? 'https://pharm.synapseos.tech'
   const inviteUrl = `${baseUrl}/invite/${onboarding.invite_token}`
   const firstName = profile.full_name?.split(' ')[0] ?? 'there'
 

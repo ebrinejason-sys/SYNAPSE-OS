@@ -209,6 +209,8 @@ export async function provisionPharmacy(input: PharmacyProvisionInput): Promise<
     current_step:      0,
     invite_token:      inviteToken,
     invite_expires_at: inviteExpiry.toISOString(),
+    admin_email:       input.adminEmail.trim().toLowerCase(),
+    admin_name:        input.adminFullName.trim(),
   })
 
   if (onboardErr) {
@@ -218,7 +220,7 @@ export async function provisionPharmacy(input: PharmacyProvisionInput): Promise<
   }
 
   // 5. Send invite email
-  const baseUrl = process.env.APP_BASE_URL ?? 'https://admin.synapseos.tech'
+  const baseUrl = process.env.NEXT_PUBLIC_PHARMACY_APP_URL ?? 'https://pharm.synapseos.tech'
   const inviteUrl = `${baseUrl}/invite/${inviteToken}`
   const firstName = nameParts[0] ?? 'there'
 

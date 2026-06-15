@@ -15,7 +15,7 @@ export default async function InvitePage({
 
   const { data: onboarding } = await db
     .from('pharmacy_onboarding')
-    .select('tenant_id, invite_expires_at, account_created_at')
+    .select('tenant_id, invite_expires_at, account_created_at, admin_email, admin_name')
     .eq('invite_token', token)
     .maybeSingle()
 
@@ -57,6 +57,11 @@ export default async function InvitePage({
       .eq('role', 'pharmacy_admin')
       .maybeSingle(),
   ])
+
+  // Use profile data if it exists, fall back to what was stored in onboarding
+  const adminName  = (profile?.full_name as string)  ?? (onboarding.admin_name  as string)  ?? ''
+  const adminEmail = (profile?.email    as string)    ?? (onboarding.admin_email as string)  ?? ''
+  const profileExists = !!profile
 
   return (
     <main
@@ -104,8 +109,9 @@ export default async function InvitePage({
           <RedeemInviteForm
             token={token}
             pharmacyName={(tenant?.name as string) ?? ''}
-            adminName={(profile?.full_name as string) ?? ''}
-            adminEmail={(profile?.email as string) ?? ''}
+            adminName={adminName}
+            adminEmail={adminEmail}
+            profileExists={profileExists}
           />
 
           <div

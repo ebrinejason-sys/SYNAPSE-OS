@@ -262,7 +262,7 @@ export async function sendPharmacyInviteEmail({
   adminName: string
   inviteToken: string
 }): Promise<void> {
-  const pharmacyAppUrl = process.env.APP_BASE_URL ?? "https://admin.synapseos.tech"
+  const pharmacyAppUrl = process.env.NEXT_PUBLIC_PHARMACY_APP_URL ?? "https://pharm.synapseos.tech"
   const inviteUrl = `${pharmacyAppUrl.replace(/\/$/, "")}/invite/${inviteToken}`
   const firstName = adminName.split(' ')[0] || 'there'
   await resend.emails.send({

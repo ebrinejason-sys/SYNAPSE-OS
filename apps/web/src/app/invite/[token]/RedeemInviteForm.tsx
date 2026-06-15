@@ -5,10 +5,11 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { redeemInvite } from './actions'
 
 interface Props {
-  token:        string
-  pharmacyName: string
-  adminName:    string
-  adminEmail:   string
+  token:          string
+  pharmacyName:   string
+  adminName:      string
+  adminEmail:     string
+  profileExists:  boolean
 }
 
 const inputStyle: React.CSSProperties = {
@@ -17,13 +18,20 @@ const inputStyle: React.CSSProperties = {
   color:      'var(--text-primary)',
 }
 
-export function RedeemInviteForm({ token, pharmacyName, adminName, adminEmail }: Props) {
+export function RedeemInviteForm({ token, pharmacyName, adminName, adminEmail, profileExists }: Props) {
   const [showPass,    setShowPass]    = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [password,    setPassword]    = useState('')
   const [confirm,     setConfirm]     = useState('')
+  const [name,        setName]        = useState(adminName)
+  const [email,       setEmail]       = useState(adminEmail)
   const [error,       setError]       = useState('')
   const [pending,     setPending]     = useState(false)
+
+  // When the profile exists the name/email are pre-filled from DB and locked.
+  // When there's no profile (edge case: provisioning failed mid-way), the
+  // admin enters their own details and the action creates the profile on the spot.
+  const needsContact = !profileExists
 
   const strength = password.length === 0 ? null
     : password.length < 8  ? 'weak'
@@ -33,6 +41,8 @@ export function RedeemInviteForm({ token, pharmacyName, adminName, adminEmail }:
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (needsContact && !name.trim())  { setError('Please enter your full name.'); return }
+    if (needsContact && !email.trim()) { setError('Please enter your email address.'); return }
     if (password !== confirm) { setError('Passwords do not match.'); return }
     if (password.length < 8)  { setError('Password must be at least 8 characters.'); return }
 
@@ -43,16 +53,22 @@ export function RedeemInviteForm({ token, pharmacyName, adminName, adminEmail }:
     fd.set('token',           token)
     fd.set('password',        password)
     fd.set('confirmPassword', confirm)
+    if (needsContact) {
+      fd.set('adminName',  name.trim())
+      fd.set('adminEmail', email.trim().toLowerCase())
+    }
 
     const result = await redeemInvite(fd)
-    // redeemInvite redirects on success — if we're still here there was an error
     if (result?.error) setError(result.error)
     setPending(false)
   }
 
+  const submitDisabled = pending || password.length < 8 || password !== confirm
+    || (needsContact && (!name.trim() || !email.trim()))
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Read-only info */}
+      {/* Info card */}
       <div
         className="rounded-xl p-4 space-y-1.5 text-sm"
         style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
@@ -61,14 +77,57 @@ export function RedeemInviteForm({ token, pharmacyName, adminName, adminEmail }:
           <span style={{ color: 'var(--text-muted)' }}>Pharmacy</span>
           <span className="font-semibold text-right" style={{ color: 'var(--text-primary)' }}>{pharmacyName || '—'}</span>
         </div>
-        <div className="flex justify-between gap-2">
-          <span style={{ color: 'var(--text-muted)' }}>Your name</span>
-          <span className="font-semibold text-right" style={{ color: 'var(--text-primary)' }}>{adminName || '—'}</span>
-        </div>
-        <div className="flex justify-between gap-2">
-          <span style={{ color: 'var(--text-muted)' }}>Email</span>
-          <span className="font-mono text-xs text-right" style={{ color: 'var(--text-secondary)' }}>{adminEmail || '—'}</span>
-        </div>
+
+        {needsContact ? (
+          <>
+            <div className="pt-1">
+              <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>
+                Your full name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => { setName(e.target.value); if (error) setError('') }}
+                placeholder="e.g. Jane Nalubega"
+                required
+                autoFocus
+                autoComplete="name"
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none transition-all"
+                style={inputStyle}
+                onFocus={e  => (e.target.style.borderColor = 'var(--brand-orange)')}
+                onBlur={e   => (e.target.style.borderColor = 'var(--border-edge)')}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>
+                Your email address
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => { setEmail(e.target.value); if (error) setError('') }}
+                placeholder="you@example.com"
+                required
+                autoComplete="email"
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none transition-all"
+                style={inputStyle}
+                onFocus={e  => (e.target.style.borderColor = 'var(--brand-orange)')}
+                onBlur={e   => (e.target.style.borderColor = 'var(--border-edge)')}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex justify-between gap-2">
+              <span style={{ color: 'var(--text-muted)' }}>Your name</span>
+              <span className="font-semibold text-right" style={{ color: 'var(--text-primary)' }}>{adminName || '—'}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span style={{ color: 'var(--text-muted)' }}>Email</span>
+              <span className="font-mono text-xs text-right" style={{ color: 'var(--text-secondary)' }}>{adminEmail || '—'}</span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Password */}
@@ -83,7 +142,7 @@ export function RedeemInviteForm({ token, pharmacyName, adminName, adminEmail }:
             onChange={e => { setPassword(e.target.value); if (error) setError('') }}
             placeholder="At least 8 characters"
             required
-            autoFocus
+            autoFocus={!needsContact}
             autoComplete="new-password"
             className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all pr-11"
             style={inputStyle}
@@ -180,12 +239,12 @@ export function RedeemInviteForm({ token, pharmacyName, adminName, adminEmail }:
 
       <button
         type="submit"
-        disabled={pending || password.length < 8 || password !== confirm}
+        disabled={submitDisabled}
         className="w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2"
         style={{
           background: 'var(--brand-orange)',
           color:      '#07070A',
-          opacity:    pending || password.length < 8 || password !== confirm ? 0.6 : 1,
+          opacity:    submitDisabled ? 0.6 : 1,
         }}
       >
         {pending ? (

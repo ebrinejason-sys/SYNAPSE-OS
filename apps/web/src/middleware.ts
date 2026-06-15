@@ -255,7 +255,36 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
-  // ── HOSPITAL subdomain: tenant portal ─────────────────────────────
+  // ── PHARM subdomain: standalone pharmacy app ─────────────────────
+  if (subdomain === "pharm") {
+    // Invite redemption is public — no auth, no rewrite
+    if (pathname.startsWith("/invite/")) {
+      return NextResponse.next();
+    }
+
+    const { valid: pharmSessionValid } = await hasSynapseSession(request);
+    const isPharmLoginPage = pathname === "/login";
+
+    if (!pharmSessionValid && !isPharmLoginPage) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("next", pathname);
+      return NextResponse.rewrite(url);
+    }
+
+    // Rewrite to /pharmacy/* routes
+    const pharmPath =
+      pathname === "/" || pathname === "/login"
+        ? "/pharmacy"
+        : pathname.startsWith("/pharmacy")
+        ? pathname
+        : `/pharmacy${pathname}`;
+    const url = request.nextUrl.clone();
+    url.pathname = pharmPath;
+    return NextResponse.rewrite(url);
+  }
+
+  // ── PHARM-{SLUG} subdomain: tenant-specific redirect ─────────────
   if (subdomain.startsWith("pharm-")) {
     const pharmacySlug = subdomain.replace(/^pharm-/, "");
     return NextResponse.redirect(standalonePharmacyUrl(request, `pharm-${pharmacySlug}`));

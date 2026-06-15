@@ -12,10 +12,13 @@ export async function redeemInvite(
   const token       = String(formData.get('token') ?? '').trim()
   const password    = String(formData.get('password') ?? '')
   const confirm     = String(formData.get('confirmPassword') ?? '')
+  // Only present when the profile didn't exist at provisioning time
+  const formName    = String(formData.get('adminName')  ?? '').trim()
+  const formEmail   = String(formData.get('adminEmail') ?? '').trim().toLowerCase()
 
-  if (!token)                     return { error: 'Missing invite token.' }
-  if (password.length < 8)        return { error: 'Password must be at least 8 characters.' }
-  if (password !== confirm)        return { error: 'Passwords do not match.' }
+  if (!token)              return { error: 'Missing invite token.' }
+  if (password.length < 8) return { error: 'Password must be at least 8 characters.' }
+  if (password !== confirm) return { error: 'Passwords do not match.' }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
@@ -23,7 +26,7 @@ export async function redeemInvite(
   // Re-validate token (guards against replay after expiry)
   const { data: onboarding } = await db
     .from('pharmacy_onboarding')
-    .select('tenant_id, invite_token, invite_expires_at, account_created_at')
+    .select('tenant_id, invite_token, invite_expires_at, account_created_at, admin_email, admin_name')
     .eq('invite_token', token)
     .maybeSingle()
 
@@ -33,15 +36,61 @@ export async function redeemInvite(
 
   const tenantId = onboarding.tenant_id as string
 
-  // Get the pharmacy admin profile for this tenant
-  const { data: profile } = await db
+  // Try to find the existing admin profile for this tenant
+  let { data: profile } = await db
     .from('profiles')
     .select('id, email, role, full_name, synapse_id')
     .eq('tenant_id', tenantId)
     .eq('role', 'pharmacy_admin')
     .maybeSingle()
 
-  if (!profile) return { error: 'No admin profile found for this pharmacy.' }
+  // ── Self-heal: profile was never created (provisioning failed mid-way) ──
+  if (!profile) {
+    // Resolve which email/name to use: form input > onboarding stored > error
+    const resolvedEmail = formEmail || (onboarding.admin_email as string | null) || ''
+    const resolvedName  = formName  || (onboarding.admin_name  as string | null) || ''
+
+    if (!resolvedEmail) return { error: 'Could not determine account email. Please enter your email address.' }
+    if (!resolvedName)  return { error: 'Please enter your full name.' }
+
+    // Check the email isn't already taken by another profile
+    const { data: taken } = await db
+      .from('profiles')
+      .select('id')
+      .eq('email', resolvedEmail)
+      .maybeSingle()
+
+    if (taken) return { error: `An account with email "${resolvedEmail}" already exists. Contact support if this is your address.` }
+
+    const nameParts = resolvedName.split(' ')
+    const { data: created, error: createErr } = await db
+      .from('profiles')
+      .insert({
+        email:      resolvedEmail,
+        full_name:  resolvedName,
+        first_name: nameParts[0] ?? '',
+        last_name:  nameParts.slice(1).join(' ') || null,
+        role:       'pharmacy_admin',
+        tenant_id:  tenantId,
+        is_admin:   true,
+      })
+      .select('id, email, role, full_name, synapse_id')
+      .single()
+
+    if (createErr || !created) {
+      return { error: `Failed to create your account profile: ${createErr?.message ?? 'unknown error'}` }
+    }
+
+    // Also create pharmacy_user_settings if missing
+    await db.from('pharmacy_user_settings').insert({
+      profile_id:    created.id,
+      tenant_id:     tenantId,
+      pharmacy_role: 'pharmacy_admin',
+      is_admin:      true,
+    }).catch(() => {})
+
+    profile = created
+  }
 
   const passwordHash = await hashPassword(password)
   const now = new Date().toISOString()
@@ -101,5 +150,6 @@ export async function redeemInvite(
     path:     '/',
   })
 
-  redirect('/pharmacy')
+  const pharmacyApp = process.env.NEXT_PUBLIC_PHARMACY_APP_URL ?? 'https://pharm.synapseos.tech'
+  redirect(pharmacyApp)
 }
