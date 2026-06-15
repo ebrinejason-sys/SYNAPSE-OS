@@ -42,6 +42,34 @@ export async function updatePharmacyDomain(formData: FormData) {
   revalidatePath("/platform/pharmacy-network");
 }
 
+export async function removePharmacyDomain(formData: FormData) {
+  const profile = await requirePlatformAdmin();
+  const tenantId = String(formData.get("tenant_id") ?? "");
+  if (!tenantId) return;
+
+  const supabaseAdmin = createServiceClient();
+  await (supabaseAdmin as any).from("pharmacy_profiles")
+    .update({
+      custom_domain: null,
+      custom_domain_verified: false,
+      custom_domain_verified_at: null,
+      vercel_domain_id: null,
+      domain_status: null,
+      domain_verification: null,
+      domain_error: null,
+      domain_configured_at: null,
+      last_domain_check_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("tenant_id", tenantId);
+
+  await logPlatformEvent({
+    actorId: profile.id, action: "pharmacy.custom_domain_removed",
+    entityType: "tenant", entityId: tenantId, tenantId,
+  });
+  revalidatePath("/platform/pharmacy-network");
+}
+
 export async function verifyPharmacyDomain(formData: FormData) {
   const profile = await requirePlatformAdmin();
   const tenantId = String(formData.get("tenant_id") ?? "");

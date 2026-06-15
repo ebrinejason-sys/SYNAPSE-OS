@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { CheckCircle, Globe2, Loader2, Mail, RefreshCcw, Save, X } from 'lucide-react'
+import { AlertCircle, CheckCircle, Globe2, Loader2, Mail, RefreshCcw, Save, Trash2, X } from 'lucide-react'
 import {
   forceInventorySync,
   markMigrationReady,
+  removePharmacyDomain,
   resendPharmacySetupInvite,
   updatePharmacyDetails,
   updatePharmacyDomain,
@@ -72,6 +73,7 @@ export function PharmacyEditModal({ pharmacy, profile, onboarding }: Props) {
   const [tab, setTab] = useState<Tab>('details')
   const [pending, startTransition] = useTransition()
   const [savedTab, setSavedTab] = useState<Tab | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const tenantId = pharmacy.id ?? ''
   const customDomain = profile?.custom_domain ?? ''
@@ -79,10 +81,15 @@ export function PharmacyEditModal({ pharmacy, profile, onboarding }: Props) {
   function runAction(action: (fd: FormData) => Promise<void>, currentTab: Tab) {
     return (formData: FormData) => {
       startTransition(async () => {
-        await action(formData)
-        setSavedTab(currentTab)
-        // Show success for 1.5s then clear
-        setTimeout(() => setSavedTab(null), 1500)
+        setErrorMsg(null)
+        try {
+          await action(formData)
+          setSavedTab(currentTab)
+          setTimeout(() => setSavedTab(null), 1800)
+        } catch (err) {
+          setErrorMsg(err instanceof Error ? err.message : 'Action failed — please try again.')
+          setTimeout(() => setErrorMsg(null), 4000)
+        }
       })
     }
   }
@@ -158,6 +165,13 @@ export function PharmacyEditModal({ pharmacy, profile, onboarding }: Props) {
 
             {/* Content */}
             <div className="max-h-[65vh] overflow-y-auto p-5">
+              {/* Global error banner */}
+              {errorMsg && (
+                <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-400">
+                  <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  {errorMsg}
+                </div>
+              )}
 
               {/* ── Details ──────────────────────────────────────── */}
               {tab === 'details' && (
@@ -258,9 +272,10 @@ export function PharmacyEditModal({ pharmacy, profile, onboarding }: Props) {
               {/* ── Domain ────────────────────────────────────────── */}
               {tab === 'domain' && (
                 <div className="space-y-4">
-                  <form action={runAction(updatePharmacyDomain, 'domain')} className="flex flex-wrap items-end gap-3">
+                  {/* Set / update domain */}
+                  <form action={runAction(updatePharmacyDomain, 'domain')} className="space-y-3">
                     <input type="hidden" name="tenant_id" value={tenantId} />
-                    <label className="flex-1 space-y-1 min-w-48">
+                    <label className="block space-y-1">
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-color">Custom domain</span>
                       <input
                         name="custom_domain"
@@ -269,40 +284,71 @@ export function PharmacyEditModal({ pharmacy, profile, onboarding }: Props) {
                         className="w-full rounded-lg border border-subtle bg-elevated px-3 py-2 text-xs text-primary-color focus:border-[#F97316]/50 focus:outline-none"
                       />
                     </label>
-                    <button
-                      type="submit"
-                      disabled={pending}
-                      className="inline-flex items-center gap-2 rounded-xl border border-subtle px-4 py-2 text-xs text-secondary-color transition hover:text-primary-color disabled:opacity-60"
-                    >
-                      <Globe2 className="h-3.5 w-3.5" />
-                      Set domain
-                    </button>
-                  </form>
-                  {customDomain && (
-                    <form action={runAction(verifyPharmacyDomain, 'domain')}>
-                      <input type="hidden" name="tenant_id" value={tenantId} />
-                      <input type="hidden" name="custom_domain" value={customDomain} />
-                      <button
-                        type="submit"
-                        disabled={pending}
-                        className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs transition disabled:opacity-60 ${profile?.custom_domain_verified ? 'border-green-500/30 text-green-300' : 'border-[#E8B84B]/30 text-[#E8B84B] hover:bg-[#E8B84B]/10'}`}
-                      >
+                    <div className="flex flex-wrap gap-2">
+                      <button type="submit" disabled={pending}
+                        className="inline-flex items-center gap-2 rounded-xl border border-subtle px-4 py-2 text-xs text-secondary-color transition hover:text-primary-color disabled:opacity-60">
                         <Globe2 className="h-3.5 w-3.5" />
-                        {profile?.custom_domain_verified ? 'Domain verified ✓' : 'Verify domain'}
+                        {savedTab === 'domain' ? 'Domain saved ✓' : 'Set domain'}
                       </button>
-                    </form>
-                  )}
+                    </div>
+                  </form>
+
+                  {/* Current domain status row */}
                   {customDomain && (
-                    <div className="rounded-xl border border-subtle bg-elevated p-4 text-xs text-muted-color space-y-1">
-                      <p className="font-semibold text-secondary-color">DNS TXT record required</p>
-                      <p>Name: <span className="font-mono text-[#E8B84B] break-all">_synapse.{customDomain}</span></p>
-                      <p>Value: <span className="font-mono text-primary-color">synapse-domain-verification={tenantId.slice(0, 8)}</span></p>
+                    <div className="rounded-xl border border-subtle bg-elevated p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-color mb-1">Active domain</p>
+                          <p className="font-mono text-xs text-[#E8B84B] break-all">{customDomain}</p>
+                        </div>
+                        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-semibold ${
+                          profile?.custom_domain_verified
+                            ? 'border-green-500/30 bg-green-500/10 text-green-300'
+                            : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                        }`}>
+                          {profile?.custom_domain_verified ? 'Verified' : 'Pending'}
+                        </span>
+                      </div>
+
+                      {/* Verify + Remove row */}
+                      <div className="flex flex-wrap gap-2 pt-1 border-t border-subtle">
+                        <form action={runAction(verifyPharmacyDomain, 'domain')}>
+                          <input type="hidden" name="tenant_id" value={tenantId} />
+                          <input type="hidden" name="custom_domain" value={customDomain} />
+                          <button type="submit" disabled={pending || Boolean(profile?.custom_domain_verified)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[#E8B84B]/30 bg-[#E8B84B]/10 px-3 py-1.5 text-xs font-semibold text-[#E8B84B] transition hover:bg-[#E8B84B]/20 disabled:opacity-50">
+                            <Globe2 className="h-3 w-3" />
+                            {profile?.custom_domain_verified ? 'Already verified' : 'Verify now'}
+                          </button>
+                        </form>
+                        <form action={runAction(removePharmacyDomain, 'domain')}>
+                          <input type="hidden" name="tenant_id" value={tenantId} />
+                          <button type="submit" disabled={pending}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
+                            <Trash2 className="h-3 w-3" />
+                            Remove domain
+                          </button>
+                        </form>
+                      </div>
                     </div>
                   )}
-                  {savedTab === 'domain' && (
-                    <p className="flex items-center gap-1.5 text-xs text-green-400">
-                      <CheckCircle className="h-3.5 w-3.5" />Domain updated successfully
-                    </p>
+
+                  {/* DNS instructions */}
+                  {customDomain && !profile?.custom_domain_verified && (
+                    <div className="rounded-xl border border-[#E8B84B]/20 bg-[#E8B84B]/5 p-4 text-xs space-y-2">
+                      <p className="font-semibold text-[#E8B84B]">DNS TXT record required</p>
+                      <p className="text-muted-color">Add this to your DNS provider to verify ownership:</p>
+                      <div className="space-y-1.5 mt-2">
+                        <div>
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-color">Name</span>
+                          <p className="font-mono text-[#E8B84B] break-all mt-0.5">_synapse.{customDomain}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-color">Value</span>
+                          <p className="font-mono text-primary-color break-all mt-0.5">synapse-domain-verification={tenantId.slice(0, 8)}</p>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}

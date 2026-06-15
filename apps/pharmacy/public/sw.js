@@ -1,4 +1,4 @@
-const CACHE_NAME = 'synapse-pharm-v3';
+const CACHE_NAME = 'synapse-pharm-v4';
 const STATIC_ASSETS = [
   '/',
   '/login',
@@ -95,6 +95,9 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // Never intercept non-GET requests — server actions, form POSTs, etc.
+  if (request.method !== 'GET') return;
+
   // API calls: Network first, with cache fallback and background update
   if (url.pathname.startsWith('/api/')) {
     // Skip auth and sync triggers
@@ -142,7 +145,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       const networkFetch = fetch(request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
+        if (networkResponse && networkResponse.status === 200 && request.method === 'GET') {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(request, responseToCache);
