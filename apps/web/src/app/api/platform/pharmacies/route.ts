@@ -187,6 +187,20 @@ export async function POST(request: Request) {
   const adminFirstName = adminNameParts[0] ?? "Pharmacy";
   const adminLastName = adminNameParts.slice(1).join(" ") || "Admin";
 
+  // Check for duplicate email before inserting
+  const { data: existingProfile } = await (supabaseAdmin as any)
+    .from("profiles")
+    .select("id")
+    .eq("email", adminEmail)
+    .maybeSingle();
+
+  if (existingProfile) {
+    return NextResponse.json(
+      { error: `The email ${adminEmail} is already registered in Synapse. Use a different email address for this pharmacy admin.` },
+      { status: 409 }
+    );
+  }
+
   // Create the pharmacy admin profile directly with the temp password
   let adminProfileId: string | null = null;
   try {
