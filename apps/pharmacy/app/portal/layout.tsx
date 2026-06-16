@@ -2,6 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import {
   LayoutDashboard, Users, Package, ShoppingCart, DollarSign,
   Settings, LogOut, Menu, X, UserCheck, ClipboardList,
@@ -136,14 +137,23 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       )}>
         {/* Logo */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-border">
-          <Link href="/portal/dashboard" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#F97316] to-[#E8B84B] flex items-center justify-center shadow">
-              <span className="text-white font-black text-sm">S</span>
-            </div>
-            <div className="flex flex-col leading-tight">
-              <span className="font-bold text-sm text-foreground">SYNAPSE Pharm</span>
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Admin Portal</span>
-            </div>
+          <Link href="/portal/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <Image
+              src="/logo-dark.png"
+              alt="Synapse Pharmacy"
+              width={140}
+              height={36}
+              className="object-contain dark:block hidden"
+              priority
+            />
+            <Image
+              src="/logo-light.png"
+              alt="Synapse Pharmacy"
+              width={140}
+              height={36}
+              className="object-contain dark:hidden block"
+              priority
+            />
           </Link>
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(false)}>
             <X className="h-5 w-5" />

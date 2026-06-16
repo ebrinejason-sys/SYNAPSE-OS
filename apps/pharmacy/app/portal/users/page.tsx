@@ -51,7 +51,7 @@ export default function UsersPage() {
     try {
       const response = await fetch("/api/admin/users")
       const data = await response.json()
-      setUsers(data)
+      setUsers(Array.isArray(data) ? data : [])
     } catch (error) {
       toast({
         variant: "destructive",

@@ -7,24 +7,24 @@
   :root,
   [data-theme="dark"],
   .dark {
-    --background:        7 7 10;
-    --foreground:        245 245 247;
-    --card:              17 17 23;
-    --card-foreground:   245 245 247;
-    --popover:           26 26 36;
-    --popover-foreground:245 245 247;
-    --primary:           24 100% 53%;      /* #F97316 */
+    --background:        222 25% 5%;       /* #070C14 deep navy-black */
+    --foreground:        210 40% 96%;      /* #EEF3FB near-white */
+    --card:              222 18% 9%;       /* #101824 */
+    --card-foreground:   210 40% 96%;
+    --popover:           222 16% 12%;      /* #16202E */
+    --popover-foreground:210 40% 96%;
+    --primary:           24 100% 53%;      /* #F97316 orange */
     --primary-foreground:0 0% 100%;
-    --secondary:         240 5% 10%;
-    --secondary-foreground:245 245 247;
-    --muted:             240 5% 17%;
-    --muted-foreground:  240 4% 64%;
-    --accent:            40 77% 57%;       /* #E8B84B */
+    --secondary:         220 15% 14%;      /* #1A2231 */
+    --secondary-foreground:210 40% 92%;
+    --muted:             220 15% 16%;      /* #1E2738 */
+    --muted-foreground:  215 18% 58%;      /* #849AB7 */
+    --accent:            40 77% 57%;       /* #E8B84B gold */
     --accent-foreground: 0 0% 4%;
     --destructive:       0 84% 60%;
     --destructive-foreground:0 0% 100%;
-    --border:            240 5% 22%;
-    --input:             240 5% 22%;
+    --border:            220 14% 20%;      /* #272F3E */
+    --input:             220 14% 20%;
     --ring:              24 100% 53%;
     --radius:            0.5rem;
   }
@@ -32,24 +32,24 @@
   /* ── Light mode ────────────────────────────────────────────── */
   [data-theme="light"],
   .light {
-    --background:        0 0% 98%;
-    --foreground:        240 10% 6%;
+    --background:        210 40% 98%;      /* #F5F8FC */
+    --foreground:        222 47% 11%;      /* #0F172A dark navy */
     --card:              0 0% 100%;
-    --card-foreground:   240 10% 6%;
+    --card-foreground:   222 47% 11%;
     --popover:           0 0% 100%;
-    --popover-foreground:240 10% 6%;
-    --primary:           24 100% 53%;
+    --popover-foreground:222 47% 11%;
+    --primary:           24 100% 53%;      /* #F97316 orange */
     --primary-foreground:0 0% 100%;
-    --secondary:         240 5% 95%;
-    --secondary-foreground:240 10% 6%;
-    --muted:             240 5% 95%;
-    --muted-foreground:  240 4% 42%;
-    --accent:            40 77% 57%;
+    --secondary:         214 32% 91%;      /* #DDE6F0 */
+    --secondary-foreground:222 47% 11%;
+    --muted:             214 32% 91%;
+    --muted-foreground:  215 16% 47%;      /* #647A94 */
+    --accent:            40 77% 57%;       /* #E8B84B gold */
     --accent-foreground: 0 0% 4%;
     --destructive:       0 84% 60%;
     --destructive-foreground:0 0% 100%;
-    --border:            240 6% 90%;
-    --input:             240 6% 90%;
+    --border:            214 32% 88%;      /* #D1DCE9 */
+    --input:             214 32% 88%;
     --ring:              24 100% 53%;
     --radius:            0.5rem;
   }

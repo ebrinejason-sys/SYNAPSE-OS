@@ -17,8 +17,25 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (error && error.code !== "PGRST116") throw error
+    if (!settings) return NextResponse.json(null)
 
-    return NextResponse.json(settings ?? null)
+    // Return camelCase so client-side Settings interface matches
+    return NextResponse.json({
+      id:                settings.id,
+      tenantId:          settings.tenant_id,
+      pharmacyName:      settings.pharmacy_name ?? "",
+      location:          settings.location ?? "",
+      contact:           settings.contact ?? "",
+      email:             settings.email ?? "",
+      logo:              settings.logo ?? null,
+      footerText:        settings.footer_text ?? "",
+      receiptHeader:     settings.receipt_header ?? "",
+      receiptFooter:     settings.receipt_footer ?? "",
+      currency:          settings.currency ?? "UGX",
+      taxRate:           settings.tax_rate ?? 0,
+      lowStockThreshold: settings.low_stock_threshold ?? 10,
+      printerType:       settings.printer_type ?? "default",
+    })
   } catch (error) {
     console.error("Get settings error:", error)
     return NextResponse.json(
