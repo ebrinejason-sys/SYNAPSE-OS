@@ -6,8 +6,9 @@ import Image from "next/image"
 import {
   LayoutDashboard, Users, Package, ShoppingCart, DollarSign,
   Settings, LogOut, Menu, X, UserCheck, ClipboardList,
-  MessageSquare, Activity, Bell, Truck, FileText, BarChart3,
+  MessageSquare, Activity, Truck, FileText, BarChart3,
   RotateCcw, Wifi, WifiOff, CalendarClock, WalletCards, BrainCircuit,
+  Sun, Moon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NotificationBell } from "@/components/ui/notification-bell"
@@ -76,6 +77,21 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const router = useRouter()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
+  const [isDark, setIsDark] = useState(true)
+
+  useEffect(() => {
+    const stored = localStorage.getItem("pharm-theme")
+    const dark = stored ? stored === "dark" : true
+    setIsDark(dark)
+    document.documentElement.classList.toggle("dark", dark)
+  }, [])
+
+  const toggleTheme = () => {
+    const next = !isDark
+    setIsDark(next)
+    document.documentElement.classList.toggle("dark", next)
+    localStorage.setItem("pharm-theme", next ? "dark" : "light")
+  }
 
   useEffect(() => {
     setIsOnline(navigator.onLine)
@@ -244,6 +260,16 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
               <span>{isOnline ? "Online" : "Offline"}</span>
             </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              className="text-muted-foreground hover:text-foreground"
+              title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
             <NotificationBell />
             <div className="hidden md:flex flex-col items-end">
               <span className="text-sm font-medium text-foreground">{displayName}</span>

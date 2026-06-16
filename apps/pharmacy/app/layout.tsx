@@ -25,7 +25,7 @@ export default function RootLayout({
         {/* FOCT prevention - sets theme before first paint */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){var t=localStorage.getItem('synapse-theme')||'dark';document.documentElement.setAttribute('data-theme',t);document.documentElement.className=t+' scroll-smooth';})();`,
+            __html: `(function(){var t=localStorage.getItem('pharm-theme')||'dark';document.documentElement.setAttribute('data-theme',t);document.documentElement.classList.toggle('dark',t==='dark');})();`,
           }}
         />
       </head>

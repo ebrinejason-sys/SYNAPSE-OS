@@ -201,15 +201,6 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      if (item.quantity > product.quantity) {
-        return NextResponse.json(
-          {
-            error: `Insufficient stock for ${product.name}. Available: ${product.quantity}, Requested: ${item.quantity}`,
-          },
-          { status: 400 }
-        )
-      }
-
       const itemTotal = item.unitPrice * item.quantity
       totalAmount += itemTotal
 
@@ -400,7 +391,7 @@ export async function POST(request: NextRequest) {
       .from("pharmacy_transaction_items")
       .select(`
         *,
-        product:pharmacy_products ( id, name, sku, cost_price ),
+        product:pharmacy_products ( id, name, sku, strength, dosage_form ),
         batch:pharmacy_product_batches ( id, batch_number, expiry_date )
       `)
       .eq("transaction_id", transaction.id)
@@ -408,8 +399,41 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       transaction: {
-        ...transaction,
-        items: responseItems ?? [],
+        id: transaction.id,
+        transactionNo: transaction.transaction_no,
+        createdAt: transaction.created_at,
+        clientName: transaction.client_name,
+        clientPhone: transaction.client_phone,
+        clientAddress: transaction.client_address,
+        totalAmount: transaction.total_amount,
+        tax: transaction.tax,
+        netAmount: transaction.net_amount,
+        paymentMethod: transaction.payment_method,
+        status: transaction.status,
+        items: (responseItems ?? []).map((item: any) => ({
+          id: item.id,
+          quantity: item.quantity,
+          unitPrice: Number(item.unit_price),
+          totalPrice: Number(item.total_price),
+          packageName: item.package_name,
+          packageQuantity: item.package_quantity,
+          product: item.product
+            ? {
+                id: item.product.id,
+                name: item.product.name,
+                sku: item.product.sku,
+                strength: item.product.strength,
+                dosageForm: item.product.dosage_form,
+              }
+            : null,
+          batch: item.batch
+            ? {
+                id: item.batch.id,
+                batchNumber: item.batch.batch_number,
+                expiryDate: item.batch.expiry_date,
+              }
+            : null,
+        })),
       },
     })
   } catch (error) {

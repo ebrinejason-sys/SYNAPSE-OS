@@ -655,10 +655,8 @@ export default function POSPage() {
       })
 
       if (response.ok) {
-        const data = await response.json()
-        if (data?.transaction) {
-          updatedTransaction = data.transaction
-        }
+        // Merge only clientName — pendingTransaction is already camelCase-normalized
+        updatedTransaction = { ...pendingTransaction, clientName: desiredClientName }
       }
     } catch (error) {
       console.error("Failed to update client name before printing:", error)
