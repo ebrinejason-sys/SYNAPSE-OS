@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { Check, ChevronRight, Loader2, Plus, Trash2 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -250,12 +251,14 @@ export default function OnboardingPage() {
       <div className="w-full max-w-2xl">
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3 shadow-lg bg-gradient-to-br from-[#F97316] to-[#E8B84B]">
-            <span className="text-white font-black text-xl">S</span>
-          </div>
-          <h1 className="text-xl font-bold text-white">
-            Synapse <span className="text-[#E8B84B]">Pharmacy</span>
-          </h1>
+          <Image
+            src="/logo-dark.png"
+            alt="Synapse Pharmacy"
+            width={160}
+            height={48}
+            className="mb-3 object-contain"
+            priority
+          />
           {onboardingData?.tenantName && (
             <p className="text-zinc-400 text-sm mt-1">{onboardingData.tenantName}</p>
           )}
