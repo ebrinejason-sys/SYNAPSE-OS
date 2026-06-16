@@ -83,47 +83,61 @@ export async function GET(request: NextRequest) {
           .lte("expiry_date", thirtyDaysFromNow)
           .gte("expiry_date", nowISO)
           .order("expiry_date", { ascending: true }),
-        // Recent activity logs
+        // Recent activity logs (no implicit join)
         (supabaseAdmin as any)
           .from("pharmacy_audit_logs")
-          .select("*, profiles(full_name, first_name, last_name)")
+          .select("id, profile_id, action, entity, details, created_at")
           .eq("tenant_id", session.profile.tenant_id!)
           .order("created_at", { ascending: false })
           .limit(8),
-        // Staff with their roles
+        // Staff settings (no implicit join)
         (supabaseAdmin as any)
           .from("pharmacy_user_settings")
-          .select(
-            "profile_id, pharmacy_role, profiles(id, full_name, first_name, last_name)"
-          )
+          .select("profile_id, pharmacy_role")
           .eq("tenant_id", session.profile.tenant_id!)
           .eq("is_active", true),
       ])
 
       const totalRevenue = (totalRevenueResult.data ?? []).reduce(
-        (sum: number, tx: { net_amount: number | null }) =>
-          sum + (tx.net_amount ?? 0),
+        (sum: number, tx: { net_amount: number | null }) => sum + (tx.net_amount ?? 0),
         0
       )
       const todaySales = (todaySalesResult.data ?? []).reduce(
-        (sum: number, tx: { net_amount: number | null }) =>
-          sum + (tx.net_amount ?? 0),
+        (sum: number, tx: { net_amount: number | null }) => sum + (tx.net_amount ?? 0),
         0
       )
 
-      // Per-user today stats
-      type StaffSetting = {
-        profile_id: string
-        pharmacy_role: string | null
-        profiles: {
-          id: string
-          full_name: string | null
-          first_name: string | null
-          last_name: string | null
-        } | null
+      // Resolve profiles for activity logs and staff
+      const activityLogs: any[] = recentActivityResult.data ?? []
+      const staffRaw: any[] = staffSettingsResult.data ?? []
+      const allProfileIds = [
+        ...new Set([
+          ...activityLogs.map((l: any) => l.profile_id).filter(Boolean),
+          ...staffRaw.map((s: any) => s.profile_id).filter(Boolean),
+        ]),
+      ]
+      const { data: profileRows } = await (supabaseAdmin as any)
+        .from("profiles")
+        .select("id, full_name, first_name, last_name")
+        .in("id", allProfileIds)
+      const profileMap = new Map((profileRows ?? []).map((p: any) => [p.id, p]))
+
+      const resolveName = (profileId: string) => {
+        const p: any = profileMap.get(profileId)
+        return p?.full_name ?? [p?.first_name, p?.last_name].filter(Boolean).join(" ") || "Unknown"
       }
 
-      const staffSettings = (staffSettingsResult.data ?? []) as unknown as StaffSetting[]
+      // Map recentActivity to expected shape
+      const recentActivity = activityLogs.map((log: any) => ({
+        id: log.id,
+        action: log.action,
+        entity: log.entity,
+        details: log.details,
+        createdAt: log.created_at,
+        user: { name: resolveName(log.profile_id), role: "STAFF" },
+      }))
+
+      const staffSettings = staffRaw
 
       const userStats = await Promise.all(
         staffSettings.map(async (pu) => {
@@ -141,17 +155,9 @@ export async function GET(request: NextRequest) {
             0
           )
 
-          const profile = pu.profiles
-          const name =
-            profile?.full_name ??
-            [profile?.first_name, profile?.last_name]
-              .filter(Boolean)
-              .join(" ") ??
-            "Unknown"
-
           return {
             userId: pu.profile_id,
-            userName: name,
+            userName: resolveName(pu.profile_id),
             userRole: pu.pharmacy_role,
             todaySales: todayUserSales,
             todayTransactions: txs?.length ?? 0,
@@ -169,7 +175,7 @@ export async function GET(request: NextRequest) {
         lowStockCount: lowStockResult.count ?? 0,
         pendingOrders: 0,
         expiringProducts: expiringResult.data ?? [],
-        recentActivity: recentActivityResult.data ?? [],
+        recentActivity,
         userStats,
         isAdmin: true,
       })

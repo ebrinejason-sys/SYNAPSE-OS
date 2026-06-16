@@ -325,13 +325,13 @@ export default function AdminDashboard() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <span className="font-medium text-sm sm:text-base truncate">{activity.user.name}</span>
+                          <span className="font-medium text-sm sm:text-base truncate">{activity.user?.name ?? "System"}</span>
                           <span className={`px-2 py-0.5 text-xs rounded-full shrink-0 ${
-                            activity.user.role === 'ADMIN' ? 'bg-purple-500/15 text-purple-400' :
-                            activity.user.role === 'CEO' ? 'bg-blue-500/15 text-blue-400' :
+                            activity.user?.role === 'ADMIN' ? 'bg-purple-500/15 text-purple-400' :
+                            activity.user?.role === 'CEO' ? 'bg-blue-500/15 text-blue-400' :
                             'bg-green-500/15 text-[#22C55E]'
                           }`}>
-                            {activity.user.role}
+                            {activity.user?.role ?? "STAFF"}
                           </span>
                           <span className={`px-2 py-0.5 text-xs rounded-full shrink-0 ml-auto sm:ml-0 ${
                             activity.action.includes('CREATE') ? 'bg-green-500/15 text-[#22C55E]' :

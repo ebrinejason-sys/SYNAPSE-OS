@@ -7,24 +7,24 @@
   :root,
   [data-theme="dark"],
   .dark {
-    --background:        222 25% 5%;       /* #070C14 deep navy-black */
-    --foreground:        210 40% 96%;      /* #EEF3FB near-white */
-    --card:              222 18% 9%;       /* #101824 */
-    --card-foreground:   210 40% 96%;
-    --popover:           222 16% 12%;      /* #16202E */
-    --popover-foreground:210 40% 96%;
+    --background:        0 0% 7%;          /* #121212 pure charcoal */
+    --foreground:        0 0% 96%;         /* #F5F5F5 near-white */
+    --card:              0 0% 11%;         /* #1C1C1C */
+    --card-foreground:   0 0% 96%;
+    --popover:           0 0% 13%;         /* #212121 */
+    --popover-foreground:0 0% 96%;
     --primary:           24 100% 53%;      /* #F97316 orange */
     --primary-foreground:0 0% 100%;
-    --secondary:         220 15% 14%;      /* #1A2231 */
-    --secondary-foreground:210 40% 92%;
-    --muted:             220 15% 16%;      /* #1E2738 */
-    --muted-foreground:  215 18% 58%;      /* #849AB7 */
+    --secondary:         0 0% 15%;         /* #262626 */
+    --secondary-foreground:0 0% 90%;
+    --muted:             0 0% 16%;         /* #292929 */
+    --muted-foreground:  0 0% 55%;         /* #8C8C8C */
     --accent:            40 77% 57%;       /* #E8B84B gold */
     --accent-foreground: 0 0% 4%;
     --destructive:       0 84% 60%;
     --destructive-foreground:0 0% 100%;
-    --border:            220 14% 20%;      /* #272F3E */
-    --input:             220 14% 20%;
+    --border:            0 0% 21%;         /* #363636 */
+    --input:             0 0% 21%;
     --ring:              24 100% 53%;
     --radius:            0.5rem;
   }

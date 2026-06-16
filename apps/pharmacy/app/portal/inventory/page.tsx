@@ -472,8 +472,18 @@ interface CreateProductDialogProps {
   onSuccess: () => void
 }
 
+function generateSku(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.replace(/[^a-zA-Z0-9]/g, "").slice(0, 3).toUpperCase())
+    .join("-")
+}
+
 function CreateProductDialog({ onClose, onSuccess, suppliers }: CreateProductDialogProps & { suppliers: Supplier[] }) {
   // Section 1: Basic Product Info
+  const [skuEdited, setSkuEdited] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     sku: "",
@@ -679,11 +689,30 @@ function CreateProductDialog({ onClose, onSuccess, suppliers }: CreateProductDia
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="name">Product Name *</Label>
-                  <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required placeholder="e.g., Paracetamol 500mg" />
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => {
+                      const name = e.target.value
+                      setFormData((prev) => ({
+                        ...prev,
+                        name,
+                        sku: skuEdited ? prev.sku : generateSku(name),
+                      }))
+                    }}
+                    required
+                    placeholder="e.g., Paracetamol 500mg"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="sku">SKU *</Label>
-                  <Input id="sku" value={formData.sku} onChange={(e) => setFormData({ ...formData, sku: e.target.value })} required placeholder="e.g., PAR-500"  />
+                  <Input
+                    id="sku"
+                    value={formData.sku}
+                    onChange={(e) => { setSkuEdited(true); setFormData({ ...formData, sku: e.target.value }) }}
+                    required
+                    placeholder="Auto-generated from name"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="category">Category</Label>
