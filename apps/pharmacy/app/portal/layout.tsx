@@ -83,13 +83,26 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     const stored = localStorage.getItem("pharm-theme")
     const dark = stored ? stored === "dark" : true
     setIsDark(dark)
-    document.documentElement.classList.toggle("dark", dark)
+    applyTheme(dark)
   }, [])
+
+  const applyTheme = (dark: boolean) => {
+    const html = document.documentElement
+    if (dark) {
+      html.classList.add("dark")
+      html.classList.remove("light")
+      html.setAttribute("data-theme", "dark")
+    } else {
+      html.classList.remove("dark")
+      html.classList.add("light")
+      html.setAttribute("data-theme", "light")
+    }
+  }
 
   const toggleTheme = () => {
     const next = !isDark
     setIsDark(next)
-    document.documentElement.classList.toggle("dark", next)
+    applyTheme(next)
     localStorage.setItem("pharm-theme", next ? "dark" : "light")
   }
 
@@ -153,23 +166,16 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       )}>
         {/* Logo */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-border">
-          <Link href="/portal/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <Image
-              src="/logo-dark.png"
-              alt="Synapse Pharmacy"
-              width={140}
-              height={36}
-              className="object-contain dark:block hidden"
-              priority
-            />
-            <Image
-              src="/logo-light.png"
-              alt="Synapse Pharmacy"
-              width={140}
-              height={36}
-              className="object-contain dark:hidden block"
-              priority
-            />
+          <Link href="/portal/dashboard" className="hover:opacity-80 transition-opacity">
+            <div className="relative w-36 h-9 shrink-0">
+              <Image
+                src={isDark ? "/logo-dark.png" : "/logo-light.png"}
+                alt="Synapse Pharmacy"
+                fill
+                className="object-contain object-left"
+                priority
+              />
+            </div>
           </Link>
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(false)}>
             <X className="h-5 w-5" />
