@@ -33,7 +33,7 @@ export async function GET() {
     const staff = settings.map((s: any) => {
       const profile: any = profileMap.get(s.profile_id)
       const name =
-        profile?.full_name ??
+        profile?.full_name ||
         [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
         s.username ||
         "Unknown"

@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
 
       const resolveName = (profileId: string) => {
         const p: any = profileMap.get(profileId)
-        return p?.full_name ?? [p?.first_name, p?.last_name].filter(Boolean).join(" ") || "Unknown"
+        return p?.full_name || [p?.first_name, p?.last_name].filter(Boolean).join(" ") || "Unknown"
       }
 
       // Map recentActivity to expected shape

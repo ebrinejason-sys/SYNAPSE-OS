@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       const profile: any = profileMap.get(log.profile_id)
       const settings: any = settingsMap.get(log.profile_id)
       const name =
-        profile?.full_name ??
+        profile?.full_name ||
         [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
         profile?.email?.split("@")[0] ||
         "System"

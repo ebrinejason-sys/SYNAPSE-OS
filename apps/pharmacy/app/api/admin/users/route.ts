@@ -43,7 +43,7 @@ export async function GET() {
     const users = userSettings.map((setting: any) => {
       const profile: any = profileMap.get(setting.profile_id)
       const name =
-        profile?.full_name ??
+        profile?.full_name ||
         [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
         profile?.email?.split("@")[0] ||
         ""
