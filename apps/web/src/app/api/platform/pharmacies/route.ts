@@ -176,10 +176,13 @@ export async function POST(request: Request) {
     );
   } catch {}
 
-  // Generate temporary password: "Synapse" + 4 random uppercase letters + 4 digits + "!"
+  // Use admin-supplied temp password or auto-generate one
   const randomUpper = () => String.fromCharCode(65 + Math.floor(Math.random() * 26));
   const randomDigit = () => String(Math.floor(Math.random() * 10));
-  const tempPassword = `Synapse${randomUpper()}${randomUpper()}${randomUpper()}${randomUpper()}${randomDigit()}${randomDigit()}${randomDigit()}${randomDigit()}!`;
+  const rawTempPassword = String(body.tempPassword ?? "").trim();
+  const tempPassword = rawTempPassword.length >= 8
+    ? rawTempPassword
+    : `Synapse${randomUpper()}${randomUpper()}${randomUpper()}${randomUpper()}${randomDigit()}${randomDigit()}${randomDigit()}${randomDigit()}!`;
   const tempPasswordHash = await hashPassword(tempPassword);
 
   const adminFullName = (body.contactName || "Pharmacy Admin") as string;
@@ -202,35 +205,38 @@ export async function POST(request: Request) {
   }
 
   // Create the pharmacy admin profile directly with the temp password
+  const adminProfileId_gen = crypto.randomUUID();
   let adminProfileId: string | null = null;
-  try {
-    const { data: newProfile } = await (supabaseAdmin as any)
-      .from("profiles")
-      .insert({
-        email: adminEmail,
-        full_name: adminFullName,
-        first_name: adminFirstName,
-        last_name: adminLastName,
-        role: "pharmacy_admin",
-        tenant_id: tenantId,
-        is_admin: true,
-        password_hash: tempPasswordHash,
-        must_change_password: true,
-        email_verified_at: new Date().toISOString(),
-        verification_status: "verified",
-      })
-      .select("id")
-      .single();
-    adminProfileId = newProfile?.id ?? null;
-  } catch (profileErr) {
+  const { data: newProfile, error: profileInsertErr } = await (supabaseAdmin as any)
+    .from("profiles")
+    .insert({
+      id: adminProfileId_gen,
+      email: adminEmail,
+      full_name: adminFullName,
+      first_name: adminFirstName,
+      last_name: adminLastName || "Admin",
+      role: "pharmacy_admin",
+      tenant_id: tenantId,
+      is_admin: true,
+      password_hash: tempPasswordHash,
+      must_change_password: true,
+      email_verified_at: new Date().toISOString(),
+      verification_status: "verified",
+    })
+    .select("id")
+    .single();
+
+  if (profileInsertErr) {
     await logPlatformEvent({
       actorId,
       action: "pharmacy.admin_profile_failed",
       entityType: "tenant",
       entityId: tenantId,
       tenantId,
-      metadata: { error: String(profileErr), admin_email: adminEmail },
+      metadata: { error: profileInsertErr.message, admin_email: adminEmail },
     });
+  } else {
+    adminProfileId = newProfile?.id ?? null;
   }
 
   // Create pharmacy_user_settings linking the admin to this tenant

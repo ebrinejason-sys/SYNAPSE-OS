@@ -12,11 +12,11 @@ let _instance: SupabaseClient<Database> | null = null
 
 function getInstance(): SupabaseClient<Database> {
   if (_instance) return _instance
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) {
     throw new Error(
-      '[SYNAPSE] NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must both be set to use the service-role client.'
+      '[SYNAPSE] SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY must both be set to use the service-role client.'
     )
   }
   _instance = createClient<Database>(url, key, {
