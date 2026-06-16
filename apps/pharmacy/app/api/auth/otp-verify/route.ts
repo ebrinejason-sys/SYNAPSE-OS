@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 
   const { data: profile, error: profileErr } = await supabaseAdmin
     .from('profiles')
-    .select('id, role, tenant_id, synapse_id')
+    .select('id, role, tenant_id, synapse_id, must_change_password')
     .eq('email', email)
     .single()
 
@@ -72,5 +72,5 @@ export async function POST(req: NextRequest) {
     path:     '/',
   })
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, mustChangePassword: Boolean(profile.must_change_password) })
 }

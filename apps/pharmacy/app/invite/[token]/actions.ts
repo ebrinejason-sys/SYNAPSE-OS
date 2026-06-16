@@ -19,7 +19,7 @@ export async function getInviteDetails(token: string): Promise<InviteDetails> {
   if (!onboarding) {
     console.error(
       '[invite] getInviteDetails: no row for token.',
-      'Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'NOT SET'
+      'SUPABASE_URL:', process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'NOT SET'
     )
     return { status: 'invalid' }
   }

@@ -251,6 +251,59 @@ export async function sendPasswordResetEmail(email: string, name: string, resetU
   })
 }
 
+export async function sendPharmacyCredentialsEmail({
+  to,
+  pharmacyName,
+  adminName,
+  tempPassword,
+}: {
+  to: string
+  pharmacyName: string
+  adminName: string
+  tempPassword: string
+}): Promise<void> {
+  const loginUrl = `${process.env.NEXT_PUBLIC_PHARMACY_APP_URL?.replace(/\/$/, '') ?? 'https://pharm.synapseos.tech'}/login`
+  const firstName = adminName.split(' ')[0] || 'there'
+  await resend.emails.send({
+    from: `Synapse Health <${FROM_EMAIL}>`,
+    to: [to],
+    subject: `Your Synapse Pharmacy account for ${pharmacyName}`,
+    html: brandedEmail({
+      subject: `Your Synapse Pharmacy account for ${pharmacyName}`,
+      body: `
+        <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#F5F5F7;">
+          Your pharmacy is ready, ${firstName}.
+        </h2>
+        <p style="font-size:14px;line-height:1.7;color:#A0A0B0;margin:0 0 20px;">
+          <strong style="color:#F5F5F7;">${pharmacyName}</strong> has been enrolled on
+          Synapse Health Technologies. Use the credentials below to sign in.
+        </p>
+        <div style="background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.2);border-radius:12px;padding:20px 24px;margin-bottom:24px;">
+          <p style="margin:0 0 10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#A0A0B0;">Login credentials</p>
+          <table style="width:100%;border-collapse:collapse;">
+            <tr>
+              <td style="font-size:13px;color:#A0A0B0;padding:4px 0;width:90px;">Username</td>
+              <td style="font-size:14px;font-weight:600;color:#F5F5F7;font-family:'JetBrains Mono',monospace,Courier;">${to}</td>
+            </tr>
+            <tr>
+              <td style="font-size:13px;color:#A0A0B0;padding:4px 0;">Password</td>
+              <td style="font-size:14px;font-weight:700;color:#F97316;font-family:'JetBrains Mono',monospace,Courier;letter-spacing:0.05em;">${tempPassword}</td>
+            </tr>
+          </table>
+        </div>
+        <a href="${loginUrl}"
+          style="display:inline-block;background:#F97316;color:#fff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;margin-bottom:20px;">
+          Sign In to Synapse Pharmacy
+        </a>
+        <p style="font-size:12px;color:#60607A;margin:0;">
+          You will be asked to set a new password when you first sign in.
+          Keep this email safe until you have changed your password.
+        </p>
+      `,
+    }),
+  })
+}
+
 export async function sendPharmacyInviteEmail({
   to,
   pharmacyName,

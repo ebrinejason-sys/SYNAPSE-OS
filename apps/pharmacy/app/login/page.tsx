@@ -56,7 +56,7 @@ export default function LoginPage() {
       return
     }
 
-    router.push("/portal/dashboard")
+    router.push(data.mustChangePassword ? "/change-password" : "/portal/dashboard")
     router.refresh()
   }
 

@@ -5,12 +5,14 @@ let instance: SupabaseClient | null = null
 function getInstance(): SupabaseClient {
   if (instance) return instance
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  // Use SUPABASE_URL (server-only) so Next.js never inlines it at build time.
+  // NEXT_PUBLIC_* vars get baked into the bundle — a cached build would carry the old value.
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!url || !key) {
     throw new Error(
-      '[SYNAPSE_PHARM] NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must both be set to use the service-role client.'
+      '[SYNAPSE_PHARM] SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY must both be set.'
     )
   }
 
