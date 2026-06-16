@@ -15,12 +15,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
   }
 
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'NOT_SET'
+  console.log('[login] supabase_url:', supabaseUrl.slice(0, 40), '| email:', email)
+
   const db = supabaseAdmin as any
   const { data: profile, error: profileErr } = await db
     .from('profiles')
     .select('id, email, full_name, role, tenant_id, synapse_id, password_hash, login_attempts, locked_until, verification_status, email_verified_at, is_deleted')
     .eq('email', email)
     .single()
+
+  console.log('[login] profile_found:', !!profile, '| db_error:', profileErr?.message ?? null, '| has_hash:', !!(profile?.password_hash))
 
   if (profileErr || !profile) {
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
@@ -36,6 +41,8 @@ export async function POST(req: NextRequest) {
   const authenticated = profile.password_hash
     ? await verifyPassword(password, profile.password_hash as string)
     : false
+
+  console.log('[login] password_verified:', authenticated, '| hash_prefix:', String(profile.password_hash ?? '').slice(0, 7))
 
   if (!authenticated) {
     const attempts = (profile.login_attempts as number ?? 0) + 1
