@@ -26,9 +26,15 @@ type OnboardingRow = {
   current_step: number | null
 }
 
+function stripBom(s: string): string {
+  return s.charCodeAt(0) === 0xFEFF ? s.slice(1) : s
+}
+
 function serviceRoleHeaders(): Record<string, string> | null {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const rawUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+  const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+  const supabaseUrl = stripBom(rawUrl).trim()
+  const supabaseKey = stripBom(rawKey).trim()
   if (!supabaseUrl || !supabaseKey) return null
   return {
     apikey: supabaseKey,
@@ -46,7 +52,7 @@ async function sha256Hex(value: string): Promise<string> {
 
 async function isSessionStored(token: string, userId: string): Promise<boolean> {
   const headers = serviceRoleHeaders()
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseUrl = stripBom((process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim())
   if (!headers || !supabaseUrl) return false
 
   try {
@@ -88,7 +94,7 @@ async function getSynapseUserId(request: NextRequest): Promise<string | null> {
 
 async function restGet<T>(table: string, filters: Record<string, string>, select: string): Promise<T | null> {
   const headers = serviceRoleHeaders()
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseUrl = stripBom((process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim())
   if (!headers || !supabaseUrl) return null
 
   const url = new URL(`${supabaseUrl}/rest/v1/${table}`)
@@ -109,11 +115,9 @@ async function restGet<T>(table: string, filters: Record<string, string>, select
 }
 
 function roleRequiresMfa(settings: PharmacyUserSettings | null): boolean {
-  return (
-    settings?.pharmacy_role === 'pharmacy_ceo' ||
-    settings?.pharmacy_role === 'pharmacy_admin' ||
-    settings?.two_factor_enabled === true
-  )
+  // Only gate on explicit opt-in, not role — role-based TOTP blocks first-time logins
+  // where TOTP hasn't been set up yet (OTP already served as 2nd factor at login)
+  return settings?.two_factor_enabled === true
 }
 
 async function pharmMfaSatisfied(request: NextRequest, userId: string): Promise<boolean> {
@@ -199,8 +203,9 @@ export async function middleware(request: NextRequest) {
   const isMfaPage = pathname === '/auth/2fa'
   const isOnboardingPage = pathname.startsWith('/onboarding')
   const isInvitePage = pathname.startsWith('/invite')
+  const isChangePasswordPage = pathname.startsWith('/change-password')
 
-  const isPublicPath = isAuthPage || isPublicApi || isInvitePage || isOnboardingPage
+  const isPublicPath = isAuthPage || isPublicApi || isInvitePage || isOnboardingPage || isChangePasswordPage
 
   if (!isAuthenticated && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url))
