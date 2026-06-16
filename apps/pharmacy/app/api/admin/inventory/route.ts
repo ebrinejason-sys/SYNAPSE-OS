@@ -21,18 +21,47 @@ export async function GET(request: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    // Sort packages and batches after fetch
-    const result = (products ?? []).map((product) => ({
-      ...product,
-      pharmacy_product_packages: (product.pharmacy_product_packages ?? []).sort(
-        (a: { units_per_package: number }, b: { units_per_package: number }) =>
-          a.units_per_package - b.units_per_package
-      ),
-      pharmacy_product_batches: (product.pharmacy_product_batches ?? [])
-        .filter((b: { is_active: boolean; quantity: number }) => b.is_active && b.quantity > 0)
-        .sort((a: { expiry_date: string }, b: { expiry_date: string }) =>
-          new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime()
-        ),
+    // Normalize to camelCase so the POS client interface matches
+    const result = (products ?? []).map((product: any) => ({
+      id:                   product.id,
+      name:                 product.name,
+      sku:                  product.sku,
+      barcode:              product.barcode ?? null,
+      price:                Number(product.price ?? 0),
+      costPrice:            product.cost_price != null ? Number(product.cost_price) : null,
+      quantity:             product.quantity ?? 0,
+      unitOfMeasure:        product.unit_of_measure ?? "unit",
+      strength:             product.strength ?? null,
+      dosageForm:           product.dosage_form ?? null,
+      activeIngredient:     product.active_ingredient ?? null,
+      genericName:          product.generic_name ?? null,
+      requiresPrescription: product.requires_prescription ?? false,
+      supplierId:           product.supplier_id ?? null,
+      expiryDate:           product.expiry_date ?? null,
+      batchNumber:          product.batch_number ?? null,
+      isActive:             product.is_active,
+      tenantId:             product.tenant_id,
+      createdAt:            product.created_at,
+      updatedAt:            product.updated_at,
+      packages: (product.pharmacy_product_packages ?? [])
+        .sort((a: any, b: any) => a.units_per_package - b.units_per_package)
+        .map((pkg: any) => ({
+          id:              pkg.id,
+          name:            pkg.name,
+          unitsPerPackage: pkg.units_per_package,
+          price:           Number(pkg.price ?? 0),
+          isDefault:       pkg.is_default ?? false,
+        })),
+      batches: (product.pharmacy_product_batches ?? [])
+        .filter((b: any) => b.is_active && b.quantity > 0)
+        .sort((a: any, b: any) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime())
+        .map((batch: any) => ({
+          id:          batch.id,
+          batchNumber: batch.batch_number,
+          quantity:    batch.quantity,
+          expiryDate:  batch.expiry_date,
+          costPrice:   batch.cost_price != null ? Number(batch.cost_price) : null,
+        })),
     }))
 
     return NextResponse.json(result)

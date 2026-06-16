@@ -1568,13 +1568,17 @@ function ReceiptPreviewDialog({
   staffName,
   onClose,
 }: ReceiptPreviewDialogProps) {
-  const currency = settings?.currency || "UGX"
-  const pharmacyName = settings?.pharmacyName || "SYNAPSE Pharm"
-  const location = settings?.location || ""
-  const contact = "0787599099"
-  const email = settings?.email || "info@synapseos.tech"
-  const footerText = settings?.footerText || "Thank you for your purchase!"
-  const currentDate = new Date()
+  const currency    = settings?.currency    || "UGX"
+  const pharmName   = settings?.pharmacyName || "SYNAPSE Pharm"
+  const location    = settings?.location    || ""
+  const contact     = settings?.contact     || ""
+  const email       = settings?.email       || ""
+  const footer      = settings?.footerText  || "Thank you for your purchase!"
+  const now         = new Date()
+  const dateStr     = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+  const timeStr     = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+  const fmt         = (n: number) => formatCurrency(n, currency)
+  const amtPaidNum  = amountPaid ? parseFloat(amountPaid) : 0
 
   const handlePrint = () => {
     requestAnimationFrame(() => {
@@ -1585,139 +1589,104 @@ function ReceiptPreviewDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <Card className="w-full max-w-xl my-8">
-        <CardHeader className="pb-2 flex flex-row items-center justify-between border-b">
-          <CardTitle className="flex items-center gap-2">
-            <Printer className="h-5 w-5" />
-            Receipt Preview
-          </CardTitle>
-          <Button variant="ghost" size="sm" onClick={onClose}>Ã—</Button>
-        </CardHeader>
-        <CardContent className="p-4">
-          {/* Receipt Preview - Compact B&W Style */}
-          <div className="print-area border border-black p-4 bg-card text-black">
-            {/* Header */}
-            <div className="text-center border-b border-dashed border-black pb-2 mb-2">
-              {settings?.logo && (
-                <img
-                  src={settings.logo}
-                  alt="Logo"
-                  className="w-14 h-14 mx-auto object-contain mb-2"
-                />
-              )}
-              <h2 className="text-base font-bold">{pharmacyName}</h2>
-              {location && <p className="text-[10px]">{location}</p>}
-              {contact && <p className="text-[10px]">Tel: {contact}{email ? ` | ${email}` : ""}</p>}
-            </div>
-
-            {/* Receipt Title */}
-            <div className="text-center mb-2">
-              <h3 className="text-xs font-bold tracking-widest">SALES RECEIPT</h3>
-            </div>
-
-            {/* Receipt Info */}
-            <div className="flex justify-between border border-black p-2 mb-2 text-[10px]">
-              <div className="text-center">
-                <p className="text-[8px] uppercase">Receipt No</p>
-                <p className="font-semibold">TXN-PREVIEW</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[8px] uppercase">Date</p>
-                <p className="font-semibold">{currentDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[8px] uppercase">Time</p>
-                <p className="font-semibold">{currentDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</p>
-              </div>
-            </div>
-
-            {/* Items Table */}
-            <div className="mb-2">
-              <table className="w-full text-[10px]">
-                <thead>
-                  <tr className="bg-black text-white">
-                    <th className="text-left py-1 px-2 font-medium">Item</th>
-                    <th className="text-center py-1 px-1 font-medium">Qty</th>
-                    <th className="text-right py-1 px-1 font-medium">Price</th>
-                    <th className="text-right py-1 px-2 font-medium">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cart.map((item) => (
-                    <tr key={item.id} className="border-b border-border print-no-break">
-                      <td className="py-1 px-2">
-                        <span className="font-medium text-[10px]">{item.name}</span>
-                        {item.sku && <span className="text-[8px] text-muted-foreground block">{item.sku}</span>}
-                        {item.batchNumber && <span className="text-[8px] text-muted-foreground block">Batch: {item.batchNumber}</span>}
-                        {item.expiryDate && <span className="text-[8px] text-muted-foreground block">Exp: {new Date(item.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</span>}
-                      </td>
-                      <td className="text-center py-1 px-1">{item.cartQuantity}</td>
-                      <td className="text-right py-1 px-1">{formatCurrency(item.sellingPrice, currency)}</td>
-                      <td className="text-right py-1 px-2 font-semibold">{formatCurrency(item.subtotal, currency)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Totals */}
-            <div className="border-t border-dashed border-black pt-2">
-              <div className="max-w-[150px] ml-auto space-y-0.5 text-[10px]">
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span>{formatCurrency(total, currency)}</span>
-                </div>
-                {taxAmount > 0 && (
-                  <div className="flex justify-between">
-                    <span>Tax</span>
-                    <span>{formatCurrency(taxAmount, currency)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm font-bold border-t-2 border-black pt-1 mt-1">
-                  <span>TOTAL</span>
-                  <span>{formatCurrency(grandTotal, currency)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Payment Info */}
-            <div className="border border-black p-2 my-2 text-[10px]">
-              <div className="flex justify-between">
-                <span>Payment:</span>
-                <span className="font-semibold">{paymentMethod === "MOBILE_MONEY" ? "Mobile Money" : paymentMethod}</span>
-              </div>
-              {paymentMethod === "CASH" && amountPaid && (
-                <>
-                  <div className="flex justify-between mt-0.5">
-                    <span>Paid:</span>
-                    <span className="font-semibold">{formatCurrency(parseFloat(amountPaid), currency)}</span>
-                  </div>
-                  <div className="flex justify-between mt-0.5">
-                    <span>Change:</span>
-                    <span className="font-bold">{formatCurrency(Math.max(0, change), currency)}</span>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="text-center border-t border-dashed border-black pt-2 mt-2 space-y-1">
-              <p className="font-semibold text-[10px]">Served by: {staffName}</p>
-              <p className="text-[10px]">{footerText}</p>
-              <p className="text-[8px]">Keep this receipt for your records</p>
-            </div>
-          </div>
-
-          <div className="mt-3 flex justify-end gap-2">
+    <div className="fixed inset-0 bg-black/80 flex items-start justify-center z-50 p-4 overflow-y-auto">
+      {/* Screen chrome — hidden on print */}
+      <div className="w-full max-w-sm my-8 no-print">
+        <div className="flex items-center justify-between mb-3 px-1">
+          <span className="text-white font-semibold flex items-center gap-2">
+            <Printer className="h-4 w-4" /> Receipt Preview
+          </span>
+          <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
             <Button size="sm" onClick={handlePrint}>
               <Printer className="h-4 w-4 mr-2" />
               Print Receipt
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Thermal receipt preview — matches exact print output */}
+        <div className="print-area rounded shadow-lg overflow-hidden">
+          <div className="thermal-receipt">
+            {/* Header */}
+            <p className="tr-center tr-bold tr-lg">{pharmName}</p>
+            {location && <p className="tr-center tr-sm">{location}</p>}
+            {(contact || email) && (
+              <p className="tr-center tr-sm">
+                {contact ? `Tel: ${contact}` : ""}
+                {contact && email ? " | " : ""}
+                {email || ""}
+              </p>
+            )}
+            <div className="tr-heavy" />
+            <p className="tr-center tr-bold">*** SALES RECEIPT ***</p>
+            <div className="tr-dash" />
+
+            {/* Meta */}
+            <div className="tr-row"><span>Receipt #</span><span>TXN-PREVIEW</span></div>
+            <div className="tr-row"><span>Date</span><span>{dateStr}</span></div>
+            <div className="tr-row"><span>Time</span><span>{timeStr}</span></div>
+
+            {/* Items */}
+            <div className="tr-dash" />
+            <div className="tr-row tr-bold tr-sm"><span>ITEM</span><span>AMOUNT</span></div>
+            <div className="tr-dash" />
+
+            {cart.map((item, idx) => {
+              const qty = item.baseUnitsTotal || item.cartQuantity
+              const qtyLabel = item.selectedPackage
+                ? `${item.cartQuantity} ${item.selectedPackage.name} (${qty} ${item.dosageForm || "units"})`
+                : `${item.cartQuantity} ${item.dosageForm || item.unitOfMeasure || "unit"}${item.cartQuantity !== 1 ? "s" : ""}`
+              return (
+                <div key={`${item.id}-${idx}`} className="tr-item print-no-break">
+                  <p className="tr-bold">{item.name}{item.strength ? ` ${item.strength}` : ""}</p>
+                  <div className="tr-row">
+                    <span className="tr-sm tr-muted">{qtyLabel} @ {fmt(item.sellingPrice)}</span>
+                    <span className="tr-bold">{fmt(item.subtotal)}</span>
+                  </div>
+                  {item.batchNumber && (
+                    <p className="tr-sm tr-muted">
+                      Batch: {item.batchNumber}
+                      {item.expiryDate ? `  Exp: ${new Date(item.expiryDate).toLocaleDateString("en-GB", { month: "short", year: "2-digit" })}` : ""}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+
+            {/* Totals */}
+            <div className="tr-heavy" />
+            {taxAmount > 0 && (
+              <>
+                <div className="tr-row"><span>Subtotal</span><span>{fmt(total)}</span></div>
+                <div className="tr-row"><span>Tax ({taxRate}%)</span><span>{fmt(taxAmount)}</span></div>
+                <div className="tr-dash" />
+              </>
+            )}
+            <div className="tr-row tr-bold tr-lg"><span>TOTAL</span><span>{fmt(grandTotal)}</span></div>
+            <div className="tr-heavy" />
+
+            {/* Payment */}
+            <div className="tr-row">
+              <span>Payment</span>
+              <span>{paymentMethod === "MOBILE_MONEY" ? "Mobile Money" : paymentMethod}</span>
+            </div>
+            {paymentMethod === "CASH" && amtPaidNum > 0 && (
+              <>
+                <div className="tr-row"><span>Cash Received</span><span>{fmt(amtPaidNum)}</span></div>
+                <div className="tr-row tr-bold"><span>Change</span><span>{fmt(Math.max(0, change))}</span></div>
+              </>
+            )}
+
+            {/* Footer */}
+            <div className="tr-dash" />
+            <p className="tr-center tr-sm">Served by: <strong>{staffName}</strong></p>
+            <p className="tr-center tr-bold">{footer}</p>
+            <p className="tr-center tr-sm">Keep this receipt for your records.</p>
+            <div className="tr-dash" />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

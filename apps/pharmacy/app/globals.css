@@ -32,26 +32,52 @@
   /* ── Light mode ────────────────────────────────────────────── */
   [data-theme="light"],
   .light {
-    --background:        210 40% 98%;      /* #F5F8FC */
-    --foreground:        222 47% 11%;      /* #0F172A dark navy */
+    --background:        220 20% 96%;      /* #F1F4F9 cool off-white */
+    --foreground:        220 40% 13%;      /* #131C2E near-black navy */
     --card:              0 0% 100%;
-    --card-foreground:   222 47% 11%;
+    --card-foreground:   220 40% 13%;
     --popover:           0 0% 100%;
-    --popover-foreground:222 47% 11%;
-    --primary:           24 100% 53%;      /* #F97316 orange */
+    --popover-foreground:220 40% 13%;
+    --primary:           24 100% 50%;      /* #FF7A00 punchy orange */
     --primary-foreground:0 0% 100%;
-    --secondary:         214 32% 91%;      /* #DDE6F0 */
-    --secondary-foreground:222 47% 11%;
-    --muted:             214 32% 91%;
-    --muted-foreground:  215 16% 47%;      /* #647A94 */
-    --accent:            40 77% 57%;       /* #E8B84B gold */
+    --secondary:         220 30% 92%;      /* #DDE5F2 blue-grey tint */
+    --secondary-foreground:220 40% 13%;
+    --muted:             220 25% 94%;      /* slightly darker than bg */
+    --muted-foreground:  220 15% 45%;      /* medium blue-grey */
+    --accent:            40 90% 50%;       /* #E8A800 saturated gold */
     --accent-foreground: 0 0% 4%;
-    --destructive:       0 84% 60%;
+    --destructive:       0 84% 55%;
     --destructive-foreground:0 0% 100%;
-    --border:            214 32% 88%;      /* #D1DCE9 */
-    --input:             214 32% 88%;
-    --ring:              24 100% 53%;
+    --border:            220 25% 82%;      /* visible blue-grey border */
+    --input:             220 25% 88%;
+    --ring:              24 100% 50%;
     --radius:            0.5rem;
+  }
+
+  /* Light-mode: add a subtle left accent on cards for visual rhythm */
+  [data-theme="light"] .synapse-card,
+  .light .synapse-card {
+    border-left: 3px solid hsl(var(--primary) / 0.35);
+  }
+
+  /* Light-mode: sidebar gets a warm tinted background */
+  [data-theme="light"] aside,
+  .light aside {
+    background: hsl(220 30% 98%) !important;
+    border-right-color: hsl(220 25% 82%) !important;
+  }
+
+  /* Light-mode: active nav item stronger contrast */
+  [data-theme="light"] .border-l-2.border-primary,
+  .light .border-l-2.border-primary {
+    background: hsl(var(--primary) / 0.08) !important;
+  }
+
+  /* Light-mode: header tinted */
+  [data-theme="light"] header,
+  .light header {
+    background: hsl(220 30% 98% / 0.92) !important;
+    border-bottom-color: hsl(220 25% 86%) !important;
   }
 
   * { @apply border-border; }
@@ -141,10 +167,13 @@
     margin: 0;
   }
 
-  /* Hide the entire portal — use visibility so layout is preserved */
+  /* Hide everything; only the print-area and its descendants are visible */
   * { visibility: hidden !important; }
   .print-area,
   .print-area * { visibility: visible !important; }
+
+  /* Hide screen-only chrome inside print-area (dialog buttons, overlay, etc.) */
+  .no-print { display: none !important; }
 
   .print-area {
     position: fixed !important;
@@ -153,14 +182,17 @@
     right: auto !important;
     bottom: auto !important;
     width: 80mm !important;
-    padding: 2mm !important;
+    padding: 0 !important;
+    margin: 0 !important;
     background: #fff !important;
     overflow: visible !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
   }
 
   .thermal-receipt {
-    width: 76mm !important;
-    padding: 0 !important;
+    width: 80mm !important;
+    padding: 3mm 2mm !important;
     margin: 0 !important;
   }
 

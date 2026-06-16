@@ -166,16 +166,20 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       )}>
         {/* Logo */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-border">
-          <Link href="/portal/dashboard" className="hover:opacity-80 transition-opacity">
-            <div className="relative w-36 h-9 shrink-0">
+          <Link href="/portal/dashboard" className="hover:opacity-80 transition-opacity flex items-center gap-2">
+            <div className="relative w-8 h-8 shrink-0">
               <Image
                 src={isDark ? "/logo-dark.png" : "/logo-light.png"}
-                alt="Synapse Pharmacy"
+                alt="Synapse"
                 fill
-                className="object-contain object-left"
+                className="object-contain"
                 priority
               />
             </div>
+            <span className="text-sm font-semibold text-foreground leading-tight">
+              SynapseOS
+              <span className="block text-[10px] font-normal text-muted-foreground -mt-0.5">Pharmacy</span>
+            </span>
           </Link>
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(false)}>
             <X className="h-5 w-5" />
@@ -244,10 +248,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         </div>
       </aside>
 
-      {/* Main */}
-      <div className="lg:pl-64">
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 lg:px-6 bg-card/80 backdrop-blur-md border-b border-border">
+      {/* Main — fills remaining width, scrolls independently */}
+      <div className="lg:pl-64 flex flex-col h-screen">
+        {/* Top bar — sticky within the flex column */}
+        <header className="shrink-0 z-30 flex items-center justify-between h-16 px-4 lg:px-6 bg-card/80 backdrop-blur-md border-b border-border">
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(true)}>
             <Menu className="h-5 w-5" />
           </Button>
@@ -284,8 +288,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           </div>
         </header>
 
-        <main className="p-4 pb-20 lg:p-6 xl:p-8 lg:pb-8 max-w-[1920px] mx-auto">
-          {children}
+        {/* Scrollable content area */}
+        <main className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 xl:p-8 lg:pb-8">
+          <div className="max-w-[1920px] mx-auto">
+            {children}
+          </div>
         </main>
 
         {/* Mobile bottom tab bar */}
