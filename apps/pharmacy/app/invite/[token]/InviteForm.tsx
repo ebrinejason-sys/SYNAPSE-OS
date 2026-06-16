@@ -66,8 +66,8 @@ export function InviteForm({ token, pharmacyName, adminEmail, adminName, profile
         <p className="text-[#E8B84B] text-sm font-medium">{pharmacyName}</p>
       </div>
 
-      {/* Show pre-filled email as info when profile exists */}
-      {profileExists && adminEmail && (
+      {/* Show pre-filled email as info whenever email is known (profile exists or stored in onboarding) */}
+      {adminEmail && !needsEmail && (
         <div className="mb-4 bg-[#1A1A24] border border-[#2A2A36] rounded-lg px-3 py-2.5 text-sm">
           <span className="text-zinc-500 text-xs uppercase tracking-wider font-medium">Email</span>
           <p className="text-zinc-300 mt-0.5">{adminEmail}</p>
