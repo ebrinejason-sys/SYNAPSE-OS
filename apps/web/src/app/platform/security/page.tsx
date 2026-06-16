@@ -88,7 +88,7 @@ export default async function SecurityPage() {
       .order("login_attempts", { ascending: false })
       .limit(50),
 
-    db.from("audit_logs")
+    db.from("audit_log")
       .select("id, action, entity_type, actor_id, tenant_id, metadata, created_at")
       .or(SECURITY_ACTIONS.map((a) => `action.eq.${a}`).join(","))
       .order("created_at", { ascending: false })

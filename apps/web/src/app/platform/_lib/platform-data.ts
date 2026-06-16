@@ -54,12 +54,6 @@ export async function logPlatformEvent({
 
   try {
     const supabaseAdmin = createServiceClient();
-    const { error } = await (supabaseAdmin as any).from("audit_logs").insert(payload);
-    if (!error) return;
-  } catch {}
-
-  try {
-    const supabaseAdmin = createServiceClient();
     await (supabaseAdmin as any).from("audit_log").insert(payload);
   } catch {}
 }

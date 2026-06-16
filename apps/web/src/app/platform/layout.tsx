@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
+  BarChart3,
   Bell,
   Building2,
   ClipboardList,
@@ -37,6 +38,7 @@ type CommandResult = {
 
 const SIDEBAR_ITEMS = [
   { href: "/platform", label: "Overview", icon: Activity, exact: true },
+  { href: "/platform/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/platform/hospitals", label: "Facilities", icon: Building2 },
   { href: "/platform/tenants", label: "All Tenants", icon: ShieldCheck },
   { href: "/platform/users", label: "Users + KYC", icon: Users },
