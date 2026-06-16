@@ -1,11 +1,15 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+function stripBom(s: string): string {
+  return s.charCodeAt(0) === 0xFEFF ? s.slice(1) : s
+}
+
 export async function createClient() {
   const cookieStore = await cookies()
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    stripBom(process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''),
+    stripBom(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''),
     {
       cookies: {
         getAll() {
