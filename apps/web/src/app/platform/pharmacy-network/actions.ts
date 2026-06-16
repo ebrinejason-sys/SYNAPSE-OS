@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createServiceClient } from "../../../lib/supabase/server";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
 import { provisionVercelProjectDomain, verifyVercelProjectDomain } from "../../../lib/vercel-domains";
-import { sendPharmacyInviteEmail } from "../../../lib/resend";
+import { sendPharmacyCredentialsEmail } from "../../../lib/resend";
+import { hashPassword } from "@synapse/auth";
 import { logPlatformEvent } from "../_lib/platform-data";
 
 export async function updatePharmacyDomain(formData: FormData) {
@@ -217,7 +218,7 @@ export async function setPharmacyOperationalStatus(formData: FormData) {
 }
 
 export async function resendPharmacySetupInvite(formData: FormData) {
-  const profile = await requirePlatformAdmin();
+  const actor = await requirePlatformAdmin();
   const tenantId = String(formData.get("tenant_id") ?? "");
   if (!tenantId) return;
 
@@ -232,28 +233,42 @@ export async function resendPharmacySetupInvite(formData: FormData) {
 
   let adminEmail = tenant.email as string | null;
   let adminName = "Pharmacy Admin";
-  if (adminSettings?.profile_id) {
+  let adminProfileId: string | null = adminSettings?.profile_id ?? null;
+
+  if (adminProfileId) {
     const { data: profileRow } = await (supabaseAdmin as any).from("profiles")
-      .select("email, full_name").eq("id", adminSettings.profile_id).maybeSingle();
+      .select("email, full_name").eq("id", adminProfileId).maybeSingle();
     adminEmail = profileRow?.email ?? adminEmail;
     adminName = profileRow?.full_name ?? adminName;
   }
   if (!adminEmail) return;
 
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: onboarding } = await (supabaseAdmin as any).from("pharmacy_onboarding")
-    .upsert(
-      { tenant_id: tenantId, invite_sent_at: now.toISOString(), invite_expires_at: expiresAt, updated_at: now.toISOString() },
-      { onConflict: "tenant_id" }
-    ).select("invite_token").single();
+  // Generate a fresh temp password, hash it, and update the profile so it matches what we email
+  const randomUpper = () => String.fromCharCode(65 + Math.floor(Math.random() * 26));
+  const randomDigit = () => String(Math.floor(Math.random() * 10));
+  const newTempPassword = `Synapse${randomUpper()}${randomUpper()}${randomUpper()}${randomUpper()}${randomDigit()}${randomDigit()}${randomDigit()}${randomDigit()}!`;
+  const newHash = await hashPassword(newTempPassword);
 
-  if (onboarding?.invite_token) {
-    await sendPharmacyInviteEmail({ to: adminEmail, pharmacyName: tenant.name ?? "Your pharmacy", adminName, inviteToken: onboarding.invite_token });
+  if (adminProfileId) {
+    await (supabaseAdmin as any).from("profiles")
+      .update({ password_hash: newHash, must_change_password: true, login_attempts: 0, locked_until: null })
+      .eq("id", adminProfileId);
   }
 
+  await sendPharmacyCredentialsEmail({
+    to: adminEmail,
+    pharmacyName: tenant.name ?? "Your pharmacy",
+    adminName,
+    tempPassword: newTempPassword,
+  });
+
+  await (supabaseAdmin as any).from("pharmacy_onboarding").upsert(
+    { tenant_id: tenantId, invite_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { onConflict: "tenant_id" }
+  );
+
   await logPlatformEvent({
-    actorId: profile.id, action: "pharmacy.invite_resent",
+    actorId: actor.id, action: "pharmacy.credentials_resent",
     entityType: "tenant", entityId: tenantId, tenantId,
     metadata: { admin_email: adminEmail },
   });

@@ -22,6 +22,7 @@ import {
   UserRound,
   Users,
   X,
+  Zap,
 } from "lucide-react";
 import { SynapseLogo } from "../../components/SynapseLogo";
 import { ThemeToggle } from "../../components/ThemeToggle";
@@ -46,6 +47,7 @@ const SIDEBAR_ITEMS = [
   { href: "/platform/flags", label: "Feature Flags", icon: Flag },
   { href: "/platform/support", label: "Support Tickets", icon: LifeBuoy },
   { href: "/platform/dhis2", label: "DHIS2 Exports", icon: DatabaseZap },
+  { href: "/platform/security", label: "Security", icon: Zap },
   { href: "/platform/audit-log", label: "Audit Log", icon: ClipboardList },
   { href: "/platform/account", label: "Account", icon: UserRound },
   { href: "/platform/settings", label: "Settings", icon: Settings },
