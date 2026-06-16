@@ -1,8 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { usePharmacySession } from "@/hooks/use-pharmacy-session"
-import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, RefreshCw, Save, Wifi } from "lucide-react"
 
@@ -67,7 +65,6 @@ function Toggle({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function NetworkPage() {
-  const { user, isLoading: sessionLoading } = usePharmacySession()
   const { toast } = useToast()
 
   const [settings, setSettings] = useState<NetworkSettings>({
@@ -80,45 +77,21 @@ export default function NetworkPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
 
-  const tenantId = user?.tenantId ?? null
-
-  // ── Fetch on mount (once tenantId is ready) ──────────────────────────────────
+  // ── Fetch on mount ────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (sessionLoading) return
-    if (!tenantId) {
-      setIsFetching(false)
-      return
-    }
     fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, sessionLoading])
+  }, [])
 
   async function fetchData() {
     setIsFetching(true)
     try {
-      const supabase = createClient()
-
-      const [{ data: tenantRow }, { data: invRows }] = await Promise.all([
-        supabase
-          .from("tenants")
-          .select("is_network_member, accepts_refill_requests, network_listing_name")
-          .eq("id", tenantId!)
-          .single(),
-        supabase
-          .from("pharmacy_network_inventory")
-          .select("*")
-          .eq("pharmacy_tenant_id", tenantId!),
-      ])
-
-      if (tenantRow) {
-        setSettings({
-          isNetworkMember: tenantRow.is_network_member ?? false,
-          acceptsRefillRequests: tenantRow.accepts_refill_requests ?? false,
-          networkListingName: tenantRow.network_listing_name ?? "",
-        })
-      }
-      setInventory(invRows ?? [])
+      const res = await fetch("/api/admin/network")
+      if (!res.ok) throw new Error(await res.text())
+      const json = await res.json()
+      setSettings(json.settings)
+      setInventory(json.inventory ?? [])
     } catch (err) {
       console.error("Failed to fetch network data:", err)
       toast({
@@ -148,21 +121,18 @@ export default function NetworkPage() {
   // ── Save handler ─────────────────────────────────────────────────────────────
 
   async function handleSave() {
-    if (!tenantId) return
     setIsSaving(true)
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from("tenants")
-        .update({
-          is_network_member: settings.isNetworkMember,
-          accepts_refill_requests: settings.acceptsRefillRequests,
-          network_listing_name: settings.networkListingName || null,
-        })
-        .eq("id", tenantId)
-
-      if (error) throw error
-
+      const res = await fetch("/api/admin/network", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isNetworkMember: settings.isNetworkMember,
+          acceptsRefillRequests: settings.acceptsRefillRequests,
+          networkListingName: settings.networkListingName || null,
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
       toast({ title: "Saved", description: "Network settings updated." })
     } catch (err) {
       console.error("Save failed:", err)
@@ -179,7 +149,6 @@ export default function NetworkPage() {
   // ── Sync Now handler ─────────────────────────────────────────────────────────
 
   async function handleSyncNow() {
-    if (!tenantId) return
     if (!settings.isNetworkMember) {
       toast({
         variant: "destructive",
@@ -190,47 +159,19 @@ export default function NetworkPage() {
     }
     setIsSyncing(true)
     try {
-      const supabase = createClient()
-
-      // Fetch active products for this tenant
-      const { data: products, error: prodError } = await supabase
-        .from("pharmacy_products")
-        .select("id, name, generic_name, dosage_form, strength, quantity, price, is_active")
-        .eq("tenant_id", tenantId)
-        .eq("is_active", true)
-
-      if (prodError) throw prodError
-      if (!products || products.length === 0) {
-        toast({ title: "Nothing to sync", description: "No active products found." })
-        setIsSyncing(false)
-        return
-      }
-
-      const now = new Date().toISOString()
-      const rows = products.map((p) => ({
-        pharmacy_tenant_id: tenantId,
-        drug_name: p.name as string,
-        generic_name: (p.generic_name as string | null) ?? null,
-        brand_name: null as string | null,
-        dosage_form: (p.dosage_form as string | null) ?? null,
-        strength: (p.strength as string | null) ?? null,
-        quantity_in_stock: (p.quantity as number | null) ?? null,
-        unit_price_ugx: (p.price as number | null) ?? null,
-        last_synced_at: now,
-      }))
-
-      const { error: upsertError } = await supabase
-        .from("pharmacy_network_inventory")
-        .upsert(rows, { onConflict: "pharmacy_tenant_id,drug_name" })
-
-      if (upsertError) throw upsertError
-
-      toast({
-        title: "Synced",
-        description: `${rows.length} product(s) synced to the network.`,
+      const res = await fetch("/api/admin/network", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sync" }),
       })
-      // Refresh inventory display
-      await fetchData()
+      if (!res.ok) throw new Error(await res.text())
+      const { synced } = await res.json()
+      if (synced === 0) {
+        toast({ title: "Nothing to sync", description: "No active products found." })
+      } else {
+        toast({ title: "Synced", description: `${synced} product(s) synced to the network.` })
+        await fetchData()
+      }
     } catch (err) {
       console.error("Sync failed:", err)
       toast({
@@ -245,18 +186,10 @@ export default function NetworkPage() {
 
   // ── Loading state ─────────────────────────────────────────────────────────────
 
-  if (sessionLoading || isFetching) {
+  if (isFetching) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-orange-400" />
-      </div>
-    )
-  }
-
-  if (!tenantId) {
-    return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-        No pharmacy tenant associated with your account.
       </div>
     )
   }
