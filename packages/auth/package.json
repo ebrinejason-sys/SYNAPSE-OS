@@ -8,7 +8,8 @@
     "./tokens": "./src/tokens.ts",
     "./capability": "./src/capability.ts",
     "./features":   "./src/features.ts",
-    "./mfa":        "./src/mfa.ts"
+    "./mfa":        "./src/mfa.ts",
+    "./password":   "./src/password.ts"
   },
   "dependencies": {
     "@synapse/config": "*",
