@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { usePharmacySession } from "@/hooks/use-pharmacy-session"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,14 +15,13 @@ export default function ChangePasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const { user } = usePharmacySession()
-  const router = useRouter()
   const { toast } = useToast()
 
   useEffect(() => {
     if (user && !user.mustChangePassword) {
-      router.push("/portal/dashboard")
+      window.location.assign("/portal/dashboard")
     }
-  }, [user, router])
+  }, [user])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -65,9 +63,7 @@ export default function ChangePasswordPage() {
           title: "Success",
           description: "Password changed successfully",
         })
-        
-        // Redirect based on role
-        router.push("/portal/dashboard")
+        window.location.assign("/portal/dashboard")
       } else {
         toast({
           variant: "destructive",
