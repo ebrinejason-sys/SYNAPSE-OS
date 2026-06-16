@@ -716,13 +716,15 @@ export default function POSPage() {
   return (
     <div>
       {isPrintingReceipt && printReceiptData && (
-        <div className="print-area fixed inset-0 z-[9999] bg-card p-4 overflow-visible">
-          <TransactionReceipt
-            transaction={printReceiptData.transaction}
-            staffName={printReceiptData.staffName}
-            settings={printReceiptData.settings}
-            meta={printReceiptData.meta}
-          />
+        <div className="print-area fixed inset-0 z-[9999] overflow-auto" style={{ background: 'rgba(0,0,0,0.88)' }}>
+          <div className="flex min-h-full items-start justify-center py-10">
+            <TransactionReceipt
+              transaction={printReceiptData.transaction}
+              staffName={printReceiptData.staffName}
+              settings={printReceiptData.settings}
+              meta={printReceiptData.meta}
+            />
+          </div>
         </div>
       )}
 
@@ -1731,147 +1733,133 @@ function TransactionReceipt({
   settings: Settings | null
   meta: { paymentMethod: string; amountPaid: string; change: number } | null
 }) {
-  const currency = settings?.currency || "UGX"
-  const pharmacyName = settings?.pharmacyName || "SYNAPSE Pharm"
-  const location = settings?.location || ""
-  const contact = "0787599099"
-  const email = settings?.email || "info@synapseos.tech"
-  const footerText = settings?.footerText || "Thank you for your purchase!"
+  const currency   = settings?.currency    || "UGX"
+  const pharmName  = settings?.pharmacyName || "SYNAPSE Pharm"
+  const location   = settings?.location    || ""
+  const contact    = settings?.contact     || ""
+  const email      = settings?.email       || ""
+  const footer     = settings?.footerText  || "Thank you for your purchase!"
 
   const receiptDate = transaction?.createdAt ? new Date(transaction.createdAt) : new Date()
-  const items = Array.isArray(transaction?.items) ? transaction.items : []
+  const items       = Array.isArray(transaction?.items) ? transaction.items : []
 
-  const subtotal = typeof transaction?.totalAmount === "number" ? transaction.totalAmount : 0
-  const taxAmount = typeof transaction?.tax === "number" ? transaction.tax : 0
-  const grandTotal = typeof transaction?.netAmount === "number" ? transaction.netAmount : subtotal + taxAmount
-  const payment = meta?.paymentMethod || transaction?.paymentMethod || ""
+  const subtotal   = typeof transaction?.totalAmount === "number" ? transaction.totalAmount : 0
+  const taxAmount  = typeof transaction?.tax         === "number" ? transaction.tax         : 0
+  const grandTotal = typeof transaction?.netAmount   === "number" ? transaction.netAmount   : subtotal + taxAmount
+  const payment    = meta?.paymentMethod || transaction?.paymentMethod || ""
+  const amtPaid    = meta?.amountPaid ? parseFloat(meta.amountPaid) : 0
+  const change     = meta?.change ?? 0
+
+  const fmt = (n: number) => formatCurrency(n, currency)
+  const dateStr = receiptDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+  const timeStr = receiptDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+
+  const hasClient = transaction?.clientName || transaction?.clientPhone || transaction?.clientAddress
 
   return (
-    <div className="print-sheet mx-auto w-full text-black">
-      <div className="border border-black p-4 bg-card text-black">
-        <div className="text-center border-b border-dashed border-black pb-2 mb-2">
-          {settings?.logo && (
-            <img
-              src={settings.logo}
-              alt="Logo"
-              className="w-14 h-14 mx-auto object-contain mb-2"
-            />
-          )}
-          <h2 className="text-base font-bold">{pharmacyName}</h2>
-          {location && <p className="text-[10px]">{location}</p>}
-          {contact && <p className="text-[10px]">Tel: {contact}{email ? ` | ${email}` : ""}</p>}
-        </div>
+    <div className="thermal-receipt">
 
-        <div className="text-center mb-2">
-          <h3 className="text-xs font-bold tracking-widest">SALES RECEIPT</h3>
-        </div>
+      {/* ── Header ── */}
+      <p className="tr-center tr-bold tr-lg">{pharmName}</p>
+      {location && <p className="tr-center tr-sm">{location}</p>}
+      {(contact || email) && (
+        <p className="tr-center tr-sm">
+          {contact ? `Tel: ${contact}` : ""}
+          {contact && email ? " | " : ""}
+          {email || ""}
+        </p>
+      )}
+      <div className="tr-heavy" />
+      <p className="tr-center tr-bold">*** SALES RECEIPT ***</p>
+      <div className="tr-dash" />
 
-        <div className="flex justify-between border border-black p-2 mb-2 text-[10px]">
-          <div className="text-center">
-            <p className="text-[8px] uppercase">Receipt No</p>
-            <p className="font-semibold">{transaction?.transactionNo || "-"}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-[8px] uppercase">Date</p>
-            <p className="font-semibold">{receiptDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-[8px] uppercase">Time</p>
-            <p className="font-semibold">{receiptDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</p>
-          </div>
-        </div>
+      {/* ── Transaction meta ── */}
+      <div className="tr-row"><span>Receipt #</span><span>{transaction?.transactionNo || "—"}</span></div>
+      <div className="tr-row"><span>Date</span><span>{dateStr}</span></div>
+      <div className="tr-row"><span>Time</span><span>{timeStr}</span></div>
 
-        <div className="border border-black p-2 mb-2 text-[10px]">
-          <div className="flex justify-between gap-4">
-            <span className="font-medium">Client:</span>
-            <span className="text-right flex-1">{transaction?.clientName || "-"}</span>
-          </div>
-          <div className="flex justify-between gap-4 mt-0.5">
-            <span className="font-medium">Phone:</span>
-            <span className="text-right flex-1">{transaction?.clientPhone || "-"}</span>
-          </div>
-          <div className="flex justify-between gap-4 mt-0.5">
-            <span className="font-medium">Address:</span>
-            <span className="text-right flex-1">{transaction?.clientAddress || "-"}</span>
-          </div>
-        </div>
+      {/* ── Client info ── */}
+      {hasClient && (
+        <>
+          <div className="tr-dash" />
+          {transaction.clientName    && <div className="tr-row"><span>Client</span><span>{transaction.clientName}</span></div>}
+          {transaction.clientPhone   && <div className="tr-row"><span>Phone</span><span>{transaction.clientPhone}</span></div>}
+          {transaction.clientAddress && <div className="tr-row"><span>Address</span><span>{transaction.clientAddress}</span></div>}
+        </>
+      )}
 
-        <div className="mb-2">
-          <table className="w-full text-[10px]">
-            <thead>
-              <tr className="bg-black text-white">
-                <th className="text-left py-1 px-2 font-medium">Item</th>
-                <th className="text-center py-1 px-1 font-medium">Qty</th>
-                <th className="text-right py-1 px-1 font-medium">Price</th>
-                <th className="text-right py-1 px-2 font-medium">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item: any) => (
-                <tr key={item.id} className="border-b border-border print-no-break">
-                  <td className="py-1 px-2">
-                    <span className="font-medium text-[10px]">{item.product?.name || "-"}</span>
-                    {item.product?.strength && <span className="text-[10px] font-medium ml-1">({item.product.strength})</span>}
-                    {item.product?.sku && <span className="text-[8px] text-muted-foreground block">{item.product.sku}</span>}
-                    {item.product?.dosageForm && <span className="text-[8px] text-muted-foreground block">{item.product.dosageForm}</span>}
-                    {item.packageName && <span className="text-[8px] text-primary block">{item.packageQuantity || ""} {item.packageName}</span>}
-                    {item.batch?.batchNumber && <span className="text-[8px] text-muted-foreground block">Batch: {item.batch.batchNumber}</span>}
-                    {item.batch?.expiryDate && <span className="text-[8px] text-muted-foreground block">Exp: {new Date(item.batch.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</span>}
-                  </td>
-                  <td className="text-center py-1 px-1">{item.quantity}</td>
-                  <td className="text-right py-1 px-1">{formatCurrency(item.unitPrice, currency)}</td>
-                  <td className="text-right py-1 px-2 font-semibold">{formatCurrency(item.totalPrice, currency)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="border-t border-dashed border-black pt-2">
-          <div className="max-w-[170px] ml-auto space-y-0.5 text-[10px]">
-            <div className="flex justify-between">
-              <span>Subtotal</span>
-              <span>{formatCurrency(subtotal, currency)}</span>
-            </div>
-            {taxAmount > 0 && (
-              <div className="flex justify-between">
-                <span>Tax</span>
-                <span>{formatCurrency(taxAmount, currency)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-sm font-bold border-t-2 border-black pt-1 mt-1">
-              <span>TOTAL</span>
-              <span>{formatCurrency(grandTotal, currency)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="border border-black p-2 my-2 text-[10px]">
-          <div className="flex justify-between">
-            <span>Payment:</span>
-            <span className="font-semibold">{payment === "MOBILE_MONEY" ? "Mobile Money" : payment}</span>
-          </div>
-          {payment === "CASH" && meta?.amountPaid && (
-            <>
-              <div className="flex justify-between mt-0.5">
-                <span>Paid:</span>
-                <span className="font-semibold">{formatCurrency(parseFloat(meta.amountPaid), currency)}</span>
-              </div>
-              <div className="flex justify-between mt-0.5">
-                <span>Change:</span>
-                <span className="font-bold">{formatCurrency(Math.max(0, meta.change), currency)}</span>
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="text-center border-t border-dashed border-black pt-2 mt-2 space-y-1">
-          <p className="font-semibold text-[10px]">Served by: {staffName}</p>
-          <p className="text-[10px]">{footerText}</p>
-          <p className="text-[8px]">Keep this receipt for your records</p>
-          <p className="font-mono text-[10px] tracking-wider">{transaction?.transactionNo || ""}</p>
-        </div>
+      {/* ── Items ── */}
+      <div className="tr-dash" />
+      <div className="tr-row tr-bold tr-sm">
+        <span>ITEM</span><span>AMOUNT</span>
       </div>
+      <div className="tr-dash" />
+
+      {items.map((item: any, idx: number) => {
+        const name       = item.product?.name     || "—"
+        const strength   = item.product?.strength || ""
+        const form       = item.product?.dosageForm || ""
+        const qty        = item.quantity ?? 0
+        const unitPrice  = item.unitPrice  ?? 0
+        const totalPrice = item.totalPrice ?? 0
+
+        // Label: "2 Strips (20 tabs)" or "11 Tablets"
+        const qtyLabel = item.packageName
+          ? `${item.packageQuantity ?? ""} ${item.packageName} (${qty} ${form || "units"})`
+          : `${qty} ${form || "unit"}${qty !== 1 ? "s" : ""}`
+
+        return (
+          <div key={item.id ?? idx} className="tr-item print-no-break">
+            <p className="tr-bold">{name}{strength ? ` ${strength}` : ""}</p>
+            <div className="tr-row">
+              <span className="tr-sm tr-muted">{qtyLabel} @ {fmt(unitPrice)}</span>
+              <span className="tr-bold">{fmt(totalPrice)}</span>
+            </div>
+            {(item.batch?.batchNumber || item.batch?.expiryDate) && (
+              <p className="tr-sm tr-muted">
+                {item.batch?.batchNumber ? `Batch: ${item.batch.batchNumber}` : ""}
+                {item.batch?.expiryDate
+                  ? `  Exp: ${new Date(item.batch.expiryDate).toLocaleDateString("en-GB", { month: "short", year: "2-digit" })}`
+                  : ""}
+              </p>
+            )}
+          </div>
+        )
+      })}
+
+      {/* ── Totals ── */}
+      <div className="tr-heavy" />
+      {taxAmount > 0 && (
+        <>
+          <div className="tr-row"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
+          <div className="tr-row"><span>Tax</span><span>{fmt(taxAmount)}</span></div>
+          <div className="tr-dash" />
+        </>
+      )}
+      <div className="tr-row tr-bold tr-lg">
+        <span>TOTAL</span><span>{fmt(grandTotal)}</span>
+      </div>
+      <div className="tr-heavy" />
+
+      {/* ── Payment ── */}
+      <div className="tr-row">
+        <span>Payment</span>
+        <span>{payment === "MOBILE_MONEY" ? "Mobile Money" : payment}</span>
+      </div>
+      {payment === "CASH" && amtPaid > 0 && (
+        <>
+          <div className="tr-row"><span>Cash Received</span><span>{fmt(amtPaid)}</span></div>
+          <div className="tr-row tr-bold"><span>Change</span><span>{fmt(Math.max(0, change))}</span></div>
+        </>
+      )}
+
+      {/* ── Footer ── */}
+      <div className="tr-dash" />
+      <p className="tr-center tr-sm">Served by: <strong>{staffName}</strong></p>
+      <p className="tr-center tr-bold">{footer}</p>
+      <p className="tr-center tr-sm">Keep this receipt for your records.</p>
+      <div className="tr-dash" />
+      <p className="tr-center tr-mono tr-sm">{transaction?.transactionNo || ""}</p>
     </div>
   )
 }

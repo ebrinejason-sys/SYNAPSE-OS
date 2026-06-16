@@ -109,6 +109,67 @@
   .btn-danger    { @apply inline-flex items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-red-600 active:scale-[0.98] transition-all; }
 }
 
+/* ── 80mm Thermal Receipt ─────────────────────────────────── */
+.thermal-receipt {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 9pt;
+  line-height: 1.4;
+  width: 72mm;
+  color: #000;
+  background: #fff;
+  padding: 4mm 2mm;
+  margin: 0 auto;
+}
+.thermal-receipt p { margin: 0 0 1mm; }
+.tr-center  { text-align: center; }
+.tr-right   { text-align: right; }
+.tr-bold    { font-weight: 700; }
+.tr-sm      { font-size: 7.5pt; }
+.tr-lg      { font-size: 11pt; }
+.tr-mono    { letter-spacing: 1px; }
+.tr-muted   { color: #555; }
+.tr-dash    { border-top: 1px dashed #000; margin: 2mm 0; }
+.tr-heavy   { border-top: 2px solid #000; margin: 2mm 0; }
+.tr-row     { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; margin-bottom: 0.8mm; }
+.tr-row span:last-child { text-align: right; white-space: nowrap; }
+.tr-item    { margin-bottom: 2.5mm; }
+
+/* ── @media print — 80mm thermal page ───────────────────── */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  /* Hide the entire portal — use visibility so layout is preserved */
+  * { visibility: hidden !important; }
+  .print-area,
+  .print-area * { visibility: visible !important; }
+
+  .print-area {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: 80mm !important;
+    padding: 2mm !important;
+    background: #fff !important;
+    overflow: visible !important;
+  }
+
+  .thermal-receipt {
+    width: 76mm !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .print-no-break {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
+
 @layer utilities {
   .text-blue-400,
   .text-blue-500,
