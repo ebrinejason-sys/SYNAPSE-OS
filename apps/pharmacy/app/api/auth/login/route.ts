@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   }
 
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'NOT_SET'
-  console.log('[login] supabase_url:', supabaseUrl.slice(0, 40), '| email:', email)
+  console.log('[login] supabase_url:', supabaseUrl.slice(0, 40), '| char0:', supabaseUrl.charCodeAt(0), '| email:', email)
 
   const db = supabaseAdmin as any
   const { data: profile, error: profileErr } = await db

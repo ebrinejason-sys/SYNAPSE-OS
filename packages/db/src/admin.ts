@@ -10,10 +10,15 @@ if (typeof window !== 'undefined') {
 
 let _instance: SupabaseClient<Database> | null = null
 
+function stripBom(str: string): string {
+  // U+FEFF BOM can appear when env vars are copy-pasted in Vercel dashboard
+  return str.charCodeAt(0) === 0xFEFF ? str.slice(1) : str
+}
+
 function getInstance(): SupabaseClient<Database> {
   if (_instance) return _instance
-  const url = (process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '')
-    .replace(/^﻿/, '').trim()  // strip BOM that Vercel can inject via copy-paste
+  const rawUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+  const url = stripBom(rawUrl).trim()
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) {
     throw new Error(
