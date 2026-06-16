@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
     .single()
 
   console.log('[login] profile_found:', !!profile, '| db_error:', profileErr?.message ?? null, '| has_hash:', !!(profile?.password_hash))
+  if (profileErr) console.error('[login] db_error_detail:', JSON.stringify(profileErr))
 
   if (profileErr || !profile) {
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
