@@ -101,8 +101,10 @@ export async function GET(request: NextRequest) {
         *,
         cashier:profiles!pharmacy_transactions_cashier_id_fkey ( full_name ),
         items:pharmacy_transaction_items (
-          *,
-          product:pharmacy_products ( name, sku, cost_price )
+          id, quantity, unit_price, cost_price, total_price,
+          package_name, package_quantity,
+          batch:pharmacy_product_batches ( batch_number, expiry_date ),
+          product:pharmacy_products ( id, name, sku, cost_price, dosage_form, strength )
         )
       `)
       .eq("tenant_id", tenantId)
@@ -178,8 +180,51 @@ export async function GET(request: NextRequest) {
         0
       )
 
+    // Normalize DB snake_case → camelCase to match client Transaction interface
+    const normalized = (transactions ?? []).map((tx: any) => ({
+      id:              tx.id,
+      transactionNo:   tx.transaction_no,
+      clientName:      tx.client_name   ?? null,
+      clientPhone:     tx.client_phone  ?? null,
+      clientAddress:   tx.client_address ?? null,
+      totalAmount:     Number(tx.total_amount  ?? 0),
+      netAmount:       Number(tx.net_amount    ?? 0),
+      discount:        tx.discount != null ? Number(tx.discount) : null,
+      tax:             tx.tax      != null ? Number(tx.tax)      : null,
+      paymentMethod:   tx.payment_method ?? "CASH",
+      isEdited:        tx.is_edited ?? false,
+      createdAt:       tx.created_at,
+      // cashier join comes back as { full_name } — map to user.name
+      user: {
+        name: tx.cashier?.full_name ?? tx.cashier?.name ?? "Unknown",
+      },
+      items: (tx.items ?? []).map((item: any) => ({
+        id:         item.id,
+        quantity:   item.quantity   ?? 0,
+        unitPrice:  Number(item.unit_price  ?? 0),
+        costPrice:  item.cost_price != null ? Number(item.cost_price) : null,
+        totalPrice: Number(item.total_price ?? 0),
+        packageName:     item.package_name     ?? null,
+        packageQuantity: item.package_quantity ?? null,
+        batch: item.batch ? {
+          batchNumber: item.batch.batch_number ?? null,
+          expiryDate:  item.batch.expiry_date  ?? null,
+        } : null,
+        product: {
+          id:          item.product?.id   ?? "",
+          name:        item.product?.name ?? "Unknown product",
+          sku:         item.product?.sku  ?? "",
+          costPrice:   item.product?.cost_price != null ? Number(item.product.cost_price) : 0,
+          dosageForm:  item.product?.dosage_form  ?? null,
+          strength:    item.product?.strength     ?? null,
+          expiryDate:  item.product?.expiry_date  ?? null,
+          batchNumber: item.product?.batch_number ?? null,
+        },
+      })),
+    }))
+
     return NextResponse.json({
-      transactions: transactions ?? [],
+      transactions: normalized,
       stats: {
         today: sumNetAmount(todayTransactions as Array<{ net_amount: number }>),
         week: sumNetAmount(weekTransactions as Array<{ net_amount: number }>),

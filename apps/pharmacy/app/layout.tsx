@@ -20,7 +20,10 @@ export default function RootLayout({
   return (
     <html lang="en" data-theme="dark" className="dark scroll-smooth" suppressHydrationWarning>
       <head>
-        <link rel="icon" type="image/png" href="/logo.png" />
+        {/* Explicit Synapse icons — override any browser auto-discovery of favicon.ico */}
+        <link rel="icon"          type="image/png" sizes="32x32" href="/logo.png" />
+        <link rel="icon"          type="image/png" sizes="16x16" href="/logo.png" />
+        <link rel="shortcut icon" type="image/png"               href="/logo.png" />
         <meta name="theme-color" content="#F97316" />
         {/* FOCT prevention - sets theme before first paint */}
         <script
