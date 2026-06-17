@@ -138,42 +138,51 @@
 /* ── 80mm Thermal Receipt ─────────────────────────────────── */
 .thermal-receipt {
   font-family: 'Courier New', Courier, monospace;
-  font-size: 9pt;
-  line-height: 1.4;
+  font-size: 9.5pt;
+  line-height: 1.5;
   width: 72mm;
   color: #000;
   background: #fff;
-  padding: 4mm 2mm;
+  padding: 4mm 3mm;
   margin: 0 auto;
+  word-break: break-word;
 }
-.thermal-receipt p { margin: 0 0 1mm; }
+.thermal-receipt p { margin: 0 0 1.2mm; }
 .tr-center  { text-align: center; }
 .tr-right   { text-align: right; }
 .tr-bold    { font-weight: 700; }
-.tr-sm      { font-size: 7.5pt; }
-.tr-lg      { font-size: 11pt; }
+.tr-sm      { font-size: 8pt; }
+.tr-lg      { font-size: 11.5pt; }
 .tr-mono    { letter-spacing: 1px; }
-.tr-muted   { color: #555; }
-.tr-dash    { border-top: 1px dashed #000; margin: 2mm 0; }
-.tr-heavy   { border-top: 2px solid #000; margin: 2mm 0; }
-.tr-row     { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; margin-bottom: 0.8mm; }
-.tr-row span:last-child { text-align: right; white-space: nowrap; }
-.tr-item    { margin-bottom: 2.5mm; }
+.tr-muted   { color: #444; }
+.tr-dash    { border-top: 1px dashed #000; margin: 2.5mm 0; }
+.tr-heavy   { border-top: 2px solid #000; margin: 2.5mm 0; }
+.tr-row     { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; margin-bottom: 1mm; }
+.tr-row span:last-child  { text-align: right; white-space: nowrap; flex-shrink: 0; }
+.tr-row span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.tr-item    { margin-bottom: 3mm; }
 
-/* ── @media print — 80mm thermal page ───────────────────── */
+/* ── @media print — 80mm thermal, portrait ──────────────── */
 @media print {
   @page {
-    size: 80mm auto;
+    size: 80mm auto portrait;
     margin: 0;
   }
 
-  /* Hide everything; only the print-area and its descendants are visible */
+  /* Hide everything; show only the print-area */
   * { visibility: hidden !important; }
   .print-area,
   .print-area * { visibility: visible !important; }
 
-  /* Hide screen-only chrome inside print-area (dialog buttons, overlay, etc.) */
-  .no-print { display: none !important; }
+  /* no-print must be a sibling of print-area, not a parent.
+     Collapse it to zero height rather than display:none so the
+     fixed print-area is unaffected by ancestor display state. */
+  .no-print {
+    visibility: hidden !important;
+    display: block !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
 
   .print-area {
     position: fixed !important;
@@ -192,8 +201,11 @@
 
   .thermal-receipt {
     width: 80mm !important;
-    padding: 3mm 2mm !important;
+    padding: 3mm 3mm !important;
     margin: 0 !important;
+    font-size: 9.5pt !important;
+    line-height: 1.5 !important;
+    color: #000 !important;
   }
 
   .print-no-break {

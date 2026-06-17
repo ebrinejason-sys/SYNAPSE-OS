@@ -1590,9 +1590,9 @@ function ReceiptPreviewDialog({
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-start justify-center z-50 p-4 overflow-y-auto">
-      {/* Screen chrome — hidden on print */}
-      <div className="w-full max-w-sm my-8 no-print">
-        <div className="flex items-center justify-between mb-3 px-1">
+      <div className="w-full max-w-sm my-8">
+        {/* Screen chrome — hidden on print (must be sibling of print-area, not parent) */}
+        <div className="no-print flex items-center justify-between mb-3 px-1">
           <span className="text-white font-semibold flex items-center gap-2">
             <Printer className="h-4 w-4" /> Receipt Preview
           </span>
