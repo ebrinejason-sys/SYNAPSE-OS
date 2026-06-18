@@ -5,6 +5,8 @@ import { ThemeToggle } from '../components/ThemeToggle'
 import { FeatureTabs } from '../components/landing/FeatureTabs'
 import { DemoWidget } from '../components/landing/DemoWidget'
 import { NewsletterForm } from '../components/landing/NewsletterForm'
+import { LandingHero } from '../components/landing/LandingHero'
+import { TrustMarquee } from '../components/landing/TrustMarquee'
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -13,13 +15,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     </p>
   )
 }
-
-const PLATFORM_FACTS = [
-  { label: 'Department modules', value: '20+' },
-  { label: 'Clinical scoring tools', value: '150+' },
-  { label: 'Database tables (RLS)', value: '120+' },
-  { label: 'Staff roles supported', value: '10+' },
-]
 
 const MODULES = [
   { abbr: 'OPD', name: 'OPD / Consultation', desc: 'Queue, consultation notes, fee schedules' },
@@ -203,68 +198,8 @@ export default function HomePage() {
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="px-6 py-20 md:py-28" style={{ borderBottom: '1px solid var(--border-edge)' }}>
-        <div className="max-w-4xl mx-auto">
-          <p className="text-sm font-medium mb-4" style={{ color: 'var(--brand-gold)' }}>
-            Synapse Health Technologies · Kampala, Uganda
-          </p>
-          <h1
-            className="font-display font-bold mb-6"
-            style={{ fontSize: 'clamp(2rem, 5vw, 3.25rem)', lineHeight: 1.15, letterSpacing: '-0.02em' }}
-          >
-            Hospital software for clinical workflows, pharmacy, billing, and patient records.
-          </h1>
-          <p className="text-lg mb-8 max-w-3xl" style={{ color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-            SynapseOS is a multi-tenant HMIS: outpatient and inpatient modules, laboratory and pharmacy,
-            insurance claims, telemedicine, and AI-assisted documentation — designed for facilities that
-            need offline tolerance and Uganda-specific clinical guidance.
-          </p>
-          <div className="flex flex-wrap gap-3 mb-10">
-            <a
-              href="https://demo.synapseos.tech"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-semibold px-6 py-3 rounded-lg"
-              style={{ background: 'var(--brand-orange)', color: '#07070A' }}
-            >
-              Open live demo
-            </a>
-            <Link
-              href="/apply"
-              className="text-sm font-semibold px-6 py-3 rounded-lg"
-              style={{ border: '1px solid var(--border-edge)', color: 'var(--text-primary)' }}
-            >
-              Apply for hospital pilot
-            </Link>
-            <Link href="/docs" className="text-sm font-semibold px-6 py-3 rounded-lg" style={{ color: 'var(--text-secondary)' }}>
-              Read documentation →
-            </Link>
-          </div>
-          <ul className="grid sm:grid-cols-2 gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
-            <li>· Multi-department HMIS with per-tenant subdomain</li>
-            <li>· Synapse Pharm for inventory, POS, and refill requests</li>
-            <li>· Synapse App (Android) for patient records and telemedicine</li>
-            <li>· AI tools grounded in Uganda Clinical Guidelines — clinician-in-the-loop</li>
-          </ul>
-        </div>
-      </section>
-
-      {/* Platform facts */}
-      <section className="px-6 py-12" style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-edge)' }}>
-        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6">
-          {PLATFORM_FACTS.map((f) => (
-            <div key={f.label}>
-              <p className="font-display font-bold text-2xl" style={{ color: 'var(--brand-orange)' }}>
-                {f.value}
-              </p>
-              <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-                {f.label}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <TrustMarquee />
+      <LandingHero />
 
       {/* Problem */}
       <section className="px-6 py-20" style={{ borderBottom: '1px solid var(--border-edge)' }}>

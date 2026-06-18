@@ -28,7 +28,7 @@ function run(label, command, args, opts = {}) {
 let ok = false
 
 if (target === 'web') {
-  ok = run('verify:web', 'npm', ['run', 'verify:web']) === 0
+  ok = run('web type-check', 'npm', ['run', 'type-check', '--workspace', '@synapse/web']) === 0
 } else if (target === 'pharmacy') {
   ok =
     run('pharmacy build', 'npm', ['run', 'build', '--workspace', '@synapse/pharmacy'], {
