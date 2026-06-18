@@ -1,0 +1,33 @@
+# Synapse OS — Supabase local CLI config
+# Remote project: link with `npm run db:link` (requires SUPABASE_ACCESS_TOKEN)
+# Docs: https://supabase.com/docs/guides/cli
+
+project_id = "synapse-os"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+[db.seed]
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:3001"
+additional_redirect_urls = ["http://localhost:3002"]

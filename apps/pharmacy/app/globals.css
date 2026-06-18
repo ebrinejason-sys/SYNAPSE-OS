@@ -157,9 +157,10 @@
 .tr-muted   { color: #444; }
 .tr-dash    { border-top: 1px dashed #000; margin: 2.5mm 0; }
 .tr-heavy   { border-top: 2px solid #000; margin: 2.5mm 0; }
-.tr-row     { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; margin-bottom: 1mm; }
-.tr-row span:last-child  { text-align: right; white-space: nowrap; flex-shrink: 0; }
-.tr-row span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.tr-row     { display: flex; justify-content: space-between; align-items: flex-start; gap: 1.5mm; margin-bottom: 1mm; width: 100%; box-sizing: border-box; }
+.tr-row span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+.tr-row span:first-child { flex: 1 1 auto; }
+.tr-row span:last-child  { flex: 0 1 42%; text-align: right; }
 .tr-item    { margin-bottom: 3mm; }
 
 /* ── @media print — 80mm thermal, portrait ──────────────── */
@@ -187,50 +188,67 @@
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
-    right: 0 !important;
+    right: auto !important;
     bottom: auto !important;
-    /* Fill the full printer page width — let the driver set the actual mm */
-    width: 100% !important;
+    /* Stay inside the printable area of common 80mm thermal printers. */
+    width: 72mm !important;
+    max-width: 72mm !important;
     padding: 0 !important;
     margin: 0 !important;
     background: #fff !important;
-    overflow: hidden !important;
+    overflow: visible !important;
     box-shadow: none !important;
     border-radius: 0 !important;
     box-sizing: border-box !important;
   }
 
   .thermal-receipt {
-    /* 100% fills print-area; box-sizing ensures padding doesn't add width */
+    /* Fill the safe print area; box-sizing keeps padding inside it. */
     width: 100% !important;
     box-sizing: border-box !important;
-    padding: 2mm 3mm !important;
+    max-width: 72mm !important;
+    padding: 2mm 2mm !important;
     margin: 0 !important;
-    font-size: 9.5pt !important;
-    line-height: 1.5 !important;
+    font-size: 8.5pt !important;
+    line-height: 1.35 !important;
     color: #000 !important;
+    overflow: visible !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
   }
+
+  .tr-sm { font-size: 7.5pt !important; }
+  .tr-lg { font-size: 10pt !important; }
 
   /* Constrain every flex row to available width */
   .tr-row {
     width: 100% !important;
     box-sizing: border-box !important;
     max-width: 100% !important;
+    gap: 1.5mm !important;
+    align-items: flex-start !important;
+  }
+
+  .tr-row span {
+    min-width: 0 !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
   }
 
   .tr-row span:first-child {
     flex: 1 1 auto !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
     min-width: 0 !important;
   }
 
   .tr-row span:last-child {
-    flex: 0 0 auto !important;
-    white-space: nowrap !important;
+    flex: 0 1 42% !important;
+    max-width: 42% !important;
+    white-space: normal !important;
     text-align: right !important;
-    padding-left: 2mm !important;
+    padding-left: 0 !important;
   }
 
   .print-no-break {

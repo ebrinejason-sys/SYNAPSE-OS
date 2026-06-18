@@ -1,4 +1,4 @@
-name: Deploy to Vercel
+name: CI
 
 on:
   push:
@@ -6,43 +6,96 @@ on:
   pull_request:
     branches: [main]
 
+# Vercel production deploy: connect this repo in the Vercel dashboard (Git integration).
+# Root vercel.json is the source of truth for install/build/output — same as `npm run verify:web`.
+# Optional: set VERCEL_TOKEN and keep the deploy job below for CLI-based deploys instead of Git integration.
+
 env:
   VERCEL_ORG_ID: team_ZHaBdLFb1hunAs68QC70HTBy
   VERCEL_PROJECT_ID: prj_ST72DC6VkMfhon3M1yW2PL575mcd
 
 jobs:
-  quality:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify migrations (local SQL checks)
+        run: npm run db:check
+
+      - name: Verify web build (matches vercel.json)
+        run: npm run verify:web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_APP_URL: https://synapseos.tech
+          SYNAPSE_JWT_SECRET: ${{ secrets.SYNAPSE_JWT_SECRET }}
+
+      - name: Lint web app
+        run: npm run lint --workspace @synapse/web -- --max-warnings 0
+
+  # Runs only on main when VERCEL_TOKEN is configured. Disable this job if Vercel Git integration deploys on push.
+  deploy-vercel:
+    needs: verify
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
       - run: npm ci
-      - name: Type check
-        run: cd apps/web && npx tsc --noEmit
-      - name: Lint
-        run: cd apps/web && npm run lint -- --max-warnings 0
-      - name: Build
-        run: cd apps/web && npm run build
+
+      - name: Pull Vercel env (production)
+        run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build with Vercel CLI (same as dashboard)
+        run: npx vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_APP_URL: https://synapseos.tech
 
-  deploy:
-    needs: quality
+      - name: Deploy prebuilt output
+        run: npx vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+  # Enable by setting repository variable ENABLE_DB_PUSH=true and secret SUPABASE_ACCESS_TOKEN
+  db-push:
+    needs: verify
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.ENABLE_DB_PUSH == 'true'
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
+
       - run: npm ci
-      - run: npm install -g vercel
-      - run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-      - run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-      - run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Link Supabase project
+        run: npx supabase link --project-ref qfqakzmjatszisuqjwon
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Push migrations (dry-run first)
+        run: npx supabase db push --dry-run
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Push migrations
+        run: npx supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

@@ -1,11 +1,30 @@
 import { NextRequest, NextResponse } from "next/server"
+import { randomUUID } from "node:crypto"
 import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail, generateWelcomeEmail } from "@/lib/email"
 import { generatePassword } from "@/lib/utils"
 import { hashPassword } from "@synapse/auth/password"
 
-const db = supabaseAdmin as any
+const db = supabaseAdmin
+
+type UserSettingRow = {
+  profile_id: string
+  username: string | null
+  pharmacy_role: string | null
+  permissions: string[] | null
+  is_active: boolean | null
+  two_factor_enabled: boolean | null
+  created_at: string | null
+}
+
+type ProfileSummaryRow = {
+  id: string
+  full_name: string | null
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+}
 
 // ── GET — list all users for this tenant ──────────────────────────────────────
 
@@ -31,17 +50,19 @@ export async function GET() {
 
     if (!userSettings || userSettings.length === 0) return NextResponse.json([])
 
-    const profileIds = userSettings.map((s: any) => s.profile_id)
+    const settingsRows = (userSettings ?? []) as UserSettingRow[]
+    const profileIds = settingsRows.map((s) => s.profile_id)
 
     const { data: profiles } = await db
       .from("profiles")
       .select("id, full_name, first_name, last_name, email")
       .in("id", profileIds)
 
-    const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]))
+    const profileRows = (profiles ?? []) as ProfileSummaryRow[]
+    const profileMap = new Map(profileRows.map((p) => [p.id, p]))
 
-    const users = userSettings.map((setting: any) => {
-      const profile: any = profileMap.get(setting.profile_id)
+    const users = settingsRows.map((setting) => {
+      const profile = profileMap.get(setting.profile_id)
       const name =
         profile?.full_name ||
         [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
@@ -115,11 +136,13 @@ export async function POST(request: NextRequest) {
     const password = generatePassword()
     const passwordHash = await hashPassword(password)
     const now = new Date().toISOString()
+    const newUserId = randomUUID()
 
     // Create profile row (custom auth)
     const { data: newProfile, error: profileError } = await db
       .from("profiles")
       .insert({
+        id: newUserId,
         email: email.toLowerCase(),
         full_name: name,
         password_hash: passwordHash,
@@ -139,8 +162,6 @@ export async function POST(request: NextRequest) {
       console.error("Error creating profile:", profileError)
       return NextResponse.json({ error: "Failed to create user" }, { status: 500 })
     }
-
-    const newUserId = newProfile.id
 
     const { error: settingsError } = await db
       .from("pharmacy_user_settings")

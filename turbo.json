@@ -9,7 +9,9 @@
       "env": [
         "NEXT_PUBLIC_SUPABASE_URL",
         "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-        "NEXT_PUBLIC_APP_URL"
+        "NEXT_PUBLIC_APP_URL",
+        "SYNAPSE_JWT_SECRET",
+        "SUPABASE_SERVICE_ROLE_KEY"
       ]
     },
     "dev": {
