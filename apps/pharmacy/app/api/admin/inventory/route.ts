@@ -353,3 +353,50 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getPharmacySession()
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
+
+    const productId = request.nextUrl.searchParams.get("id")
+    if (!productId) {
+      return NextResponse.json({ error: "Product id is required" }, { status: 400 })
+    }
+
+    const tenantId = session.profile.tenant_id
+
+    const { data: product, error: fetchError } = await supabaseAdmin
+      .from("pharmacy_products")
+      .select("id, name, sku")
+      .eq("id", productId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle()
+
+    if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 })
+    if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 })
+
+    const { error: deleteError } = await supabaseAdmin
+      .from("pharmacy_products")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("id", productId)
+      .eq("tenant_id", tenantId)
+
+    if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 })
+
+    await supabaseAdmin.from("pharmacy_audit_logs").insert({
+      tenant_id: tenantId,
+      profile_id: session.user.id,
+      action: "DELETE_PRODUCT",
+      entity: "PRODUCT",
+      entity_id: productId,
+      details: `Deleted product: ${product.name} (${product.sku})`,
+    })
+
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error("Delete product error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}

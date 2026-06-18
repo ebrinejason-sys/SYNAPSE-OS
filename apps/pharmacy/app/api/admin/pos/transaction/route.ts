@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { generateReceiptNumber } from "@/lib/receipt-number"
+import { ensureDefaultPharmacyStore } from "@/lib/ensure-default-store"
 
 interface CartItem {
   productId: string
@@ -149,6 +150,8 @@ export async function POST(request: NextRequest) {
     if (!paymentMethod) {
       return NextResponse.json({ error: "Payment method is required" }, { status: 400 })
     }
+
+    await ensureDefaultPharmacyStore(tenantId)
 
     const { data: storeRow } = await supabaseAdmin
       .from("pharmacy_stores")

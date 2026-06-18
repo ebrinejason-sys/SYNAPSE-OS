@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin, hasPermission } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { ensureDefaultPharmacyStore } from "@/lib/ensure-default-store"
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,6 +9,10 @@ export async function GET(request: NextRequest) {
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    if (session.profile.tenant_id) {
+      await ensureDefaultPharmacyStore(session.profile.tenant_id)
     }
 
     const adminUser = isPharmacyAdmin(session)

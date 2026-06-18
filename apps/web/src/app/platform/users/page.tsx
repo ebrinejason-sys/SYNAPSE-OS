@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 
-import { requirePlatformAdmin } from "../../../lib/platform/auth";
+import { requirePlatformAdmin } from "@/lib/platform/auth";
 import { formatDate, safeCount, safeRows } from "../_lib/platform-data";
+import { UserActions } from "./UserActions";
 
 type UserRow = {
   id?: string;
@@ -89,6 +90,7 @@ export default async function PlatformUsersPage() {
                   <th className="px-4 py-3">Role</th>
                   <th className="px-4 py-3">Verification</th>
                   <th className="px-4 py-3">Joined</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
@@ -103,10 +105,15 @@ export default async function PlatformUsersPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-slate-500">{formatDate(user.created_at)}</td>
+                    <td className="px-4 py-3">
+                      {user.id && user.email ? (
+                        <UserActions userId={user.id} email={user.email} role={user.role ?? null} />
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
                 {users.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No users found.</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No users found.</td></tr>
                 ) : null}
               </tbody>
             </table>

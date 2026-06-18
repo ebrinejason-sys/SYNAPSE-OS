@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   }
 
   const passwordHash = await hashPassword(password)
-  const { error } = await supabaseAdmin
+  const { error } = await (supabaseAdmin as any)
     .from('profiles')
     .update({
       password_hash: passwordHash,
@@ -52,6 +52,8 @@ export async function POST(req: NextRequest) {
       login_attempts: 0,
       locked_until: null,
       must_change_password: false,
+      email_verified_at: new Date().toISOString(),
+      verification_status: 'verified',
     })
     .eq('id', payload.sub)
 
