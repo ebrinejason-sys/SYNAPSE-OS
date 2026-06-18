@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "../../../../lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
 export async function POST(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { batchId } = await req.json() as { batchId: string };
   if (!batchId) return NextResponse.json({ error: "batchId required" }, { status: 400 });
 

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "../../../../lib/supabase/server";
 import { checkRateLimit, rateLimiters } from "../../../../lib/rate-limit";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
 export async function POST(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const ip = req.headers.get("x-forwarded-for") ?? "unknown";
   const { success } = await checkRateLimit(rateLimiters.import, ip);
   if (!success) return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });

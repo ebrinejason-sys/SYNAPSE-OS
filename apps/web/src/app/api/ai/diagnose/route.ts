@@ -2,8 +2,12 @@ import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimiters } from "../../../../lib/rate-limit";
 import { createServiceClient } from "../../../../lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
 export async function POST(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const ip = req.headers.get("x-forwarded-for") ?? "unknown";
   const { success } = await checkRateLimit(rateLimiters.ai, ip);
   if (!success) {

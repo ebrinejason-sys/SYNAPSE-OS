@@ -3,6 +3,14 @@ import { getPharmacySession, isPharmacyAdmin, hasPermission } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { generateOrderNo, generateTransactionNo } from "@/lib/utils"
 
+type OrderStatsRow = {
+  status: string
+  total_amount: number | null
+  order_type: string | null
+  is_online_order: boolean | null
+  claimed_by: string | null
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getPharmacySession()
@@ -52,11 +60,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const enrichedOrders = (orders ?? []).map((order) => ({
+    const enrichedOrders = (orders ?? []).map((order: Record<string, unknown> & {
+      processed_by?: string | null
+      claimed_by?: string | null
+    }) => ({
       ...order,
       processedByUser: order.processed_by ? { name: profileNameMap.get(order.processed_by) ?? null } : null,
       claimedByUser: order.claimed_by ? { name: profileNameMap.get(order.claimed_by) ?? null } : null,
-    }))
+    })) as OrderStatsRow[]
 
     const stats = {
       pending: enrichedOrders.filter((o) => o.status === "PENDING").length,

@@ -9,10 +9,10 @@ const TABS = [
     description:
       'MedGemma 27B generates ranked differential diagnoses grounded in Uganda Clinical Guidelines. Every suggestion cited, every confidence score explained — supporting, not replacing, clinical judgement.',
     stats: [
-      { val: '84%', label: 'AI concordance with senior clinicians' },
-      { val: '4.2s', label: 'Median diagnosis response time' },
-      { val: '150+', label: 'Clinical scoring tools (NEWS2, SOFA, GCS…)' },
-      { val: 'ICD-11', label: 'Coded, FHIR R4 compliant output' },
+      { val: 'UCG', label: 'Uganda Clinical Guidelines in AI context' },
+      { val: '150+', label: 'Built-in scoring tools (NEWS2, SOFA, GCS…)' },
+      { val: 'ICD-11', label: 'Coded output with FHIR R4 resources' },
+      { val: 'Audit', label: 'Every AI suggestion logged with encounter' },
     ],
     features: [
       'Ranked differential with confidence bars + ICD-11 codes',

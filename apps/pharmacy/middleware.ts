@@ -198,7 +198,10 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/auth')
   const isPublicApi =
-    pathname.startsWith('/api/')
+    pathname.startsWith('/api/public') ||
+    pathname.startsWith('/api/auth/') ||
+    pathname.startsWith('/api/customer/') ||
+    pathname === '/api/auth/cloud-verify'
   const isMfaPage = pathname === '/auth/2fa'
   const isOnboardingPage = pathname.startsWith('/onboarding')
   const isInvitePage = pathname.startsWith('/invite')
