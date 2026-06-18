@@ -52,11 +52,13 @@ export async function getPharmacyContext(): Promise<PharmacyContext> {
 
   if (error || !tenantRow) redirect('/login?error=no_pharmacy')
 
+  const tenant = tenantRow
+
   // Non-platform-admin users must belong to an active pharmacy
   const isAdmin = session.isAdmin
   const role = session.role
   if (!isAdmin && role !== 'platform_admin') {
-    if (tenantRow.status === 'churned' || tenantRow.is_active === false) {
+    if (tenant.status === 'churned' || tenant.is_active === false) {
       redirect('/login?error=account_inactive')
     }
   }
@@ -65,18 +67,18 @@ export async function getPharmacyContext(): Promise<PharmacyContext> {
   const { data: onboarding } = await supabase
     .from('pharmacy_onboarding')
     .select('current_step')
-    .eq('tenant_id', tenantRow.id)
+    .eq('tenant_id', tenant.id)
     .maybeSingle()
 
   return {
     session,
     tenant: {
-      ...tenantRow,
-      is_active: tenantRow.is_active ?? true,
-      is_network_member: tenantRow.is_network_member ?? false,
-      accepts_refill_requests: tenantRow.accepts_refill_requests ?? false,
-      modules_enabled: tenantRow.modules_enabled ?? [],
-      onboarding_step: onboarding?.current_step ?? tenantRow.onboarding_step ?? 0,
+      ...tenant,
+      is_active: tenant.is_active ?? true,
+      is_network_member: tenant.is_network_member ?? false,
+      accepts_refill_requests: tenant.accepts_refill_requests ?? false,
+      modules_enabled: tenant.modules_enabled ?? [],
+      onboarding_step: onboarding?.current_step ?? tenant.onboarding_step ?? 0,
     } as PharmacyTenant,
   }
 }

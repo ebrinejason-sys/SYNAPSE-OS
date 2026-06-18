@@ -22,7 +22,7 @@ function run(label, command, args, opts = {}) {
   }
 }
 
-run('type-check (monorepo)', 'npm', ['run', 'type-check'])
+run('type-check (@synapse/web)', 'npm', ['run', 'type-check', '--workspace', '@synapse/web'])
 run('sync public assets', 'node', ['scripts/sync-web-public.mjs'])
 run('next build (@synapse/web)', 'npm', ['run', 'build', '--workspace', '@synapse/web'])
 

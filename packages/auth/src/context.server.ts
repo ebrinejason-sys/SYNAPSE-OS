@@ -51,15 +51,18 @@ export async function getContext(
 
   if (!token) redirect(redirectTo)
 
-  let payload: SynapseTokenPayload
+  let payload: SynapseTokenPayload | undefined
   try {
     payload = await verifyToken(token)
   } catch {
     redirect(redirectTo)
   }
+  if (!payload) redirect(redirectTo)
 
   const { valid } = await validateSession(token)
   if (!valid) redirect(redirectTo)
+
+  const tokenPayload = payload
 
   const { data: profile, error: profileError } = await (supabaseAdmin as any)
     .from('profiles')
@@ -69,7 +72,7 @@ export async function getContext(
       verification_status, avatar_url, must_change_password,
       email_verified_at, is_deleted
     `)
-    .eq('id', payload.sub)
+    .eq('id', tokenPayload.sub)
     .single()
 
   if (profileError || !profile) redirect(redirectTo)
@@ -129,18 +132,20 @@ export async function getContext(
 
   if (tenantError || !tenant) redirect(redirectTo)
 
+  const tenantRow = tenant
+
   return {
     user,
     tenant: {
-      id: tenant.id as string,
-      name: tenant.name as string,
-      slug: tenant.slug as string,
-      facilityType: tenant.facility_type as string,
-      status: tenant.status as string,
-      plan: tenant.plan as string,
-      modulesEnabled: (tenant.modules_enabled as string[]) ?? [],
-      isNetworkMember: (tenant.is_network_member as boolean) ?? false,
-      onboardingCompleted: (tenant.onboarding_completed as boolean) ?? false,
+      id: tenantRow.id as string,
+      name: tenantRow.name as string,
+      slug: tenantRow.slug as string,
+      facilityType: tenantRow.facility_type as string,
+      status: tenantRow.status as string,
+      plan: tenantRow.plan as string,
+      modulesEnabled: (tenantRow.modules_enabled as string[]) ?? [],
+      isNetworkMember: (tenantRow.is_network_member as boolean) ?? false,
+      onboardingCompleted: (tenantRow.onboarding_completed as boolean) ?? false,
     },
     app,
     token,

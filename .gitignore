@@ -16,3 +16,4 @@ coverage/
 .supabase/
 
 .vercel
+.turbo/

@@ -63,5 +63,15 @@ export async function POST(req: NextRequest) {
 
   await revokeAllUserSessions(payload.sub).catch(() => {})
 
-  return NextResponse.json({ ok: true })
+  const { data: profile } = await (supabaseAdmin as any)
+    .from('profiles')
+    .select('role')
+    .eq('id', payload.sub)
+    .maybeSingle()
+
+  const role = profile?.role as string | undefined
+  const redirectTo =
+    role === 'platform_admin' || role === 'superadmin' ? '/platform/login' : '/login'
+
+  return NextResponse.json({ ok: true, redirectTo })
 }

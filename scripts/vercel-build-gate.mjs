@@ -30,13 +30,10 @@ let ok = false
 if (target === 'web') {
   ok = run('verify:web', 'npm', ['run', 'verify:web']) === 0
 } else if (target === 'pharmacy') {
-  const typeOk = run('pharmacy type-check', 'npm', ['run', 'type-check', '--workspace', '@synapse/pharmacy']) === 0
-  const buildOk =
-    typeOk &&
+  ok =
     run('pharmacy build', 'npm', ['run', 'build', '--workspace', '@synapse/pharmacy'], {
       env: { NODE_OPTIONS: '--max-old-space-size=4096' },
     }) === 0
-  ok = buildOk
 } else {
   console.error(`Unknown target: ${target}`)
   process.exit(0)

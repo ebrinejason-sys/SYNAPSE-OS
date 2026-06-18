@@ -20,6 +20,10 @@
     "jose": "^5.10.0"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6"
+    "@types/bcryptjs": "^2.4.6",
+    "next": "^15.5.18"
+  },
+  "peerDependencies": {
+    "next": ">=15.0.0"
   }
 }

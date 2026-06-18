@@ -12,6 +12,7 @@ function ResetPasswordContent() {
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
+  const [redirectTo, setRedirectTo] = useState('/login')
   const [error, setError] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
@@ -29,7 +30,7 @@ function ResetPasswordContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, password }),
     })
-    const data = await res.json().catch(() => ({})) as { error?: string }
+    const data = await res.json().catch(() => ({})) as { error?: string; redirectTo?: string }
     setLoading(false)
 
     if (!res.ok) {
@@ -37,6 +38,7 @@ function ResetPasswordContent() {
       return
     }
 
+    setRedirectTo(data.redirectTo ?? '/login')
     setDone(true)
   }
 
@@ -62,7 +64,9 @@ function ResetPasswordContent() {
               <p className="font-semibold mb-1">Password updated</p>
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>You can now sign in with your new password.</p>
             </div>
-            <a href="/login" className="btn-primary block w-full">Back to sign in</a>
+            <a href={redirectTo} className="btn-primary block w-full">
+              {redirectTo.startsWith('/platform') ? 'Go to platform sign in' : 'Back to sign in'}
+            </a>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">

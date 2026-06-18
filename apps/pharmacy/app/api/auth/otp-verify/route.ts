@@ -59,7 +59,6 @@ export async function POST(req: NextRequest) {
     .update({ login_attempts: 0 })
     .eq('id', profile.id as string)
 
-  const cookieStore = await cookies()
   const expires = new Date()
   expires.setDate(expires.getDate() + SESSION_DURATION_DAYS)
 
