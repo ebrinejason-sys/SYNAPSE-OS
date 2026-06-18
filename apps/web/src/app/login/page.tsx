@@ -191,13 +191,16 @@ function LoginContent() {
       ok?: boolean
       mfaRequired?: boolean
       mfaSetupRequired?: boolean
+      redirectTo?: string
       error?: string
     }
     setLoading(false)
     if (!res.ok) { setError(data.error ?? 'Verification failed.'); return }
     if (data.mfaSetupRequired) { router.push('/platform/mfa'); return }
     if (data.mfaRequired) { router.push('/platform/mfa-verify'); return }
-    router.push(next)
+    const dest = data.redirectTo ?? next
+    if (dest.startsWith('http')) { window.location.href = dest; return }
+    router.push(dest)
   }
 
   async function resendPasswordCode() {
@@ -238,13 +241,16 @@ function LoginContent() {
       ok?: boolean
       mfaRequired?: boolean
       mfaSetupRequired?: boolean
+      redirectTo?: string
       error?: string
     }
     if (!res.ok) { setError(data.error ?? 'Verification failed.'); setLoading(false); return }
     setLoading(false)
     if (data.mfaSetupRequired) { window.location.href = '/platform/mfa'; return }
     if (data.mfaRequired) { window.location.href = '/platform/mfa-verify'; return }
-    window.location.href = next
+    const dest = data.redirectTo ?? next
+    if (dest.startsWith('http')) { window.location.href = dest; return }
+    window.location.href = dest
   }
 
   // ─── Phone OTP ─────────────────────────────────────────────

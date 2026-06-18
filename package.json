@@ -26,7 +26,8 @@
     "db:migration:list": "supabase migration list",
     "vercel:pull": "vercel pull --yes",
     "vercel:build": "vercel build",
-    "vercel:deploy": "vercel deploy --prebuilt"
+    "vercel:deploy": "vercel deploy --prebuilt",
+    "seed:admin-password": "tsx scripts/seed-admin-password.ts"
   },
   "dependencies": {
     "react-router-dom": "^7.0.0",

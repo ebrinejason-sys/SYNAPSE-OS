@@ -9,6 +9,7 @@ import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE } from '@synapse/config/constants'
 import type { AppSurface, SynapseRole } from '@synapse/config/constants'
 import { isAccountActivated } from './activation'
+import { assertSessionMatchesHost } from './tenant-guard.server'
 
 export interface SynapseContext {
   user: {
@@ -73,6 +74,11 @@ export async function getContext(
 
   if (profileError || !profile) redirect(redirectTo)
   if (!isAccountActivated(profile)) redirect(redirectTo)
+
+  await assertSessionMatchesHost({
+    role: profile.role as string,
+    sessionTenantId: profile.tenant_id as string | null,
+  })
 
   const user = {
     id: profile.id as string,

@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyPassword, signToken, createSession } from '@synapse/auth'
+import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyPassword, createAndSendOTP } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { SESSION_DURATION_DAYS } from '@synapse/config/constants'
+import { sendOtpEmail } from '../../../../lib/resend'
 
 const MAX_ATTEMPTS = 10
 const LOCKOUT_MINUTES = 30
 
+/** Step 1: password verify → email OTP (no session until otp-verify). */
 export async function POST(req: NextRequest) {
-  const body     = await req.json().catch(() => ({}))
-  const email    = typeof body.email    === 'string' ? body.email.trim().toLowerCase() : ''
-  const password = typeof body.password === 'string' ? body.password                   : ''
+  const body = await req.json().catch(() => ({}))
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const password = typeof body.password === 'string' ? body.password : ''
 
   if (!email || !password) {
     return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
@@ -18,12 +19,7 @@ export async function POST(req: NextRequest) {
   const db = supabaseAdmin as any
   const { data: profile, error: profileErr } = await db
     .from('profiles')
-    .select(`
-      id, email, role, tenant_id, synapse_id,
-      password_hash, login_attempts, locked_until,
-      full_name, first_name, last_name, is_admin, must_change_password,
-      verification_status, email_verified_at, is_deleted
-    `)
+    .select('id, email, password_hash, login_attempts, locked_until, email_verified_at, is_deleted')
     .eq('email', email)
     .single()
 
@@ -32,10 +28,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (profile.locked_until && new Date(profile.locked_until) > new Date()) {
-    return NextResponse.json(
-      { error: 'Account temporarily locked. Try again later.' },
-      { status: 429 }
-    )
+    return NextResponse.json({ error: 'Account temporarily locked. Try again later.' }, { status: 429 })
   }
 
   const authenticated = profile.password_hash
@@ -44,72 +37,39 @@ export async function POST(req: NextRequest) {
 
   if (!authenticated) {
     const attempts = (profile.login_attempts ?? 0) + 1
+    const update: Record<string, unknown> = { login_attempts: attempts }
     if (attempts >= MAX_ATTEMPTS) {
       const until = new Date()
       until.setMinutes(until.getMinutes() + LOCKOUT_MINUTES)
-      await db
-        .from('profiles')
-        .update({ login_attempts: attempts, locked_until: until.toISOString() })
-        .eq('id', profile.id)
-    } else {
-      await db
-        .from('profiles')
-        .update({ login_attempts: attempts })
-        .eq('id', profile.id)
+      update.locked_until = until.toISOString()
     }
+    await db.from('profiles').update(update).eq('id', profile.id)
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
   }
 
-  await db
-    .from('profiles')
-    .update({ login_attempts: 0, locked_until: null })
-    .eq('id', profile.id)
+  await db.from('profiles').update({ login_attempts: 0, locked_until: null }).eq('id', profile.id)
 
   if (!isAccountActivated(profile)) {
     return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
   }
 
-  const token = await signToken({
-    sub: profile.id,
-    email,
-    role: profile.role,
-    tenant_id: profile.tenant_id ?? '',
-    app: 'mobile',
-    synapse_id: profile.synapse_id ?? undefined,
-  })
+  let otp: string
+  try {
+    otp = await createAndSendOTP({ channel: 'email', target: email })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : ''
+    if (msg === 'TOO_MANY_REQUESTS') {
+      return NextResponse.json({ error: 'Too many verification requests. Please wait.' }, { status: 429 })
+    }
+    return NextResponse.json({ error: 'Failed to create verification code.' }, { status: 500 })
+  }
 
-  const expiresAt = new Date()
-  expiresAt.setDate(expiresAt.getDate() + SESSION_DURATION_DAYS)
+  try {
+    await sendOtpEmail(email, otp)
+  } catch (error) {
+    console.error('[auth/mobile/login] otp email failed', error)
+    return NextResponse.json({ error: 'Failed to send verification email.' }, { status: 500 })
+  }
 
-  await createSession({
-    userId: profile.id,
-    token,
-    app: 'mobile',
-    ip: req.headers.get('x-forwarded-for') ?? undefined,
-    userAgent: req.headers.get('user-agent') ?? undefined,
-  })
-
-  const { data: tenant } = await db
-    .from('tenants')
-    .select('name')
-    .eq('id', profile.tenant_id ?? '')
-    .maybeSingle()
-
-  const joinedName = [profile.first_name, profile.last_name].filter(Boolean).join(' ')
-  const fullName = (profile.full_name as string | null) ?? (joinedName || null)
-
-  return NextResponse.json({
-    token,
-    expiresAt: expiresAt.toISOString(),
-    user: {
-      id: profile.id,
-      email,
-      role: profile.role,
-      fullName,
-      tenantId: profile.tenant_id ?? '',
-      tenantName: (tenant?.name as string | null) ?? '',
-      isAdmin: (profile.is_admin as boolean | null) ?? false,
-      mustChangePassword: (profile.must_change_password as boolean | null) ?? false,
-    },
-  })
+  return NextResponse.json({ otpSent: true })
 }

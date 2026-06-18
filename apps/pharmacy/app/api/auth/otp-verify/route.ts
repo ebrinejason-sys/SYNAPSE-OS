@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { verifyOTP, signToken, createSession } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
@@ -64,7 +63,8 @@ export async function POST(req: NextRequest) {
   const expires = new Date()
   expires.setDate(expires.getDate() + SESSION_DURATION_DAYS)
 
-  cookieStore.set(SESSION_COOKIE, token, {
+  const response = NextResponse.json({ ok: true, mustChangePassword: Boolean(profile.must_change_password) })
+  response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure:   process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -72,5 +72,5 @@ export async function POST(req: NextRequest) {
     path:     '/',
   })
 
-  return NextResponse.json({ ok: true, mustChangePassword: Boolean(profile.must_change_password) })
+  return response
 }

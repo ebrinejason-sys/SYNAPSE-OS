@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyOTP, signToken, createSession } from '@synapse/auth'
 import { signMfaPendingToken, mfaCookieOptions, MFA_PENDING_COOKIE } from '@synapse/auth/mfa'
+import { getPostLoginPath } from '@synapse/auth/redirects'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
 
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: profile, error: profileErr } = await (supabaseAdmin as any)
     .from('profiles')
-    .select('id, role, tenant_id, synapse_id, verification_status, email_verified_at, is_deleted')
+    .select('id, role, tenant_id, synapse_id, verification_status, email_verified_at, is_deleted, must_change_password, onboarding_complete')
     .eq('email', email)
     .single()
 
@@ -92,7 +93,37 @@ export async function POST(req: NextRequest) {
   expires.setDate(expires.getDate() + SESSION_DURATION_DAYS)
 
   // Set cookie directly on response — cookies().set() does not propagate in Next.js 15 Route Handlers
-  const response = NextResponse.json({ ok: true })
+  let pharmacyOnboardingStep: number | null = null
+  let tenantFacilityType: string | null = null
+
+  if (profile.tenant_id) {
+    const [{ data: tenant }, { data: pharmOnboarding }] = await Promise.all([
+      (supabaseAdmin as any)
+        .from('tenants')
+        .select('facility_type, onboarding_completed')
+        .eq('id', profile.tenant_id)
+        .maybeSingle(),
+      (supabaseAdmin as any)
+        .from('pharmacy_onboarding')
+        .select('current_step')
+        .eq('tenant_id', profile.tenant_id)
+        .maybeSingle(),
+    ])
+    tenantFacilityType = tenant?.facility_type ?? null
+    pharmacyOnboardingStep = pharmOnboarding?.current_step ?? null
+  }
+
+  const redirectTo = getPostLoginPath({
+    role: profile.role,
+    mustChangePassword: Boolean(profile.must_change_password),
+    emailVerified: Boolean(profile.email_verified_at),
+    onboardingComplete: Boolean(profile.onboarding_complete),
+    pharmacyOnboardingStep,
+    tenantFacilityType,
+    pharmacyAppUrl: process.env.NEXT_PUBLIC_PHARMACY_APP_URL,
+  })
+
+  const response = NextResponse.json({ ok: true, redirectTo })
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

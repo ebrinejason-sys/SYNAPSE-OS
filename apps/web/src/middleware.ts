@@ -291,6 +291,34 @@ export async function middleware(request: NextRequest) {
   }
 
   if (subdomain && subdomain !== "www" && subdomain !== "synapseos") {
+    const { valid: synapseValid, tenantId: synapseTenantId } = await hasSynapseSession(request)
+
+    if (synapseValid && synapseTenantId) {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (supabaseUrl && supabaseKey) {
+        try {
+          const hospitalUrl = new URL(`${supabaseUrl}/rest/v1/hospitals`)
+          hospitalUrl.searchParams.set("subdomain", `eq.${subdomain}`)
+          hospitalUrl.searchParams.set("select", "settings")
+          hospitalUrl.searchParams.set("limit", "1")
+          const hres = await fetch(hospitalUrl, {
+            headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+            cache: "no-store",
+          })
+          if (hres.ok) {
+            const [hospital] = (await hres.json()) as { settings?: Record<string, string> }[]
+            const hostTenantId = hospital?.settings?.tenant_id
+            if (hostTenantId && hostTenantId !== synapseTenantId) {
+              return NextResponse.redirect(new URL("/login?error=wrong_tenant", request.url))
+            }
+          }
+        } catch {
+          /* non-fatal */
+        }
+      }
+    }
+
     const response = NextResponse.rewrite(
       new URL(`/os/${subdomain}${pathname === "/" ? "" : pathname}`, request.url)
     );
