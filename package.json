@@ -27,6 +27,7 @@
     "vercel:pull": "vercel pull --yes",
     "vercel:build": "vercel build",
     "vercel:deploy": "vercel deploy --prebuilt",
+    "vercel:sync": "node scripts/sync-vercel-projects.mjs",
     "seed:admin-password": "tsx scripts/seed-admin-password.ts"
   },
   "dependencies": {
