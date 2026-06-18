@@ -23,6 +23,7 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>
+  verifyLoginOtp: (email: string, otp: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -54,9 +55,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const login = useCallback(async (email: string, password: string) => {
-    const data = await apiRequest<{ token: string; user: MobileUser }>(
+    await apiRequest<{ otpSent: boolean }>(
       '/api/auth/mobile/login',
       { method: 'POST', body: { email, password } }
+    )
+  }, [])
+
+  const verifyLoginOtp = useCallback(async (email: string, otp: string) => {
+    const data = await apiRequest<{ token: string; user: MobileUser }>(
+      '/api/auth/mobile/otp-verify',
+      { method: 'POST', body: { email, otp } }
     )
     await SecureStore.setItemAsync(TOKEN_KEY, data.token)
     setState({ user: data.user, token: data.token, isLoading: false })
@@ -75,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [state.token])
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout }}>
+    <AuthContext.Provider value={{ ...state, login, verifyLoginOtp, logout }}>
       {children}
     </AuthContext.Provider>
   )

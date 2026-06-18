@@ -2,6 +2,11 @@ import { ActivityIndicator, View } from 'react-native'
 import { Redirect } from 'expo-router'
 import { useAuth } from '@/lib/auth'
 
+function homeForRole(role: string | undefined): string {
+  if (role === 'patient') return '/(main)/patient-home'
+  return '/(main)/home'
+}
+
 export default function Index() {
   const { user, isLoading } = useAuth()
 
@@ -13,5 +18,9 @@ export default function Index() {
     )
   }
 
-  return <Redirect href={user ? '/(main)/home' : '/(auth)/login'} />
+  if (!user) {
+    return <Redirect href="/(auth)/login" />
+  }
+
+  return <Redirect href={homeForRole(user.role) as '/(main)/home' | '/(main)/patient-home'} />
 }
