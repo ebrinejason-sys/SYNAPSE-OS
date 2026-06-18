@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
-import { generateTransactionNo } from "@/lib/utils"
+import { generateReceiptNumber } from "@/lib/receipt-number"
 
 interface CartItem {
   productId: string
@@ -148,6 +148,24 @@ export async function POST(request: NextRequest) {
 
     if (!paymentMethod) {
       return NextResponse.json({ error: "Payment method is required" }, { status: 400 })
+    }
+
+    const { data: storeRow } = await supabaseAdmin
+      .from("pharmacy_stores")
+      .select("id, name")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle()
+
+    if (!storeRow) {
+      return NextResponse.json(
+        {
+          error: "No pharmacy store configured. Complete onboarding (step 2) or add a store in Settings before using POS.",
+          code: "NO_STORE",
+        },
+        { status: 422 }
+      )
     }
 
     // Use provided staffId if it's a valid UUID, otherwise use session user
@@ -313,12 +331,14 @@ export async function POST(request: NextRequest) {
     const tax = Math.round(totalAmount * taxRate * 100) / 100
     const netAmount = Math.round((totalAmount + tax) * 100) / 100
 
+    const receiptNo = transactionNo ?? (await generateReceiptNumber(tenantId))
+
     // Create the transaction
     const { data: transaction, error: txError } = await supabaseAdmin
       .from("pharmacy_transactions")
       .insert({
         tenant_id: tenantId,
-        transaction_no: transactionNo ?? generateTransactionNo(),
+        transaction_no: receiptNo,
         cashier_id: cashierId,
         client_name: clientName ?? null,
         client_phone: clientPhone ?? null,
