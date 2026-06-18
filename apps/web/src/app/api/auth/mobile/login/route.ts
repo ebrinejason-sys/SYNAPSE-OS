@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyPassword, createAndSendOTP } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { sendOtpEmail } from '../../../../lib/resend'
+import { sendOtpEmail } from '@/lib/resend'
 
 const MAX_ATTEMPTS = 10
 const LOCKOUT_MINUTES = 30
