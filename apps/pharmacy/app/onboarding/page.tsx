@@ -121,7 +121,7 @@ export default function OnboardingPage() {
     licenseExpiry: '',
   })
 
-  const [store, setStore] = useState<StoreForm>({ storeName: '', storeType: 'Main Branch' })
+  const [store, setStore] = useState<StoreForm>({ storeName: '', storeType: 'main' })
   const [products, setProducts] = useState<ProductRow[]>([emptyProduct()])
   const [network, setNetwork] = useState<NetworkForm>({
     isNetworkMember: false,
@@ -153,7 +153,7 @@ export default function OnboardingPage() {
 
       setStore({
         storeName: data.storeName || `${data.tenantName} - Main Branch`,
-        storeType: data.storeType || 'Main Branch',
+        storeType: data.storeType || 'main',
       })
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Failed to load data')
@@ -382,9 +382,9 @@ export default function OnboardingPage() {
                     value={store.storeType}
                     onChange={e => setStore({ ...store, storeType: e.target.value })}
                   >
-                    <option value="Main Branch">Main Branch</option>
-                    <option value="Dispensary">Dispensary</option>
-                    <option value="Satellite">Satellite</option>
+                    <option value="main">Main Branch</option>
+                    <option value="dispensary">Dispensary</option>
+                    <option value="satellite">Satellite</option>
                   </select>
                 </div>
               </div>

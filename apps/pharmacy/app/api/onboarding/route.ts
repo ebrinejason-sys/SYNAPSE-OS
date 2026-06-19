@@ -35,7 +35,7 @@ export async function GET() {
     licenseExpiry: profile?.license_expiry ?? '',
     currentStep: onboarding?.current_step ?? 1,
     storeName: store?.name ?? (tenant?.name ? `${tenant.name} - Main Branch` : ''),
-    storeType: store?.store_type ?? 'Main Branch',
+    storeType: store?.store_type ?? 'main',
   })
 }
 
@@ -71,6 +71,16 @@ export async function POST(req: NextRequest) {
     }
 
     if (step === 2) {
+      const storeTypeRaw = String(data.storeType ?? 'main').toLowerCase()
+      const storeType =
+        storeTypeRaw === 'main branch' || storeTypeRaw === 'main'
+          ? 'main'
+          : storeTypeRaw === 'dispensary'
+            ? 'dispensary'
+            : storeTypeRaw === 'satellite'
+              ? 'satellite'
+              : 'main'
+
       const { data: existing } = await db.from('pharmacy_stores')
         .select('id').eq('tenant_id', tenantId).maybeSingle()
 
@@ -78,7 +88,8 @@ export async function POST(req: NextRequest) {
         await db.from('pharmacy_stores').insert({
           tenant_id: tenantId,
           name: data.storeName,
-          store_type: data.storeType,
+          store_type: storeType,
+          is_active: true,
         })
       }
 

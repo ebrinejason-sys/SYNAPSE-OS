@@ -27,7 +27,7 @@ export async function ensureDefaultPharmacyStore(tenantId: string): Promise<{ cr
     .insert({
       tenant_id: tenantId,
       name: storeName,
-      store_type: 'Main Branch',
+      store_type: 'main',
       is_active: true,
     })
     .select('id')
