@@ -23,9 +23,9 @@ const TRUST_PILLS = [
 ]
 
 const LIVE_SURFACES = [
-  { label: 'Hospital demo', href: 'https://demo.synapseos.tech', status: 'Live' },
+  { label: 'AI diagnostic demo', href: 'https://demo.synapseos.tech', status: 'Live' },
   { label: 'Pharmacy POS', href: 'https://pharm.synapseos.tech', status: 'Live' },
-  { label: 'Platform admin', href: '/platform/login', status: 'Staff' },
+  { label: 'Personal health app', href: 'https://app.synapseos.tech', status: 'Sign up' },
 ]
 
 const PREVIEW_CARDS = [

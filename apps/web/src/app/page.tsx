@@ -7,6 +7,7 @@ import { DemoWidget } from '../components/landing/DemoWidget'
 import { NewsletterForm } from '../components/landing/NewsletterForm'
 import { LandingHero } from '../components/landing/LandingHero'
 import { TrustMarquee } from '../components/landing/TrustMarquee'
+import { AudiencePaths } from '../components/landing/AudiencePaths'
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -156,11 +157,10 @@ const TRUST = [
 ]
 
 const NAV = [
+  ['#get-started', 'Get started'],
+  ['#demo', 'AI demo'],
   ['#products', 'Products'],
-  ['#features', 'Features'],
-  ['#modules', 'Modules'],
   ['#pricing', 'Pricing'],
-  ['#demo', 'Demo'],
   ['/docs', 'Docs'],
 ]
 
@@ -190,16 +190,24 @@ export default function HomePage() {
           </Link>
           <Link
             href="/apply"
+            className="text-sm font-semibold px-4 py-2 rounded-lg hidden sm:inline-block"
+            style={{ border: '1px solid var(--border-edge)', color: 'var(--text-primary)' }}
+          >
+            Onboard facility
+          </Link>
+          <Link
+            href="/signup"
             className="text-sm font-semibold px-4 py-2 rounded-lg"
             style={{ background: 'var(--brand-orange)', color: '#07070A' }}
           >
-            Apply for pilot
+            Create account
           </Link>
         </div>
       </nav>
 
       <TrustMarquee />
       <LandingHero />
+      <AudiencePaths />
 
       {/* Problem */}
       <section className="px-6 py-20" style={{ borderBottom: '1px solid var(--border-edge)' }}>
@@ -267,8 +275,8 @@ export default function HomePage() {
                 Inventory, FEFO batching, POS, supplier orders, and patient refill requests. Hosted at{' '}
                 <span className="font-mono text-xs">pharm.synapseos.tech</span> or a custom domain.
               </p>
-              <Link href="/contact?intent=pharmacy" className="text-sm font-semibold" style={{ color: '#22C55E' }}>
-                Enrol a pharmacy →
+              <Link href="/apply/pharmacy" className="text-sm font-semibold" style={{ color: '#22C55E' }}>
+                Apply for pharmacy →
               </Link>
             </article>
             <article className="p-6 rounded-xl" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-edge)' }}>

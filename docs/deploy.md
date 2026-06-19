@@ -4,9 +4,17 @@
 
 | Project | Root directory | Production URL | Build |
 |---------|----------------|----------------|-------|
-| `synpase-os` | `.` (repo root) | app.synapseos.tech | `vercel.json` at root |
+| `synpase-os` | `.` (repo root) | **synapseos.tech** (landing) + app.synapseos.tech + admin.synapseos.tech | `vercel.json` at root |
 | `synapse-demo` | `.` | demo.synapseos.tech | same root `vercel.json` |
 | `synapse-pharm` | `apps/pharmacy` | pharm.synapseos.tech | `apps/pharmacy/vercel.json` |
+
+**Domain setup (required):** In Vercel → `synpase-os` → Settings → Domains, add:
+- `synapseos.tech` (apex — marketing landing)
+- `www.synapseos.tech` (redirect to apex)
+- `app.synapseos.tech` (consumer health portal)
+- `admin.synapseos.tech` (platform console)
+
+All subdomains point to the **same** `synpase-os` deployment; middleware routes by host.
 
 All three deploy on push to `main` via Vercel Git integration.
 

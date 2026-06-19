@@ -191,11 +191,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
-  // ── APP subdomain ─────────────────────────────────────────────────
+  // ── APP subdomain: consumer health portal ───────────────────────────
   if (subdomain === "app") {
-    const url = request.nextUrl.clone();
-    url.pathname = `/app-portal${pathname === "/" ? "" : pathname}`;
-    return NextResponse.rewrite(url);
+    if (pathname === "/" || pathname === "") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/app-portal";
+      return NextResponse.rewrite(url);
+    }
+    return NextResponse.next();
   }
 
   // ── ADMIN subdomain: email-gated ──────────────────────────────────

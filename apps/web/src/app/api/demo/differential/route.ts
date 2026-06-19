@@ -2,7 +2,13 @@ import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimiters } from "../../../../lib/rate-limit";
 
-const CLINICAL_PROMPT = (chiefComplaint: string, age: number | undefined, sex: string | undefined, vitalsText: string) =>
+const CLINICAL_PROMPT = (
+  chiefComplaint: string,
+  age: number | undefined,
+  sex: string | undefined,
+  vitalsText: string,
+  withFollowUp: boolean
+) =>
   `You are a clinical decision support AI for hospitals in Uganda and East Africa.
 
 Patient: ${age ?? "?"} year old ${sex ?? "unknown"}
@@ -23,10 +29,10 @@ Return ONLY valid JSON. No markdown. No preamble.
   "suggested_workup": ["test name"],
   "red_flags": ["flag"],
   "clinical_note": "one sentence summary",
-  "ucg_reference": "string or null"
+  "ucg_reference": "string or null"${withFollowUp ? ',\n  "follow_up_questions": ["targeted question that would most reduce diagnostic uncertainty"]' : ''}
 }
 
-Prioritise East African endemic diseases. Prefer tests available at district hospital level. Max 5 differentials.`;
+${withFollowUp ? 'Include exactly 3 follow_up_questions that would most sharpen the differential (travel, sick contacts, pregnancy, meds, etc.). ' : ''}Prioritise East African endemic diseases. Prefer tests available at district hospital level. Max 5 differentials.`;
 
 async function tryGemini(prompt: string): Promise<{ data: Record<string, unknown>; provider: string; model: string } | null> {
   const key = process.env.GEMINI_API_KEY;
@@ -124,8 +130,9 @@ export async function POST(req: NextRequest) {
     age?: number;
     sex?: string;
     vitals?: Record<string, number>;
+    requestFollowUp?: boolean;
   };
-  const { chiefComplaint, age, sex, vitals } = body;
+  const { chiefComplaint, age, sex, vitals, requestFollowUp } = body;
 
   if (!chiefComplaint) {
     return NextResponse.json({ error: "chiefComplaint is required" }, { status: 400 });
@@ -135,7 +142,7 @@ export async function POST(req: NextRequest) {
     ? `Temp: ${vitals.temperature_c ?? "?"}°C, HR: ${vitals.heart_rate ?? "?"}, BP: ${vitals.bp_systolic ?? "?"}/${vitals.bp_diastolic ?? "?"}, SpO2: ${vitals.spo2 ?? "?"}%`
     : "not recorded";
 
-  const prompt = CLINICAL_PROMPT(chiefComplaint, age, sex, vitalsText);
+  const prompt = CLINICAL_PROMPT(chiefComplaint, age, sex, vitalsText, Boolean(requestFollowUp));
 
   // Try AI providers in order: Gemini → OpenRouter (DeepSeek) → DeepSeek direct
   const result =
