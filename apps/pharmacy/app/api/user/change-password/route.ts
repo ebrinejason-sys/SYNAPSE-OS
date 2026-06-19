@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
-import { hashPassword, verifyPassword } from "@synapse/auth"
+import { hashPassword, verifyPassword, validatePasswordStrength } from "@synapse/auth"
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,6 +12,11 @@ export async function POST(request: NextRequest) {
 
     if (!currentPassword || !newPassword) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    }
+
+    const strength = validatePasswordStrength(newPassword)
+    if (!strength.valid) {
+      return NextResponse.json({ error: strength.errors.join(". ") }, { status: 400 })
     }
 
     const { data: profile, error: profileError } = await supabaseAdmin
@@ -51,6 +56,11 @@ export async function POST(request: NextRequest) {
       console.error("Update password error:", updateError)
       return NextResponse.json({ error: "Failed to update password" }, { status: 500 })
     }
+
+    await supabaseAdmin
+      .from("pharmacy_user_settings")
+      .update({ must_change_password: false })
+      .eq("profile_id", session.userId)
 
     return NextResponse.json({ success: true })
   } catch (error) {

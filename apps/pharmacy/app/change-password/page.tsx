@@ -19,7 +19,7 @@ export default function ChangePasswordPage() {
 
   useEffect(() => {
     if (user && !user.mustChangePassword) {
-      window.location.assign("/portal/dashboard")
+      window.location.assign("/onboarding")
     }
   }, [user])
 
@@ -63,7 +63,7 @@ export default function ChangePasswordPage() {
           title: "Success",
           description: "Password changed successfully",
         })
-        window.location.assign("/portal/dashboard")
+        window.location.assign("/onboarding")
       } else {
         toast({
           variant: "destructive",
@@ -98,6 +98,7 @@ export default function ChangePasswordPage() {
               <Input
                 id="currentPassword"
                 type="password"
+                autoComplete="current-password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 required
@@ -109,6 +110,7 @@ export default function ChangePasswordPage() {
               <Input
                 id="newPassword"
                 type="password"
+                autoComplete="new-password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
@@ -120,6 +122,7 @@ export default function ChangePasswordPage() {
               <Input
                 id="confirmPassword"
                 type="password"
+                autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
