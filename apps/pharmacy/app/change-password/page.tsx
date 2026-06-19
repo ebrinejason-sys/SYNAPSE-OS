@@ -9,6 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "lucide-react"
 
+function validateNewPassword(password: string): string | null {
+  if (password.length < 8) return "Password must be at least 8 characters"
+  if (!/[A-Z]/.test(password)) return "Include at least one uppercase letter"
+  if (!/[0-9]/.test(password)) return "Include at least one number"
+  if (!/[^A-Za-z0-9]/.test(password)) return "Include at least one special character (e.g. @ # !)"
+  return null
+}
+
 export default function ChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -30,16 +38,17 @@ export default function ChangePasswordPage() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Passwords do not match",
+        description: "New password and confirmation do not match",
       })
       return
     }
 
-    if (newPassword.length < 8) {
+    const strengthError = validateNewPassword(newPassword)
+    if (strengthError) {
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Password must be at least 8 characters long",
+        title: "Password too weak",
+        description: strengthError,
       })
       return
     }
@@ -50,13 +59,19 @@ export default function ChangePasswordPage() {
       const response = await fetch("/api/user/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({
           currentPassword,
           newPassword,
         }),
       })
 
-      const data = await response.json()
+      let data: { error?: string; success?: boolean } = {}
+      try {
+        data = await response.json()
+      } catch {
+        data = {}
+      }
 
       if (response.ok) {
         toast({
@@ -68,14 +83,15 @@ export default function ChangePasswordPage() {
         toast({
           variant: "destructive",
           title: "Error",
-          description: data.error || "Failed to change password",
+          description: data.error || `Failed to change password (${response.status})`,
         })
       }
-    } catch (error) {
+    } catch {
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "An error occurred",
+        title: "Network error",
+        description:
+          "Could not reach the server. Disable VPN/proxy browser extensions and try again, or use a private window.",
       })
     } finally {
       setIsLoading(false)
@@ -83,12 +99,12 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-white to-purple-100">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-[#07070A] p-4">
+      <Card className="w-full max-w-md border-[#2A2A36] bg-[#111117] text-white">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Change Password</CardTitle>
-          <CardDescription>
-            For security reasons, you must change your password before continuing
+          <CardDescription className="text-zinc-400">
+            Use the temporary password from your onboarding email as the current password, then set a new one.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -103,6 +119,7 @@ export default function ChangePasswordPage() {
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 required
                 disabled={isLoading}
+                className="border-[#2A2A36] bg-[#1A1A24] text-white"
               />
             </div>
             <div className="space-y-2">
@@ -115,7 +132,11 @@ export default function ChangePasswordPage() {
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
                 disabled={isLoading}
+                className="border-[#2A2A36] bg-[#1A1A24] text-white"
               />
+              <p className="text-xs text-zinc-500">
+                At least 8 characters, one uppercase letter, one number, and one special character.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm New Password</Label>
@@ -127,9 +148,10 @@ export default function ChangePasswordPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 disabled={isLoading}
+                className="border-[#2A2A36] bg-[#1A1A24] text-white"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full bg-[#F97316] hover:bg-orange-600 text-[#07070A]" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -191,11 +191,18 @@ async function runPharmacyAccessChecks(params: {
 }
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // API routes must never be HTML-redirected (POST → login/onboarding → 405).
+  // Route handlers enforce auth and return JSON.
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.next()
+  }
+
   const synapseUserId = await getSynapseUserId(request)
   const synapseValid = synapseUserId !== null
   const isAuthenticated = synapseValid
 
-  const { pathname } = request.nextUrl
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/auth')
   const isPublicApi =
     pathname.startsWith('/api/public') ||
