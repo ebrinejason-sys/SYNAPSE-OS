@@ -111,3 +111,46 @@ export function formatDateTime(value: unknown) {
   if (Number.isNaN(date.getTime())) return "Not recorded";
   return date.toLocaleString("en-GB", { timeZone: "Africa/Kampala" });
 }
+
+export function dayKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+export function lastNDays(n: number) {
+  const days: string[] = [];
+  const now = new Date();
+  for (let i = n - 1; i >= 0; i -= 1) {
+    const d = new Date(now);
+    d.setUTCDate(d.getUTCDate() - i);
+    days.push(dayKey(d));
+  }
+  return days;
+}
+
+export function dailyCountsFromRows(rows: Array<{ created_at?: string | null }>, days = 14) {
+  const keys = lastNDays(days);
+  const counts = new Map(keys.map((key) => [key, 0]));
+  for (const row of rows) {
+    if (!row.created_at) continue;
+    const key = dayKey(new Date(row.created_at));
+    if (counts.has(key)) counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return keys.map((key) => counts.get(key) ?? 0);
+}
+
+export function percentDelta(current: number, previous: number) {
+  if (previous === 0) return current > 0 ? 100 : null;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
+export async function checkDatabaseLatency() {
+  const started = Date.now();
+  try {
+    const result = await platformAdminClient().from("tenants").select("id", { count: "exact", head: true });
+    const latencyMs = Date.now() - started;
+    const ok = !result.error;
+    return { ok, latencyMs };
+  } catch {
+    return { ok: false, latencyMs: Date.now() - started };
+  }
+}

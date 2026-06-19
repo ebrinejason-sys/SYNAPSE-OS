@@ -18,7 +18,6 @@ const PROJECTS = [
       'node scripts/sync-web-public.mjs && npm run build --workspace @synapse/web',
     outputDirectory: 'apps/web/.next',
     installCommand: 'npm install',
-    ignoreCommand: 'node scripts/vercel-build-gate.mjs web',
     nodeVersion: '22.x',
   },
   {
@@ -29,7 +28,6 @@ const PROJECTS = [
       'node scripts/sync-web-public.mjs && npm run build --workspace @synapse/web',
     outputDirectory: 'apps/web/.next',
     installCommand: 'npm install',
-    ignoreCommand: 'node scripts/vercel-build-gate.mjs web',
     nodeVersion: '22.x',
   },
   {
@@ -60,7 +58,6 @@ async function patchProject(project, token) {
     buildCommand: project.buildCommand,
     outputDirectory: project.outputDirectory,
     installCommand: project.installCommand,
-    commandForIgnoringBuildStep: project.ignoreCommand,
     nodeVersion: project.nodeVersion,
     framework: 'nextjs',
   }
@@ -84,7 +81,6 @@ async function patchProject(project, token) {
 
   console.log(`✓ ${project.name}`)
   console.log(`    build: ${project.buildCommand.slice(0, 60)}...`)
-  console.log(`    gate:  ${project.ignoreCommand}`)
   return data
 }
 
