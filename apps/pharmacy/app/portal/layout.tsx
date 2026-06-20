@@ -8,7 +8,7 @@ import {
   Settings, LogOut, Menu, X, UserCheck, ClipboardList,
   MessageSquare, Activity, Truck, FileText, BarChart3,
   RotateCcw, Wifi, WifiOff, CalendarClock, WalletCards, BrainCircuit,
-  Sun, Moon,
+  Sun, Moon, CreditCard,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NotificationBell } from "@/components/ui/notification-bell"
@@ -46,6 +46,7 @@ const NAV_GROUPS = [
   {
     label: 'Finance',
     items: [
+      { name: 'Billing',         href: '/portal/billing',       icon: CreditCard,    adminOnly: true },
       { name: 'Transactions',  href: '/portal/transactions',  icon: DollarSign,  permission: 'VIEW_TRANSACTIONS' },
       { name: 'Credit Ledger', href: '/portal/credit-ledger', icon: WalletCards, permission: 'VIEW_TRANSACTIONS' },
       { name: 'Refunds',       href: '/portal/refunds',       icon: RotateCcw,   permission: 'MANAGE_TRANSACTIONS' },

@@ -8,6 +8,8 @@
     "./tokens": "./src/tokens.ts",
     "./capability": "./src/capability.ts",
     "./features":   "./src/features.ts",
+    "./billing":    "./src/billing/subscription.ts",
+    "./billing/flutterwave": "./src/billing/flutterwave.ts",
     "./mfa":        "./src/mfa.ts",
     "./password":   "./src/password.ts",
     "./redirects":  "./src/redirects.ts",

@@ -34,11 +34,24 @@ type LedgerPayload = {
   entries: LedgerEntry[]
 }
 
+type CustomerOption = {
+  id: string
+  name: string
+  phone?: string | null
+}
+
 export default function CreditLedgerPage() {
   const { toast } = useToast()
   const [payload, setPayload] = useState<LedgerPayload | null>(null)
+  const [customers, setCustomers] = useState<CustomerOption[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [form, setForm] = useState({ customerId: "", type: "repayment", amount: "", dueDate: "", notes: "" })
+
+  async function loadCustomers() {
+    const response = await fetch("/api/admin/customers")
+    const data = await response.json()
+    setCustomers(Array.isArray(data) ? data : [])
+  }
 
   async function loadLedger() {
     setIsLoading(true)
@@ -49,6 +62,7 @@ export default function CreditLedgerPage() {
   }
 
   useEffect(() => {
+    loadCustomers()
     loadLedger()
   }, [])
 
@@ -91,12 +105,26 @@ export default function CreditLedgerPage() {
         <CardContent>
           <form onSubmit={createEntry} className="grid gap-4 md:grid-cols-6">
             <div className="space-y-1.5">
-              <Label>Customer ID</Label>
-              <Input value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })} required />
+              <Label>Customer</Label>
+              <select
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={form.customerId}
+                onChange={(e) => setForm({ ...form, customerId: e.target.value })}
+                required
+                aria-label="Customer"
+              >
+                <option value="">Select customer</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name}
+                    {customer.phone ? ` (${customer.phone})` : ""}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="space-y-1.5">
               <Label>Type</Label>
-              <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+              <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} aria-label="Entry type">
                 <option value="repayment">Repayment</option>
                 <option value="credit">Credit</option>
               </select>

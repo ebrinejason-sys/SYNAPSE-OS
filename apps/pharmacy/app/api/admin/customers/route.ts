@@ -38,35 +38,61 @@ export async function POST(request: NextRequest) {
 
     const { name, email, phone, address } = await request.json()
 
-    if (!name || !email) {
+    if (!name?.trim()) {
+      return NextResponse.json({ error: "Customer name is required" }, { status: 400 })
+    }
+
+    if (!email?.trim() && !phone?.trim()) {
       return NextResponse.json(
-        { error: "Name and email are required" },
+        { error: "Provide at least an email or phone number" },
         { status: 400 }
       )
     }
 
-    // Check if email already exists for this tenant
-    const { data: existing } = await (supabaseAdmin as any)
-      .from("pharmacy_customers")
-      .select("id")
-      .eq("tenant_id", session.profile.tenant_id!)
-      .eq("email", email)
-      .single()
+    const normalizedEmail =
+      email?.trim() ||
+      (phone?.trim() ? `credit+${String(phone).replace(/\D/g, "")}@synapse.local` : null)
 
-    if (existing) {
-      return NextResponse.json(
-        { error: "Customer with this email already exists" },
-        { status: 400 }
-      )
+    // Check if email already exists for this tenant
+    if (normalizedEmail) {
+      const { data: existing } = await (supabaseAdmin as any)
+        .from("pharmacy_customers")
+        .select("id")
+        .eq("tenant_id", session.profile.tenant_id!)
+        .eq("email", normalizedEmail)
+        .maybeSingle()
+
+      if (existing) {
+        return NextResponse.json(
+          { error: "Customer with this email already exists" },
+          { status: 400 }
+        )
+      }
+    }
+
+    if (phone?.trim()) {
+      const { data: existingPhone } = await (supabaseAdmin as any)
+        .from("pharmacy_customers")
+        .select("id")
+        .eq("tenant_id", session.profile.tenant_id!)
+        .eq("phone", phone.trim())
+        .maybeSingle()
+
+      if (existingPhone) {
+        return NextResponse.json(
+          { error: "Customer with this phone already exists" },
+          { status: 400 }
+        )
+      }
     }
 
     const { data: customer, error } = await supabaseAdmin
       .from("pharmacy_customers")
       .insert({
         tenant_id: session.profile.tenant_id!,
-        name,
-        email,
-        phone: phone ?? null,
+        name: name.trim(),
+        email: normalizedEmail,
+        phone: phone?.trim() ?? null,
         address: address ?? null,
       })
       .select()
@@ -80,7 +106,7 @@ export async function POST(request: NextRequest) {
       action: "CREATE_CUSTOMER",
       entity: "CUSTOMER",
       entity_id: customer.id,
-      details: `Created customer: ${name} (${email})`,
+      details: `Created customer: ${name}${normalizedEmail ? ` (${normalizedEmail})` : ""}`,
     })
 
     return NextResponse.json(customer)

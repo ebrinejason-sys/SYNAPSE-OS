@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { usePharmacySession } from "@/hooks/use-pharmacy-session"
@@ -103,6 +103,18 @@ interface StaffMember {
   email: string
 }
 
+type CreditCustomer = {
+  id: string
+  name: string
+  phone?: string | null
+}
+
+function formatPaymentLabel(method: string) {
+  if (method === "MOBILE_MONEY") return "Mobile Money"
+  if (method === "CREDIT") return "Credit"
+  return method
+}
+
 export default function POSPage() {
   const { user } = usePharmacySession()
   const [products, setProducts] = useState<Product[]>([])
@@ -129,6 +141,9 @@ export default function POSPage() {
   const [showClientDetailsBeforeSaleDialog, setShowClientDetailsBeforeSaleDialog] = useState(false)
   const [clientDetailsBeforeSale, setClientDetailsBeforeSale] = useState({ name: "", phone: "", address: "" })
   const [isSavingClientDetailsBeforeSale, setIsSavingClientDetailsBeforeSale] = useState(false)
+  const [creditCustomers, setCreditCustomers] = useState<CreditCustomer[]>([])
+  const [creditCustomerId, setCreditCustomerId] = useState("")
+  const [creditDueDate, setCreditDueDate] = useState("")
   const [printReceiptData, setPrintReceiptData] = useState<any>(null)
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false)
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
@@ -138,6 +153,29 @@ export default function POSPage() {
 
   // Debounce search query for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
+
+  useEffect(() => {
+    if (paymentMethod !== "CREDIT") return
+
+    fetch("/api/admin/customers")
+      .then((res) => res.json())
+      .then((data) => {
+        setCreditCustomers(Array.isArray(data) ? data : [])
+      })
+      .catch(() => setCreditCustomers([]))
+  }, [paymentMethod])
+
+  useEffect(() => {
+    if (!creditCustomerId) return
+    const customer = creditCustomers.find((c) => c.id === creditCustomerId)
+    if (customer) {
+      setClientDetailsBeforeSale((prev) => ({
+        ...prev,
+        name: customer.name,
+        phone: customer.phone ?? prev.phone,
+      }))
+    }
+  }, [creditCustomerId, creditCustomers])
 
   // Load cart from localStorage on mount
   useEffect(() => {
@@ -448,6 +486,13 @@ export default function POSPage() {
       return
     }
     // Show client details dialog before processing transaction
+    if (paymentMethod === "CREDIT" && !creditCustomerId) {
+      toast({
+        variant: "destructive",
+        title: "Customer required",
+        description: "Select a customer for credit sales, or enter details in the next step.",
+      })
+    }
     setClientNameBeforePrint("")
     setShowClientDetailsBeforeSaleDialog(true)
   }
@@ -483,6 +528,12 @@ export default function POSPage() {
       clientName: client.name,
       clientPhone: client.phone,
       clientAddress: client.address,
+      ...(paymentMethod === "CREDIT"
+        ? {
+            customerId: creditCustomerId || undefined,
+            creditDueDate: creditDueDate || undefined,
+          }
+        : {}),
     };
 
     if (!navigator.onLine) {
@@ -544,6 +595,8 @@ export default function POSPage() {
         localStorage.removeItem('pos-cart');
         setSelectedStaff(null);
         setAmountPaid("");
+        setCreditCustomerId("");
+        setCreditDueDate("");
         // We can't really fetchProducts while offline, but we can try
         fetchProducts();
       } catch (err) {
@@ -588,6 +641,8 @@ export default function POSPage() {
 
           // Reset payment fields
           setAmountPaid("")
+          setCreditCustomerId("")
+          setCreditDueDate("")
 
           // Refresh products
           fetchProducts()
@@ -677,6 +732,15 @@ export default function POSPage() {
   }
 
   const confirmClientDetailsBeforeSale = async () => {
+    if (paymentMethod === "CREDIT" && !creditCustomerId && !clientDetailsBeforeSale.name.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Customer required",
+        description: "Enter a customer name or select an existing customer for credit sales.",
+      })
+      return
+    }
+
     setIsSavingClientDetailsBeforeSale(true)
     
     try {
@@ -817,7 +881,11 @@ export default function POSPage() {
           <Card className="w-full max-w-md">
             <CardHeader>
               <CardTitle>Client Details</CardTitle>
-              <p className="text-sm text-muted-foreground">Enter client information for the receipt (optional)</p>
+              <p className="text-sm text-muted-foreground">
+                {paymentMethod === "CREDIT"
+                  ? "Customer name is required for credit sales. Phone helps track repayments."
+                  : "Enter client information for the receipt (optional)"}
+              </p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -827,6 +895,7 @@ export default function POSPage() {
                   value={clientDetailsBeforeSale.name}
                   onChange={(e) => setClientDetailsBeforeSale({ ...clientDetailsBeforeSale, name: e.target.value })}
                   placeholder="e.g. John Doe"
+                  required={paymentMethod === "CREDIT"}
                 />
               </div>
               
@@ -1192,8 +1261,42 @@ export default function POSPage() {
                     <option value="CASH">Cash</option>
                     <option value="CARD">Card</option>
                     <option value="MOBILE_MONEY">Mobile Money</option>
+                    <option value="CREDIT">Credit (Buy Now, Pay Later)</option>
                   </select>
                 </div>
+
+                {paymentMethod === "CREDIT" && (
+                  <div className="space-y-3 rounded-lg border border-[#E8B84B]/30 bg-[#E8B84B]/5 p-3">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Credit Customer</label>
+                      <select
+                        value={creditCustomerId}
+                        onChange={(e) => setCreditCustomerId(e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        aria-label="Credit Customer"
+                      >
+                        <option value="">New or walk-in customer</option>
+                        {creditCustomers.map((customer) => (
+                          <option key={customer.id} value={customer.id}>
+                            {customer.name}
+                            {customer.phone ? ` (${customer.phone})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Due Date (optional)</label>
+                      <Input
+                        type="date"
+                        value={creditDueDate}
+                        onChange={(e) => setCreditDueDate(e.target.value)}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Sale total is added to the customer&apos;s credit balance. Record repayments in Credit Ledger.
+                    </p>
+                  </div>
+                )}
 
                 {paymentMethod === "CASH" && (
                   <div className="space-y-2">
@@ -1669,8 +1772,14 @@ function ReceiptPreviewDialog({
             {/* Payment */}
             <div className="tr-row">
               <span>Payment</span>
-              <span>{paymentMethod === "MOBILE_MONEY" ? "Mobile Money" : paymentMethod}</span>
+              <span>{formatPaymentLabel(paymentMethod)}</span>
             </div>
+            {paymentMethod === "CREDIT" && (
+              <div className="tr-row tr-sm">
+                <span>Status</span>
+                <span>On Account — balance due</span>
+              </div>
+            )}
             {paymentMethod === "CASH" && amtPaidNum > 0 && (
               <>
                 <div className="tr-row"><span>Cash Received</span><span>{fmt(amtPaidNum)}</span></div>
@@ -1813,8 +1922,14 @@ function TransactionReceipt({
       {/* ── Payment ── */}
       <div className="tr-row">
         <span>Payment</span>
-        <span>{payment === "MOBILE_MONEY" ? "Mobile Money" : payment}</span>
+        <span>{formatPaymentLabel(payment)}</span>
       </div>
+      {payment === "CREDIT" && (
+        <div className="tr-row tr-sm">
+          <span>Status</span>
+          <span>On Account — balance due</span>
+        </div>
+      )}
       {payment === "CASH" && amtPaid > 0 && (
         <>
           <div className="tr-row"><span>Cash Received</span><span>{fmt(amtPaid)}</span></div>

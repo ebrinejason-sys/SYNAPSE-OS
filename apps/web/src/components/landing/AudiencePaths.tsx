@@ -47,11 +47,11 @@ const PATHS = [
 
 export function AudiencePaths() {
   return (
-    <section id="get-started" className="px-6 py-20" style={{ borderBottom: '1px solid var(--border-edge)' }}>
-      <div className="mx-auto max-w-6xl">
+    <section id="get-started" className="landing-section">
+      <div className="landing-container">
         <p className="section-label">Who it&apos;s for</p>
-        <h2 className="font-display mb-3 text-3xl font-bold tracking-tight">Four ways into Synapse</h2>
-        <p className="mb-10 max-w-2xl text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+        <h2 className="landing-heading mb-3">Four ways into Synapse</h2>
+        <p className="landing-lead mb-10 max-w-2xl">
           Facilities apply for onboarding. People self-register. One login can later link staff membership at a
           hospital or pharmacy without losing personal health features.
         </p>
@@ -60,11 +60,8 @@ export function AudiencePaths() {
           {PATHS.map((path) => (
             <article
               key={path.href}
-              className="group flex flex-col rounded-2xl p-6 transition-all hover:-translate-y-0.5"
-              style={{
-                background: 'var(--bg-surface)',
-                border: `1px solid ${path.border}`,
-              }}
+              className="landing-card group flex flex-col !p-6 transition-colors hover:border-[color:var(--border-strong)]"
+              style={{ borderColor: path.border }}
             >
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div
@@ -93,10 +90,7 @@ export function AudiencePaths() {
           ))}
         </div>
 
-        <div
-          className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-xl px-5 py-4"
-          style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-edge)' }}
-        >
+        <div className="landing-card-elevated mt-8 flex flex-wrap items-center justify-between gap-4 px-5 py-4">
           <div className="flex items-center gap-3">
             <SynapseLogo size="sm" />
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>

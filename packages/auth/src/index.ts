@@ -33,4 +33,13 @@ export {
   pharmMfaCookieOptions,
 } from './mfa'
 
-export { requireFeature, checkFeature, FeatureGateError } from './features'
+export { requireFeature, requireActiveSubscription, checkFeature, gateFeature, subscriptionRequiredResponse, FeatureGateError } from './features'
+export {
+  getSubscriptionStatus,
+  listSubscriptionPayments,
+  listAllPayments,
+  initiateSubscriptionPayment,
+  handleFlutterwaveWebhook,
+} from './billing/subscription'
+export type { SubscriptionStatus, PaymentRow, InitSubscribeInput, InitSubscribeResult } from './billing/subscription'
+export { verifyWebhookHash } from './billing/flutterwave'

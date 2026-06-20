@@ -1,5 +1,3 @@
-'use client'
-
 const ITEMS = [
   'FHIR R4 interoperability',
   'ICD-11 on clinical output',
@@ -16,26 +14,18 @@ const ITEMS = [
 ]
 
 export function TrustMarquee() {
-  const doubled = [...ITEMS, ...ITEMS]
-
   return (
-    <div
-      className="border-y py-3"
-      style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-edge)' }}
-    >
-      <div className="marquee-outer">
-        <div className="marquee-track gap-8 px-4">
-          {doubled.map((item, i) => (
-            <span
-              key={`${item}-${i}`}
-              className="flex shrink-0 items-center gap-2 text-xs font-medium whitespace-nowrap"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--brand-orange)' }} />
+    <div className="landing-trust-bar">
+      <div className="landing-container">
+        <p className="landing-trust-label">Platform capabilities</p>
+        <ul className="landing-trust-grid">
+          {ITEMS.map((item) => (
+            <li key={item} className="landing-trust-item">
+              <span className="landing-trust-dot" aria-hidden />
               {item}
-            </span>
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
     </div>
   )

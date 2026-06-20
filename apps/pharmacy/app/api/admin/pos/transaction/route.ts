@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
+import { gateFeature } from "@synapse/auth/features"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { generateReceiptNumber } from "@/lib/receipt-number"
 import { ensureDefaultPharmacyStore } from "@/lib/ensure-default-store"
+import { findOrCreateCreditCustomer, postCreditLedgerEntry } from "@/lib/credit-ledger"
 
 interface CartItem {
   productId: string
@@ -132,6 +134,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No tenant" }, { status: 403 })
     }
 
+    const gate = await gateFeature(tenantId, 'pos.sell')
+    if (gate) return gate
+
     const {
       items,
       paymentMethod,
@@ -141,6 +146,8 @@ export async function POST(request: NextRequest) {
       clientPhone,
       clientAddress,
       transactionNo,
+      customerId,
+      creditDueDate,
     } = await request.json()
 
     if (!items || items.length === 0) {
@@ -149,6 +156,15 @@ export async function POST(request: NextRequest) {
 
     if (!paymentMethod) {
       return NextResponse.json({ error: "Payment method is required" }, { status: 400 })
+    }
+
+    const isCreditSale = String(paymentMethod).toUpperCase() === "CREDIT"
+
+    if (isCreditSale && !clientName?.trim() && !customerId) {
+      return NextResponse.json(
+        { error: "Credit sales require a customer name or selected customer" },
+        { status: 400 }
+      )
     }
 
     await ensureDefaultPharmacyStore(tenantId)
@@ -392,6 +408,31 @@ export async function POST(request: NextRequest) {
         previous_qty: update.previousQty,
         new_qty: update.newQty,
         created_by: session.user.id,
+      })
+    }
+
+    // Credit sale: link to customer + ledger entry
+    let creditCustomerId: string | null = null
+    if (isCreditSale) {
+      if (typeof customerId === "string" && isValidUUID(customerId)) {
+        creditCustomerId = customerId
+      } else {
+        creditCustomerId = await findOrCreateCreditCustomer(tenantId, {
+          name: clientName ?? "Walk-in customer",
+          phone: clientPhone ?? null,
+          address: clientAddress ?? null,
+        })
+      }
+
+      await postCreditLedgerEntry({
+        tenantId,
+        customerId: creditCustomerId,
+        amount: netAmount,
+        type: "credit",
+        transactionId: transaction.id,
+        dueDate: creditDueDate || null,
+        notes: `POS sale ${transaction.transaction_no}`,
+        createdBy: session.user.id,
       })
     }
 
