@@ -56,6 +56,11 @@ interface ProductRow {
   batch_number: string | null
   manufacturer: string | null
   expiry_date: string | null
+  generic_name: string | null
+  dosage_form: string | null
+  strength: string | null
+  requires_prescription: boolean
+  supplier_id: string | null
 }
 
 export async function POST(request: NextRequest) {
@@ -106,6 +111,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No data found in file" }, { status: 400 })
     }
 
+    // Pre-load suppliers for this tenant to avoid N+1 lookups
+    const { data: supplierRows } = await supabaseAdmin
+      .from("pharmacy_suppliers")
+      .select("id, name")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+    const supplierMap = new Map<string, string>(
+      (supplierRows ?? []).map((s) => [(s.name as string).toLowerCase(), s.id as string])
+    )
+
     const productsToCreate: ProductRow[] = []
     const errors: string[] = []
     const skippedDuplicates: string[] = []
@@ -114,13 +129,13 @@ export async function POST(request: NextRequest) {
       const name = getFieldValue(
         data,
         "name", "item name", "stock item", "product name", "particulars",
-        "item", "product", "medicine name", "drug name", "description"
+        "item", "product", "medicine name", "drug name"
       )
 
       let sku = getFieldValue(
         data,
         "sku", "part no", "part number", "item code", "product code",
-        "hsn code", "hsn", "code", "barcode", "item no"
+        "hsn code", "hsn", "code", "item no"
       )
 
       const category =
@@ -138,7 +153,7 @@ export async function POST(request: NextRequest) {
 
       const costPriceStr = getFieldValue(
         data,
-        "costprice", "cost price", "purchase price", "cost", "purchase rate",
+        "cost_price", "costprice", "cost price", "purchase price", "cost", "purchase rate",
         "cp", "buying price", "purchase cost", "landed cost"
       )
 
@@ -152,24 +167,24 @@ export async function POST(request: NextRequest) {
         getFieldValue(data, "barcode", "bar code", "upc", "ean") || null
 
       const unitOfMeasure =
-        getFieldValue(data, "unit", "unitofmeasure", "uom", "unit of measure", "base unit") ||
+        getFieldValue(data, "unit_of_measure", "unit", "unitofmeasure", "uom", "unit of measure", "base unit") ||
         "Unit"
 
       const batchNumber =
         getFieldValue(
           data,
-          "batchnumber", "batch number", "batch no", "batch", "lot number", "lot no"
+          "batch_number", "batchnumber", "batch number", "batch no", "batch", "lot number", "lot no"
         ) || null
 
       const manufacturer =
         getFieldValue(
           data,
-          "manufacturer", "mfg", "brand", "company", "make", "supplier"
+          "manufacturer", "mfg", "brand", "company", "make"
         ) || null
 
       const expiryDateStr = getFieldValue(
         data,
-        "expirydate", "expiry date", "expiry", "exp date", "exp", "best before"
+        "expiry_date", "expirydate", "expiry date", "expiry", "exp date", "exp", "best before"
       )
 
       const description =
@@ -177,8 +192,29 @@ export async function POST(request: NextRequest) {
 
       const reorderLevelStr = getFieldValue(
         data,
-        "reorderlevel", "reorder level", "reorder", "min stock", "minimum stock"
+        "reorder_level", "reorderlevel", "reorder level", "reorder", "min stock", "minimum stock"
       )
+
+      const genericName =
+        getFieldValue(data, "generic_name", "generic name", "generic", "inn") || null
+
+      const dosageForm =
+        getFieldValue(data, "dosage_form", "dosage form", "form", "formulation") || null
+
+      const strength =
+        getFieldValue(data, "strength", "potency", "concentration") || null
+
+      const requiresPrescriptionRaw =
+        getFieldValue(data, "requires_prescription", "prescription", "rx") ?? "no"
+      const requiresPrescription =
+        requiresPrescriptionRaw.toLowerCase() === "yes" ||
+        requiresPrescriptionRaw.toLowerCase() === "true" ||
+        requiresPrescriptionRaw === "1"
+
+      const supplierName = getFieldValue(data, "supplier", "supplier name") ?? ""
+      const supplierId = supplierName
+        ? supplierMap.get(supplierName.toLowerCase()) ?? null
+        : null
 
       // Skip empty rows
       if (!name) continue
@@ -244,6 +280,11 @@ export async function POST(request: NextRequest) {
         batch_number: batchNumber,
         manufacturer,
         expiry_date: expiryDate,
+        generic_name: genericName,
+        dosage_form: dosageForm,
+        strength,
+        requires_prescription: requiresPrescription,
+        supplier_id: supplierId,
       })
     }
 
@@ -253,7 +294,7 @@ export async function POST(request: NextRequest) {
           error: "No valid products to create",
           details: errors,
           skipped: skippedDuplicates,
-          hint: "Make sure your file has columns for: Name (or Item Name), Price (or Rate/MRP), and optionally Quantity, Category, etc.",
+          hint: "Make sure your file has columns for: name, price (or cost_price), and optionally generic_name, category, dosage_form, strength, quantity, reorder_level, unit_of_measure, expiry_date, requires_prescription, manufacturer, supplier.",
         },
         { status: 400 }
       )

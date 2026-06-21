@@ -968,7 +968,11 @@ function BulkUploadDialog({ onClose, onSuccess }: CreateProductDialogProps) {
   }
 
   const downloadTemplate = () => {
-    const csvContent = "name,sku,barcode,category,price,costPrice,quantity,reorderLevel,unitOfMeasure,description,batchNumber,manufacturer,expiryDate\nParacetamol 500mg,PAR500,123456789,Pain Relief,5000,3000,100,20,Strip,Pain and fever relief,BATCH-2025-001,Cipla,2027-12-31\nIbuprofen 400mg,IBU400,987654321,Pain Relief,8000,5000,150,25,Box,Anti-inflammatory,BATCH-2025-002,GSK,2026-06-30"
+    const csvContent = [
+      "name,generic_name,category,dosage_form,strength,unit_of_measure,barcode,sku,price,cost_price,quantity,reorder_level,expiry_date,requires_prescription,manufacturer,supplier",
+      "Paracetamol 500mg,Paracetamol,Pain Relief,Strip,500mg,Strip,,PAR500,5000,3000,100,20,2027-12-31,No,Cipla,Cipla Uganda Ltd",
+      "Ibuprofen 400mg,Ibuprofen,Pain Relief,Box,400mg,Box,,IBU400,8000,5000,150,25,2026-06-30,No,GSK,GSK Uganda",
+    ].join("\n")
     const blob = new Blob([csvContent], { type: "text/csv" })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement("a")
