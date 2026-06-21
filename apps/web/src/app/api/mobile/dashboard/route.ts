@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken, validateSession } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 
+export const maxDuration = 60
+
 // ── Role → dashboard kind (mirror of apps/app/lib/roles.ts & web resolver) ──
 type DashboardKind =
   | 'patient' | 'clinician' | 'nurse' | 'pharmacy'
@@ -383,6 +385,11 @@ export async function GET(req: NextRequest) {
       { key: 'patients', label: 'Patients', value: String(patientsCount), tone: 'primary' },
       { key: 'encToday', label: 'Encounters Today', value: String(encToday), tone: 'gold' },
     ]
+    if (tenantSlug) {
+      quickActions = [
+        { key: 'portal', label: 'Open Web Portal', target: `web:/os/${tenantSlug}/dashboard` },
+      ]
+    }
   }
 
   return NextResponse.json({
