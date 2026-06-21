@@ -64,7 +64,7 @@ export default function DownloadPage() {
 
         <p className="text-lg mb-10" style={{ color: 'var(--text-secondary)', maxWidth: '36rem', margin: '0 auto 2.5rem' }}>
           The Synapse Android app brings your personal health records, wearable sync,
-          and AI health assistant offline — built for Uganda.
+          and AI health assistant offline, built for Uganda.
         </p>
 
         {APK_URL ? (
@@ -99,7 +99,7 @@ export default function DownloadPage() {
               </div>
             ) : (
               <form onSubmit={handleWaitlist} className="flex flex-col gap-3">
-                <p className="font-semibold text-lg mb-2">Join the waitlist — launching soon</p>
+                <p className="font-semibold text-lg mb-2">Join the waitlist. Launching soon.</p>
                 <input
                   type="email"
                   value={email}

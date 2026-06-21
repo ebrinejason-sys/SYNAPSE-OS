@@ -1,8 +1,12 @@
+import { ComingSoon } from '../../../components/ComingSoon'
+
+export const metadata = { title: 'Data Processing Agreement · SynapseOS' }
+
 export default function DpaPage() {
   return (
-    <main className="min-h-screen bg-synapse-950 text-white p-8">
-      <h1 className="font-display text-2xl">Data Processing Agreement</h1>
-      <p className="text-gray-400 mt-2">Coming soon.</p>
-    </main>
-  );
+    <ComingSoon
+      title="Data Processing Agreement"
+      subtitle="Our data processing agreement for facilities handling patient data is being finalised. Contact us if you need a copy for procurement or compliance review."
+    />
+  )
 }

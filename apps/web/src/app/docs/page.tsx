@@ -1,8 +1,13 @@
+import { ComingSoon } from '../../components/ComingSoon'
+
+export const metadata = { title: 'Documentation · SynapseOS' }
+
 export default function DocsPage() {
   return (
-    <main className="min-h-screen bg-synapse-950 text-white p-8">
-      <h1 className="font-display text-2xl">Documentation</h1>
-      <p className="text-gray-400 mt-2">Coming soon.</p>
-    </main>
-  );
+    <ComingSoon
+      title="Documentation"
+      subtitle="Implementation guides, API references, and clinical workflow docs are being prepared for hospital IT teams and integrators. Sign up to be notified when they go live."
+      showNotify
+    />
+  )
 }

@@ -199,6 +199,64 @@ export async function provisionPharmacy(input: PharmacyProvisionInput): Promise<
     is_admin:      true,
   }).catch(() => {})
 
+  // 3b. Default trial subscription (so has_feature/POS is entitled on day one)
+  // and a default store (so POS never 422s with NO_STORE).
+  try {
+    let { data: planRow } = await db
+      .from('subscription_plans')
+      .select('id')
+      .eq('slug', 'pharmacy_starter')
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (!planRow) {
+      const { data: anyPharmacyPlan } = await db
+        .from('subscription_plans')
+        .select('id')
+        .eq('facility_type', 'pharmacy')
+        .eq('is_active', true)
+        .order('price_ugx', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      planRow = anyPharmacyPlan ?? null
+    }
+
+    if (planRow?.id) {
+      const now = new Date()
+      const trialEnd = new Date(now)
+      trialEnd.setDate(trialEnd.getDate() + 14)
+      await db.from('tenant_subscriptions').upsert(
+        {
+          tenant_id: tenant.id,
+          plan_id: planRow.id,
+          status: 'trialing',
+          starts_at: now.toISOString(),
+          trial_ends: trialEnd.toISOString(),
+          current_period_start: now.toISOString(),
+          current_period_end: trialEnd.toISOString(),
+        },
+        { onConflict: 'tenant_id' },
+      )
+    }
+  } catch { /* non-fatal */ }
+
+  try {
+    const { data: existingStore } = await db
+      .from('pharmacy_stores')
+      .select('id')
+      .eq('tenant_id', tenant.id)
+      .limit(1)
+      .maybeSingle()
+    if (!existingStore) {
+      await db.from('pharmacy_stores').insert({
+        tenant_id: tenant.id,
+        name: `${input.name.trim()} — Main Branch`,
+        store_type: 'main',
+        is_active: true,
+      })
+    }
+  } catch { /* non-fatal */ }
+
   // 4. Generate invite token and onboarding row
   const inviteToken = crypto.randomUUID()
   const inviteExpiry = new Date()

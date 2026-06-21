@@ -23,7 +23,7 @@ export async function GET(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: patient } = await (supabaseAdmin as any)
     .from('patients')
-    .select('id, full_name, mrn, date_of_birth, sex, phone, address, blood_group, allergies, created_at')
+    .select('id, full_name, mrn, dob, sex, phone, village, district, blood_group, allergies, created_at')
     .eq('id', id)
     .eq('tenant_id', payload.tenant_id)
     .eq('is_deleted', false)
@@ -56,10 +56,10 @@ export async function GET(
       id: patient.id,
       fullName: patient.full_name,
       mrn: patient.mrn,
-      dateOfBirth: patient.date_of_birth,
+      dateOfBirth: patient.dob,
       sex: patient.sex,
       phone: patient.phone,
-      address: patient.address,
+      address: [patient.village, patient.district].filter(Boolean).join(', ') || null,
       bloodGroup: patient.blood_group,
       allergies: patient.allergies,
       createdAt: patient.created_at,

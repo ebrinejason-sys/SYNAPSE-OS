@@ -1,8 +1,13 @@
+import { ComingSoon } from '../../components/ComingSoon'
+
+export const metadata = { title: 'Changelog · SynapseOS' }
+
 export default function ChangelogPage() {
   return (
-    <main className="min-h-screen bg-synapse-950 text-white p-8">
-      <h1 className="font-display text-2xl">Changelog</h1>
-      <p className="text-gray-400 mt-2">Coming soon.</p>
-    </main>
-  );
+    <ComingSoon
+      title="Changelog"
+      subtitle="Release notes covering new modules, clinical tools, and platform improvements will be published here. Subscribe to follow what ships."
+      showNotify
+    />
+  )
 }

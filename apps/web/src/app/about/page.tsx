@@ -1,8 +1,12 @@
+import { ComingSoon } from '../../components/ComingSoon'
+
+export const metadata = { title: 'About · SynapseOS' }
+
 export default function AboutPage() {
   return (
-    <main className="min-h-screen bg-synapse-950 text-white p-8">
-      <h1 className="font-display text-2xl">About</h1>
-      <p className="text-gray-400 mt-2">Coming soon.</p>
-    </main>
-  );
+    <ComingSoon
+      title="About SynapseOS"
+      subtitle="Our full story, mission, and the team building healthcare infrastructure in Kampala for East African care delivery is coming soon."
+    />
+  )
 }

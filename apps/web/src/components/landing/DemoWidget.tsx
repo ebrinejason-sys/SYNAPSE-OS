@@ -119,7 +119,7 @@ export function DemoWidget() {
         <textarea
           value={symptoms}
           onChange={(e) => setSymptoms(e.target.value)}
-          placeholder='Chief complaint — e.g. "Fever 3 days, headache, neck stiffness"'
+          placeholder='Chief complaint, e.g. "Fever 3 days, headache, neck stiffness"'
           rows={2}
           className="w-full resize-none rounded-xl p-4 text-sm outline-none"
           style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-edge)', color: 'var(--text-primary)' }}
@@ -181,7 +181,7 @@ export function DemoWidget() {
         {result?.follow_up_questions && round === 1 ? (
           <div className="space-y-3 rounded-xl p-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-gold)' }}>
             <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--brand-gold)' }}>
-              Precision questions — answer to sharpen the differential
+              Precision questions to sharpen the differential
             </p>
             {result.follow_up_questions.map((q) => (
               <div key={q}>
@@ -254,7 +254,7 @@ export function DemoWidget() {
         ) : null}
 
         <p className="text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-          Decision support only — not a diagnosis. A qualified clinician must confirm all clinical decisions.
+          Decision support only, not a diagnosis. A qualified clinician must confirm all clinical decisions.
         </p>
       </div>
     </div>

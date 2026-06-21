@@ -312,8 +312,18 @@ code, pre, .mono {
   .pulse-gold-glow,
   .marquee-track,
   .shimmer-text,
-  .hero-pulse-line {
+  .hero-pulse-line,
+  .landing-hero-aurora,
+  .landing-preview-wrap::before,
+  .landing-preview-float {
     animation: none !important;
+  }
+
+  .landing-card:hover,
+  .landing-card-elevated:hover,
+  .landing-chip-link:hover,
+  .landing-btn-primary:hover {
+    transform: none;
   }
 }
 
@@ -390,11 +400,28 @@ code, pre, .mono {
    LANDING PAGE — Professional layout system
    ═══════════════════════════════════════════════════════════ */
 
+.landing-page {
+  overflow-x: clip;
+}
+
 .landing-container {
   width: 100%;
   max-width: 72rem;
   margin-inline: auto;
   padding-inline: 1.5rem;
+}
+
+/* Visible keyboard focus across landing interactive elements */
+.landing-page a:focus-visible,
+.landing-page button:focus-visible,
+.landing-page input:focus-visible,
+.landing-page textarea:focus-visible,
+.landing-page select:focus-visible,
+.landing-nav a:focus-visible,
+.landing-nav button:focus-visible {
+  outline: 2px solid var(--brand-orange);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
 }
 
 .landing-nav {
@@ -466,6 +493,13 @@ code, pre, .mono {
 
 .landing-btn-primary:hover {
   filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+/* Compact primary CTA for the mobile top bar */
+.landing-btn-compact {
+  font-size: 0.8125rem;
+  padding: 0.4375rem 0.75rem;
 }
 
 .landing-btn-secondary {
@@ -508,6 +542,82 @@ code, pre, .mono {
     radial-gradient(ellipse 70% 55% at 10% 0%, var(--hero-glow) 0%, transparent 58%),
     radial-gradient(ellipse 50% 45% at 92% 8%, var(--hero-glow-gold) 0%, transparent 52%),
     var(--bg-base);
+}
+
+/* Faint engineering grid layered over the hero */
+.landing-hero-grid {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(to right, var(--border-subtle) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border-subtle) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 0%, transparent 75%);
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 0%, transparent 75%);
+  opacity: 0.7;
+}
+
+/* Drifting aurora blobs, the hero's signature moment */
+.landing-hero-aurora {
+  pointer-events: none;
+  position: absolute;
+  inset: -20% -10% auto -10%;
+  height: 130%;
+  z-index: 0;
+  filter: blur(60px);
+  opacity: 0.55;
+  background:
+    radial-gradient(40% 40% at 20% 30%, rgba(249, 115, 22, 0.35) 0%, transparent 70%),
+    radial-gradient(38% 38% at 78% 22%, rgba(232, 184, 75, 0.28) 0%, transparent 70%),
+    radial-gradient(36% 36% at 60% 60%, rgba(31, 166, 166, 0.18) 0%, transparent 70%);
+  background-size: 200% 200%;
+  animation: auroraDrift 22s ease-in-out infinite alternate;
+}
+
+[data-theme='light'] .landing-hero-aurora {
+  opacity: 0.4;
+}
+
+@keyframes auroraDrift {
+  0%   { background-position: 0% 50%, 100% 0%, 50% 100%; transform: translate3d(0, 0, 0) scale(1); }
+  50%  { background-position: 40% 60%, 60% 30%, 30% 70%; transform: translate3d(0, -1.5%, 0) scale(1.05); }
+  100% { background-position: 100% 50%, 0% 80%, 70% 20%; transform: translate3d(0, 1%, 0) scale(1.02); }
+}
+
+/* Soft glow halo behind the product preview card */
+.landing-preview-wrap {
+  position: relative;
+}
+
+.landing-preview-wrap::before {
+  content: '';
+  position: absolute;
+  inset: -8% -6%;
+  z-index: 0;
+  border-radius: 1.5rem;
+  background: radial-gradient(60% 60% at 50% 40%, rgba(249, 115, 22, 0.22), transparent 70%);
+  filter: blur(36px);
+  opacity: 0.8;
+  animation: previewHalo 6s ease-in-out infinite;
+}
+
+.landing-preview-wrap > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes previewHalo {
+  0%, 100% { opacity: 0.55; transform: scale(0.98); }
+  50%      { opacity: 0.9; transform: scale(1.02); }
+}
+
+/* Gentle floating for the preview on large screens */
+@media (min-width: 1024px) {
+  .landing-preview-float {
+    animation: float 7s ease-in-out infinite;
+  }
 }
 
 .landing-hero > .landing-container {
@@ -570,6 +680,28 @@ code, pre, .mono {
   border: 1px solid var(--border-edge);
   border-radius: 0.875rem;
   padding: 1.25rem;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Tasteful hover lift + accent glow on interactive landing cards */
+.landing-card:hover,
+.landing-card-elevated:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-strong);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.22);
+}
+
+[data-theme='light'] .landing-card:hover,
+[data-theme='light'] .landing-card-elevated:hover {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.10);
+}
+
+.landing-chip-link {
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.landing-chip-link:hover {
+  transform: translateY(-2px);
 }
 
 [data-theme='light'] .landing-card {
@@ -580,6 +712,7 @@ code, pre, .mono {
   background: var(--bg-elevated);
   border: 1px solid var(--border-edge);
   border-radius: 0.875rem;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .landing-stat-row {

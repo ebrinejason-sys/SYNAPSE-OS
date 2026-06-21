@@ -1,4 +1,4 @@
-import { getContext, type SynapseContext } from '@synapse/auth/context'
+import { getContext, getContextSafe, type SynapseContext } from '@synapse/auth/context'
 
 export type PharmacySession = {
   userId: string
@@ -19,33 +19,7 @@ export type PharmacySession = {
   user: { id: string; email: string }
 }
 
-export async function getPharmacySession(): Promise<PharmacySession | null> {
-  try {
-    const ctx: SynapseContext = await getContext('pharmacy', '__never__')
-    return {
-      userId: ctx.user.id,
-      email: ctx.user.email,
-      role: ctx.user.role,
-      tenantId: ctx.user.tenantId,
-      fullName: ctx.user.fullName,
-      firstName: ctx.user.firstName,
-      lastName: ctx.user.lastName,
-      isAdmin: ctx.user.isAdmin,
-      tenantName: ctx.tenant.name,
-      tenantSlug: ctx.tenant.slug,
-      tenantStatus: ctx.tenant.status,
-      modulesEnabled: ctx.tenant.modulesEnabled,
-      mustChangePassword: ctx.user.mustChangePassword,
-      profile: { tenant_id: ctx.user.tenantId, is_admin: ctx.user.isAdmin, full_name: ctx.user.fullName, first_name: ctx.user.firstName, last_name: ctx.user.lastName },
-      user: { id: ctx.user.id, email: ctx.user.email },
-    }
-  } catch {
-    return null
-  }
-}
-
-export async function requirePharmacySession(): Promise<PharmacySession> {
-  const ctx: SynapseContext = await getContext('pharmacy', '/login')
+function toPharmacySession(ctx: SynapseContext): PharmacySession {
   return {
     userId: ctx.user.id,
     email: ctx.user.email,
@@ -63,6 +37,16 @@ export async function requirePharmacySession(): Promise<PharmacySession> {
     profile: { tenant_id: ctx.user.tenantId, is_admin: ctx.user.isAdmin, full_name: ctx.user.fullName, first_name: ctx.user.firstName, last_name: ctx.user.lastName },
     user: { id: ctx.user.id, email: ctx.user.email },
   }
+}
+
+export async function getPharmacySession(): Promise<PharmacySession | null> {
+  const ctx = await getContextSafe('pharmacy')
+  return ctx ? toPharmacySession(ctx) : null
+}
+
+export async function requirePharmacySession(): Promise<PharmacySession> {
+  const ctx: SynapseContext = await getContext('pharmacy', '/login')
+  return toPharmacySession(ctx)
 }
 
 export function hasPharmacyPermission(session: PharmacySession, permission: string): boolean {

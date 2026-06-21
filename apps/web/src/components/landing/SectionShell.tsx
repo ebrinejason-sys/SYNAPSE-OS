@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Reveal } from './Reveal'
 
 type SectionShellProps = {
   id?: string
@@ -25,12 +26,14 @@ export function SectionShell({
       className={`landing-section ${variant === 'surface' ? 'landing-section-surface' : ''} ${className}`}
     >
       <div className="landing-container">
-        {label && <p className="section-label">{label}</p>}
-        <h2 className="landing-heading mb-3">{title}</h2>
-        {description && (
-          <p className="landing-lead mb-10 max-w-2xl">{description}</p>
-        )}
-        {children}
+        <Reveal>
+          {label && <p className="section-label">{label}</p>}
+          <h2 className="landing-heading mb-3">{title}</h2>
+          {description && (
+            <p className="landing-lead mb-10 max-w-2xl">{description}</p>
+          )}
+        </Reveal>
+        <Reveal delay={0.08}>{children}</Reveal>
       </div>
     </section>
   )

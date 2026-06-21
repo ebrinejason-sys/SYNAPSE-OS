@@ -176,13 +176,84 @@ export async function POST(request: Request) {
     );
   } catch {}
 
-  // Use admin-supplied temp password or auto-generate one
-  const randomUpper = () => String.fromCharCode(65 + Math.floor(Math.random() * 26));
-  const randomDigit = () => String(Math.floor(Math.random() * 10));
+  // Create a default trial subscription so the tenant is entitled on day one.
+  // Without a tenant_subscriptions row, has_feature() returns false and POS/admin
+  // APIs respond 402. Map the platform plan choice to a pharmacy plan slug.
+  try {
+    const planSlugMap: Record<string, string> = {
+      trial: "pharmacy_starter",
+      starter: "pharmacy_starter",
+      professional: "pharmacy_growth",
+      enterprise: "pharmacy_multi_branch",
+    };
+    const targetPlanSlug = planSlugMap[String(body.plan ?? "starter")] ?? "pharmacy_starter";
+
+    let { data: planRow } = await (supabaseAdmin as any)
+      .from("subscription_plans")
+      .select("id")
+      .eq("slug", targetPlanSlug)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    // Fallback: any active pharmacy plan if the mapped slug is missing on this env.
+    if (!planRow) {
+      const { data: anyPharmacyPlan } = await (supabaseAdmin as any)
+        .from("subscription_plans")
+        .select("id")
+        .eq("facility_type", "pharmacy")
+        .eq("is_active", true)
+        .order("price_ugx", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      planRow = anyPharmacyPlan ?? null;
+    }
+
+    if (planRow?.id) {
+      const now = new Date();
+      const trialEnd = new Date(now);
+      trialEnd.setDate(trialEnd.getDate() + 14);
+      await (supabaseAdmin as any)
+        .from("tenant_subscriptions")
+        .upsert(
+          {
+            tenant_id: tenantId,
+            plan_id: planRow.id,
+            status: "trialing",
+            starts_at: now.toISOString(),
+            trial_ends: trialEnd.toISOString(),
+            current_period_start: now.toISOString(),
+            current_period_end: trialEnd.toISOString(),
+          },
+          { onConflict: "tenant_id" }
+        );
+    }
+  } catch {}
+
+  // Ensure at least one active store exists so POS never 422s with NO_STORE.
+  try {
+    const { data: existingStore } = await (supabaseAdmin as any)
+      .from("pharmacy_stores")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .limit(1)
+      .maybeSingle();
+    if (!existingStore) {
+      await (supabaseAdmin as any).from("pharmacy_stores").insert({
+        tenant_id: tenantId,
+        name: `${pharmacyName} — Main Branch`,
+        store_type: "main",
+        is_active: true,
+      });
+    }
+  } catch {}
+
+  // Use admin-supplied temp password or auto-generate one with a CSPRNG (~107 bits entropy).
   const rawTempPassword = String(body.tempPassword ?? "").trim();
   const tempPassword = rawTempPassword.length >= 8
     ? rawTempPassword
-    : `Synapse${randomUpper()}${randomUpper()}${randomUpper()}${randomUpper()}${randomDigit()}${randomDigit()}${randomDigit()}${randomDigit()}!`;
+    : Array.from(crypto.getRandomValues(new Uint8Array(18)))
+        .map(b => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[b % 62])
+        .join('');
   const tempPasswordHash = await hashPassword(tempPassword);
 
   const adminFullName = (body.contactName || "Pharmacy Admin") as string;

@@ -1,8 +1,12 @@
+import { ComingSoon } from '../../components/ComingSoon'
+
+export const metadata = { title: 'System Status · SynapseOS' }
+
 export default function StatusPage() {
   return (
-    <main className="min-h-screen bg-synapse-950 text-white p-8">
-      <h1 className="font-display text-2xl">System Status</h1>
-      <p className="text-gray-400 mt-2">Coming soon.</p>
-    </main>
-  );
+    <ComingSoon
+      title="System Status"
+      subtitle="A public uptime and incident dashboard for the platform and its services is on the way. Until then, reach our team directly for any operational questions."
+    />
+  )
 }

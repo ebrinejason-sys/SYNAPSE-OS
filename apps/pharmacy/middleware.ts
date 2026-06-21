@@ -5,11 +5,22 @@ import {
   verifyPharmMfaSatisfiedToken,
 } from '@synapse/auth/mfa'
 import { SESSION_COOKIE } from '@synapse/config/constants'
+import { evaluateEntitlement } from '@synapse/auth/billing/entitlement'
 
 type PharmacyProfile = {
   id: string
   is_admin: boolean | null
   tenant_id: string | null
+  role: string | null
+  must_change_password: boolean | null
+}
+
+// True PLATFORM admins (superadmins) are not tenant-scoped and must never be
+// caught by the per-tenant subscription gate. NOTE: profiles.is_admin is only a
+// TENANT-level owner/admin flag (e.g. a pharmacy owner) — those users MUST still
+// be locked out when their tenant is unpaid, since they are the ones who pay.
+function isPlatformAdmin(role: string | null | undefined): boolean {
+  return role === 'platform_admin' || role === 'superadmin'
 }
 
 type PharmacyUserSettings = {
@@ -114,6 +125,70 @@ async function restGet<T>(table: string, filters: Record<string, string>, select
   }
 }
 
+// ── Feature 1: module-level entitlement (subscription) gate ──────────────────
+type SubscriptionRow = {
+  status: string | null
+  current_period_end: string | null
+  grace_until: string | null
+}
+
+async function getTenantEntitlement(tenantId: string): Promise<{
+  entitled: boolean
+  status: string | null
+  reason: string
+}> {
+  const sub = await restGet<SubscriptionRow>(
+    'tenant_subscriptions',
+    { tenant_id: `eq.${tenantId}` },
+    'status,current_period_end,grace_until',
+  )
+  // restGet returns null on no-row OR on infra error; evaluateEntitlement
+  // fails-open (entitled) for a null/blank status, so tenants are never locked
+  // out by accident — only explicit non-entitled statuses block.
+  return evaluateEntitlement({
+    status: sub?.status ?? null,
+    current_period_end: sub?.current_period_end ?? null,
+    grace_until: sub?.grace_until ?? null,
+  })
+}
+
+function subscriptionRequired402(status: string | null, reason: string): NextResponse {
+  return NextResponse.json(
+    {
+      error: 'subscription_required',
+      message:
+        'This pharmacy\u2019s subscription is not active. Pay the monthly fee to restore access.',
+      status: status ?? 'unknown',
+      reason,
+      reactivate_url: '/portal/billing',
+    },
+    { status: 402 },
+  )
+}
+
+// ── Feature 2: custom domain → tenant resolution ─────────────────────────────
+function isBaseHost(host: string): boolean {
+  const h = (host.split(':')[0] ?? '').trim().toLowerCase()
+  if (!h) return true
+  if (h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === '::1') return true
+  if (h.endsWith('.localhost')) return true
+  if (h.endsWith('.vercel.app')) return true
+  if (h === 'synapseos.tech' || h.endsWith('.synapseos.tech')) return true
+  return false
+}
+
+async function resolveHostTenant(host: string): Promise<{ tenantId: string; domain: string } | null> {
+  const h = (host.split(':')[0] ?? '').trim().toLowerCase()
+  if (!h || isBaseHost(h)) return null
+  const row = await restGet<{ tenant_id: string | null; domain: string }>(
+    'pharmacy_custom_domains',
+    { domain: `eq.${h}`, verified: 'eq.true' },
+    'tenant_id,domain',
+  )
+  if (!row?.tenant_id) return null
+  return { tenantId: row.tenant_id, domain: h }
+}
+
 function roleRequiresMfa(settings: PharmacyUserSettings | null): boolean {
   // Only gate on explicit opt-in, not role — role-based TOTP blocks first-time logins
   // where TOTP hasn't been set up yet (OTP already served as 2nd factor at login)
@@ -175,6 +250,12 @@ async function runPharmacyAccessChecks(params: {
     }
   }
 
+  // Force password change before any protected page is reachable.
+  // isPublicPath already covers /change-password so this won't loop.
+  if (!isPublicPath && profile.must_change_password) {
+    return NextResponse.redirect(new URL('/change-password', request.url))
+  }
+
   if (!isPublicPath && profile.tenant_id) {
     const onboarding = await restGet<OnboardingRow>(
       'pharmacy_onboarding',
@@ -193,10 +274,47 @@ async function runPharmacyAccessChecks(params: {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // ── Feature 2: resolve a custom domain → tenant and forward it as headers.
+  // Base/managed hosts are skipped (default behavior unchanged). We always strip
+  // any inbound x-tenant-* headers so they can't be spoofed by the client.
+  const host = request.headers.get('host') ?? ''
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.delete('x-tenant-id')
+  requestHeaders.delete('x-tenant-domain')
+  if (host && !isBaseHost(host)) {
+    const resolved = await resolveHostTenant(host)
+    if (resolved) {
+      requestHeaders.set('x-tenant-id', resolved.tenantId)
+      requestHeaders.set('x-tenant-domain', resolved.domain)
+    }
+  }
+  const passThrough = () => NextResponse.next({ request: { headers: requestHeaders } })
+
   // API routes must never be HTML-redirected (POST → login/onboarding → 405).
   // Route handlers enforce auth and return JSON.
   if (pathname.startsWith('/api/')) {
-    return NextResponse.next()
+    // Feature 1: the admin module is fully gated behind an active subscription.
+    // Billing/auth/public/customer APIs stay reachable so a locked tenant can pay.
+    if (pathname.startsWith('/api/admin/')) {
+      const uid = await getSynapseUserId(request)
+      if (uid) {
+        const profile = await restGet<PharmacyProfile>(
+          'profiles',
+          { id: `eq.${uid}` },
+          'id,is_admin,tenant_id,role',
+        )
+        // Only true platform/superadmins bypass; tenant-scoped users (incl. the
+        // pharmacy's own owner-admin) are gated when the subscription is unpaid.
+        if (profile && profile.tenant_id && !isPlatformAdmin(profile.role)) {
+          const ent = await getTenantEntitlement(profile.tenant_id)
+          if (!ent.entitled) {
+            return subscriptionRequired402(ent.status, ent.reason)
+          }
+        }
+      }
+      // No valid session → let the route handler return its own 401.
+    }
+    return passThrough()
   }
 
   const synapseUserId = await getSynapseUserId(request)
@@ -220,18 +338,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (isAuthenticated && isAuthPage && !isMfaPage) {
-    return NextResponse.redirect(new URL('/portal/dashboard', request.url))
-  }
-
   if (synapseValid && synapseUserId) {
     const profile = await restGet<PharmacyProfile>(
       'profiles',
       { id: `eq.${synapseUserId}` },
-      'id,is_admin,tenant_id'
+      'id,is_admin,tenant_id,role,must_change_password'
     )
 
     if (profile) {
+      if (isAuthenticated && isAuthPage && !isMfaPage) {
+        if (profile.must_change_password) {
+          return NextResponse.redirect(new URL('/change-password', request.url))
+        }
+        return NextResponse.redirect(new URL('/portal/dashboard', request.url))
+      }
+
       const redirect = await runPharmacyAccessChecks({
         request,
         profile,
@@ -240,10 +361,24 @@ export async function middleware(request: NextRequest) {
         isMfaPage,
       })
       if (redirect) return redirect
+
+      // Feature 1: lock the whole portal module when the subscription is unpaid.
+      // The billing page itself stays reachable so the tenant can pay to recover.
+      // Only true platform/superadmins bypass — the pharmacy owner-admin is gated.
+      const isPortalPath = pathname.startsWith('/portal')
+      const isBillingPage = pathname.startsWith('/portal/billing')
+      if (isPortalPath && !isBillingPage && profile.tenant_id && !isPlatformAdmin(profile.role)) {
+        const ent = await getTenantEntitlement(profile.tenant_id)
+        if (!ent.entitled) {
+          const url = new URL('/portal/billing', request.url)
+          url.searchParams.set('billing', 'past_due')
+          return NextResponse.redirect(url)
+        }
+      }
     }
   }
 
-  return NextResponse.next()
+  return passThrough()
 }
 
 export const config = {

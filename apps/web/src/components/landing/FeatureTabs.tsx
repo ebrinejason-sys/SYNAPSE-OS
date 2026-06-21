@@ -7,7 +7,7 @@ const TABS = [
     label: 'Clinical AI',
     heading: 'Differential Diagnosis at AI Speed',
     description:
-      'MedGemma 27B generates ranked differential diagnoses grounded in Uganda Clinical Guidelines. Every suggestion cited, every confidence score explained — supporting, not replacing, clinical judgement.',
+      'MedGemma 27B generates ranked differential diagnoses grounded in Uganda Clinical Guidelines. Every suggestion is cited and every confidence score explained. It supports clinical judgement rather than replacing it.',
     stats: [
       { val: 'UCG', label: 'Uganda Clinical Guidelines in AI context' },
       { val: '150+', label: 'Built-in scoring tools (NEWS2, SOFA, GCS…)' },
@@ -43,7 +43,7 @@ const TABS = [
       'Pre-authorisation workflow with status tracking',
       'FHIR Claim auto-generation on encounter sign',
       'AI appeal drafting with Uganda Clinical Guidelines citations',
-      'Insurer performance analytics — approval rate, turnaround, denial patterns',
+      'Insurer performance analytics covering approval rate, turnaround, and denial patterns',
       'Patient insurance wallet supporting multiple policies',
       'Revenue recovery dashboard with trend analysis',
     ],
@@ -53,7 +53,7 @@ const TABS = [
   {
     id: 'lab',
     label: 'Lab Automation',
-    heading: 'From Sample to Signed Result — Without Delays',
+    heading: 'From Sample to Signed Result Without Delays',
     description:
       'Auto-ingest results from lab instruments via ASTM/HL7 bridge. Critical values trigger a multi-channel notification chain in under one second. AI interprets results in the context of the working diagnosis.',
     stats: [
@@ -103,7 +103,7 @@ const TABS = [
     label: 'Public Health',
     heading: 'Population Intelligence, Not Just Patient Records',
     description:
-      'SDG Command Center tracks all 17 goals using real clinical data. Outbreak detection alerts when disease spikes cluster. DHIS2 nightly export keeps national systems in sync — automatically.',
+      'SDG Command Center tracks all 17 goals using real clinical data. Outbreak detection alerts when disease spikes cluster. DHIS2 nightly export keeps national systems in sync automatically.',
     stats: [
       { val: '17', label: 'SDG goals tracked with live clinical data' },
       { val: 'Nightly', label: 'Automated DHIS2 anonymised data export' },
@@ -113,7 +113,7 @@ const TABS = [
     features: [
       '17-goal SDG radial dashboard with drill-down',
       'Disease incidence heat maps with Mapbox choropleth',
-      'Death registry sentinel — ≥3 infectious deaths → alert',
+      'Death registry sentinel: three or more clustered infectious deaths trigger an alert',
       'Anonymous surveillance reporting from patient app',
       'DHIS2 automated nightly export pipeline',
       'MPDSR maternal & perinatal death surveillance',

@@ -1,8 +1,13 @@
+import { ComingSoon } from '../../components/ComingSoon'
+
+export const metadata = { title: 'Careers · SynapseOS' }
+
 export default function CareersPage() {
   return (
-    <main className="min-h-screen bg-synapse-950 text-white p-8">
-      <h1 className="font-display text-2xl">Careers</h1>
-      <p className="text-gray-400 mt-2">Coming soon.</p>
-    </main>
-  );
+    <ComingSoon
+      title="Careers"
+      subtitle="We are growing the team building clinical software for African hospitals. Open roles will be listed here. To express interest early, get in touch through our contact page."
+      showNotify
+    />
+  )
 }

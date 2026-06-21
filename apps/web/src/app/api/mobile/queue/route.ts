@@ -47,13 +47,13 @@ export async function GET(req: NextRequest) {
   const { data: patients } = patientIds.length > 0
     ? await (supabaseAdmin as any)
         .from('patients')
-        .select('id, full_name, mrn, date_of_birth, sex')
+        .select('id, full_name, mrn, dob, sex')
         .in('id', patientIds)
         .eq('tenant_id', payload.tenant_id)
     : { data: [] }
 
   const patientMap = new Map(
-    ((patients ?? []) as Array<{ id: string; full_name: string; mrn: string | null; date_of_birth: string | null; sex: string | null }>)
+    ((patients ?? []) as Array<{ id: string; full_name: string; mrn: string | null; dob: string | null; sex: string | null }>)
       .map(p => [p.id, p])
   )
 
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
       clinicalStage: r.clinical_stage,
       createdAt: r.created_at,
       patient: p
-        ? { id: p.id, fullName: p.full_name, mrn: p.mrn, dateOfBirth: p.date_of_birth, sex: p.sex }
+        ? { id: p.id, fullName: p.full_name, mrn: p.mrn, dateOfBirth: p.dob, sex: p.sex }
         : null,
     }
   })

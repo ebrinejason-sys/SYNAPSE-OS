@@ -1,5 +1,7 @@
 import { Tabs } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { useAuth } from '@/lib/auth'
+import { isClinicalRole } from '@/lib/roles'
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name']
 
@@ -13,6 +15,9 @@ function TabIcon({ name, focused }: TabIconProps) {
 }
 
 export default function MainLayout() {
+  const { user } = useAuth()
+  const showPatients = isClinicalRole(user?.role)
+
   return (
     <Tabs
       screenOptions={{
@@ -34,10 +39,10 @@ export default function MainLayout() {
       <Tabs.Screen
         name="home"
         options={{
-          title: 'Queue',
-          headerTitle: 'Patient Queue',
+          title: 'Home',
+          headerShown: false,
           tabBarIcon: ({ focused }) => (
-            <TabIcon name={focused ? 'people' : 'people-outline'} focused={focused} />
+            <TabIcon name={focused ? 'home' : 'home-outline'} focused={focused} />
           ),
         }}
       />
@@ -45,8 +50,11 @@ export default function MainLayout() {
         name="patients"
         options={{
           title: 'Patients',
+          headerShown: true,
+          // Hide the Patients tab for non-clinical roles (patient, pharmacy, billing).
+          href: showPatients ? undefined : null,
           tabBarIcon: ({ focused }) => (
-            <TabIcon name={focused ? 'person' : 'person-outline'} focused={focused} />
+            <TabIcon name={focused ? 'people' : 'people-outline'} focused={focused} />
           ),
         }}
       />

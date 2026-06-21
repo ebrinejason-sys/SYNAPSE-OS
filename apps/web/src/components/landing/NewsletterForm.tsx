@@ -76,7 +76,7 @@ export function NewsletterForm() {
       </div>
       {status === 'error' && (
         <p className="text-xs mt-2 text-center" style={{ color: '#EF4444' }}>
-          Something went wrong — please try again.
+          Something went wrong. Please try again.
         </p>
       )}
     </form>

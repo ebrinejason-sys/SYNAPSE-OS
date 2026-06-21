@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Mail } from "lucide-react"
 
 type LoginStep = "credentials" | "otp"
@@ -14,7 +13,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resendMsg, setResendMsg] = useState<string | null>(null)
-  const router = useRouter()
 
   const handleCredentials = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,8 +54,7 @@ export default function LoginPage() {
       return
     }
 
-    router.push(data.mustChangePassword ? "/change-password" : "/portal/dashboard")
-    router.refresh()
+    window.location.assign(data.mustChangePassword ? "/change-password" : "/onboarding")
   }
 
   const handleResend = async () => {

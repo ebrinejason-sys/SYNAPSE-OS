@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@synapse/db/admin'
 import { initFlutterwavePayment } from './flutterwave'
+import { evaluateEntitlement, type EntitlementResult } from './entitlement'
 
 export type SubscriptionStatus = {
   status: string
@@ -52,6 +53,30 @@ export async function getSubscriptionStatus(tenantId: string): Promise<Subscript
     lastPaymentAt: data.last_payment_at,
     cancelAtPeriodEnd: Boolean(data.cancel_at_period_end),
   }
+}
+
+/**
+ * DB-backed entitlement check — single source of truth for whether a tenant may
+ * use the pharmacy module. Reads tenant_subscriptions and delegates the policy
+ * decision to the pure evaluateEntitlement() so middleware (Edge) and route
+ * handlers (Node) stay in lockstep.
+ */
+export async function isTenantEntitled(tenantId: string): Promise<EntitlementResult> {
+  if (!tenantId) return { entitled: true, reason: 'no_tenant', status: null }
+  const { data, error } = await db()
+    .from('tenant_subscriptions')
+    .select('status, current_period_end, grace_until')
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
+
+  // On query error, fail-open so we never lock a tenant out due to infra issues.
+  if (error) return { entitled: true, reason: 'query_error_failopen', status: null }
+
+  return evaluateEntitlement({
+    status: data?.status ?? null,
+    current_period_end: data?.current_period_end ?? null,
+    grace_until: data?.grace_until ?? null,
+  })
 }
 
 export async function listSubscriptionPayments(tenantId: string, limit = 20): Promise<PaymentRow[]> {

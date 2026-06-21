@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabaseAdmin as any)
     .from('patients')
-    .select('id, full_name, mrn, date_of_birth, sex, created_at')
+    .select('id, full_name, mrn, dob, sex, created_at')
     .eq('tenant_id', payload.tenant_id)
     .eq('is_deleted', false)
     .order('full_name', { ascending: true })
@@ -42,12 +42,12 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     patients: (patients ?? []).map((p: {
       id: string; full_name: string; mrn: string | null;
-      date_of_birth: string | null; sex: string | null; created_at: string
+      dob: string | null; sex: string | null; created_at: string
     }) => ({
       id: p.id,
       fullName: p.full_name,
       mrn: p.mrn,
-      dateOfBirth: p.date_of_birth,
+      dateOfBirth: p.dob,
       sex: p.sex,
       createdAt: p.created_at,
     })),

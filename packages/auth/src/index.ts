@@ -40,6 +40,13 @@ export {
   listAllPayments,
   initiateSubscriptionPayment,
   handleFlutterwaveWebhook,
+  isTenantEntitled,
 } from './billing/subscription'
 export type { SubscriptionStatus, PaymentRow, InitSubscribeInput, InitSubscribeResult } from './billing/subscription'
+export {
+  evaluateEntitlement,
+  ENTITLED_STATUSES,
+  BLOCKED_STATUSES,
+} from './billing/entitlement'
+export type { EntitlementInput, EntitlementResult } from './billing/entitlement'
 export { verifyWebhookHash } from './billing/flutterwave'

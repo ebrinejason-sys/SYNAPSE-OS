@@ -1,8 +1,12 @@
+import { ComingSoon } from '../../components/ComingSoon'
+
+export const metadata = { title: 'Press & Media · SynapseOS' }
+
 export default function PressPage() {
   return (
-    <main className="min-h-screen bg-synapse-950 text-white p-8">
-      <h1 className="font-display text-2xl">Press</h1>
-      <p className="text-gray-400 mt-2">Coming soon.</p>
-    </main>
-  );
+    <ComingSoon
+      title="Press & Media"
+      subtitle="Our press kit, brand assets, and media enquiries hub is being assembled. For interviews or coverage in the meantime, contact the founders directly."
+    />
+  )
 }

@@ -28,7 +28,7 @@ export function LandingFooter() {
           <div>
             <SynapseLogo size="sm" className="mb-4" />
             <p className="max-w-xs text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              Hospital information system, pharmacy POS, and patient access — built in Kampala for East
+              Hospital information system, pharmacy POS, and patient access, built in Kampala for East
               African care delivery.
             </p>
             <p className="mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>

@@ -11,6 +11,8 @@ import {
   Shield,
   Stethoscope,
 } from 'lucide-react'
+import { AnimatedCounter } from './AnimatedCounter'
+import { AvatarCluster } from './AvatarCluster'
 
 const COMPLIANCE = [
   'FHIR R4',
@@ -57,6 +59,8 @@ export function LandingHero() {
   return (
     <section className="landing-hero">
       <div className="landing-hero-bg" aria-hidden />
+      <div className="landing-hero-grid" aria-hidden />
+      <div className="landing-hero-aurora" aria-hidden />
 
       <div className="landing-container grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
         <div>
@@ -87,7 +91,7 @@ export function LandingHero() {
             className="landing-lead mb-8 max-w-xl text-lg"
           >
             SynapseOS connects OPD, wards, laboratory, pharmacy POS, insurance claims, and telemedicine on
-            a single tenant — with Uganda Clinical Guidelines in the workflow and audit logs from day one.
+            a single tenant, with Uganda Clinical Guidelines in the workflow and audit logs from day one.
           </motion.p>
 
           <motion.div
@@ -114,6 +118,15 @@ export function LandingHero() {
             </Link>
           </motion.div>
 
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="mb-10"
+          >
+            <AvatarCluster />
+          </motion.div>
+
           <motion.ul
             initial={reduceMotion ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -135,15 +148,17 @@ export function LandingHero() {
             className="landing-stat-row grid grid-cols-2 gap-px sm:grid-cols-4"
           >
             {[
-              { v: '20+', l: 'Department modules' },
-              { v: '150+', l: 'Clinical scores' },
-              { v: '120+', l: 'RLS-protected tables' },
-              { v: '3', l: 'Live products' },
+              { v: 20, suffix: '+', l: 'Department modules' },
+              { v: 150, suffix: '+', l: 'Clinical scores' },
+              { v: 120, suffix: '+', l: 'RLS-protected tables' },
+              { v: 3, suffix: '', l: 'Live products' },
             ].map((stat) => (
               <div key={stat.l} className="landing-stat-cell px-4 py-4">
-                <p className="font-display text-2xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-                  {stat.v}
-                </p>
+                <AnimatedCounter
+                  value={stat.v}
+                  suffix={stat.suffix}
+                  className="font-display text-2xl font-bold tracking-tight"
+                />
                 <p className="mt-1 text-xs leading-snug" style={{ color: 'var(--text-muted)' }}>
                   {stat.l}
                 </p>
@@ -156,9 +171,9 @@ export function LandingHero() {
           initial={reduceMotion ? false : { opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.55, delay: 0.12 }}
-          className="mx-auto w-full max-w-lg lg:max-w-none"
+          className="landing-preview-wrap mx-auto w-full max-w-lg lg:max-w-none"
         >
-          <div className="landing-preview">
+          <div className="landing-preview landing-preview-float">
             <div className="landing-preview-header">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'var(--text-muted)' }}>
@@ -196,7 +211,7 @@ export function LandingHero() {
 
             <div className="landing-preview-note">
               <Shield className="h-4 w-4 shrink-0" style={{ color: 'var(--brand-gold)' }} />
-              <span>AI suggestions require clinician review — never auto-submitted to the chart.</span>
+              <span>AI suggestions require clinician review. They are never auto-submitted to the chart.</span>
             </div>
           </div>
         </motion.div>

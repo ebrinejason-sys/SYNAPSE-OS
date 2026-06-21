@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight, Heart, Pill, Stethoscope, Building2 } from 'lucide-react'
 import { SynapseLogo } from '../../components/SynapseLogo'
+import { Reveal } from './Reveal'
 
 const PATHS = [
   {
@@ -17,7 +18,7 @@ const PATHS = [
     icon: Pill,
     eyebrow: 'Pharmacies',
     title: 'Onboard your pharmacy',
-    body: 'Inventory, FEFO batches, POS receipts, and refill requests — live at pharm.synapseos.tech.',
+    body: 'Inventory, FEFO batches, POS receipts, and refill requests, live at pharm.synapseos.tech.',
     cta: 'Apply for pharmacy',
     href: '/apply/pharmacy',
     accent: '#22C55E',
@@ -27,7 +28,7 @@ const PATHS = [
     icon: Heart,
     eyebrow: 'Everyday users',
     title: 'Your personal health account',
-    body: 'Track visits, medications, lab results, habits, and telemedicine — free to start.',
+    body: 'Track visits, medications, lab results, habits, and telemedicine. Free to start.',
     cta: 'Create health account',
     href: '/signup/patient',
     accent: 'var(--brand-teal)',
@@ -49,18 +50,22 @@ export function AudiencePaths() {
   return (
     <section id="get-started" className="landing-section">
       <div className="landing-container">
-        <p className="section-label">Who it&apos;s for</p>
-        <h2 className="landing-heading mb-3">Four ways into Synapse</h2>
-        <p className="landing-lead mb-10 max-w-2xl">
-          Facilities apply for onboarding. People self-register. One login can later link staff membership at a
-          hospital or pharmacy without losing personal health features.
-        </p>
+        <Reveal>
+          <p className="section-label">Who it&apos;s for</p>
+          <h2 className="landing-heading mb-3">Four ways into Synapse</h2>
+          <p className="landing-lead mb-10 max-w-2xl">
+            Facilities apply for onboarding. People self-register. One login can later link staff membership at a
+            hospital or pharmacy without losing personal health features.
+          </p>
+        </Reveal>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          {PATHS.map((path) => (
-            <article
+          {PATHS.map((path, i) => (
+            <Reveal
               key={path.href}
-              className="landing-card group flex flex-col !p-6 transition-colors hover:border-[color:var(--border-strong)]"
+              as="article"
+              delay={i * 0.08}
+              className="landing-card group flex h-full flex-col !p-6 transition-colors hover:border-[color:var(--border-strong)]"
               style={{ borderColor: path.border }}
             >
               <div className="mb-4 flex items-start justify-between gap-3">
@@ -86,11 +91,11 @@ export function AudiencePaths() {
                 {path.cta}
                 <ArrowRight className="h-4 w-4" />
               </Link>
-            </article>
+            </Reveal>
           ))}
         </div>
 
-        <div className="landing-card-elevated mt-8 flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+        <Reveal className="landing-card-elevated mt-8 flex flex-wrap items-center justify-between gap-4 px-5 py-4">
           <div className="flex items-center gap-3">
             <SynapseLogo size="sm" />
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -114,7 +119,7 @@ export function AudiencePaths() {
           >
             Try AI diagnostic demo →
           </a>
-        </div>
+        </Reveal>
       </div>
     </section>
   )

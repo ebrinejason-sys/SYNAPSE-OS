@@ -9,6 +9,7 @@
     "./capability": "./src/capability.ts",
     "./features":   "./src/features.ts",
     "./billing":    "./src/billing/subscription.ts",
+    "./billing/entitlement": "./src/billing/entitlement.ts",
     "./billing/flutterwave": "./src/billing/flutterwave.ts",
     "./mfa":        "./src/mfa.ts",
     "./password":   "./src/password.ts",

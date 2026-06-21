@@ -1,8 +1,12 @@
+import { ComingSoon } from '../../../components/ComingSoon'
+
+export const metadata = { title: 'Privacy Policy · SynapseOS' }
+
 export default function PrivacyPage() {
   return (
-    <main className="min-h-screen bg-synapse-950 text-white p-8">
-      <h1 className="font-display text-2xl">Privacy Policy</h1>
-      <p className="text-gray-400 mt-2">Coming soon.</p>
-    </main>
-  );
+    <ComingSoon
+      title="Privacy Policy"
+      subtitle="Our full privacy policy, aligned with Uganda's Data Protection and Privacy Act 2019, is being finalised. For privacy questions in the meantime, contact our team directly."
+    />
+  )
 }

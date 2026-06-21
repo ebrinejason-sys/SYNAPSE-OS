@@ -1,8 +1,12 @@
+import { ComingSoon } from '../../../components/ComingSoon'
+
+export const metadata = { title: 'Consent Withdrawal · SynapseOS' }
+
 export default function ConsentWithdrawalPage() {
   return (
-    <main className="min-h-screen bg-synapse-950 text-white p-8">
-      <h1 className="font-display text-2xl">Consent Withdrawal</h1>
-      <p className="text-gray-400 mt-2">Coming soon.</p>
-    </main>
-  );
+    <ComingSoon
+      title="Consent Withdrawal"
+      subtitle="A self-service flow to review and withdraw data processing consent is being built. To make a request now, contact our team and we will action it promptly."
+    />
+  )
 }

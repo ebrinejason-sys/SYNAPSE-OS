@@ -17,3 +17,6 @@ coverage/
 
 .vercel
 .turbo/
+
+# Temporary debug/probe scripts — may contain hardcoded production data
+scripts/_tmp_*

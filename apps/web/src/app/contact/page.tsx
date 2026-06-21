@@ -87,7 +87,7 @@ export default function ContactPage() {
             Talk to the team
           </h1>
           <p className="text-base leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-            Whether you&rsquo;re a hospital administrator, investor, or partner — every message goes directly to the founders.
+            Whether you&rsquo;re a hospital administrator, investor, or partner, every message goes directly to the founders.
           </p>
         </div>
 

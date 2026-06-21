@@ -8,6 +8,7 @@ import {
   formatDateTime,
   formatUGX,
   lastNDays,
+  loadSubscriptionData,
   percentDelta,
   safeCount,
   safeRows,
@@ -22,16 +23,16 @@ type TenantRow = {
   district?: string | null;
 };
 type ProfileRow = { id?: string; created_at?: string | null; role?: string | null };
-type SubscriptionRow = { monthly_amount_ugx?: number | string | null; status?: string | null };
 type AuditRow = {
   id?: string;
   action?: string | null;
-  entity_type?: string | null;
-  resource_type?: string | null;
-  actor_id?: string | null;
+  table_name?: string | null;
+  record_id?: string | null;
+  user_id?: string | null;
+  user_role?: string | null;
   tenant_id?: string | null;
   created_at?: string | null;
-  metadata?: Record<string, unknown> | null;
+  new_value?: Record<string, unknown> | null;
 };
 type ApplicationRow = {
   id?: string;
@@ -75,7 +76,7 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
     recentTenants,
     recentProfiles,
     transactionRows,
-    subscriptions,
+    subData,
     auditRows,
     applications,
     professionalLeads,
@@ -96,13 +97,10 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
       orderBy: "created_at",
       limit: 500,
     }),
-    safeRows<SubscriptionRow>("facility_subscriptions", "monthly_amount_ugx, status", {
-      filters: [["status", "active"]],
-      limit: 5000,
-    }),
+    loadSubscriptionData(),
     safeRows<AuditRow>(
       "audit_log",
-      "id, action, entity_type, resource_type, actor_id, tenant_id, created_at, metadata",
+      "id, action, table_name, record_id, user_id, user_role, tenant_id, created_at, new_value",
       { orderBy: "created_at", limit: 20 }
     ),
     safeRows<ApplicationRow>(
@@ -123,7 +121,11 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
     }),
   ]);
 
-  const mrr = subscriptions.reduce((sum, row) => sum + Number(row.monthly_amount_ugx ?? 0), 0);
+  const mrr = subData.mrr;
+  const activeSubCount = subData.counts.active ?? 0;
+  const pastDueCount = subData.counts.past_due ?? 0;
+  const suspendedCount = (subData.counts.suspended ?? 0) + (subData.counts.cancelled ?? 0) + (subData.counts.canceled ?? 0);
+  const trialCount = (subData.counts.trial ?? 0) + (subData.counts.trialing ?? 0);
   const since = new Date(fourteenDaysAgo).getTime();
   const recentTenantRows = recentTenants.filter((row) => row.created_at && new Date(row.created_at).getTime() >= since);
   const recentProfileRows = recentProfiles.filter((row) => row.created_at && new Date(row.created_at).getTime() >= since);
@@ -148,7 +150,7 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
     id: row.id ?? crypto.randomUUID(),
     kind: "audit" as const,
     title: row.action ?? "System event",
-    subtitle: row.entity_type ?? row.resource_type ?? "platform",
+    subtitle: row.table_name ?? "platform",
     href: "/platform/audit-log",
     createdAt: formatDateTime(row.created_at),
   }));
@@ -175,6 +177,24 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
     .slice(0, 12);
 
   const attentionItems = [
+    pastDueCount > 0
+      ? {
+          id: "past_due",
+          label: "Past-due subscriptions",
+          count: pastDueCount,
+          href: "/platform/billing",
+          detail: "Within grace — collect payment before suspension",
+        }
+      : null,
+    suspendedCount > 0
+      ? {
+          id: "suspended",
+          label: "Suspended subscriptions",
+          count: suspendedCount,
+          href: "/platform/billing",
+          detail: "Tenants locked out — reactivate after payment",
+        }
+      : null,
     pendingApplications > 0
       ? {
           id: "applications",
@@ -247,7 +267,7 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
         href: "/platform/billing",
         sparkline: Array.from({ length: 14 }, (_, i) => Math.round((mrr / 14) * (i + 1))),
         delta: null,
-        deltaLabel: `${subscriptions.length} active subscriptions`,
+        deltaLabel: `${activeSubCount} active · ${trialCount} trial`,
       },
       {
         label: "Sales volume",

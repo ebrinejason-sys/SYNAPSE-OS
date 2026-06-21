@@ -9,6 +9,7 @@ import { AudiencePaths } from '../components/landing/AudiencePaths'
 import { LandingNav } from '../components/landing/LandingNav'
 import { LandingFooter } from '../components/landing/LandingFooter'
 import { SectionShell } from '../components/landing/SectionShell'
+import { Reveal } from '../components/landing/Reveal'
 
 const MODULES = [
   { abbr: 'OPD', name: 'OPD / Consultation', desc: 'Queue, consultation notes, fee schedules' },
@@ -192,8 +193,8 @@ export default function HomePage() {
             </p>
             <h3 className="font-display mb-3 text-xl font-bold">SynapseOS</h3>
             <p className="mb-4 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              Web HMIS: encounters, nursing, lab, radiology, theatre, finance, and admin — each hospital on its
-              own tenant with role-based access.
+              Web HMIS: encounters, nursing, lab, radiology, theatre, finance, and admin. Each hospital runs on
+              its own tenant with role-based access.
             </p>
             <Link href="/apply" className="text-sm font-semibold" style={{ color: 'var(--brand-orange)' }}>
               Apply for deployment →
@@ -280,7 +281,7 @@ export default function HomePage() {
         <div className="grid items-start gap-10 lg:grid-cols-2">
           <p className="landing-lead">
             Encounters, outcomes, and programme indicators can be mapped to SDG goals and exported for DHIS2.
-            Facilities configure which indicators apply; exports run on a schedule with anonymisation rules — not
+            Facilities configure which indicators apply; exports run on a schedule with anonymisation rules, not
             sample dashboard percentages.
           </p>
           <ul className="space-y-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -356,7 +357,7 @@ export default function HomePage() {
       <SectionShell id="pilot" label="Pilot programme" title="What hospitals evaluate in a pilot">
         <p className="landing-lead mb-8 max-w-2xl">
           We do not publish anonymous quotes or unaudited performance percentages on this page. During pilot,
-          facilities measure outcomes that matter to them — typically documentation time, claim turnaround, stock
+          facilities measure outcomes that matter to them, typically documentation time, claim turnaround, stock
           accuracy, and staff adoption.
         </p>
         <div className="grid gap-4 text-sm md:grid-cols-3">
@@ -484,7 +485,7 @@ export default function HomePage() {
       </SectionShell>
 
       <section className="landing-section landing-section-surface">
-        <div className="landing-container grid gap-6 md:grid-cols-2">
+        <Reveal className="landing-container grid gap-6 md:grid-cols-2">
           <div className="landing-card-elevated p-8 text-center" style={{ borderColor: 'var(--border-orange)' }}>
             <h3 className="font-display mb-3 text-xl font-bold">Hospital or clinic</h3>
             <p className="mb-6 text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -503,16 +504,16 @@ export default function HomePage() {
               Download page
             </Link>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       <section className="landing-section">
-        <div className="landing-container max-w-md text-center">
+        <Reveal className="landing-container max-w-md text-center">
           <p className="section-label mx-auto">Updates</p>
           <h2 className="landing-heading mb-2">Product updates</h2>
           <p className="landing-lead mb-6">Release notes and pilot openings. Unsubscribe any time.</p>
           <NewsletterForm />
-        </div>
+        </Reveal>
       </section>
 
       <LandingFooter />
