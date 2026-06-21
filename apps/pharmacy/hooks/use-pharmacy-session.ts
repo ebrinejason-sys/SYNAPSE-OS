@@ -14,6 +14,8 @@ export interface PharmacyUser {
   tenantId: string | null
   isAdmin: boolean
   mustChangePassword: boolean
+  isImpersonation: boolean
+  impersonatorId: string | null
 }
 
 export function usePharmacySession() {
@@ -40,6 +42,8 @@ export function usePharmacySession() {
               tenantId: session.tenantId,
               isAdmin: session.isAdmin,
               mustChangePassword: session.mustChangePassword,
+              isImpersonation: session.isImpersonation ?? false,
+              impersonatorId: session.impersonatorId ?? null,
             })
             setIsLoading(false)
             return
@@ -89,6 +93,8 @@ export function usePharmacySession() {
           tenantId: profile?.tenant_id ?? null,
           isAdmin: profile?.is_admin ?? false,
           mustChangePassword: userSettings?.must_change_password ?? false,
+          isImpersonation: false,
+          impersonatorId: null,
         })
         setIsLoading(false)
       }

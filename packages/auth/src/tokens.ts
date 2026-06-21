@@ -17,6 +17,8 @@ export interface SynapseTokenPayload extends JWTPayload {
   tenant_id: string
   app: 'web' | 'pharmacy' | 'mobile'
   synapse_id?: string
+  is_impersonation?: boolean
+  impersonator_id?: string
 }
 
 export async function signToken(

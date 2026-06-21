@@ -40,6 +40,8 @@ export interface SynapseContext {
   }
   app: AppSurface
   token: string
+  isImpersonation: boolean
+  impersonatorId: string | null
 }
 
 export async function getContext(
@@ -99,6 +101,9 @@ export async function getContext(
     mustChangePassword: (profile.must_change_password as boolean) ?? false,
   }
 
+  const isImpersonation = tokenPayload.is_impersonation === true
+  const impersonatorId = tokenPayload.impersonator_id ?? null
+
   // Platform admins are not scoped to a tenant
   if (profile.role === 'platform_admin' || profile.role === 'superadmin') {
     return {
@@ -116,6 +121,8 @@ export async function getContext(
       },
       app,
       token,
+      isImpersonation,
+      impersonatorId,
     }
   }
 
@@ -149,6 +156,8 @@ export async function getContext(
     },
     app,
     token,
+    isImpersonation,
+    impersonatorId,
   }
 }
 

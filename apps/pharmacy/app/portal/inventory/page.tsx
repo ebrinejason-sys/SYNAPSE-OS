@@ -87,6 +87,8 @@ export default function InventoryPage() {
   const [lowStockExpanded, setLowStockExpanded] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(20)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
 
   // Debounce search for better INP performance
@@ -149,6 +151,28 @@ export default function InventoryPage() {
       setProducts([])
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`Permanently delete ${selectedIds.size} product${selectedIds.size > 1 ? "s" : ""}? This will also remove their stock batches and cannot be undone.`)) return
+    setIsDeleting(true)
+    try {
+      const res = await fetch("/api/admin/inventory/bulk-delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productIds: Array.from(selectedIds) }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Delete failed")
+      toast({ title: `${data.deleted} product${data.deleted !== 1 ? "s" : ""} deleted` })
+      setSelectedIds(new Set())
+      fetchProducts()
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Delete failed", description: err.message })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -316,9 +340,57 @@ export default function InventoryPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {selectedIds.size > 0 && (
+            <div className="mb-3 flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5">
+              <span className="text-sm font-medium text-destructive">
+                {selectedIds.size} item{selectedIds.size > 1 ? "s" : ""} selected
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(new Set())}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkDelete}
+                  disabled={isDeleting}
+                  className="flex items-center gap-1.5 rounded-md bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {isDeleting ? "Deleting…" : `Delete ${selectedIds.size}`}
+                </button>
+              </div>
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-border"
+                    checked={filteredProducts.length > 0 && filteredProducts.every((p) => selectedIds.has(p.id))}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev)
+                          filteredProducts.forEach((p) => next.add(p.id))
+                          return next
+                        })
+                      } else {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev)
+                          filteredProducts.forEach((p) => next.delete(p.id))
+                          return next
+                        })
+                      }
+                    }}
+                    aria-label="Select all on this page"
+                  />
+                </TableHead>
                 <TableHead>Product</TableHead>
                 <TableHead>Generic Name</TableHead>
                 <TableHead>Strength</TableHead>
@@ -336,7 +408,23 @@ export default function InventoryPage() {
             </TableHeader>
             <TableBody>
               {filteredProducts.map((product) => (
-                <TableRow key={product.id}>
+                <TableRow key={product.id} className={selectedIds.has(product.id) ? "bg-muted/30" : ""}>
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-border"
+                      checked={selectedIds.has(product.id)}
+                      onChange={(e) => {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev)
+                          if (e.target.checked) next.add(product.id)
+                          else next.delete(product.id)
+                          return next
+                        })
+                      }}
+                      aria-label={`Select ${product.name}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">
                     <div>{product.name}</div>
                     {product.dosageForm && <div className="text-xs text-muted-foreground">{product.dosageForm}</div>}

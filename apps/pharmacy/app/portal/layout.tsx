@@ -8,10 +8,11 @@ import {
   Settings, LogOut, Menu, X, UserCheck, ClipboardList,
   MessageSquare, Activity, Truck, FileText, BarChart3,
   RotateCcw, Wifi, WifiOff, CalendarClock, WalletCards, BrainCircuit,
-  Sun, Moon, CreditCard,
+  Sun, Moon, CreditCard, UserCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NotificationBell } from "@/components/ui/notification-bell"
+import { IdleLogoutModal } from "@/components/idle-logout-modal"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { usePharmacySession } from "@/hooks/use-pharmacy-session"
@@ -151,8 +152,33 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const displayName = user?.fullName ?? user?.email ?? "User"
   const roleLabel = user?.pharmacyRole?.replace("pharmacy_", "").toUpperCase() ?? "STAFF"
 
+  const handleExitImpersonation = async () => {
+    await fetch("/api/auth/impersonate/exit", { method: "POST" }).catch(() => {})
+    window.close()
+    // If close() doesn't work (tab wasn't opened by script), redirect to platform
+    window.location.href = "https://synapseos.tech/platform/users"
+  }
+
   return (
     <div className="min-h-screen bg-background">
+      <IdleLogoutModal />
+
+      {/* Impersonation banner */}
+      {user?.isImpersonation && (
+        <div className="fixed top-0 inset-x-0 z-[100] flex items-center justify-between gap-3 bg-amber-500 px-4 py-2 text-sm font-medium text-black">
+          <span>
+            Viewing as <strong>{displayName}</strong> · Platform admin impersonation session
+          </span>
+          <button
+            type="button"
+            onClick={handleExitImpersonation}
+            className="shrink-0 rounded-md border border-black/20 bg-black/10 px-3 py-1 text-xs font-semibold hover:bg-black/20"
+          >
+            Exit impersonation
+          </button>
+        </div>
+      )}
+
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-black/60 z-40 lg:hidden"
@@ -162,7 +188,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed top-0 left-0 z-50 h-screen w-64 border-r border-border bg-card flex flex-col transition-transform duration-300 lg:translate-x-0",
+        "fixed left-0 z-50 h-screen w-64 border-r border-border bg-card flex flex-col transition-transform duration-300 lg:translate-x-0",
+        user?.isImpersonation ? "top-10" : "top-0",
         isSidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         {/* Logo */}
@@ -242,6 +269,14 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               <p className="text-xs text-muted-foreground">{roleLabel}</p>
             </div>
           </div>
+          <Link
+            href="/portal/profile"
+            onClick={() => setIsSidebarOpen(false)}
+            className="btn-ghost w-full text-sm text-muted-foreground hover:text-foreground mb-1"
+          >
+            <UserCircle className="h-4 w-4" />
+            My Profile
+          </Link>
           <button onClick={handleSignOut} className="btn-ghost w-full text-sm text-muted-foreground hover:text-destructive">
             <LogOut className="h-4 w-4" />
             Sign Out
@@ -250,7 +285,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       </aside>
 
       {/* Main — fills remaining width, scrolls independently */}
-      <div className="lg:pl-64 flex flex-col h-screen">
+      <div className={cn("lg:pl-64 flex flex-col h-screen", user?.isImpersonation && "pt-10")}>
         {/* Top bar — sticky within the flex column */}
         <header className="shrink-0 z-30 flex items-center justify-between h-16 px-4 lg:px-6 bg-card/80 backdrop-blur-md border-b border-border">
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(true)}>
