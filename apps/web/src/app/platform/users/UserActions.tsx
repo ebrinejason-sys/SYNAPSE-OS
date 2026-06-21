@@ -41,10 +41,20 @@ export function UserActions({ userId, email, role }: Props) {
     })
   }
 
-  async function onImitate() {
+  async function onImpersonate() {
     if (!confirm(`Open a 2-hour impersonation session as ${email}?`)) return
     setError(null)
     setImitatePending(true)
+
+    // Open the blank tab immediately while still in the user-gesture context.
+    // Browsers block window.open() called after an await, so we must do this first.
+    const tab = window.open('', '_blank')
+    if (!tab) {
+      setError('Pop-up blocked — allow pop-ups for this site and try again.')
+      setImitatePending(false)
+      return
+    }
+
     try {
       const res = await fetch('/api/platform/impersonate', {
         method: 'POST',
@@ -53,19 +63,14 @@ export function UserActions({ userId, email, role }: Props) {
       })
       const data = await res.json()
       if (!res.ok || !data.token) {
+        tab.close()
         setError(data.error ?? 'Could not start impersonation session.')
         return
       }
-      // Open new tab, set cookie via a redirect endpoint, then open pharmacy portal
       const params = new URLSearchParams({ token: data.token })
-      const tab = window.open(
-        `${PHARMACY_URL}/api/auth/impersonate/start?${params}`,
-        '_blank'
-      )
-      if (!tab) {
-        setError('Pop-up blocked — allow pop-ups for this site and try again.')
-      }
+      tab.location.href = `${PHARMACY_URL}/api/auth/impersonate/start?${params}`
     } catch {
+      tab.close()
       setError('Network error — please try again.')
     } finally {
       setImitatePending(false)
@@ -78,11 +83,11 @@ export function UserActions({ userId, email, role }: Props) {
         {isPharmacyUser && (
           <button
             type="button"
-            onClick={onImitate}
+            onClick={onImpersonate}
             disabled={imitatePending}
             className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300 hover:border-amber-500/60 hover:text-amber-200 disabled:opacity-50"
           >
-            {imitatePending ? 'Starting…' : 'Imitate'}
+            {imitatePending ? 'Starting…' : 'Impersonate'}
           </button>
         )}
         <button
@@ -95,7 +100,7 @@ export function UserActions({ userId, email, role }: Props) {
         </button>
       </div>
       {role === 'platform_admin' ? (
-        <span className="text-[10px] text-slate-600">Platform admin — imitate disabled</span>
+        <span className="text-[10px] text-slate-600">Platform admin — impersonation disabled</span>
       ) : null}
       {message ? <p className="max-w-[200px] text-right text-[10px] text-green-400">{message}</p> : null}
       {error ? <p className="max-w-[200px] text-right text-[10px] text-red-400">{error}</p> : null}
