@@ -1,10 +1,9 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState } from "react"
 import { usePharmacySession } from "@/hooks/use-pharmacy-session"
 import { useToast } from "@/hooks/use-toast"
-import { Camera, Loader2, User } from "lucide-react"
-import Image from "next/image"
+import { Loader2 } from "lucide-react"
 
 function validatePassword(pw: string): string | null {
   if (pw.length < 8) return "At least 8 characters"
@@ -18,12 +17,6 @@ export default function ProfilePage() {
   const { user } = usePharmacySession()
   const { toast } = useToast()
 
-  // Avatar
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [avatarLoading, setAvatarLoading] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Password change
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -31,33 +24,6 @@ export default function ProfilePage() {
 
   const displayName = user?.fullName ?? user?.email ?? "User"
   const roleLabel = user?.pharmacyRole?.replace("pharmacy_", "").toUpperCase() ?? "STAFF"
-  const effectiveAvatar = avatarUrl ?? null
-
-  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    if (file.size > 2 * 1024 * 1024) {
-      toast({ variant: "destructive", title: "Image must be under 2 MB" })
-      return
-    }
-
-    setAvatarLoading(true)
-    try {
-      const fd = new FormData()
-      fd.append("avatar", file)
-      const res = await fetch("/api/auth/profile/avatar", { method: "POST", body: fd })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Upload failed")
-      setAvatarUrl(data.avatarUrl)
-      toast({ title: "Profile picture updated" })
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Upload failed", description: err.message })
-    } finally {
-      setAvatarLoading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ""
-    }
-  }
 
   async function handlePasswordChange(e: React.FormEvent) {
     e.preventDefault()
@@ -98,62 +64,20 @@ export default function ProfilePage() {
         <p className="text-sm text-muted-foreground mt-1">Manage your personal information and account security.</p>
       </div>
 
-      {/* Profile Card */}
+      {/* Account Info */}
       <div className="rounded-xl border border-border bg-card p-6">
-        <h2 className="text-sm font-semibold text-foreground mb-4">Profile Picture</h2>
-        <div className="flex items-center gap-5">
-          <div className="relative group">
-            <div className="w-20 h-20 rounded-full bg-primary/20 border-2 border-primary/30 flex items-center justify-center overflow-hidden shrink-0">
-              {effectiveAvatar ? (
-                <Image src={effectiveAvatar} alt={displayName} fill className="object-cover" />
-              ) : (
-                <span className="text-2xl font-bold text-primary">
-                  {displayName.charAt(0).toUpperCase()}
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={avatarLoading}
-              className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              aria-label="Upload profile picture"
-            >
-              {avatarLoading ? (
-                <Loader2 className="h-5 w-5 text-white animate-spin" />
-              ) : (
-                <Camera className="h-5 w-5 text-white" />
-              )}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="hidden"
-              onChange={handleAvatarChange}
-            />
+        <div className="flex items-center gap-4 mb-5">
+          <div className="w-14 h-14 rounded-full bg-primary/20 border-2 border-primary/30 flex items-center justify-center shrink-0">
+            <span className="text-xl font-bold text-primary">
+              {displayName.charAt(0).toUpperCase()}
+            </span>
           </div>
           <div>
             <p className="font-semibold text-foreground">{displayName}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{roleLabel}</p>
-            <p className="text-xs text-muted-foreground">{user?.email}</p>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={avatarLoading}
-              className="mt-2 text-xs text-primary hover:underline disabled:opacity-50"
-            >
-              {avatarLoading ? "Uploading…" : "Change picture"}
-            </button>
-            <p className="text-[11px] text-muted-foreground mt-0.5">JPEG, PNG or WebP · max 2 MB</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{roleLabel} · {user?.email}</p>
           </div>
         </div>
-      </div>
-
-      {/* Account Info */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <h2 className="text-sm font-semibold text-foreground mb-4">Account Information</h2>
-        <dl className="space-y-3 text-sm">
+        <dl className="space-y-3 text-sm border-t border-border pt-4">
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Full name</dt>
             <dd className="font-medium text-foreground">{displayName}</dd>
@@ -176,7 +100,9 @@ export default function ProfilePage() {
       {/* Change Password */}
       <div className="rounded-xl border border-border bg-card p-6">
         <h2 className="text-sm font-semibold text-foreground mb-1">Change Password</h2>
-        <p className="text-xs text-muted-foreground mb-4">Must be at least 8 characters with an uppercase, number, and special character.</p>
+        <p className="text-xs text-muted-foreground mb-4">
+          Must be at least 8 characters with an uppercase letter, number, and special character.
+        </p>
         <form onSubmit={handlePasswordChange} className="space-y-4">
           <div>
             <label htmlFor="currentPassword" className="block text-xs font-medium text-foreground mb-1">
