@@ -189,10 +189,42 @@ export async function handleFlutterwaveWebhook(payload: {
     id?: number | string
     payment_type?: string
     amount?: number
+    customer?: { email?: string; name?: string }
   }
 }): Promise<{ ok: boolean; idempotent?: boolean; error?: string }> {
   const event = payload.event
   const data = payload.data
+
+  // Handle subscription.cancelled — Flutterwave does NOT send a tx_ref for this event.
+  // We look up the tenant via the customer email and mark cancel_at_period_end = true
+  // so they retain access until their current period ends, then transition to cancelled.
+  if (event === 'subscription.cancelled') {
+    const email = data?.customer?.email
+    if (email) {
+      const { data: profile } = await db()
+        .from('profiles')
+        .select('tenant_id')
+        .eq('email', email)
+        .maybeSingle()
+      if (profile?.tenant_id) {
+        await db()
+          .from('tenant_subscriptions')
+          .update({ cancel_at_period_end: true, updated_at: new Date().toISOString() })
+          .eq('tenant_id', profile.tenant_id)
+        await db().from('subscription_events').insert({
+          tenant_id: profile.tenant_id,
+          from_status: null,
+          to_status: null,
+          reason: 'subscription_cancelled_via_flutterwave',
+          actor: 'webhook',
+          metadata: { email },
+        })
+      }
+    }
+    // Always return ok to stop Flutterwave retry loop — even if email lookup failed
+    return { ok: true }
+  }
+
   if (!data?.tx_ref) return { ok: false, error: 'missing_tx_ref' }
 
   const successful =

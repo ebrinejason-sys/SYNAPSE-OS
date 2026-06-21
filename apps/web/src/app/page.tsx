@@ -187,40 +187,49 @@ export default function HomePage() {
 
       <SectionShell id="products" label="Products" title="Three products on one platform" variant="surface">
         <div className="grid gap-6 lg:grid-cols-3">
-          <article className="landing-card-elevated p-6">
-            <p className="mb-2 text-xs font-semibold" style={{ color: 'var(--brand-orange)' }}>
-              Hospitals & clinics
+          <article className="landing-card-elevated group flex flex-col p-6 transition-all hover:border-orange-500/40" style={{ borderColor: 'rgba(249,115,22,0.2)' }}>
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(249,115,22,0.12)' }}>
+              <span className="text-lg font-bold" style={{ color: 'var(--brand-orange)' }}>H</span>
+            </div>
+            <p className="mb-1 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--brand-orange)' }}>
+              Hospitals &amp; clinics
             </p>
             <h3 className="font-display mb-3 text-xl font-bold">SynapseOS</h3>
-            <p className="mb-4 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            <p className="mb-5 flex-1 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               Web HMIS: encounters, nursing, lab, radiology, theatre, finance, and admin. Each hospital runs on
               its own tenant with role-based access.
             </p>
-            <Link href="/apply" className="text-sm font-semibold" style={{ color: 'var(--brand-orange)' }}>
+            <Link href="/apply" className="inline-flex items-center gap-1 text-sm font-semibold transition-opacity group-hover:opacity-80" style={{ color: 'var(--brand-orange)' }}>
               Apply for deployment →
             </Link>
           </article>
-          <article className="landing-card-elevated p-6">
-            <p className="mb-2 text-xs font-semibold text-green-500">Pharmacies</p>
+          <article className="landing-card-elevated group flex flex-col p-6 transition-all hover:border-green-500/40" style={{ borderColor: 'rgba(34,197,94,0.2)' }}>
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(34,197,94,0.12)' }}>
+              <span className="text-lg font-bold text-green-500">P</span>
+            </div>
+            <p className="mb-1 text-xs font-bold uppercase tracking-widest text-green-500">Pharmacies</p>
             <h3 className="font-display mb-3 text-xl font-bold">Synapse Pharm</h3>
-            <p className="mb-4 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            <p className="mb-5 flex-1 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               Inventory, FEFO batching, POS, supplier orders, and patient refill requests. Hosted at{' '}
               <span className="font-mono text-xs">pharm.synapseos.tech</span> or a custom domain.
             </p>
-            <Link href="/apply/pharmacy" className="text-sm font-semibold text-green-500">
+            <Link href="/apply/pharmacy" className="inline-flex items-center gap-1 text-sm font-semibold text-green-500 transition-opacity group-hover:opacity-80">
               Apply for pharmacy →
             </Link>
           </article>
-          <article className="landing-card-elevated p-6">
-            <p className="mb-2 text-xs font-semibold" style={{ color: 'var(--brand-gold)' }}>
+          <article className="landing-card-elevated group flex flex-col p-6 transition-all" style={{ borderColor: 'rgba(232,184,75,0.2)' }}>
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(232,184,75,0.12)' }}>
+              <span className="text-lg font-bold" style={{ color: 'var(--brand-gold)' }}>A</span>
+            </div>
+            <p className="mb-1 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--brand-gold)' }}>
               Patients
             </p>
             <h3 className="font-display mb-3 text-xl font-bold">Synapse App</h3>
-            <p className="mb-4 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            <p className="mb-5 flex-1 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               Android app for appointments, lab results, telemedicine intake, and health bulletins when connected
               to a Synapse-network facility.
             </p>
-            <Link href="/download" className="text-sm font-semibold" style={{ color: 'var(--brand-gold)' }}>
+            <Link href="/download" className="inline-flex items-center gap-1 text-sm font-semibold transition-opacity group-hover:opacity-80" style={{ color: 'var(--brand-gold)' }}>
               Download or join waitlist →
             </Link>
           </article>
@@ -228,14 +237,21 @@ export default function HomePage() {
       </SectionShell>
 
       <SectionShell id="deploy" label="Deployment" title="How a hospital goes live">
-        <ol className="grid gap-6 md:grid-cols-2">
+        <ol className="grid gap-5 md:grid-cols-2">
           {DEPLOY_STEPS.map((step, i) => (
-            <li key={step.title} className="landing-card">
-              <p className="mb-2 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
-                Step {i + 1}
+            <li key={step.title} className="landing-card relative overflow-hidden group hover:border-orange-500/30">
+              <div
+                aria-hidden
+                className="absolute -top-6 -right-6 flex h-20 w-20 items-center justify-center rounded-full font-mono text-5xl font-black opacity-[0.04]"
+                style={{ color: 'var(--brand-orange)' }}
+              >
+                {i + 1}
+              </div>
+              <p className="mb-2 font-mono text-xs font-bold" style={{ color: 'var(--brand-orange)' }}>
+                Step {i + 1} of {DEPLOY_STEPS.length}
               </p>
               <p className="mb-2 font-semibold">{step.title}</p>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                 {step.body}
               </p>
             </li>
@@ -308,13 +324,26 @@ export default function HomePage() {
           {TIERS.map((tier) => (
             <div
               key={tier.name}
-              className="landing-card flex flex-col !p-5"
+              className={`flex flex-col !p-5 ${tier.highlight ? 'landing-card relative overflow-hidden' : 'landing-card'}`}
               style={{
                 borderColor: tier.highlight ? 'var(--brand-orange)' : undefined,
+                boxShadow: tier.highlight ? '0 0 0 1px var(--brand-orange), 0 8px 32px rgba(249,115,22,0.18)' : undefined,
               }}
             >
+              {tier.highlight && (
+                <div
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'radial-gradient(ellipse 80% 60% at 50% -20%, rgba(249,115,22,0.12) 0%, transparent 70%)',
+                    pointerEvents: 'none',
+                  }}
+                />
+              )}
               {tier.badge && (
-                <span className="mb-2 text-xs font-semibold" style={{ color: 'var(--brand-orange)' }}>
+                <span className="mb-2 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--brand-orange)' }}>
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-orange-500" />
                   {tier.badge}
                 </span>
               )}
@@ -328,14 +357,17 @@ export default function HomePage() {
               <p className="mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
                 {tier.description}
               </p>
-              <ul className="mb-4 flex-1 space-y-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
+              <ul className="mb-4 flex-1 space-y-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
                 {tier.features.map((f) => (
-                  <li key={f}>· {f}</li>
+                  <li key={f} className="flex items-start gap-1.5">
+                    <span className="mt-0.5 shrink-0 text-green-500">✓</span>
+                    {f}
+                  </li>
                 ))}
               </ul>
               <Link
                 href={tier.ctaHref}
-                className={`text-center text-sm font-semibold py-2.5 rounded-lg ${tier.highlight ? 'landing-btn-primary !w-full' : 'landing-btn-secondary !w-full'}`}
+                className={`glow-ring text-center text-sm font-semibold py-2.5 rounded-lg ${tier.highlight ? 'landing-btn-primary !w-full' : 'landing-btn-secondary !w-full'}`}
               >
                 {tier.cta}
               </Link>
@@ -391,9 +423,9 @@ export default function HomePage() {
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 Product engineering and hospital deployments.
               </p>
-              <a href="mailto:hello@synapseos.tech" className="mt-2 inline-block text-xs" style={{ color: 'var(--brand-orange)' }}>
-                hello@synapseos.tech
-              </a>
+              <Link href="/contact" className="mt-2 inline-block text-xs" style={{ color: 'var(--brand-orange)' }}>
+                Get in touch →
+              </Link>
             </div>
           </div>
           <div className="landing-card-elevated flex gap-4 p-5">
@@ -474,9 +506,12 @@ export default function HomePage() {
       <SectionShell label="Security" title="How patient data is protected">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {TRUST.map((t) => (
-            <div key={t.title} className="landing-card">
+            <div key={t.title} className="landing-card group hover:border-teal-500/30 transition-all">
+              <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: 'rgba(31,166,166,0.1)' }}>
+                <span className="text-xs font-bold" style={{ color: 'var(--brand-teal)' }}>✓</span>
+              </div>
               <p className="mb-1 text-sm font-semibold">{t.title}</p>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                 {t.desc}
               </p>
             </div>
@@ -486,21 +521,43 @@ export default function HomePage() {
 
       <section className="landing-section landing-section-surface">
         <Reveal className="landing-container grid gap-6 md:grid-cols-2">
-          <div className="landing-card-elevated p-8 text-center" style={{ borderColor: 'var(--border-orange)' }}>
+          <div
+            className="landing-card-elevated p-8 text-center transition-all hover:shadow-lg"
+            style={{
+              borderColor: 'var(--border-orange)',
+              background: 'linear-gradient(135deg, var(--bg-elevated) 0%, rgba(249,115,22,0.04) 100%)',
+            }}
+          >
+            <div className="mb-4 flex justify-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: 'rgba(249,115,22,0.12)' }}>
+                <span className="text-xl font-bold" style={{ color: 'var(--brand-orange)' }}>H</span>
+              </div>
+            </div>
             <h3 className="font-display mb-3 text-xl font-bold">Hospital or clinic</h3>
-            <p className="mb-6 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <p className="mb-6 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               Request pilot access. We respond with scope, timeline, and pricing for your facility.
             </p>
-            <Link href="/apply" className="landing-btn-primary inline-block px-6 py-3">
+            <Link href="/apply" className="landing-btn-primary glow-ring inline-flex items-center gap-2 px-6 py-3">
               Apply for pilot
             </Link>
           </div>
-          <div className="landing-card-elevated p-8 text-center" style={{ borderColor: 'var(--border-gold)' }}>
+          <div
+            className="landing-card-elevated p-8 text-center transition-all hover:shadow-lg"
+            style={{
+              borderColor: 'var(--border-gold)',
+              background: 'linear-gradient(135deg, var(--bg-elevated) 0%, rgba(232,184,75,0.04) 100%)',
+            }}
+          >
+            <div className="mb-4 flex justify-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: 'rgba(232,184,75,0.12)' }}>
+                <span className="text-xl font-bold" style={{ color: 'var(--brand-gold)' }}>A</span>
+              </div>
+            </div>
             <h3 className="font-display mb-3 text-xl font-bold">Patient app</h3>
-            <p className="mb-6 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <p className="mb-6 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               Android APK and waitlist for facilities not yet on the network.
             </p>
-            <Link href="/download" className="landing-btn-secondary inline-block px-6 py-3">
+            <Link href="/download" className="landing-btn-secondary inline-flex items-center gap-2 px-6 py-3">
               Download page
             </Link>
           </div>

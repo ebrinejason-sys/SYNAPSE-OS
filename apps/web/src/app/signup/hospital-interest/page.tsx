@@ -43,7 +43,7 @@ export default function HospitalInterestPage() {
       source: 'signup_form',
     })
     if (dbError) {
-      setError('Something went wrong. Please try again or email hello@synapseos.tech')
+      setError('Something went wrong. Please try again or visit our contact page.')
     } else {
       setSubmitted(true)
     }

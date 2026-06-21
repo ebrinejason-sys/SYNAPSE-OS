@@ -10,8 +10,8 @@ const FOOTER_LINKS = {
   ],
   Company: [
     { href: '/apply', label: 'Apply for pilot' },
-    { href: '/contact', label: 'Contact' },
-    { href: 'mailto:hello@synapseos.tech', label: 'hello@synapseos.tech' },
+    { href: '/contact', label: 'Contact us' },
+    { href: '/careers', label: 'Careers' },
   ],
   Legal: [
     { href: '/legal/privacy', label: 'Privacy' },
@@ -42,16 +42,10 @@ export function LandingFooter() {
                 <p className="landing-footer-heading">{group}</p>
                 <ul className="space-y-2.5">
                   {links.map((link) => (
-                    <li key={link.href}>
-                      {link.href.startsWith('mailto:') ? (
-                        <a href={link.href} className="landing-footer-link">
-                          {link.label}
-                        </a>
-                      ) : (
-                        <Link href={link.href} className="landing-footer-link">
-                          {link.label}
-                        </Link>
-                      )}
+                    <li key={link.label}>
+                      <Link href={link.href} className="landing-footer-link">
+                        {link.label}
+                      </Link>
                     </li>
                   ))}
                 </ul>

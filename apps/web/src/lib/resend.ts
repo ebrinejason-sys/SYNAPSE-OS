@@ -96,7 +96,7 @@ export function brandedEmail({
       Synapse Health Technologies Ltd &middot; ${MAILING_ADDRESS}<br/>
       <a href="https://synapseos.tech" style="color:#F97316;text-decoration:none;">synapseos.tech</a>
       &nbsp;&middot;&nbsp;
-      <a href="mailto:hello@synapseos.tech" style="color:#60607A;text-decoration:none;">hello@synapseos.tech</a>
+      <a href="https://synapseos.tech/contact" style="color:#60607A;text-decoration:none;">Contact us</a>
     </p>
     <p style="margin:0;font-size:11px;color:#40405A;">
       Email preferences: <a href="${unsubscribeHref}" style="color:#60607A;text-decoration:underline;">Unsubscribe</a>

@@ -4,6 +4,8 @@ import { Megaphone, Radio, Send, Siren } from "lucide-react";
 import { createServiceClient } from "../../../lib/supabase/server";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
 import { formatDate, safeCount, safeRows } from "../_lib/platform-data";
+import { UserBroadcastClient } from "./UserBroadcastClient";
+import { sendEmailBroadcast, sendSmsBroadcast } from "./actions";
 
 type BulletinRow = {
   id?: string;
@@ -52,25 +54,45 @@ function severityClass(severity: string | null | undefined) {
 export default async function PlatformBroadcastsPage() {
   await requirePlatformAdmin();
 
-  const [bulletins, activeBulletins, draftBulletins, criticalBulletins] = await Promise.all([
-    safeRows<BulletinRow>(
-      "health_bulletins",
-      "id, title, severity, target_audience, target_scope, status, expires_at, created_at, published_at",
-      { orderBy: "created_at", limit: 80 }
-    ),
-    safeCount("health_bulletins", [["status", "published"]]),
-    safeCount("health_bulletins", [["status", "draft"]]),
-    safeCount("health_bulletins", [["severity", "critical"]]),
-  ]);
+  const db = createServiceClient() as any;
+
+  const [bulletins, activeBulletins, draftBulletins, criticalBulletins, allUsersResult, roleRowsResult] =
+    await Promise.all([
+      safeRows<BulletinRow>(
+        "health_bulletins",
+        "id, title, severity, target_audience, target_scope, status, expires_at, created_at, published_at",
+        { orderBy: "created_at", limit: 80 }
+      ),
+      safeCount("health_bulletins", [["status", "published"]]),
+      safeCount("health_bulletins", [["status", "draft"]]),
+      safeCount("health_bulletins", [["severity", "critical"]]),
+      db.from("profiles").select("id", { count: "exact", head: true }),
+      db.from("profiles").select("role").not("role", "is", null).limit(5000),
+    ]);
+
+  const totalUsers: number = (allUsersResult as any)?.count ?? 0;
+
+  const roleCountMap: Record<string, number> = {};
+  for (const row of ((roleRowsResult as any)?.data ?? []) as { role: string }[]) {
+    if (row.role) roleCountMap[row.role] = (roleCountMap[row.role] ?? 0) + 1;
+  }
+
+  let hasPhoneColumn = false;
+  try {
+    const { error } = await db.from("profiles").select("phone").limit(1);
+    hasPhoneColumn = !error || !(error.message ?? "").includes("phone");
+  } catch {
+    hasPhoneColumn = false;
+  }
 
   return (
     <div className="space-y-6">
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#E8B84B]">Public Health Broadcasts</p>
-          <h1 className="mt-2 text-2xl font-bold">Health Bulletins</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#E8B84B]">Communications</p>
+          <h1 className="mt-2 text-2xl font-bold">Broadcasts</h1>
           <p className="mt-1 text-sm text-slate-400">
-            Publish national, district, facility, and patient-app bulletins with email, realtime, push, and SMS readiness.
+            Health bulletins for facilities and patient app · Direct email and SMS to platform users.
           </p>
         </div>
         <div className="rounded-xl border border-[#E8B84B]/30 bg-[#E8B84B]/10 px-4 py-2 text-sm font-semibold text-[#E8B84B]">
@@ -78,25 +100,38 @@ export default async function PlatformBroadcastsPage() {
         </div>
       </section>
 
+      {/* Stats */}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          ["Total bulletins", bulletins.length],
-          ["Published", activeBulletins],
-          ["Drafts", draftBulletins],
-          ["Critical", criticalBulletins],
-        ].map(([label, value]) => (
-          <article key={String(label)} className="rounded-xl border border-slate-800 bg-[#111117] p-4">
+        {(
+          [
+            ["Total bulletins", bulletins.length],
+            ["Published", activeBulletins],
+            ["Drafts", draftBulletins],
+            ["Critical", criticalBulletins],
+          ] as [string, number][]
+        ).map(([label, value]) => (
+          <article key={label} className="rounded-xl border border-slate-800 bg-[#111117] p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
             <p className="mt-2 text-2xl font-bold text-[#F97316]">{Number(value).toLocaleString()}</p>
           </article>
         ))}
       </section>
 
+      {/* Direct user comms — email & SMS tabs */}
+      <UserBroadcastClient
+        roleCounts={roleCountMap}
+        totalUsers={totalUsers}
+        hasPhoneColumn={hasPhoneColumn}
+        sendEmail={sendEmailBroadcast}
+        sendSms={sendSmsBroadcast}
+      />
+
+      {/* Health bulletin composer + list */}
       <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
         <form action={publishBulletin} className="rounded-xl border border-slate-800 bg-[#111117] p-4">
           <div className="flex items-center gap-2">
             <Megaphone className="h-4 w-4 text-[#E8B84B]" />
-            <h2 className="text-sm font-semibold">Bulletin Composer</h2>
+            <h2 className="text-sm font-semibold">Health Bulletin Composer</h2>
           </div>
           <div className="mt-4 space-y-3">
             <label className="block text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -141,7 +176,7 @@ export default async function PlatformBroadcastsPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 p-4">
             <div>
               <h2 className="text-sm font-semibold">Bulletins List</h2>
-              <p className="mt-1 text-xs text-slate-500">Drafts, active bulletins, expired notices, and estimated reach.</p>
+              <p className="mt-1 text-xs text-slate-500">Active bulletins, drafts, and expired notices.</p>
             </div>
             <Radio className="h-4 w-4 text-[#E8B84B]" />
           </div>
@@ -159,8 +194,8 @@ export default async function PlatformBroadcastsPage() {
               </thead>
               <tbody className="divide-y divide-slate-800">
                 {bulletins.map((bulletin) => (
-                  <tr key={bulletin.id ?? bulletin.title ?? crypto.randomUUID()}>
-                    <td className="px-4 py-3 font-medium text-slate-100">{bulletin.title ?? "Untitled bulletin"}</td>
+                  <tr key={bulletin.id ?? bulletin.title}>
+                    <td className="px-4 py-3 font-medium text-slate-100">{bulletin.title ?? "Untitled"}</td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full border px-2 py-0.5 text-xs ${severityClass(bulletin.severity)}`}>
                         {bulletin.severity ?? "info"}
@@ -172,9 +207,11 @@ export default async function PlatformBroadcastsPage() {
                     <td className="px-4 py-3 text-slate-300">{bulletin.status ?? "draft"}</td>
                   </tr>
                 ))}
-                {bulletins.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No health bulletins found.</td></tr>
-                ) : null}
+                {bulletins.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-slate-500">No health bulletins yet.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

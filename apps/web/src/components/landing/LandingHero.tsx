@@ -68,7 +68,7 @@ export function LandingHero() {
             initial={reduceMotion ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45 }}
-            className="landing-eyebrow mb-6"
+            className="landing-eyebrow shimmer-sweep mb-6"
           >
             Health management platform · Kampala, Uganda
           </motion.p>
@@ -80,7 +80,7 @@ export function LandingHero() {
             className="landing-hero-title mb-6"
           >
             Unified records for{' '}
-            <span className="landing-accent-text">hospitals</span>, pharmacy operations, and patient
+            <span className="shimmer-text">hospitals</span>, pharmacy&nbsp;operations,&nbsp;and patient
             access.
           </motion.h1>
 
@@ -104,7 +104,7 @@ export function LandingHero() {
               href="https://demo.synapseos.tech"
               target="_blank"
               rel="noopener noreferrer"
-              className="landing-btn-primary inline-flex items-center gap-2 px-6 py-3.5"
+              className="landing-btn-primary glow-ring inline-flex items-center gap-2 px-6 py-3.5"
             >
               Open live demo
               <ArrowRight className="h-4 w-4" />

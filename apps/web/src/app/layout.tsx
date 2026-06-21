@@ -12,6 +12,15 @@ export const metadata: Metadata = {
     "Synapse OS is an AI-powered Health Management Information System built in Uganda. Every department. Every workflow. Every patient step documented, coded, and AI-assisted.",
   keywords: ["HMIS", "health information system", "Uganda", "Africa", "AI diagnosis", "telemedicine"],
   authors: [{ name: "Synapse Health Technologies Ltd" }],
+  robots: {
+    index: true,
+    follow: true,
+    nocache: false,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
   openGraph: {
     type: "website",
     locale: "en_UG",
@@ -25,6 +34,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Anti-AI-scraping */}
+        <meta name="robots" content="noai, noimageai" />
         {/* FOUC prevention — sets data-theme before first paint */}
         <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('synapse-theme');if(!t)t=window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark';document.documentElement.setAttribute('data-theme',t)})()` }} />
       </head>

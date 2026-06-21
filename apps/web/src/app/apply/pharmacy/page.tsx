@@ -46,7 +46,7 @@ export default function ApplyPharmacyPage() {
       if (!res.ok) throw new Error('Submission failed')
       window.location.href = '/apply/thank-you'
     } catch {
-      setError('Something went wrong. Email hello@synapseos.tech')
+      setError('Something went wrong. Please try again or visit our contact page.')
     } finally {
       setLoading(false)
     }

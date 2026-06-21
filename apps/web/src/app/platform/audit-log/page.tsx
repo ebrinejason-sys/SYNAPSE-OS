@@ -1,23 +1,19 @@
 export const dynamic = "force-dynamic";
 
-import { Download, FileSearch, LockKeyhole, Search } from "lucide-react";
+import { FileSearch, LockKeyhole, Search } from "lucide-react";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
 import { formatDateTime, safeRows } from "../_lib/platform-data";
 
 type AuditRow = {
   id?: string;
   action?: string | null;
-  event?: string | null;
-  entity_type?: string | null;
-  resource_type?: string | null;
-  entity_id?: string | null;
-  resource_id?: string | null;
-  actor_id?: string | null;
+  table_name?: string | null;
+  record_id?: string | null;
+  user_id?: string | null;
+  user_role?: string | null;
   tenant_id?: string | null;
-  ip_address?: string | null;
-  user_agent?: string | null;
-  metadata?: Record<string, unknown> | null;
-  changes?: Record<string, unknown> | null;
+  old_value?: Record<string, unknown> | null;
+  new_value?: Record<string, unknown> | null;
   created_at?: string | null;
 };
 
@@ -44,13 +40,14 @@ function categoryClass(action: string) {
 export default async function PlatformAuditLogPage() {
   await requirePlatformAdmin();
 
+  // Primary table is audit_log; fall back to audit_logs if the primary is empty
   let logs = await safeRows<AuditRow>(
-    "audit_logs",
-    "id, action, entity_type, entity_id, actor_id, tenant_id, ip_address, user_agent, metadata, changes, created_at",
+    "audit_log",
+    "id, action, table_name, record_id, user_id, user_role, tenant_id, old_value, new_value, created_at",
     { orderBy: "created_at", limit: 120 }
   );
   if (logs.length === 0) {
-    logs = await safeRows<AuditRow>("audit_log", "id, action, entity_type, entity_id, actor_id, tenant_id, ip_address, user_agent, metadata, changes, created_at", {
+    logs = await safeRows<AuditRow>("audit_logs", "id, action, table_name, record_id, user_id, user_role, tenant_id, old_value, new_value, created_at", {
       orderBy: "created_at",
       limit: 120,
     });
@@ -63,7 +60,7 @@ export default async function PlatformAuditLogPage() {
 
   const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
   const tenantMap = new Map(tenants.map((tenant) => [tenant.id, tenant]));
-  const criticalEvents = logs.filter((log) => String(log.action ?? log.event ?? "").match(/delete|suspend|impersonat|failed/i)).length;
+  const criticalEvents = logs.filter((log) => String(log.action ?? "").match(/delete|suspend|impersonat|failed/i)).length;
 
   return (
     <div className="space-y-6">
@@ -75,10 +72,9 @@ export default async function PlatformAuditLogPage() {
             Immutable platform activity for auth, clinical, pharmacy, billing, admin, support, and system events.
           </p>
         </div>
-        <button type="button" className="inline-flex items-center gap-2 rounded-xl border border-[#E8B84B]/30 bg-[#E8B84B]/10 px-4 py-2 text-sm font-semibold text-[#E8B84B]">
-          <Download className="h-4 w-4" />
+        <span className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-500" title="CSV export — coming soon">
           Export CSV
-        </button>
+        </span>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -139,41 +135,38 @@ export default async function PlatformAuditLogPage() {
                   <th className="px-4 py-3">Timestamp</th>
                   <th className="px-4 py-3">Actor</th>
                   <th className="px-4 py-3">Action</th>
-                  <th className="px-4 py-3">Resource</th>
+                  <th className="px-4 py-3">Table · Record</th>
                   <th className="px-4 py-3">Facility</th>
-                  <th className="px-4 py-3">IP / Agent</th>
+                  <th className="px-4 py-3">Role</th>
                   <th className="px-4 py-3">Changes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
                 {logs.map((log) => {
-                  const action = String(log.action ?? log.event ?? "system.event");
-                  const actor = profileMap.get(log.actor_id ?? "");
+                  const action = String(log.action ?? "system.event");
+                  const actor = profileMap.get(log.user_id ?? "");
                   const tenant = tenantMap.get(log.tenant_id ?? "");
                   return (
                     <tr key={log.id ?? `${action}:${log.created_at}`} className="align-top">
                       <td className="whitespace-nowrap px-4 py-3 text-slate-500">{formatDateTime(log.created_at)}</td>
                       <td className="px-4 py-3">
                         <p className="font-medium text-slate-100">{actor?.full_name ?? actor?.email ?? "System"}</p>
-                        <p className="mt-1 text-xs text-slate-500">{actor?.role ?? log.actor_id?.slice(0, 8) ?? "system"}</p>
+                        <p className="mt-1 text-xs text-slate-500">{actor?.email ?? log.user_id?.slice(0, 8) ?? "system"}</p>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`rounded-full border px-2 py-0.5 text-xs ${categoryClass(action)}`}>{action}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-slate-300">{log.entity_type ?? log.resource_type ?? "resource"}</p>
-                        <p className="mt-1 font-mono text-xs text-slate-500">{log.entity_id ?? log.resource_id ?? "n/a"}</p>
+                        <p className="text-slate-300">{log.table_name ?? "—"}</p>
+                        <p className="mt-1 font-mono text-xs text-slate-500">{log.record_id?.slice(0, 12) ?? "n/a"}</p>
                       </td>
                       <td className="px-4 py-3 text-slate-400">{tenant?.name ?? "Platform"}</td>
-                      <td className="px-4 py-3">
-                        <p className="font-mono text-xs text-slate-400">{log.ip_address ?? "not captured"}</p>
-                        <p className="mt-1 max-w-52 truncate text-xs text-slate-500">{log.user_agent ?? "agent not captured"}</p>
-                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-400">{log.user_role ?? actor?.role ?? "—"}</td>
                       <td className="px-4 py-3">
                         <details>
                           <summary className="cursor-pointer text-xs text-[#E8B84B]">JSON diff</summary>
                           <pre className="mt-2 max-h-40 max-w-80 overflow-auto rounded-lg border border-slate-800 bg-[#07070A] p-2 text-xs text-slate-400">
-                            {JSON.stringify(log.changes ?? log.metadata ?? {}, null, 2)}
+                            {JSON.stringify({ old: log.old_value ?? null, new: log.new_value ?? null }, null, 2)}
                           </pre>
                         </details>
                       </td>

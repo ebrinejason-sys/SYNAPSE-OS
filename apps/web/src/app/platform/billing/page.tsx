@@ -245,9 +245,9 @@ export default async function PlatformBillingPage() {
               <h2 className="text-sm font-semibold">Subscriptions</h2>
               <p className="mt-1 text-xs text-slate-500">Invoices, manual payments, plan changes, and outstanding balances.</p>
             </div>
-            <button type="button" className="rounded-xl border border-[#E8B84B]/30 bg-[#E8B84B]/10 px-3 py-2 text-xs font-semibold text-[#E8B84B]">
+            <span className="cursor-not-allowed rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-500" title="CSV export — coming soon">
               Export billing CSV
-            </button>
+            </span>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -402,6 +402,97 @@ export default async function PlatformBillingPage() {
           </div>
         </section>
       ) : null}
+
+      {/* ── Revenue streams overview ── */}
+      <section className="rounded-xl border border-slate-800 bg-[#111117] p-5">
+        <h2 className="text-sm font-semibold">Revenue streams</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          All active revenue mechanisms for Synapse OS. Expand each stream as the platform scales.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            {
+              stream: "Pharmacy subscriptions",
+              model: "UGX 250K / 750K / 1.5M per month",
+              status: "Live — Flutterwave webhook active",
+              note: "Primary revenue. 3 tiers: Starter · Growth · Multi-Branch.",
+            },
+            {
+              stream: "Transaction fee (0.5%)",
+              model: "0.5% on POS volume > UGX 3.7M/month",
+              status: "Passive — implement monthly cron aggregate",
+              note: "Auto-billed at month end. No per-pharmacy setup needed. Requires monthly POS aggregate cron job writing to subscription_payments.",
+            },
+            {
+              stream: "Hospital HMIS subscriptions",
+              model: "Custom quote — contact sales",
+              status: "Manual invoicing via platform billing",
+              note: "Track via facility_subscriptions. Use Mark paid action above.",
+            },
+            {
+              stream: "SMS credits",
+              model: "UGX 18,500 per 500 credits (~$5)",
+              status: "UI stub — wire to Flutterwave + AT",
+              note: "2× markup on Africa's Talking bulk SMS rate. Requires tenants.sms_credits column (migration).",
+            },
+          ].map(({ stream, model, status, note }) => (
+            <div key={stream} className="rounded-lg border border-slate-800 bg-[#0A0A0F] p-4">
+              <p className="text-xs font-bold text-[#E8B84B]">{stream}</p>
+              <p className="mt-1 font-mono text-xs text-slate-300">{model}</p>
+              <p className="mt-2 text-xs text-slate-500">{status}</p>
+              <p className="mt-1 text-xs text-slate-600">{note}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Hospital HMIS pricing reference ── */}
+      <section className="rounded-xl border border-slate-800 bg-[#111117] p-5">
+        <h2 className="text-sm font-semibold">Hospital HMIS pricing reference</h2>
+        <p className="mt-1 text-xs text-slate-500 mb-4">
+          Reference tiers for sales quoting. Actual invoices are created manually via the Subscriptions table above.
+          Contact{" "}
+          <a href="mailto:sales@synapseos.tech" className="text-[#E8B84B] hover:underline">
+            sales@synapseos.tech
+          </a>{" "}
+          to onboard a hospital.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[
+            {
+              name: "Clinic / Dispensary",
+              monthly: "UGX 500,000",
+              usdRef: "~$135",
+              includes: ["Up to 20 beds", "OPD + pharmacy", "Basic billing", "2 admin accounts"],
+            },
+            {
+              name: "District Hospital",
+              monthly: "UGX 1,500,000",
+              usdRef: "~$405",
+              includes: ["Up to 200 beds", "Full HMIS modules", "Lab + radiology", "Insurance billing", "10 accounts"],
+            },
+            {
+              name: "Referral / Regional",
+              monthly: "Custom",
+              usdRef: "Contact sales",
+              includes: ["Unlimited beds", "All modules", "API access", "Dedicated support", "SLA guarantee"],
+            },
+          ].map(({ name, monthly, usdRef, includes }) => (
+            <div key={name} className="rounded-lg border border-slate-700 bg-[#0A0A0F] p-4">
+              <p className="font-semibold text-sm">{name}</p>
+              <p className="mt-1 font-mono text-lg font-bold text-[#F97316]">{monthly}</p>
+              <p className="text-xs text-slate-500">{usdRef} per month</p>
+              <ul className="mt-3 space-y-1">
+                {includes.map((i) => (
+                  <li key={i} className="text-xs text-slate-400">
+                    · {i}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

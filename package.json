@@ -4,7 +4,8 @@
   "type": "module",
   "packageManager": "npm@10.9.7",
   "workspaces": [
-    "apps/*",
+    "apps/web",
+    "apps/pharmacy",
     "packages/*"
   ],
   "scripts": {
@@ -28,7 +29,8 @@
     "vercel:build": "vercel build",
     "vercel:deploy": "vercel deploy --prebuilt",
     "vercel:sync": "node scripts/sync-vercel-projects.mjs",
-    "seed:admin-password": "tsx scripts/seed-admin-password.ts"
+    "seed:admin-password": "tsx scripts/seed-admin-password.ts",
+    "postinstall": "node scripts/patch-expo-metro-file-store.mjs"
   },
   "dependencies": {
     "react-router-dom": "^7.0.0",
@@ -42,5 +44,13 @@
     "vite": "^6.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "@tailwindcss/vite": "^4.0.0"
+  },
+  "overrides": {
+    "expo": "~52.0.46",
+    "react-native": "0.76.7",
+    "metro": "0.81.5",
+    "metro-cache": "0.81.5",
+    "metro-config": "0.81.5",
+    "metro-transform-worker": "0.81.5"
   }
 }

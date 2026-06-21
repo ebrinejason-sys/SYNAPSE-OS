@@ -27,10 +27,10 @@ type HighRiskProfile = {
 type SecurityEvent = {
   id: string;
   action: string | null;
-  entity_type: string | null;
-  actor_id: string | null;
+  table_name: string | null;
+  user_id: string | null;
   tenant_id: string | null;
-  metadata: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
   created_at: string | null;
 };
 
@@ -89,7 +89,7 @@ export default async function SecurityPage() {
       .limit(50),
 
     db.from("audit_log")
-      .select("id, action, entity_type, actor_id, tenant_id, metadata, created_at")
+      .select("id, action, table_name, user_id, tenant_id, new_value, created_at")
       .or(SECURITY_ACTIONS.map((a) => `action.eq.${a}`).join(","))
       .order("created_at", { ascending: false })
       .limit(100),
@@ -100,7 +100,7 @@ export default async function SecurityPage() {
   const events = safeRows<SecurityEvent>(eventsRaw);
 
   // Fetch actor emails for events
-  const actorIds = [...new Set(events.map((e) => e.actor_id).filter(Boolean))] as string[];
+  const actorIds = [...new Set(events.map((e) => e.user_id).filter(Boolean))] as string[];
   const { data: actorsRaw } = actorIds.length > 0
     ? await db.from("profiles").select("id, email, full_name").in("id", actorIds)
     : { data: [] };
@@ -278,7 +278,7 @@ export default async function SecurityPage() {
               </thead>
               <tbody>
                 {events.map((e) => {
-                  const actor = e.actor_id ? actorMap.get(e.actor_id) : null;
+                  const actor = e.user_id ? actorMap.get(e.user_id) : null;
                   const action = e.action ?? "unknown";
                   return (
                     <tr key={e.id} className="border-b border-slate-800/50 hover:bg-slate-800/20">
@@ -298,13 +298,13 @@ export default async function SecurityPage() {
                         )}
                       </td>
                       <td className="px-5 py-3 text-xs text-slate-500">
-                        {e.metadata && Object.keys(e.metadata).length > 0
-                          ? Object.entries(e.metadata)
+                        {e.new_value && Object.keys(e.new_value).length > 0
+                          ? Object.entries(e.new_value)
                               .filter(([, v]) => v !== null && v !== undefined)
                               .slice(0, 2)
                               .map(([k, v]) => `${k}: ${String(v)}`)
                               .join(" · ")
-                          : "—"}
+                          : e.table_name ?? "—"}
                       </td>
                       <td className="px-5 py-3 text-xs text-slate-500">
                         {e.created_at ? formatDateTime(e.created_at) : "—"}
