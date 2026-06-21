@@ -142,6 +142,12 @@ export default function LoginPage() {
               >
                 {isLoading ? "Checking…" : "Continue"}
               </button>
+
+              <div className="text-center pt-1">
+                <a href="/forgot-password" className="text-xs text-zinc-600 hover:text-zinc-300">
+                  Forgot password?
+                </a>
+              </div>
             </form>
           )}
 

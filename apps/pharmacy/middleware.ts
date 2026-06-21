@@ -331,8 +331,10 @@ export async function middleware(request: NextRequest) {
   const isOnboardingPage = pathname.startsWith('/onboarding')
   const isInvitePage = pathname.startsWith('/invite')
   const isChangePasswordPage = pathname.startsWith('/change-password')
+  const isForgotPasswordPage = pathname.startsWith('/forgot-password')
+  const isResetPasswordPage = pathname.startsWith('/reset-password')
 
-  const isPublicPath = isAuthPage || isPublicApi || isInvitePage || isOnboardingPage || isChangePasswordPage
+  const isPublicPath = isAuthPage || isPublicApi || isInvitePage || isOnboardingPage || isChangePasswordPage || isForgotPasswordPage || isResetPasswordPage
 
   if (!isAuthenticated && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url))
