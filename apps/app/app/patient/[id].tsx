@@ -1,11 +1,20 @@
 import { useEffect, useState } from 'react'
 import {
-  ActivityIndicator, ScrollView, StyleSheet, Text,
-  TouchableOpacity, View,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import { Avatar } from '@/components/ui/Avatar'
+import { Button } from '@/components/ui/Button'
+import { Card, SectionHeader } from '@/components/ui/Card'
+import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { useAuth } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
+import { colors, radii, spacing, typography } from '@/lib/theme'
 
 interface PatientDetail {
   id: string
@@ -39,9 +48,9 @@ interface Vitals {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  open: '#F97316',
-  in_progress: '#E8B84B',
-  completed: '#22C55E',
+  open: colors.primary,
+  in_progress: colors.gold,
+  completed: colors.success,
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -78,7 +87,7 @@ export default function PatientDetailScreen() {
   if (loading) {
     return (
       <View style={styles.centerScreen}>
-        <ActivityIndicator color="#F97316" size="large" />
+        <LoadingBlock message="Loading patient…" />
       </View>
     )
   }
@@ -87,9 +96,7 @@ export default function PatientDetailScreen() {
     return (
       <View style={styles.centerScreen}>
         <Text style={styles.errorText}>{error ?? 'Patient not found'}</Text>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>Go Back</Text>
-        </TouchableOpacity>
+        <Button label="Go back" onPress={() => router.back()} variant="ghost" />
       </View>
     )
   }
@@ -99,16 +106,13 @@ export default function PatientDetailScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Back */}
-      <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
-        <Text style={styles.backArrow}>‹</Text>
+      <Pressable style={styles.backRow} onPress={() => router.back()}>
+        <Ionicons name="chevron-back" size={20} color={colors.primary} />
         <Text style={styles.backLabel}>Patients</Text>
-      </TouchableOpacity>
+      </Pressable>
 
-      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerAvatar}>
-          <Text style={styles.headerAvatarText}>{patient.fullName[0]?.toUpperCase() ?? '?'}</Text>
-        </View>
+        <Avatar label={patient.fullName[0]?.toUpperCase() ?? '?'} size={56} tone="neutral" />
         <View style={{ flex: 1 }}>
           <Text style={styles.headerName}>{patient.fullName}</Text>
           <Text style={styles.headerSub}>
@@ -118,30 +122,28 @@ export default function PatientDetailScreen() {
         </View>
       </View>
 
-      {/* Demographics */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Demographics</Text>
-        <View style={styles.card}>
+        <SectionHeader title="Demographics" />
+        <Card padded={false}>
           <InfoRow label="Date of Birth" value={patient.dateOfBirth ?? '—'} />
-          <Divider />
+          <DividerLine />
           <InfoRow label="Sex" value={patient.sex ?? '—'} />
-          <Divider />
+          <DividerLine />
           <InfoRow label="Blood Group" value={patient.bloodGroup ?? '—'} />
-          <Divider />
+          <DividerLine />
           <InfoRow label="Phone" value={patient.phone ?? '—'} />
           {patient.allergies?.length ? (
             <>
-              <Divider />
+              <DividerLine />
               <InfoRow label="Allergies" value={patient.allergies.join(', ')} />
             </>
           ) : null}
-        </View>
+        </Card>
       </View>
 
-      {/* Vitals */}
       {vitals ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Latest Vitals</Text>
+          <SectionHeader title="Latest vitals" />
           <View style={styles.vitalsGrid}>
             <VitalCard label="BP" value={vitals.bpSystolic && vitals.bpDiastolic ? `${vitals.bpSystolic}/${vitals.bpDiastolic}` : '—'} unit="mmHg" />
             <VitalCard label="HR" value={vitals.heartRate ? String(vitals.heartRate) : '—'} unit="bpm" />
@@ -152,9 +154,8 @@ export default function PatientDetailScreen() {
         </View>
       ) : null}
 
-      {/* Encounters */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recent Encounters</Text>
+        <SectionHeader title="Recent encounters" />
         {encounters.length === 0 ? (
           <Text style={styles.noData}>No encounters on record</Text>
         ) : (
@@ -191,8 +192,8 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Divider() {
-  return <View style={{ height: 1, backgroundColor: '#1C1C24' }} />
+function DividerLine() {
+  return <View style={{ height: 1, backgroundColor: colors.borderSubtle }} />
 }
 
 function VitalCard({ label, value, unit }: { label: string; value: string; unit: string }) {
@@ -215,61 +216,134 @@ function formatDate(iso: string) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#07070A' },
-  content: { padding: 20, paddingBottom: 40 },
-  centerScreen: { flex: 1, backgroundColor: '#07070A', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  errorText: { color: '#F87171', fontSize: 14, marginBottom: 16 },
-
-  backRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  backArrow: { color: '#F97316', fontSize: 26, marginRight: 4, lineHeight: 28 },
-  backLabel: { color: '#F97316', fontSize: 15, fontWeight: '600' },
-  backBtn: {
-    backgroundColor: '#111117', borderRadius: 10,
-    borderWidth: 1, borderColor: '#27272A',
-    paddingHorizontal: 20, paddingVertical: 10,
+  container: { flex: 1, backgroundColor: colors.bg },
+  content: { padding: spacing.xl, paddingBottom: spacing.xxxl * 2 },
+  centerScreen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xxl,
+    gap: spacing.lg,
   },
-  backBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-
-  header: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 28 },
-  headerAvatar: {
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: '#1C1C24',
-    justifyContent: 'center', alignItems: 'center',
+  errorText: {
+    ...typography.body,
+    color: colors.error,
+    fontFamily: 'DMSans_400Regular',
+    textAlign: 'center',
   },
-  headerAvatarText: { color: '#F97316', fontSize: 22, fontWeight: '800' },
-  headerName: { color: '#fff', fontSize: 20, fontWeight: '700' },
-  headerSub: { color: '#71717A', fontSize: 13, marginTop: 3 },
 
-  section: { marginBottom: 28 },
-  sectionTitle: { color: '#A1A1AA', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 },
+  backRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xl, gap: 4 },
+  backLabel: {
+    ...typography.bodyMedium,
+    color: colors.primary,
+    fontFamily: 'DMSans_500Medium',
+  },
 
-  card: { backgroundColor: '#111117', borderRadius: 14, borderWidth: 1, borderColor: '#27272A', overflow: 'hidden' },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14 },
-  infoLabel: { color: '#71717A', fontSize: 13 },
-  infoValue: { color: '#fff', fontSize: 13, fontWeight: '500', textAlign: 'right', flex: 1, marginLeft: 16 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, marginBottom: spacing.xxxl },
+  headerName: {
+    ...typography.title,
+    color: colors.text,
+    fontFamily: 'DMSans_700Bold',
+    fontSize: 20,
+  },
+  headerSub: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_400Regular',
+    marginTop: 3,
+  },
 
-  vitalsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  section: { marginBottom: spacing.xxxl },
+
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.lg },
+  infoLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_400Regular',
+  },
+  infoValue: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontFamily: 'DMSans_500Medium',
+    textAlign: 'right',
+    flex: 1,
+    marginLeft: spacing.lg,
+  },
+
+  vitalsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   vitalCard: {
-    flex: 1, minWidth: '44%', backgroundColor: '#111117',
-    borderRadius: 12, borderWidth: 1, borderColor: '#27272A',
-    padding: 14, alignItems: 'center',
+    flex: 1,
+    minWidth: '44%',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    alignItems: 'center',
   },
-  vitalLabel: { color: '#71717A', fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 },
-  vitalValue: { color: '#fff', fontSize: 20, fontWeight: '800' },
-  vitalUnit: { color: '#52525B', fontSize: 10, marginTop: 2 },
-  vitalsTime: { color: '#3F3F46', fontSize: 11, marginTop: 8, textAlign: 'right' },
+  vitalLabel: {
+    ...typography.label,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_500Medium',
+    marginBottom: 6,
+  },
+  vitalValue: {
+    ...typography.stat,
+    color: colors.text,
+    fontFamily: 'DMSans_700Bold',
+    fontSize: 20,
+  },
+  vitalUnit: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontFamily: 'DMSans_400Regular',
+    marginTop: 2,
+  },
+  vitalsTime: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontFamily: 'DMSans_400Regular',
+    marginTop: spacing.sm,
+    textAlign: 'right',
+  },
 
   encounterCard: {
-    backgroundColor: '#111117', borderRadius: 12,
-    borderWidth: 1, borderColor: '#27272A',
-    padding: 14, marginBottom: 10,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
   },
-  encounterHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  encounterDate: { color: '#71717A', fontSize: 12 },
-  statusPill: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2 },
-  statusText: { fontSize: 10, fontWeight: '600' },
-  encounterComplaint: { color: '#fff', fontSize: 13, marginBottom: 4 },
-  encounterDx: { color: '#22C55E', fontSize: 12 },
+  encounterHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  encounterDate: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_400Regular',
+  },
+  statusPill: { borderRadius: radii.full, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2 },
+  statusText: { fontSize: 10, fontWeight: '600', fontFamily: 'DMSans_700Bold' },
+  encounterComplaint: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontFamily: 'DMSans_500Medium',
+    marginBottom: 4,
+  },
+  encounterDx: {
+    ...typography.caption,
+    color: colors.success,
+    fontFamily: 'DMSans_400Regular',
+  },
 
-  noData: { color: '#52525B', fontSize: 13 },
+  noData: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontFamily: 'DMSans_400Regular',
+  },
 })

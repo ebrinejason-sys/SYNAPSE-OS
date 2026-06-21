@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#07070A"
+      "backgroundColor": "#050508"
     },
     "ios": {
       "supportsTablet": false,
@@ -22,16 +22,9 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#07070A"
+        "backgroundColor": "#050508"
       },
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.BLUETOOTH",
-        "android.permission.BLUETOOTH_ADMIN",
-        "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.BLUETOOTH_SCAN",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.RECORD_AUDIO",
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE"
       ]
@@ -41,27 +34,29 @@
     },
     "plugins": [
       "expo-router",
-      "expo-camera",
-      "expo-notifications",
       [
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 34,
-            "targetSdkVersion": 34,
-            "buildToolsVersion": "34.0.0"
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
           }
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "extra": {
       "supabaseUrl": "https://qfqakzmjatszisuqjwon.supabase.co",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmcWFrem1qYXRzemlzdXFqd29uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NTQzODksImV4cCI6MjA5MTEzMDM4OX0.iFCseUE1uVvCuz_wP37agvzulXya17aGG9s49Lnz92o",
-      "webAppUrl": "https://synapseos.tech",
+      "webAppUrl": "https://www.synapseos.tech",
+      "router": {
+        "origin": false
+      },
       "eas": {
-        "projectId": "synapse-os-mobile"
+        "projectId": "547aa81a-9d93-447e-afc3-16f10eee6cb9"
       }
     },
-    "owner": "synapseos"
+    "owner": "ebrinejason"
   }
 }

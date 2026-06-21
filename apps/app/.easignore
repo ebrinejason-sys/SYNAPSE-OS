@@ -1,0 +1,12 @@
+# Keep the EAS archive focused on the mobile app (avoid monorepo root node_modules).
+../web/**
+../pharmacy/**
+../../packages/**
+../../node_modules/**
+../../src/**
+../../public/**
+../../docs/**
+../../supabase/**
+../../.turbo/**
+../../dist/**
+../../.vercel/**

@@ -1,17 +1,23 @@
 import { useState } from 'react'
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
+import { BrandWordmark } from '@/components/BrandWordmark'
+import { Screen } from '@/components/ui/Screen'
+import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { TextField } from '@/components/ui/TextField'
 import { useAuth } from '@/lib/auth'
+import { colors, radii, spacing, typography } from '@/lib/theme'
 
 type Step = 'credentials' | 'otp'
 
@@ -24,6 +30,7 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null)
   const { login, verifyLoginOtp } = useAuth()
   const router = useRouter()
+  const insets = useSafeAreaInsets()
 
   const handleCredentials = async () => {
     if (!email.trim() || !password) {
@@ -51,7 +58,7 @@ export default function LoginScreen() {
     setError(null)
     try {
       await verifyLoginOtp(email.trim().toLowerCase(), otp)
-      router.replace('/')
+      router.replace('/(main)/home')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Verification failed.')
     } finally {
@@ -60,157 +67,156 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+    <Screen glow>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.logoSection}>
-          <View style={styles.logoMark}>
-            <Text style={styles.logoLetter}>S</Text>
-          </View>
-          <Text style={styles.logoText}>
-            Synapse <Text style={styles.logoAccent}>Health</Text>
-          </Text>
-          <Text style={styles.logoSub}>
-            {step === 'credentials' ? 'Sign in to continue' : 'Enter verification code'}
-          </Text>
-        </View>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scroll,
+            { paddingTop: insets.top + spacing.xxxl, paddingBottom: insets.bottom + spacing.xxl },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <BrandWordmark
+            logoSize="xl"
+            subtitle={step === 'credentials' ? 'Sign in to your workspace' : 'Enter verification code'}
+          />
 
-        <View style={styles.card}>
-          {step === 'credentials' ? (
-            <>
-              <View style={styles.field}>
-                <Text style={styles.label}>Email address</Text>
-                <TextInput
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="you@hospital.org"
-                  placeholderTextColor="#52525B"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  editable={!isLoading}
-                  style={styles.input}
-                />
-              </View>
-              <View style={styles.field}>
-                <Text style={styles.label}>Password</Text>
-                <TextInput
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="••••••••"
-                  placeholderTextColor="#52525B"
-                  secureTextEntry
-                  autoComplete="password"
-                  editable={!isLoading}
-                  style={styles.input}
-                />
-              </View>
-            </>
-          ) : (
-            <View style={styles.field}>
-              <Text style={styles.label}>Email code</Text>
-              <TextInput
-                value={otp}
-                onChangeText={(v) => setOtp(v.replace(/\D/g, '').slice(0, 6))}
-                placeholder="000000"
-                placeholderTextColor="#52525B"
-                keyboardType="number-pad"
-                maxLength={6}
-                autoFocus
-                editable={!isLoading}
-                style={[styles.input, styles.otpInput]}
+          <Card style={styles.formCard} padded={false}>
+            <View style={styles.formInner}>
+              {step === 'credentials' ? (
+                <>
+                  <TextField
+                    label="Email address"
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="you@hospital.org"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    editable={!isLoading}
+                  />
+                  <TextField
+                    label="Password"
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="••••••••"
+                    secureTextEntry
+                    autoComplete="password"
+                    editable={!isLoading}
+                  />
+                </>
+              ) : (
+                <View>
+                  <Text style={styles.otpLabel}>Email code</Text>
+                  <TextInput
+                    value={otp}
+                    onChangeText={(v) => setOtp(v.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="000000"
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    autoFocus
+                    editable={!isLoading}
+                    style={styles.otpInput}
+                  />
+                  <Text style={styles.otpHint}>Sent to {email}</Text>
+                </View>
+              )}
+
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              <Button
+                label={step === 'credentials' ? 'Continue' : 'Verify and sign in'}
+                onPress={step === 'credentials' ? handleCredentials : handleOtp}
+                loading={isLoading}
               />
-              <Text style={styles.hint}>Sent to {email}</Text>
+
+              {step === 'otp' ? (
+                <Pressable
+                  onPress={() => { setStep('credentials'); setOtp(''); setError(null) }}
+                  style={styles.backBtn}
+                >
+                  <Text style={styles.backText}>Back</Text>
+                </Pressable>
+              ) : null}
             </View>
-          )}
+          </Card>
 
-          {error ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
-
-          <TouchableOpacity
-            onPress={step === 'credentials' ? handleCredentials : handleOtp}
-            disabled={isLoading}
-            style={[styles.btn, isLoading && styles.btnDisabled]}
-            activeOpacity={0.85}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.btnText}>
-                {step === 'credentials' ? 'Continue' : 'Verify & Sign In'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {step === 'otp' ? (
-            <TouchableOpacity
-              onPress={() => { setStep('credentials'); setOtp(''); setError(null) }}
-              style={styles.linkBtn}
-            >
-              <Text style={styles.linkText}>Back</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <Text style={styles.footer}>Synapse Health Technologies</Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Screen>
   )
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#07070A' },
-  scroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
-  logoSection: { alignItems: 'center', marginBottom: 40 },
-  logoMark: {
-    width: 64, height: 64, borderRadius: 18,
-    backgroundColor: '#F97316',
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 16,
+  flex: { flex: 1 },
+  scroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xxl,
+    gap: spacing.xxxl,
   },
-  logoLetter: { color: '#fff', fontSize: 28, fontWeight: '900' },
-  logoText: { color: '#fff', fontSize: 22, fontWeight: '700' },
-  logoAccent: { color: '#E8B84B' },
-  logoSub: { color: '#71717A', fontSize: 13, marginTop: 4 },
-  card: {
-    backgroundColor: '#111117',
-    borderRadius: 20,
+  formCard: { marginTop: spacing.sm },
+  formInner: { padding: spacing.xxl },
+  otpLabel: {
+    ...typography.label,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_500Medium',
+    marginBottom: spacing.sm,
+  },
+  otpInput: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: '#27272A',
-    padding: 24,
+    borderColor: colors.border,
+    color: colors.text,
+    fontSize: 28,
+    fontFamily: 'DMSans_700Bold',
+    textAlign: 'center',
+    letterSpacing: 10,
+    paddingVertical: 16,
   },
-  field: { marginBottom: 16 },
-  label: {
-    color: '#A1A1AA', fontSize: 11, fontWeight: '600',
-    textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8,
+  otpHint: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontFamily: 'DMSans_400Regular',
+    marginTop: spacing.sm,
+    textAlign: 'center',
   },
-  input: {
-    backgroundColor: '#18181B', borderRadius: 12,
-    borderWidth: 1, borderColor: '#27272A',
-    color: '#fff', fontSize: 15, padding: 14,
-  },
-  otpInput: { textAlign: 'center', letterSpacing: 8, fontSize: 22, fontVariant: ['tabular-nums'] },
-  hint: { color: '#71717A', fontSize: 12, marginTop: 8, textAlign: 'center' },
   errorBox: {
-    backgroundColor: 'rgba(239,68,68,0.1)',
-    borderRadius: 10, padding: 12, marginBottom: 16,
-    borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
+    backgroundColor: colors.errorBg,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.errorBorder,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
   },
-  errorText: { color: '#F87171', fontSize: 13 },
-  btn: {
-    backgroundColor: '#F97316', borderRadius: 12,
-    height: 50, justifyContent: 'center', alignItems: 'center',
-    marginTop: 4,
+  errorText: {
+    ...typography.caption,
+    color: colors.error,
+    fontFamily: 'DMSans_400Regular',
+    textAlign: 'center',
   },
-  btnDisabled: { opacity: 0.65 },
-  btnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  linkBtn: { marginTop: 16, alignItems: 'center' },
-  linkText: { color: '#FB7E3C', fontSize: 14 },
+  backBtn: { marginTop: spacing.lg, alignItems: 'center' },
+  backText: {
+    ...typography.bodyMedium,
+    color: colors.primary,
+    fontFamily: 'DMSans_500Medium',
+  },
+  footer: {
+    textAlign: 'center',
+    color: colors.textMuted,
+    fontSize: 11,
+    fontFamily: 'DMSans_400Regular',
+    letterSpacing: 0.5,
+  },
 })

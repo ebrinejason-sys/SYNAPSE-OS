@@ -39,7 +39,24 @@ export interface DashboardResponse {
 }
 
 export function fetchDashboard(token: string | null): Promise<DashboardResponse> {
-  return apiRequest<DashboardResponse>('/api/mobile/dashboard', { token })
+  return apiRequest<unknown>('/api/mobile/dashboard', { token }).then((raw) => {
+    const data = raw as Partial<DashboardResponse>
+    if (!data || typeof data !== 'object' || !data.summary || !Array.isArray(data.summary.stats)) {
+      throw new Error('Dashboard data was incomplete. Pull down to refresh.')
+    }
+    return {
+      role: data.role ?? '',
+      dashboardKind: data.dashboardKind ?? 'generic',
+      tenantName: data.tenantName ?? '',
+      tenantSlug: data.tenantSlug ?? '',
+      facilityType: data.facilityType ?? '',
+      summary: {
+        stats: data.summary.stats,
+        list: data.summary.list ?? null,
+      },
+      quickActions: Array.isArray(data.quickActions) ? data.quickActions : [],
+    }
+  })
 }
 
 export const TONE_COLORS: Record<StatTone, string> = {

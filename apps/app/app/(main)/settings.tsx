@@ -1,19 +1,27 @@
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
+import { Avatar } from '@/components/ui/Avatar'
+import { Button } from '@/components/ui/Button'
+import { Card, Divider } from '@/components/ui/Card'
 import { useAuth } from '@/lib/auth'
+import { formatRole } from '@/lib/roles'
+import { colors, spacing, tabBarHeight, typography } from '@/lib/theme'
 
 export default function SettingsScreen() {
   const { user, logout } = useAuth()
   const router = useRouter()
+  const insets = useSafeAreaInsets()
+  const initial = (user?.fullName ?? user?.email ?? '?')[0]?.toUpperCase() ?? '?'
 
   const handleLogout = () => {
     Alert.alert(
-      'Sign Out',
+      'Sign out',
       'Are you sure you want to sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Sign Out',
+          text: 'Sign out',
           style: 'destructive',
           onPress: async () => {
             await logout()
@@ -24,39 +32,40 @@ export default function SettingsScreen() {
     )
   }
 
-  const initial = (user?.fullName ?? user?.email ?? '?')[0]?.toUpperCase() ?? '?'
-
   return (
-    <View style={styles.container}>
-      {/* Profile header */}
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={{
+        padding: spacing.xl,
+        paddingBottom: insets.bottom + tabBarHeight + spacing.lg,
+      }}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.profileRow}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initial}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.name}>{user?.fullName ?? 'Unknown User'}</Text>
+        <Avatar label={initial} size={64} />
+        <View style={styles.profileCopy}>
+          <Text style={styles.name}>{user?.fullName ?? 'Unknown user'}</Text>
           <Text style={styles.email}>{user?.email}</Text>
         </View>
       </View>
 
-      {/* Info card */}
-      <View style={styles.card}>
+      <Card padded={false}>
         <InfoRow label="Role" value={formatRole(user?.role ?? '')} />
         <Divider />
         <InfoRow label="Facility" value={user?.tenantName ?? '—'} />
         <Divider />
         <InfoRow label="Account type" value={user?.isAdmin ? 'Administrator' : 'Staff'} />
-      </View>
+      </Card>
 
-      <View style={{ flex: 1 }} />
-
-      {/* Sign out */}
-      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
-        <Text style={styles.logoutText}>Sign Out</Text>
-      </TouchableOpacity>
+      <Button
+        label="Sign out"
+        onPress={handleLogout}
+        variant="danger"
+        style={styles.logoutBtn}
+      />
 
       <Text style={styles.version}>Synapse Health Technologies</Text>
-    </View>
+    </ScrollView>
   )
 }
 
@@ -64,56 +73,57 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+      <Text style={styles.rowValue} numberOfLines={2}>{value}</Text>
     </View>
   )
 }
 
-function Divider() {
-  return <View style={{ height: 1, backgroundColor: '#1C1C24', marginHorizontal: 16 }} />
-}
-
-function formatRole(role: string) {
-  return role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#07070A', padding: 20 },
-
+  root: { flex: 1, backgroundColor: colors.bg },
   profileRow: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: 14, marginTop: 8, marginBottom: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+    marginBottom: spacing.xxxl,
+    marginTop: spacing.sm,
   },
-  avatar: {
-    width: 54, height: 54, borderRadius: 27,
-    backgroundColor: '#F97316',
-    justifyContent: 'center', alignItems: 'center',
+  profileCopy: { flex: 1 },
+  name: {
+    ...typography.heading,
+    color: colors.text,
+    fontFamily: 'DMSans_700Bold',
   },
-  avatarText: { color: '#fff', fontSize: 22, fontWeight: '800' },
-  name: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  email: { color: '#71717A', fontSize: 13, marginTop: 3 },
-
-  card: {
-    backgroundColor: '#111117', borderRadius: 16,
-    borderWidth: 1, borderColor: '#27272A', overflow: 'hidden',
+  email: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_400Regular',
+    marginTop: spacing.xs,
   },
   row: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.lg,
+    gap: spacing.lg,
   },
-  rowLabel: { color: '#A1A1AA', fontSize: 14 },
-  rowValue: { color: '#fff', fontSize: 14, fontWeight: '600' },
-
-  logoutBtn: {
-    backgroundColor: 'rgba(239,68,68,0.08)',
-    borderRadius: 14, borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.25)',
-    height: 52, justifyContent: 'center', alignItems: 'center',
-    marginBottom: 20,
+  rowLabel: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_400Regular',
   },
-  logoutText: { color: '#F87171', fontSize: 15, fontWeight: '700' },
-
+  rowValue: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontFamily: 'DMSans_500Medium',
+    textAlign: 'right',
+    flex: 1,
+  },
+  logoutBtn: { marginTop: spacing.xxxl },
   version: {
-    textAlign: 'center', color: '#27272A', fontSize: 11, marginBottom: 8,
+    textAlign: 'center',
+    color: colors.textMuted,
+    fontSize: 11,
+    fontFamily: 'DMSans_400Regular',
+    marginTop: spacing.xxl,
   },
 })

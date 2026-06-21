@@ -1,33 +1,45 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  ActivityIndicator, Linking, RefreshControl, ScrollView,
-  StyleSheet, Text, TouchableOpacity, View,
+  Linking,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import Constants from 'expo-constants'
+import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
+import { Card, SectionHeader } from '@/components/ui/Card'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { useAuth } from '@/lib/auth'
 import { fetchDashboard, TONE_COLORS, type DashboardResponse, type DashboardQuickAction } from '@/lib/dashboard'
 import { dashboardKindForRole, formatRole, type DashboardKind } from '@/lib/roles'
+import { colors, radii, spacing, tabBarHeight, typography } from '@/lib/theme'
 
 const WEB_APP_URL = (
-  (Constants.expoConfig?.extra?.webAppUrl as string | undefined) ?? 'https://synapseos.tech'
+  (Constants.expoConfig?.extra?.webAppUrl as string | undefined) ?? 'https://www.synapseos.tech'
 ).replace(/\/$/, '')
 
 const KIND_SUBTITLE: Record<DashboardKind, string> = {
   patient: 'Your health at a glance',
   clinician: 'Your clinical workspace',
-  nurse: 'Care tasks & vitals',
+  nurse: 'Care tasks and vitals',
   pharmacy: 'Pharmacy overview',
   lab: 'Laboratory workspace',
   reception: 'Front desk overview',
-  billing: 'Claims & billing',
+  billing: 'Claims and billing',
   admin: 'Facility overview',
   generic: 'Your dashboard',
 }
 
 export default function DashboardScreen() {
-  const { user, token, logout } = useAuth()
+  const { user, token } = useAuth()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const [data, setData] = useState<DashboardResponse | null>(null)
@@ -74,93 +86,99 @@ export default function DashboardScreen() {
   const stats = data?.summary.stats ?? []
   const listSection = data?.summary.list ?? null
   const quickActions = data?.quickActions ?? []
+  const bottomPad = insets.bottom + tabBarHeight + spacing.lg
 
   return (
     <ScrollView
       style={styles.root}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.lg, paddingBottom: bottomPad }]}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#F97316" />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
       }
+      showsVerticalScrollIndicator={false}
     >
-      {/* Header */}
       <View style={styles.headerRow}>
-        <View style={{ flex: 1 }}>
+        <View style={styles.headerCopy}>
           <Text style={styles.greeting}>
-            Good {timeOfDay()}{firstName ? `, ` : ''}
+            Good {timeOfDay()}
+            {firstName ? ', ' : ''}
             {firstName ? <Text style={styles.greetingName}>{firstName}</Text> : null}
           </Text>
           <Text style={styles.subtitle}>{KIND_SUBTITLE[kind]}</Text>
         </View>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{formatRole(user?.role)}</Text>
-        </View>
+        <Badge label={formatRole(user?.role)} tone="gold" />
       </View>
 
       {(data?.tenantName || user?.tenantName) ? (
-        <Text style={styles.tenant}>{data?.tenantName || user?.tenantName}</Text>
+        <View style={styles.tenantRow}>
+          <Ionicons name="business-outline" size={14} color={colors.teal} />
+          <Text style={styles.tenant}>{data?.tenantName || user?.tenantName}</Text>
+        </View>
       ) : null}
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color="#F97316" size="large" />
-        </View>
+        <LoadingBlock message="Loading your dashboard…" />
       ) : error ? (
-        <View style={styles.errorBox}>
+        <Card style={styles.errorCard}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); load() }}>
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
+          <Button
+            label="Try again"
+            onPress={() => { setLoading(true); load() }}
+            variant="ghost"
+            style={styles.retryBtn}
+          />
+        </Card>
       ) : (
         <>
-          {/* Stats grid */}
           {stats.length > 0 ? (
             <View style={styles.statsGrid}>
               {stats.map((s) => (
-                <View key={s.key} style={styles.statCard}>
-                  <Text style={[styles.statValue, { color: TONE_COLORS[s.tone] }]}>{s.value}</Text>
-                  <Text style={styles.statLabel}>{s.label}</Text>
+                <View key={s.key} style={styles.statWrap}>
+                  <View style={styles.statCard}>
+                    <Text style={[styles.statValue, { color: TONE_COLORS[s.tone] ?? colors.textMuted }]}>
+                      {s.value}
+                    </Text>
+                    <Text style={styles.statLabel} numberOfLines={2}>{s.label}</Text>
+                  </View>
                 </View>
               ))}
             </View>
           ) : null}
 
-          {/* Quick actions */}
           {quickActions.length > 0 ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Quick Actions</Text>
+              <SectionHeader title="Quick actions" />
               <View style={styles.actionsWrap}>
                 {quickActions.map((a) => (
-                  <TouchableOpacity
+                  <Pressable
                     key={a.key}
-                    style={styles.actionBtn}
-                    activeOpacity={0.8}
+                    style={({ pressed }) => [styles.actionBtn, pressed && styles.actionPressed]}
                     onPress={() => handleAction(a)}
                   >
-                    <Text style={styles.actionText}>{a.label}</Text>
-                    <Text style={styles.actionArrow}>
-                      {a.target.startsWith('web:') ? '↗' : '›'}
-                    </Text>
-                  </TouchableOpacity>
+                    <View style={styles.actionLeft}>
+                      <View style={styles.actionIcon}>
+                        <Ionicons
+                          name={a.target.startsWith('web:') ? 'open-outline' : 'arrow-forward'}
+                          size={16}
+                          color={colors.primary}
+                        />
+                      </View>
+                      <Text style={styles.actionText}>{a.label}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                  </Pressable>
                 ))}
               </View>
             </View>
           ) : null}
 
-          {/* List section */}
           {listSection && listSection.items.length > 0 ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{listSection.title}</Text>
+              <SectionHeader title={listSection.title} />
               {listSection.items.map((item) => (
                 <View key={item.id} style={styles.listCard}>
-                  <View
-                    style={[
-                      styles.listAccent,
-                      { backgroundColor: TONE_COLORS[item.tone ?? 'muted'] },
-                    ]}
-                  />
-                  <View style={{ flex: 1 }}>
+                  <View style={[styles.listAccent, { backgroundColor: TONE_COLORS[item.tone ?? 'muted'] }]} />
+                  <View style={styles.listBody}>
                     <Text style={styles.listTitle}>{item.title}</Text>
                     {item.subtitle ? (
                       <Text style={styles.listSubtitle} numberOfLines={2}>{item.subtitle}</Text>
@@ -174,14 +192,12 @@ export default function DashboardScreen() {
                 </View>
               ))}
             </View>
-          ) : stats.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>✨</Text>
-              <Text style={styles.emptyTitle}>You&apos;re all set</Text>
-              <Text style={styles.emptyBody}>
-                Nothing needs your attention right now. Pull down to refresh.
-              </Text>
-            </View>
+          ) : stats.length === 0 && quickActions.length === 0 ? (
+            <EmptyState
+              title="You're all set"
+              body="Nothing needs your attention right now. Pull down to refresh."
+              icon="✓"
+            />
           ) : null}
         </>
       )}
@@ -201,74 +217,136 @@ function formatMeta(meta: string) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#07070A' },
-  content: { padding: 20, paddingBottom: 48 },
+  root: { flex: 1, backgroundColor: colors.bg },
+  content: { paddingHorizontal: spacing.xl, flexGrow: 1 },
 
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  greeting: { color: '#fff', fontSize: 22, fontWeight: '800' },
-  greetingName: { color: '#F97316' },
-  subtitle: { color: '#71717A', fontSize: 13, marginTop: 4 },
-  badge: {
-    backgroundColor: '#18181B', borderRadius: 8,
-    borderWidth: 1, borderColor: '#27272A',
-    paddingHorizontal: 10, paddingVertical: 5,
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
   },
-  badgeText: { color: '#E8B84B', fontSize: 11, fontWeight: '700' },
-  tenant: { color: '#52525B', fontSize: 12, marginTop: 6, fontWeight: '600' },
-
-  center: { paddingVertical: 80, alignItems: 'center' },
-
-  errorBox: {
-    marginTop: 32, backgroundColor: 'rgba(239,68,68,0.08)',
-    borderRadius: 14, borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)',
-    padding: 20, alignItems: 'center',
+  headerCopy: { flex: 1 },
+  greeting: {
+    ...typography.title,
+    color: colors.text,
+    fontFamily: 'DMSans_700Bold',
   },
-  errorText: { color: '#F87171', fontSize: 14, textAlign: 'center', marginBottom: 12 },
-  retryBtn: {
-    backgroundColor: '#18181B', borderRadius: 10,
-    borderWidth: 1, borderColor: '#27272A',
-    paddingHorizontal: 20, paddingVertical: 9,
+  greetingName: { color: colors.primary },
+  subtitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_400Regular',
+    marginTop: spacing.xs,
   },
-  retryText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  tenantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.md,
+  },
+  tenant: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontFamily: 'DMSans_500Medium',
+  },
 
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 24 },
+  errorCard: { marginTop: spacing.xxl, alignItems: 'center' },
+  errorText: {
+    ...typography.body,
+    color: colors.error,
+    fontFamily: 'DMSans_400Regular',
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  retryBtn: { alignSelf: 'stretch' },
+
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: spacing.xxl,
+    marginHorizontal: -5,
+  },
+  statWrap: { width: '50%', paddingHorizontal: 5, paddingBottom: 10 },
   statCard: {
-    flexGrow: 1, flexBasis: '30%', minWidth: '30%',
-    backgroundColor: '#111117', borderRadius: 14,
-    borderWidth: 1, borderColor: '#27272A', padding: 14,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    minHeight: 92,
   },
-  statValue: { fontSize: 22, fontWeight: '800' },
-  statLabel: { color: '#71717A', fontSize: 11, marginTop: 4, fontWeight: '500' },
-
-  section: { marginTop: 28 },
-  sectionTitle: {
-    color: '#A1A1AA', fontSize: 11, fontWeight: '700',
-    textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12,
+  statValue: {
+    ...typography.stat,
+    fontFamily: 'DMSans_700Bold',
+  },
+  statLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_400Regular',
+    marginTop: spacing.xs,
+    fontSize: 12,
   },
 
-  actionsWrap: { gap: 10 },
+  section: { marginTop: spacing.xxxl },
+  actionsWrap: { gap: spacing.sm },
   actionBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#111117', borderRadius: 12,
-    borderWidth: 1, borderColor: '#27272A',
-    paddingHorizontal: 16, paddingVertical: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
   },
-  actionText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  actionArrow: { color: '#F97316', fontSize: 18, fontWeight: '700' },
+  actionPressed: { backgroundColor: colors.surfaceHover },
+  actionLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 },
+  actionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionText: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontFamily: 'DMSans_500Medium',
+    flex: 1,
+  },
 
   listCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#111117', borderRadius: 12,
-    borderWidth: 1, borderColor: '#27272A',
-    padding: 14, marginBottom: 10, overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
+    overflow: 'hidden',
   },
-  listAccent: { width: 3, alignSelf: 'stretch', borderRadius: 2, marginRight: 12 },
-  listTitle: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  listSubtitle: { color: '#A1A1AA', fontSize: 12, marginTop: 3 },
-  listMeta: { fontSize: 11, fontWeight: '700', marginLeft: 10 },
-
-  emptyState: { alignItems: 'center', paddingTop: 64 },
-  emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyTitle: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  emptyBody: { color: '#52525B', fontSize: 13, marginTop: 6, textAlign: 'center', maxWidth: 260 },
+  listAccent: { width: 3, height: '100%', minHeight: 36, borderRadius: 2, marginRight: spacing.md },
+  listBody: { flex: 1 },
+  listTitle: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontFamily: 'DMSans_500Medium',
+    fontWeight: '600',
+  },
+  listSubtitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_400Regular',
+    marginTop: 3,
+  },
+  listMeta: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: 'DMSans_700Bold',
+    marginLeft: spacing.sm,
+  },
 })

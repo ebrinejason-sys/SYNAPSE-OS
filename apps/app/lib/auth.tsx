@@ -37,21 +37,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   })
 
   useEffect(() => {
+    let cancelled = false
+
     async function restore() {
       try {
-        const stored = await SecureStore.getItemAsync(TOKEN_KEY)
+        const stored = await Promise.race([
+          SecureStore.getItemAsync(TOKEN_KEY),
+          new Promise<string | null>((resolve) => {
+            setTimeout(() => resolve(null), 8_000)
+          }),
+        ])
+        if (cancelled) return
         if (!stored) {
           setState({ user: null, token: null, isLoading: false })
           return
         }
-        const user = await apiRequest<MobileUser>('/api/auth/mobile/me', { token: stored })
+        const user = await apiRequest<MobileUser>('/api/auth/mobile/me', {
+          token: stored,
+          timeoutMs: 20_000,
+        })
+        if (cancelled) return
         setState({ user, token: stored, isLoading: false })
       } catch {
         await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {})
-        setState({ user: null, token: null, isLoading: false })
+        if (!cancelled) {
+          setState({ user: null, token: null, isLoading: false })
+        }
       }
     }
+
     restore()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const login = useCallback(async (email: string, password: string) => {

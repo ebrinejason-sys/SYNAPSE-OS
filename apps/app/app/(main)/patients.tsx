@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  ActivityIndicator, FlatList, StyleSheet, Text,
-  TextInput, TouchableOpacity, View,
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
+import { Avatar } from '@/components/ui/Avatar'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { useAuth } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
+import { colors, radii, spacing, typography } from '@/lib/theme'
 
 interface Patient {
   id: string
@@ -43,7 +53,7 @@ export default function PatientsScreen() {
     }
   }, [token])
 
-  useEffect(() => { search('') }, [token])
+  useEffect(() => { search('') }, [search])
 
   const handleQuery = (text: string) => {
     setQuery(text)
@@ -54,47 +64,48 @@ export default function PatientsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.searchRow}>
+        <Ionicons name="search" size={18} color={colors.textMuted} />
         <TextInput
           value={query}
           onChangeText={handleQuery}
-          placeholder="Search by name or MRN..."
-          placeholderTextColor="#52525B"
+          placeholder="Search by name or MRN"
+          placeholderTextColor={colors.textMuted}
           style={styles.searchInput}
           returnKeyType="search"
           autoCapitalize="none"
         />
-        {searching ? <ActivityIndicator color="#F97316" style={styles.spinner} /> : null}
+        {searching ? <ActivityIndicator color={colors.primary} size="small" /> : null}
       </View>
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color="#F97316" size="large" />
-        </View>
+        <LoadingBlock message="Loading patients…" />
       ) : (
         <FlatList
           data={patients}
-          keyExtractor={item => item.id}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           ListEmptyComponent={
-            <View style={styles.center}>
-              <Text style={styles.emptyText}>
-                {query ? 'No patients match your search' : 'No patients registered yet'}
-              </Text>
-            </View>
+            <EmptyState
+              title={query ? 'No matches' : 'No patients yet'}
+              body={
+                query
+                  ? 'Try a different name or MRN.'
+                  : 'Registered patients will appear here.'
+              }
+              icon="◌"
+            />
           }
           renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              activeOpacity={0.75}
+            <Pressable
+              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
               onPress={() => router.push(`/patient/${item.id}` as never)}
             >
-              <View style={styles.cardLeft}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {item.fullName[0]?.toUpperCase() ?? '?'}
-                  </Text>
-                </View>
-              </View>
+              <Avatar
+                label={item.fullName[0]?.toUpperCase() ?? '?'}
+                size={44}
+                tone="neutral"
+              />
               <View style={styles.cardBody}>
                 <Text style={styles.name}>{item.fullName}</Text>
                 <View style={styles.meta}>
@@ -107,8 +118,8 @@ export default function PatientsScreen() {
                   ) : null}
                 </View>
               </View>
-              <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </Pressable>
           )}
         />
       )}
@@ -117,38 +128,48 @@ export default function PatientsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#07070A' },
-
+  container: { flex: 1, backgroundColor: colors.bg },
   searchRow: {
-    flexDirection: 'row', alignItems: 'center',
-    margin: 16, marginBottom: 8,
-    backgroundColor: '#111117', borderRadius: 12,
-    borderWidth: 1, borderColor: '#27272A',
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: spacing.lg,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
   },
-  searchInput: { flex: 1, color: '#fff', fontSize: 14, paddingVertical: 12 },
-  spinner: { marginLeft: 8 },
-
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, marginTop: 40 },
-  emptyText: { color: '#52525B', fontSize: 14, textAlign: 'center' },
-
-  separator: { height: 1, backgroundColor: '#18181B', marginHorizontal: 16 },
-
+  searchInput: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 15,
+    fontFamily: 'DMSans_400Regular',
+    paddingVertical: 13,
+  },
+  listContent: { paddingBottom: spacing.xxxl },
+  separator: { height: 1, backgroundColor: colors.borderSubtle, marginHorizontal: spacing.lg },
   card: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    gap: spacing.md,
   },
-  cardLeft: { marginRight: 12 },
-  avatar: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#1C1C24',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  avatarText: { color: '#F97316', fontSize: 16, fontWeight: '700' },
+  cardPressed: { backgroundColor: colors.surfaceHover },
   cardBody: { flex: 1 },
-  name: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  name: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontFamily: 'DMSans_500Medium',
+  },
   meta: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 3, gap: 2 },
-  metaText: { color: '#71717A', fontSize: 12 },
-  dot: { color: '#3F3F46', fontSize: 12 },
-  chevron: { color: '#3F3F46', fontSize: 20, marginLeft: 8 },
+  metaText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_400Regular',
+    fontSize: 12,
+  },
+  dot: { color: colors.textMuted, fontSize: 12 },
 })

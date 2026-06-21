@@ -1,14 +1,17 @@
-import { ActivityIndicator, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { Redirect } from 'expo-router'
+import { SynapseLogo } from '@/components/SynapseLogo'
 import { useAuth } from '@/lib/auth'
+import { colors } from '@/lib/theme'
 
 export default function Index() {
   const { user, isLoading } = useAuth()
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#07070A' }}>
-        <ActivityIndicator color="#F97316" size="large" />
+      <View style={styles.root}>
+        <SynapseLogo size="lg" />
+        <ActivityIndicator color={colors.primary} size="large" style={styles.spinner} />
       </View>
     )
   }
@@ -17,7 +20,16 @@ export default function Index() {
     return <Redirect href="/(auth)/login" />
   }
 
-  // Every authenticated user lands on the same role-aware dashboard, which renders
-  // the appropriate experience for their role (resolved from the /me + /dashboard endpoints).
   return <Redirect href="/(main)/home" />
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.bg,
+    gap: 24,
+  },
+  spinner: { marginTop: 8 },
+})
