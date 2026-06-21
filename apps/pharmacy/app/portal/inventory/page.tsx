@@ -515,14 +515,13 @@ function CreateProductDialog({ onClose, onSuccess, suppliers }: CreateProductDia
   const [batches, setBatches] = useState<{ batchNumber: string; quantity: string; expiryDate: string; costPrice: string }[]>([])
   const [newBatch, setNewBatch] = useState({ batchNumber: "", quantity: "", expiryDate: "", costPrice: "" })
 
-  // Section visibility
   const [showPackages, setShowPackages] = useState(false)
-  const [showBatches, setShowBatches] = useState(false)
+  const [showBatches, setShowBatches] = useState(true)
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
 
-  // Auto-calculate package price when selling price or units change
   const calculatePackagePrice = (unitsPerPackage: string): string => {
     const units = parseFloat(unitsPerPackage) || 0
     const pricePerUnit = parseFloat(formData.price) || 0
@@ -628,131 +627,123 @@ function CreateProductDialog({ onClose, onSuccess, suppliers }: CreateProductDia
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
 
-            {/* SECTION 1: Basic Product Info */}
-            <div className="border rounded-lg p-4 bg-blue-50/50">
-              <h3 className="text-sm font-semibold text-blue-800 mb-3 flex items-center">
-                <Package className="h-4 w-4 mr-2" />
-                Section 1: Basic Product Information
+            {/* SECTION 1: Core Product Info */}
+            <div className="border rounded-lg p-4 bg-blue-50/50 space-y-3">
+              <h3 className="text-sm font-semibold text-blue-800 flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Product Details
               </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="strength">Strength</Label>
-                  <Input id="strength" value={formData.strength} onChange={(e) => setFormData({ ...formData, strength: e.target.value })} placeholder="e.g., 500mg" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dosageForm">Dosage Form</Label>
-                  <Input id="dosageForm" value={formData.dosageForm} onChange={(e) => setFormData({ ...formData, dosageForm: e.target.value })} placeholder="e.g., Tablet" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="activeIngredient">Active Ingredient</Label>
-                  <Input id="activeIngredient" value={formData.activeIngredient} onChange={(e) => setFormData({ ...formData, activeIngredient: e.target.value })} placeholder="e.g., Paracetamol" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="supplierId">Supplier</Label>
-                  <select
-                    id="supplierId"
-                    value={formData.supplierId}
-                    onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="">Select Supplier</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-center space-x-2 pt-8">
-                  <input
-                    type="checkbox"
-                    id="requiresPrescription"
-                    checked={formData.requiresPrescription}
-                    onChange={(e) => setFormData({ ...formData, requiresPrescription: e.target.checked })}
-                    className="h-4 w-4 rounded border-border"
-                  />
-                  <Label htmlFor="requiresPrescription">Requires Prescription</Label>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="genericName">Generic Name</Label>
-                  <Input id="genericName" value={formData.genericName} onChange={(e) => setFormData({ ...formData, genericName: e.target.value })} placeholder="e.g., Acetaminophen" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="regulatoryId">Regulatory ID</Label>
-                  <Input id="regulatoryId" value={formData.regulatoryId} onChange={(e) => setFormData({ ...formData, regulatoryId: e.target.value })} placeholder="e.g., NDA/123/456" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sideEffects">Side Effects</Label>
-                  <Input id="sideEffects" value={formData.sideEffects} onChange={(e) => setFormData({ ...formData, sideEffects: e.target.value })} placeholder="e.g., Drowsiness, Nausea" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="storageInstructions">Storage Instructions</Label>
-                  <Input id="storageInstructions" value={formData.storageInstructions} onChange={(e) => setFormData({ ...formData, storageInstructions: e.target.value })} placeholder="e.g., Store below 25C" />
-                </div>
-                <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
                   <Label htmlFor="name">Product Name *</Label>
                   <Input
                     id="name"
                     value={formData.name}
                     onChange={(e) => {
                       const name = e.target.value
-                      setFormData((prev) => ({
-                        ...prev,
-                        name,
-                        sku: skuEdited ? prev.sku : generateSku(name),
-                      }))
+                      setFormData((prev) => ({ ...prev, name, sku: skuEdited ? prev.sku : generateSku(name) }))
                     }}
                     required
                     placeholder="e.g., Paracetamol 500mg"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sku">SKU *</Label>
-                  <Input
-                    id="sku"
-                    value={formData.sku}
-                    onChange={(e) => { setSkuEdited(true); setFormData({ ...formData, sku: e.target.value }) }}
-                    required
-                    placeholder="Auto-generated from name"
-                  />
+                <div className="space-y-1.5">
+                  <Label htmlFor="genericName">Generic Name</Label>
+                  <Input id="genericName" value={formData.genericName} onChange={(e) => setFormData({ ...formData, genericName: e.target.value })} placeholder="e.g., Acetaminophen" />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="category">Category</Label>
-                  <Input id="category" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} placeholder="e.g., Pain Relief (optional)" />
+                  <Input id="category" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} placeholder="e.g., Pain Relief" />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="dosageForm">Dosage Form</Label>
+                  <Input id="dosageForm" value={formData.dosageForm} onChange={(e) => setFormData({ ...formData, dosageForm: e.target.value })} placeholder="e.g., Tablet, Syrup, Injection" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="strength">Strength</Label>
+                  <Input id="strength" value={formData.strength} onChange={(e) => setFormData({ ...formData, strength: e.target.value })} placeholder="e.g., 500mg" />
+                </div>
+                <div className="space-y-1.5">
                   <Label htmlFor="unitOfMeasure">Basic Unit *</Label>
                   <select id="unitOfMeasure" value={formData.unitOfMeasure} onChange={(e) => setFormData({ ...formData, unitOfMeasure: e.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" required>
                     {basicUnits.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
                   </select>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="costPrice">Cost per {formData.unitOfMeasure} *</Label>
                   <Input id="costPrice" type="number" step="0.01" value={formData.costPrice} onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })} required placeholder="e.g., 50" />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="price">Selling Price per {formData.unitOfMeasure} *</Label>
                   <Input id="price" type="number" step="0.01" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} required placeholder="e.g., 100" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Total Quantity ({formData.unitOfMeasure}s) *</Label>
-                  <Input id="quantity" type="number" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} required placeholder="e.g., 1000" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="supplierId">Supplier</Label>
+                  <select id="supplierId" value={formData.supplierId} onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    <option value="">Select supplier</option>
+                    {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reorderLevel">Reorder Level</Label>
-                  <Input id="reorderLevel" type="number" value={formData.reorderLevel} onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="barcode">Barcode</Label>
-                  <Input id="barcode" value={formData.barcode} onChange={(e) => setFormData({ ...formData, barcode: e.target.value })} placeholder="Scan or enter" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="manufacturer">Manufacturer</Label>
-                  <Input id="manufacturer" value={formData.manufacturer} onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })} placeholder="e.g., Cipla" />
+                <div className="flex items-center gap-2 pt-6">
+                  <input type="checkbox" id="requiresPrescription" checked={formData.requiresPrescription} onChange={(e) => setFormData({ ...formData, requiresPrescription: e.target.checked })} className="h-4 w-4 rounded border-border" />
+                  <Label htmlFor="requiresPrescription">Requires Prescription</Label>
                 </div>
               </div>
               {formData.price && formData.costPrice && (
-                <div className="mt-3 p-2 bg-green-500/15 rounded text-sm text-green-800">
-                  <strong>Profit per {formData.unitOfMeasure}:</strong> {formatCurrency((parseFloat(formData.price) || 0) - (parseFloat(formData.costPrice) || 0))}
-                  ({(((parseFloat(formData.price) || 0) - (parseFloat(formData.costPrice) || 0)) / (parseFloat(formData.costPrice) || 1) * 100).toFixed(1)}% margin)
+                <div className="p-2 bg-green-500/15 rounded text-sm text-green-800">
+                  <strong>Margin:</strong> {formatCurrency((parseFloat(formData.price) || 0) - (parseFloat(formData.costPrice) || 0))} per {formData.unitOfMeasure}
+                  {" "}({(((parseFloat(formData.price) || 0) - (parseFloat(formData.costPrice) || 0)) / (parseFloat(formData.costPrice) || 1) * 100).toFixed(1)}%)
+                </div>
+              )}
+            </div>
+
+            {/* ADVANCED: SKU, barcode, manufacturer, etc. */}
+            <div className="border rounded-lg overflow-hidden">
+              <button type="button" onClick={() => setShowAdvanced(!showAdvanced)} className="w-full p-3 bg-muted/30 text-left flex justify-between items-center hover:bg-muted/50 transition-colors">
+                <span className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <ChevronDown className="h-3.5 w-3.5" />
+                  Advanced — SKU, barcode, manufacturer, reorder level
+                </span>
+                {showAdvanced ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              </button>
+              {showAdvanced && (
+                <div className="p-4 grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="sku">SKU</Label>
+                    <Input id="sku" value={formData.sku} onChange={(e) => { setSkuEdited(true); setFormData({ ...formData, sku: e.target.value }) }} placeholder="Auto-generated" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="quantity">Opening Stock ({formData.unitOfMeasure}s)</Label>
+                    <Input id="quantity" type="number" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} placeholder="Use batches below for FEFO" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reorderLevel">Reorder Level</Label>
+                    <Input id="reorderLevel" type="number" value={formData.reorderLevel} onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="barcode">Barcode</Label>
+                    <Input id="barcode" value={formData.barcode} onChange={(e) => setFormData({ ...formData, barcode: e.target.value })} placeholder="Scan or enter" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="manufacturer">Manufacturer</Label>
+                    <Input id="manufacturer" value={formData.manufacturer} onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })} placeholder="e.g., Cipla" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="activeIngredient">Active Ingredient</Label>
+                    <Input id="activeIngredient" value={formData.activeIngredient} onChange={(e) => setFormData({ ...formData, activeIngredient: e.target.value })} placeholder="e.g., Paracetamol" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="regulatoryId">Regulatory ID</Label>
+                    <Input id="regulatoryId" value={formData.regulatoryId} onChange={(e) => setFormData({ ...formData, regulatoryId: e.target.value })} placeholder="e.g., NDA/123/456" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="sideEffects">Side Effects</Label>
+                    <Input id="sideEffects" value={formData.sideEffects} onChange={(e) => setFormData({ ...formData, sideEffects: e.target.value })} placeholder="e.g., Drowsiness" />
+                  </div>
+                  <div className="space-y-1.5 col-span-2">
+                    <Label htmlFor="storageInstructions">Storage Instructions</Label>
+                    <Input id="storageInstructions" value={formData.storageInstructions} onChange={(e) => setFormData({ ...formData, storageInstructions: e.target.value })} placeholder="e.g., Store below 25°C" />
+                  </div>
                 </div>
               )}
             </div>
@@ -762,13 +753,13 @@ function CreateProductDialog({ onClose, onSuccess, suppliers }: CreateProductDia
               <button type="button" onClick={() => setShowPackages(!showPackages)} className="w-full p-3 bg-purple-50 text-left flex justify-between items-center hover:bg-purple-500/15 transition-colors">
                 <span className="text-sm font-semibold text-purple-800 flex items-center">
                   <PackagePlus className="h-4 w-4 mr-2" />
-                  Section 2: Package Definitions (Optional)
+                  Sell by Package — optional (e.g., Strip, Box)
                 </span>
                 {showPackages ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </button>
               {showPackages && (
                 <div className="p-4 space-y-3">
-                  <p className="text-xs text-muted-foreground">Define how the product is packaged for easier sales (e.g., Strip = 10 tablets)</p>
+                  <p className="text-xs text-muted-foreground">Group {formData.unitOfMeasure}s into packs for faster checkout (e.g., Strip = 10 Tablets). Price auto-calculates.</p>
 
                   {packages.length > 0 && (
                     <Table>
@@ -821,13 +812,13 @@ function CreateProductDialog({ onClose, onSuccess, suppliers }: CreateProductDia
               <button type="button" onClick={() => setShowBatches(!showBatches)} className="w-full p-3 bg-orange-50 text-left flex justify-between items-center hover:bg-primary/15 transition-colors">
                 <span className="text-sm font-semibold text-orange-800 flex items-center">
                   <AlertTriangle className="h-4 w-4 mr-2" />
-                  Section 3: Batch/Stock Tracking (Optional)
+                  Stock Batches — FEFO ({batches.length} added)
                 </span>
                 {showBatches ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </button>
               {showBatches && (
                 <div className="p-4 space-y-3">
-                  <p className="text-xs text-muted-foreground">Track stock by batch for expiry management (FIFO: oldest sold first)</p>
+                  <p className="text-xs text-muted-foreground">Quantities are in <strong>basic units</strong> ({formData.unitOfMeasure}s — not strips or boxes). Batches are sold First-Expiring-First-Out automatically.</p>
 
                   {batches.length > 0 && (
                     <Table>
@@ -868,16 +859,16 @@ function CreateProductDialog({ onClose, onSuccess, suppliers }: CreateProductDia
                       <Label className="text-xs">Batch Number</Label>
                       <Input placeholder="BATCH-001" value={newBatch.batchNumber} onChange={(e) => setNewBatch({ ...newBatch, batchNumber: e.target.value })} />
                     </div>
-                    <div className="w-24">
-                      <Label className="text-xs">Quantity</Label>
-                      <Input type="number" placeholder="100" value={newBatch.quantity} onChange={(e) => setNewBatch({ ...newBatch, quantity: e.target.value })} />
+                    <div className="w-28">
+                      <Label className="text-xs">Qty in {formData.unitOfMeasure}s *</Label>
+                      <Input type="number" placeholder="e.g. 500" value={newBatch.quantity} onChange={(e) => setNewBatch({ ...newBatch, quantity: e.target.value })} />
                     </div>
                     <div className="w-36">
-                      <Label className="text-xs">Expiry Date</Label>
+                      <Label className="text-xs">Expiry Date *</Label>
                       <Input type="date" value={newBatch.expiryDate} onChange={(e) => setNewBatch({ ...newBatch, expiryDate: e.target.value })} />
                     </div>
                     <div className="w-28">
-                      <Label className="text-xs">Cost (optional)</Label>
+                      <Label className="text-xs">Cost/unit</Label>
                       <Input type="number" placeholder={formData.costPrice || "Cost"} value={newBatch.costPrice} onChange={(e) => setNewBatch({ ...newBatch, costPrice: e.target.value })} />
                     </div>
                     <Button type="button" onClick={addBatch} size="sm"><Plus className="h-4 w-4" /></Button>
@@ -885,7 +876,7 @@ function CreateProductDialog({ onClose, onSuccess, suppliers }: CreateProductDia
 
                   {batches.length > 0 && (
                     <div className="p-2 bg-primary/15 rounded text-sm text-orange-800">
-                      <strong>Total from batches:</strong> {batches.reduce((sum, b) => sum + (parseInt(b.quantity) || 0), 0)} {formData.unitOfMeasure}s
+                      <strong>Total stock:</strong> {batches.reduce((sum, b) => sum + (parseInt(b.quantity) || 0), 0)} {formData.unitOfMeasure}s across {batches.length} batch{batches.length !== 1 ? "es" : ""}
                     </div>
                   )}
                 </div>
@@ -992,8 +983,8 @@ function BulkUploadDialog({ onClose, onSuccess }: CreateProductDialogProps) {
             <h3 className="font-semibold text-blue-900 mb-2">Instructions:</h3>
             <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
               <li>Upload a <strong>CSV or Excel</strong> file with product details</li>
-              <li>Supports Tally exports and other formats</li>
-              <li>Auto-detects columns: Name/Item Name, Price/Rate/MRP, Qty/Stock, etc.</li>
+              <li><strong>Quantity must be in basic units</strong> — e.g., number of tablets, not strips or boxes</li>
+              <li>Auto-detects columns: name, price, cost_price, quantity, category, etc.</li>
               <li>SKU will be auto-generated if not provided</li>
             </ul>
           </div>
@@ -1138,7 +1129,8 @@ function EditProductDialog({ product, onClose, onSuccess, suppliers }: EditProdu
   const [deletedBatchIds, setDeletedBatchIds] = useState<string[]>([])
 
   const [showPackages, setShowPackages] = useState((product.packages?.length || 0) > 0)
-  const [showBatches, setShowBatches] = useState((product.batches?.length || 0) > 0)
+  const [showBatches, setShowBatches] = useState(true)
+  const [showAdvancedEdit, setShowAdvancedEdit] = useState(false)
 
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
@@ -1275,112 +1267,114 @@ function EditProductDialog({ product, onClose, onSuccess, suppliers }: EditProdu
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
 
-            {/* SECTION 1: Basic Product Info */}
-            <div className="border rounded-lg p-4 bg-blue-50/50">
-              <h3 className="text-sm font-semibold text-blue-800 mb-3 flex items-center">
-                <Package className="h-4 w-4 mr-2" />
-                Section 1: Basic Product Information
+            {/* SECTION 1: Core Product Info */}
+            <div className="border rounded-lg p-4 bg-blue-50/50 space-y-3">
+              <h3 className="text-sm font-semibold text-blue-800 flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Product Details
               </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-strength">Strength</Label>
-                  <Input id="edit-strength" value={formData.strength} onChange={(e) => setFormData({ ...formData, strength: e.target.value })} placeholder="e.g., 500mg" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-dosageForm">Dosage Form</Label>
-                  <Input id="edit-dosageForm" value={formData.dosageForm} onChange={(e) => setFormData({ ...formData, dosageForm: e.target.value })} placeholder="e.g., Tablet" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-activeIngredient">Active Ingredient</Label>
-                  <Input id="edit-activeIngredient" value={formData.activeIngredient} onChange={(e) => setFormData({ ...formData, activeIngredient: e.target.value })} placeholder="e.g., Paracetamol" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-supplierId">Supplier</Label>
-                  <select
-                    id="edit-supplierId"
-                    value={formData.supplierId}
-                    onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="">Select Supplier</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-center space-x-2 pt-8">
-                  <input
-                    type="checkbox"
-                    id="edit-requiresPrescription"
-                    checked={formData.requiresPrescription}
-                    onChange={(e) => setFormData({ ...formData, requiresPrescription: e.target.checked })}
-                    className="h-4 w-4 rounded border-border"
-                  />
-                  <Label htmlFor="edit-requiresPrescription">Requires Prescription</Label>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-genericName">Generic Name</Label>
-                  <Input id="edit-genericName" value={formData.genericName} onChange={(e) => setFormData({ ...formData, genericName: e.target.value })} placeholder="e.g., Acetaminophen" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-regulatoryId">Regulatory ID</Label>
-                  <Input id="edit-regulatoryId" value={formData.regulatoryId} onChange={(e) => setFormData({ ...formData, regulatoryId: e.target.value })} placeholder="e.g., NDA/123/456" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-sideEffects">Side Effects</Label>
-                  <Input id="edit-sideEffects" value={formData.sideEffects} onChange={(e) => setFormData({ ...formData, sideEffects: e.target.value })} placeholder="e.g., Drowsiness, Nausea" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-storageInstructions">Storage Instructions</Label>
-                  <Input id="edit-storageInstructions" value={formData.storageInstructions} onChange={(e) => setFormData({ ...formData, storageInstructions: e.target.value })} placeholder="e.g., Store below 25C" />
-                </div>
-                <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
                   <Label htmlFor="edit-name">Product Name *</Label>
                   <Input id="edit-name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required placeholder="e.g., Paracetamol 500mg" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-sku">SKU *</Label>
-                  <Input id="edit-sku" value={formData.sku} onChange={(e) => setFormData({ ...formData, sku: e.target.value })} required placeholder="e.g., PAR-500" disabled className="bg-muted/30" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-genericName">Generic Name</Label>
+                  <Input id="edit-genericName" value={formData.genericName} onChange={(e) => setFormData({ ...formData, genericName: e.target.value })} placeholder="e.g., Acetaminophen" />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="edit-category">Category</Label>
-                  <Input id="edit-category" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} placeholder="e.g., Pain Relief (optional)" />
+                  <Input id="edit-category" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} placeholder="e.g., Pain Relief" />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-dosageForm">Dosage Form</Label>
+                  <Input id="edit-dosageForm" value={formData.dosageForm} onChange={(e) => setFormData({ ...formData, dosageForm: e.target.value })} placeholder="e.g., Tablet, Syrup" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-strength">Strength</Label>
+                  <Input id="edit-strength" value={formData.strength} onChange={(e) => setFormData({ ...formData, strength: e.target.value })} placeholder="e.g., 500mg" />
+                </div>
+                <div className="space-y-1.5">
                   <Label htmlFor="edit-unitOfMeasure">Basic Unit *</Label>
                   <select id="edit-unitOfMeasure" value={formData.unitOfMeasure} onChange={(e) => setFormData({ ...formData, unitOfMeasure: e.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" required>
                     {basicUnits.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
                   </select>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="edit-costPrice">Cost per {formData.unitOfMeasure} *</Label>
                   <Input id="edit-costPrice" type="number" step="0.01" value={formData.costPrice} onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })} required placeholder="e.g., 50" />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="edit-price">Selling Price per {formData.unitOfMeasure} *</Label>
                   <Input id="edit-price" type="number" step="0.01" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} required placeholder="e.g., 100" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-quantity">Total Quantity ({formData.unitOfMeasure}s) *</Label>
-                  <Input id="edit-quantity" type="number" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} required placeholder="e.g., 1000" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-supplierId">Supplier</Label>
+                  <select id="edit-supplierId" value={formData.supplierId} onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    <option value="">Select supplier</option>
+                    {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-reorderLevel">Reorder Level</Label>
-                  <Input id="edit-reorderLevel" type="number" value={formData.reorderLevel} onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-barcode">Barcode</Label>
-                  <Input id="edit-barcode" value={formData.barcode} onChange={(e) => setFormData({ ...formData, barcode: e.target.value })} placeholder="Scan or enter" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-manufacturer">Manufacturer</Label>
-                  <Input id="edit-manufacturer" value={formData.manufacturer} onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })} placeholder="e.g., Cipla" />
+                <div className="flex items-center gap-2 pt-6">
+                  <input type="checkbox" id="edit-requiresPrescription" checked={formData.requiresPrescription} onChange={(e) => setFormData({ ...formData, requiresPrescription: e.target.checked })} className="h-4 w-4 rounded border-border" />
+                  <Label htmlFor="edit-requiresPrescription">Requires Prescription</Label>
                 </div>
               </div>
               {formData.price && formData.costPrice && (
-                <div className="mt-3 p-2 bg-green-500/15 rounded text-sm text-green-800">
-                  <strong>Profit per {formData.unitOfMeasure}:</strong> {formatCurrency((parseFloat(formData.price) || 0) - (parseFloat(formData.costPrice) || 0))}
-                  ({(((parseFloat(formData.price) || 0) - (parseFloat(formData.costPrice) || 0)) / (parseFloat(formData.costPrice) || 1) * 100).toFixed(1)}% margin)
+                <div className="p-2 bg-green-500/15 rounded text-sm text-green-800">
+                  <strong>Margin:</strong> {formatCurrency((parseFloat(formData.price) || 0) - (parseFloat(formData.costPrice) || 0))} per {formData.unitOfMeasure}
+                  {" "}({(((parseFloat(formData.price) || 0) - (parseFloat(formData.costPrice) || 0)) / (parseFloat(formData.costPrice) || 1) * 100).toFixed(1)}%)
+                </div>
+              )}
+            </div>
+
+            {/* ADVANCED: SKU, barcode, manufacturer, etc. */}
+            <div className="border rounded-lg overflow-hidden">
+              <button type="button" onClick={() => setShowAdvancedEdit(!showAdvancedEdit)} className="w-full p-3 bg-muted/30 text-left flex justify-between items-center hover:bg-muted/50 transition-colors">
+                <span className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <ChevronDown className="h-3.5 w-3.5" />
+                  Advanced — SKU, barcode, manufacturer, reorder level
+                </span>
+                {showAdvancedEdit ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              </button>
+              {showAdvancedEdit && (
+                <div className="p-4 grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-sku">SKU</Label>
+                    <Input id="edit-sku" value={formData.sku} disabled className="bg-muted/30" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-quantity">Stock ({formData.unitOfMeasure}s)</Label>
+                    <Input id="edit-quantity" type="number" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} required />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-reorderLevel">Reorder Level</Label>
+                    <Input id="edit-reorderLevel" type="number" value={formData.reorderLevel} onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-barcode">Barcode</Label>
+                    <Input id="edit-barcode" value={formData.barcode} onChange={(e) => setFormData({ ...formData, barcode: e.target.value })} placeholder="Scan or enter" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-manufacturer">Manufacturer</Label>
+                    <Input id="edit-manufacturer" value={formData.manufacturer} onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })} placeholder="e.g., Cipla" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-activeIngredient">Active Ingredient</Label>
+                    <Input id="edit-activeIngredient" value={formData.activeIngredient} onChange={(e) => setFormData({ ...formData, activeIngredient: e.target.value })} placeholder="e.g., Paracetamol" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-regulatoryId">Regulatory ID</Label>
+                    <Input id="edit-regulatoryId" value={formData.regulatoryId} onChange={(e) => setFormData({ ...formData, regulatoryId: e.target.value })} placeholder="e.g., NDA/123/456" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-sideEffects">Side Effects</Label>
+                    <Input id="edit-sideEffects" value={formData.sideEffects} onChange={(e) => setFormData({ ...formData, sideEffects: e.target.value })} placeholder="e.g., Drowsiness" />
+                  </div>
+                  <div className="space-y-1.5 col-span-2">
+                    <Label htmlFor="edit-storageInstructions">Storage Instructions</Label>
+                    <Input id="edit-storageInstructions" value={formData.storageInstructions} onChange={(e) => setFormData({ ...formData, storageInstructions: e.target.value })} placeholder="e.g., Store below 25°C" />
+                  </div>
                 </div>
               )}
             </div>
@@ -1390,7 +1384,7 @@ function EditProductDialog({ product, onClose, onSuccess, suppliers }: EditProdu
               <button type="button" onClick={() => setShowPackages(!showPackages)} className="w-full p-3 bg-purple-50 text-left flex justify-between items-center hover:bg-purple-500/15">
                 <span className="text-sm font-semibold text-purple-800 flex items-center">
                   <PackagePlus className="h-4 w-4 mr-2" />
-                  Section 2: Package Definitions ({packages.length})
+                  Sell by Package — optional ({packages.length} defined)
                 </span>
                 {showPackages ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </button>
@@ -1433,12 +1427,13 @@ function EditProductDialog({ product, onClose, onSuccess, suppliers }: EditProdu
               <button type="button" onClick={() => setShowBatches(!showBatches)} className="w-full p-3 bg-orange-50 text-left flex justify-between items-center hover:bg-primary/15">
                 <span className="text-sm font-semibold text-orange-800 flex items-center">
                   <AlertTriangle className="h-4 w-4 mr-2" />
-                  Section 3: Batch/Stock ({batches.length} batches)
+                  Stock Batches — FEFO ({batches.length} batch{batches.length !== 1 ? "es" : ""})
                 </span>
                 {showBatches ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </button>
               {showBatches && (
                 <div className="p-4 space-y-3">
+                  <p className="text-xs text-muted-foreground">Quantities in <strong>basic units</strong> ({formData.unitOfMeasure}s). Sold First-Expiring-First-Out automatically.</p>
                   {batches.length > 0 && (
                     <Table>
                       <TableHeader>
@@ -1465,9 +1460,9 @@ function EditProductDialog({ product, onClose, onSuccess, suppliers }: EditProdu
                   )}
                   <div className="flex gap-2 items-end flex-wrap">
                     <div className="flex-1 min-w-28"><Label className="text-xs">Batch #</Label><Input placeholder="BATCH-001" value={newBatch.batchNumber} onChange={(e) => setNewBatch({ ...newBatch, batchNumber: e.target.value })} /></div>
-                    <div className="w-20"><Label className="text-xs">Qty</Label><Input type="number" placeholder="100" value={newBatch.quantity} onChange={(e) => setNewBatch({ ...newBatch, quantity: e.target.value })} /></div>
-                    <div className="w-32"><Label className="text-xs">Expiry</Label><Input type="date" value={newBatch.expiryDate} onChange={(e) => setNewBatch({ ...newBatch, expiryDate: e.target.value })} /></div>
-                    <div className="w-24"><Label className="text-xs">Cost</Label><Input type="number" placeholder={formData.costPrice} value={newBatch.costPrice} onChange={(e) => setNewBatch({ ...newBatch, costPrice: e.target.value })} /></div>
+                    <div className="w-28"><Label className="text-xs">Qty in {formData.unitOfMeasure}s *</Label><Input type="number" placeholder="e.g. 500" value={newBatch.quantity} onChange={(e) => setNewBatch({ ...newBatch, quantity: e.target.value })} /></div>
+                    <div className="w-32"><Label className="text-xs">Expiry Date *</Label><Input type="date" value={newBatch.expiryDate} onChange={(e) => setNewBatch({ ...newBatch, expiryDate: e.target.value })} /></div>
+                    <div className="w-24"><Label className="text-xs">Cost/unit</Label><Input type="number" placeholder={formData.costPrice} value={newBatch.costPrice} onChange={(e) => setNewBatch({ ...newBatch, costPrice: e.target.value })} /></div>
                     <Button type="button" onClick={addBatch} size="sm"><Plus className="h-4 w-4" /></Button>
                   </div>
                   {batches.length > 0 && (

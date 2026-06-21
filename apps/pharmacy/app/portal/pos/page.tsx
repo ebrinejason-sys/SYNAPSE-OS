@@ -1165,10 +1165,10 @@ export default function POSPage() {
                           </div>
                         )}
                         <div className="text-xs text-muted-foreground">Cost: {formatCurrency(item.costPrice)}</div>
-                        {item.batchNumber && (
-                          <div className="text-xs text-muted-foreground">
-                            Batch: {item.batchNumber}
-                            {item.expiryDate && ` | Exp: ${new Date(item.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`}
+                        {(item.batchNumber || item.expiryDate) && (
+                          <div className="text-xs font-medium" style={{ color: item.expiryDate && new Date(item.expiryDate) < new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) ? '#f59e0b' : undefined }}>
+                            {item.batchNumber && `Batch: ${item.batchNumber}`}
+                            {item.expiryDate && `${item.batchNumber ? ' · ' : ''}Exp: ${new Date(item.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`}
                           </div>
                         )}
                       </div>
