@@ -17,10 +17,11 @@ import { Button } from '@/components/ui/Button'
 import { Card, SectionHeader } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingBlock } from '@/components/ui/LoadingBlock'
+import { WorkspaceHeader } from '@/components/WorkspaceHeader'
 import { useAuth } from '@/lib/auth'
-import { fetchDashboard, TONE_COLORS, type DashboardResponse, type DashboardQuickAction } from '@/lib/dashboard'
+import { fetchDashboard, type DashboardResponse, type DashboardQuickAction } from '@/lib/dashboard'
 import { dashboardKindForRole, formatRole, type DashboardKind } from '@/lib/roles'
-import { colors, radii, spacing, tabBarHeight, typography } from '@/lib/theme'
+import { colors, radii, spacing, tabBarHeight, typography, TONE_COLORS } from '@/lib/theme'
 
 const WEB_APP_URL = (
   (Constants.expoConfig?.extra?.webAppUrl as string | undefined) ?? 'https://www.synapseos.tech'
@@ -97,6 +98,12 @@ export default function DashboardScreen() {
       }
       showsVerticalScrollIndicator={false}
     >
+      <WorkspaceHeader
+        user={user}
+        subtitle={KIND_SUBTITLE[kind]}
+        showLogo
+      />
+
       <View style={styles.headerRow}>
         <View style={styles.headerCopy}>
           <Text style={styles.greeting}>
@@ -104,7 +111,6 @@ export default function DashboardScreen() {
             {firstName ? ', ' : ''}
             {firstName ? <Text style={styles.greetingName}>{firstName}</Text> : null}
           </Text>
-          <Text style={styles.subtitle}>{KIND_SUBTITLE[kind]}</Text>
         </View>
         <Badge label={formatRole(user?.role)} tone="gold" />
       </View>
@@ -196,7 +202,7 @@ export default function DashboardScreen() {
             <EmptyState
               title="You're all set"
               body="Nothing needs your attention right now. Pull down to refresh."
-              icon="✓"
+              icon="checkmark-circle"
             />
           ) : null}
         </>

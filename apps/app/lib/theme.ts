@@ -1,36 +1,73 @@
-/** Synapse mobile design tokens — clinical dark theme with copper + gold accents. */
+/**
+ * Synapse mobile design tokens — aligned with blueprint 03_DESIGN_SYSTEM.md.
+ * Dark mode default; semantic tokens only (no raw hex in components).
+ */
 export const colors = {
-  bg: '#050508',
-  bgElevated: '#0C0C12',
-  surface: '#111118',
-  surfaceHover: '#16161F',
-  border: '#252530',
-  borderSubtle: '#1A1A22',
-  text: '#FAFAFA',
-  textSecondary: '#A1A1AA',
+  // Surfaces (dark default)
+  bg: '#07070A',
+  bgSubtle: '#0E0E12',
+  bgElevated: '#16161B',
+  surface: '#16161B',
+  surfaceHover: '#26262C',
+  popover: '#26262C',
+
+  // Text
+  text: '#ECECEF',
+  textSecondary: '#A1A1AC',
   textMuted: '#71717A',
+
+  // Lines
+  border: '#26262C',
+  borderStrong: '#3A3A44',
+  borderSubtle: '#1A1A22',
+  input: '#3A3A44',
+
+  // Brand
   primary: '#F97316',
+  primaryHover: '#FB7E3C',
+  primaryForeground: '#07070A',
   primarySoft: 'rgba(249, 115, 22, 0.12)',
+  accent: '#FB7E3C',
   gold: '#E8B84B',
-  goldSoft: 'rgba(232, 184, 75, 0.14)',
-  teal: '#14B8A6',
-  tealSoft: 'rgba(20, 184, 166, 0.12)',
-  success: '#22C55E',
-  error: '#F87171',
-  errorBg: 'rgba(239, 68, 68, 0.08)',
-  errorBorder: 'rgba(239, 68, 68, 0.28)',
+  goldSoft: 'rgba(232, 184, 75, 0.12)',
+  teal: '#1FA6A6',
+  tealSoft: 'rgba(31, 166, 166, 0.12)',
+
+  // Status (clinical-safe, distinct from brand orange)
+  success: '#3DD68C',
+  successSoft: 'rgba(61, 214, 140, 0.12)',
+  warning: '#FFB224',
+  warningSoft: 'rgba(255, 178, 36, 0.12)',
+  danger: '#F2555A',
+  dangerSoft: 'rgba(242, 85, 90, 0.12)',
+  info: '#4C9DFF',
+  infoSoft: 'rgba(76, 157, 255, 0.12)',
+
+  // Legacy aliases used by some components
+  error: '#F2555A',
+  errorBg: 'rgba(242, 85, 90, 0.08)',
+  errorBorder: 'rgba(242, 85, 90, 0.28)',
   white: '#FFFFFF',
+
+  // Mono surfaces
+  codeBg: '#0E0E12',
+  codeFg: '#D2D2D9',
 } as const
 
-export const radii = {
-  sm: 10,
-  md: 14,
-  lg: 18,
-  xl: 22,
-  full: 999,
-} as const
-
+/** 8pt grid — blueprint spacing scale */
 export const spacing = {
+  0: 0,
+  1: 4,
+  2: 8,
+  3: 12,
+  4: 16,
+  5: 20,
+  6: 24,
+  8: 32,
+  10: 40,
+  12: 48,
+  16: 64,
+  // Aliases for readability
   xs: 4,
   sm: 8,
   md: 12,
@@ -40,20 +77,52 @@ export const spacing = {
   xxxl: 32,
 } as const
 
+/** Fixed radius scale — blueprint §4 */
+export const radii = {
+  sm: 6,
+  md: 8,
+  lg: 12,
+  xl: 16,
+  '2xl': 24,
+  full: 9999,
+} as const
+
 export const typography = {
-  hero: { fontSize: 28, fontWeight: '700' as const, letterSpacing: -0.5 },
-  title: { fontSize: 22, fontWeight: '700' as const, letterSpacing: -0.3 },
-  heading: { fontSize: 17, fontWeight: '600' as const },
-  body: { fontSize: 15, fontWeight: '400' as const },
-  bodyMedium: { fontSize: 15, fontWeight: '500' as const },
-  caption: { fontSize: 13, fontWeight: '400' as const },
+  display: { fontSize: 36, fontWeight: '600' as const, letterSpacing: -0.4, lineHeight: 43 },
+  h1: { fontSize: 28, fontWeight: '600' as const, letterSpacing: -0.3, lineHeight: 34 },
+  h2: { fontSize: 22, fontWeight: '600' as const, letterSpacing: -0.2, lineHeight: 28 },
+  h3: { fontSize: 17, fontWeight: '600' as const, lineHeight: 24 },
+  h4: { fontSize: 15, fontWeight: '600' as const, lineHeight: 21 },
+  bodyLg: { fontSize: 18, fontWeight: '400' as const, lineHeight: 29 },
+  body: { fontSize: 16, fontWeight: '400' as const, lineHeight: 26 },
+  bodySm: { fontSize: 14, fontWeight: '400' as const, lineHeight: 21 },
+  caption: { fontSize: 12, fontWeight: '500' as const, letterSpacing: 0.12, lineHeight: 17 },
   label: {
     fontSize: 11,
     fontWeight: '600' as const,
-    letterSpacing: 1.2,
+    letterSpacing: 1.1,
     textTransform: 'uppercase' as const,
   },
-  stat: { fontSize: 24, fontWeight: '700' as const, letterSpacing: -0.5 },
+  mono: { fontSize: 14, fontWeight: '500' as const, lineHeight: 21, fontFamily: 'monospace' },
+  stat: { fontSize: 24, fontWeight: '600' as const, letterSpacing: -0.5, lineHeight: 29 },
+  // Legacy aliases
+  hero: { fontSize: 28, fontWeight: '600' as const, letterSpacing: -0.3 },
+  title: { fontSize: 22, fontWeight: '600' as const, letterSpacing: -0.2 },
+  heading: { fontSize: 17, fontWeight: '600' as const },
+  bodyMedium: { fontSize: 15, fontWeight: '500' as const },
 } as const
 
-export const tabBarHeight = 60
+export const tabBarHeight = 56
+
+export const TONE_COLORS = {
+  primary: colors.primary,
+  gold: colors.gold,
+  green: colors.success,
+  red: colors.danger,
+  muted: colors.textMuted,
+  teal: colors.teal,
+  warning: colors.warning,
+  info: colors.info,
+} as const
+
+export type StatTone = keyof typeof TONE_COLORS

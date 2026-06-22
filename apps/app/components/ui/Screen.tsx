@@ -14,7 +14,7 @@ export function Screen({ children, style, glow = false }: ScreenProps) {
     <View style={[styles.root, style]}>
       {glow ? (
         <LinearGradient
-          colors={['rgba(20, 184, 166, 0.14)', 'rgba(249, 115, 22, 0.06)', 'transparent']}
+          colors={['rgba(31, 166, 166, 0.10)', 'rgba(249, 115, 22, 0.04)', 'transparent']}
           style={styles.glow}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 0.45 }}

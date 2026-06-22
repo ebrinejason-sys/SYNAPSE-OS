@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isAccountActivated, verifyToken, validateSession } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 
+const ROLE_KIND: Record<string, string> = {
+  patient: 'patient',
+  doctor: 'clinician', nurse: 'nurse', pharmacist: 'pharmacy', pharmacy_admin: 'pharmacy',
+  lab_tech: 'lab', receptionist: 'reception', billing_officer: 'billing',
+  admin: 'admin', hospital_admin: 'admin', platform_admin: 'admin',
+}
+
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization') ?? ''
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null
@@ -24,7 +31,7 @@ export async function GET(req: NextRequest) {
   const { data: profile, error } = await db
     .from('profiles')
     .select(`
-      id, email, role, tenant_id,
+      id, email, role, tenant_id, synapse_id,
       full_name, first_name, last_name, is_admin, must_change_password,
       verification_status, email_verified_at, is_deleted
     `)
@@ -53,9 +60,11 @@ export async function GET(req: NextRequest) {
     email: (profile.email as string | null) ?? '',
     role: profile.role as string,
     fullName,
+    synapseId: (profile.synapse_id as string | null) ?? null,
     tenantId: (profile.tenant_id as string | null) ?? '',
     tenantName: (tenant?.name as string | null) ?? '',
     isAdmin: (profile.is_admin as boolean | null) ?? false,
     mustChangePassword: (profile.must_change_password as boolean | null) ?? false,
+    dashboardKind: ROLE_KIND[(profile.role as string) ?? ''] ?? 'generic',
   })
 }

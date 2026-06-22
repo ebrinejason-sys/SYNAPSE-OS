@@ -1,17 +1,30 @@
 import { StyleSheet, Text, View } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { colors, radii, spacing, typography } from '@/lib/theme'
+
+type EmptyIcon = 'inbox' | 'search' | 'calendar' | 'medkit' | 'document' | 'cube' | 'checkmark-circle'
 
 interface EmptyStateProps {
   title: string
   body: string
-  icon?: string
+  icon?: EmptyIcon
 }
 
-export function EmptyState({ title, body, icon = '◌' }: EmptyStateProps) {
+const ICON_MAP: Record<EmptyIcon, keyof typeof Ionicons.glyphMap> = {
+  inbox: 'file-tray-outline',
+  search: 'search-outline',
+  calendar: 'calendar-outline',
+  medkit: 'medkit-outline',
+  document: 'document-text-outline',
+  cube: 'cube-outline',
+  'checkmark-circle': 'checkmark-circle-outline',
+}
+
+export function EmptyState({ title, body, icon = 'inbox' }: EmptyStateProps) {
   return (
     <View style={styles.wrap}>
       <View style={styles.iconRing}>
-        <Text style={styles.icon}>{icon}</Text>
+        <Ionicons name={ICON_MAP[icon]} size={24} color={colors.teal} />
       </View>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.body}>{body}</Text>
@@ -36,18 +49,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.lg,
   },
-  icon: {
-    fontSize: 22,
-    color: colors.teal,
-  },
   title: {
-    ...typography.heading,
+    ...typography.h3,
     color: colors.text,
+    fontFamily: 'DMSans_700Bold',
     marginBottom: spacing.sm,
   },
   body: {
-    ...typography.caption,
+    ...typography.bodySm,
     color: colors.textMuted,
+    fontFamily: 'DMSans_400Regular',
     textAlign: 'center',
     lineHeight: 20,
     maxWidth: 280,

@@ -2,24 +2,24 @@ import { Tabs } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { Platform, StyleSheet } from 'react-native'
 import { useAuth } from '@/lib/auth'
-import { isClinicalRole } from '@/lib/roles'
+import { isTabVisible } from '@/lib/navigation'
 import { colors, tabBarHeight } from '@/lib/theme'
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name']
 
 function TabIcon({ name, focused }: { name: IoniconsName; focused: boolean }) {
   return (
-    <Ionicons
-      name={name}
-      size={22}
-      color={focused ? colors.primary : colors.textMuted}
-    />
+    <Ionicons name={name} size={22} color={focused ? colors.primary : colors.textMuted} />
   )
+}
+
+function tabHref(role: string | undefined, tab: Parameters<typeof isTabVisible>[1]) {
+  return isTabVisible(role, tab) ? undefined : null
 }
 
 export default function MainLayout() {
   const { user } = useAuth()
-  const showPatients = isClinicalRole(user?.role)
+  const role = user?.role
 
   return (
     <Tabs
@@ -39,8 +39,53 @@ export default function MainLayout() {
         options={{
           title: 'Home',
           headerShown: false,
+          href: tabHref(role, 'home'),
           tabBarIcon: ({ focused }) => (
-            <TabIcon name={focused ? 'grid' : 'grid-outline'} focused={focused} />
+            <TabIcon name={focused ? 'home' : 'home-outline'} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="records"
+        options={{
+          title: 'Records',
+          headerTitle: 'Health Records',
+          href: tabHref(role, 'records'),
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'document-text' : 'document-text-outline'} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="appointments"
+        options={{
+          title: 'Visits',
+          headerTitle: 'Appointments',
+          href: tabHref(role, 'appointments'),
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'calendar' : 'calendar-outline'} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="meds"
+        options={{
+          title: 'Meds',
+          headerTitle: 'Medications',
+          href: tabHref(role, 'meds'),
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'medkit' : 'medkit-outline'} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="queue"
+        options={{
+          title: 'Queue',
+          headerTitle: "Today's Queue",
+          href: tabHref(role, 'queue'),
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'list' : 'list-outline'} focused={focused} />
           ),
         }}
       />
@@ -49,29 +94,42 @@ export default function MainLayout() {
         options={{
           title: 'Patients',
           headerTitle: 'Patients',
-          href: showPatients ? undefined : null,
+          href: tabHref(role, 'patients'),
           tabBarIcon: ({ focused }) => (
             <TabIcon name={focused ? 'people' : 'people-outline'} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
-        name="settings"
+        name="stock"
         options={{
-          title: 'Account',
-          headerTitle: 'Account',
+          title: 'Stock',
+          headerTitle: 'Inventory',
+          href: tabHref(role, 'stock'),
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'cube' : 'cube-outline'} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          headerTitle: 'Profile',
+          href: tabHref(role, 'profile'),
           tabBarIcon: ({ focused }) => (
             <TabIcon name={focused ? 'person-circle' : 'person-circle-outline'} focused={focused} />
           ),
         }}
       />
+      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   )
 }
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: colors.bgElevated,
+    backgroundColor: colors.bgSubtle,
     borderTopColor: colors.border,
     borderTopWidth: 1,
     height: tabBarHeight,
@@ -91,7 +149,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: colors.text,
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: 17,
     fontFamily: 'DMSans_700Bold',
   },

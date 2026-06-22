@@ -1,7 +1,6 @@
 import { apiRequest } from './api'
 import type { DashboardKind } from './roles'
-
-export type StatTone = 'primary' | 'gold' | 'green' | 'red' | 'muted'
+import type { StatTone } from './theme'
 
 export interface DashboardStat {
   key: string
@@ -57,12 +56,4 @@ export function fetchDashboard(token: string | null): Promise<DashboardResponse>
       quickActions: Array.isArray(data.quickActions) ? data.quickActions : [],
     }
   })
-}
-
-export const TONE_COLORS: Record<StatTone, string> = {
-  primary: '#F97316',
-  gold: '#E8B84B',
-  green: '#22C55E',
-  red: '#EF4444',
-  muted: '#A1A1AA',
 }

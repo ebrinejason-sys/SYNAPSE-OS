@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, ViewStyle, StyleProp } from 'react-native'
-import { colors, radii, typography } from '@/lib/theme'
+import { colors, radii, spacing, typography } from '@/lib/theme'
 
 interface ButtonProps {
   label: string
@@ -35,11 +35,14 @@ export function Button({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'ghost' ? colors.primary : colors.white} />
+        <ActivityIndicator
+          color={variant === 'primary' ? colors.primaryForeground : colors.primary}
+        />
       ) : (
         <Text
           style={[
             styles.label,
+            variant === 'primary' && styles.primaryLabel,
             variant === 'ghost' && styles.ghostLabel,
             variant === 'danger' && styles.dangerLabel,
           ]}
@@ -53,18 +56,14 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    height: 52,
+    height: 44,
     borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
   },
   primary: {
     backgroundColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 4,
   },
   ghost: {
     backgroundColor: 'transparent',
@@ -80,8 +79,11 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.55 },
   label: {
     ...typography.bodyMedium,
-    color: colors.white,
-    fontWeight: '700',
+    fontFamily: 'DMSans_500Medium',
+  },
+  primaryLabel: {
+    color: colors.primaryForeground,
+    fontWeight: '600',
   },
   ghostLabel: { color: colors.primary },
   dangerLabel: { color: colors.error, fontWeight: '700' },

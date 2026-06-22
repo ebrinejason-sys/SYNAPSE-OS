@@ -93,7 +93,7 @@ export default function PatientsScreen() {
                   ? 'Try a different name or MRN.'
                   : 'Registered patients will appear here.'
               }
-              icon="◌"
+              icon="search"
             />
           }
           renderItem={({ item }) => (

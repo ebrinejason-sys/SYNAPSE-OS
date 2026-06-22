@@ -9,10 +9,12 @@ export interface MobileUser {
   email: string
   role: string
   fullName: string | null
+  synapseId: string | null
   tenantId: string
   tenantName: string
   isAdmin: boolean
   mustChangePassword: boolean
+  dashboardKind: string
 }
 
 interface AuthState {
@@ -57,7 +59,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           timeoutMs: 20_000,
         })
         if (cancelled) return
-        setState({ user, token: stored, isLoading: false })
+        setState({
+          user: {
+            ...user,
+            synapseId: user.synapseId ?? null,
+            dashboardKind: user.dashboardKind ?? 'generic',
+          },
+          token: stored,
+          isLoading: false,
+        })
       } catch {
         await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {})
         if (!cancelled) {
