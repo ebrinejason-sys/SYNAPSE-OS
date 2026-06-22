@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
   const providerMap = new Map(
     (providersRes.data ?? []).map((p: Record<string, string | null>) => [
       p.id,
-      p.full_name ?? [p.first_name, p.last_name].filter(Boolean).join(' ') || null,
+      p.full_name ?? ([p.first_name, p.last_name].filter(Boolean).join(' ') || null),
     ])
   )
   const tenantMap = new Map(
