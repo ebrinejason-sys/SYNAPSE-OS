@@ -1,4 +1,5 @@
 import { Bricolage_Grotesque, Inter, IBM_Plex_Mono } from "next/font/google";
+import Link from "next/link";
 
 const display = Bricolage_Grotesque({ subsets: ["latin"], weight: ["400","600","700","800"], variable: "--syn-display", display: "swap" });
 const body = Inter({ subsets: ["latin"], weight: ["400","500","600"], variable: "--syn-body", display: "swap" });
@@ -25,7 +26,7 @@ export default function Page() {
   const capabilities = [
     { tag: "SynapseOS", title: "Hospital management", copy: "One auditable patient record from triage to discharge — clinical notes, labs, prescriptions and billing on a single timeline, not four disconnected ledgers." },
     { tag: "Synapse Pharm", title: "Pharmacy POS & inventory", copy: "Real point-of-sale with stock movement, expiry tracking and reconciliation. Built to ring a sale on a counter that may lose connectivity mid-transaction." },
-    { tag: "Patient app", title: "Records that travel with the patient", copy: "A portable health record the patient controls and can share between facilities — so history doesn't restart at every front desk." },
+    { tag: "Patient app", title: "Records that travel with the patient", copy: "A portable health record the patient controls and can share between facilities — so history doesn&apos;t restart at every front desk." },
   ];
   const uganda = ["UGX currency, end to end","MTN MoMo & Airtel Money","+256 number validation","All 135 districts","PDPO-aligned data handling","DHIS2 interoperability"];
 
@@ -33,12 +34,12 @@ export default function Page() {
     <main className={`${display.variable} ${body.variable} ${mono.variable} syn-root`}>
       <style>{synCss}</style>
       <header className="syn-nav">
-        <a className="syn-brand" href="/"><Knot size={34} /><span>SynapseOS</span></a>
+        <Link className="syn-brand" href="/"><Knot size={34} /><span>SynapseOS</span></Link>
         <nav className="syn-navlinks">
           <a href="#platform">Platform</a>
           <a href="#uganda">Built for Uganda</a>
-          <a href="/login">Sign in</a>
-          <a className="syn-pill-link" href="/apply">Apply for pilot access</a>
+          <Link href="/login">Sign in</Link>
+          <Link className="syn-pill-link" href="/apply">Apply for pilot access</Link>
         </nav>
       </header>
       <section className="syn-hero">
@@ -46,7 +47,7 @@ export default function Page() {
         <h1 className="syn-h1">One patient record across the <span className="syn-teal-ink">whole visit</span> — not four that disagree.</h1>
         <p className="syn-lede">SynapseOS connects OPD, laboratory, pharmacy and billing on a single auditable timeline, with Uganda Clinical Guidelines and AI assistance inside the workflow rather than bolted on beside it.</p>
         <div className="syn-cta-row">
-          <a className="syn-btn syn-btn-primary" href="/apply">Apply for pilot access</a>
+          <Link className="syn-btn syn-btn-primary" href="/apply">Apply for pilot access</Link>
           <a className="syn-btn syn-btn-ghost" href="#platform">See how it fits together</a>
         </div>
         <div className="syn-hero-mark" aria-hidden="true"><Knot size={160} /></div>
@@ -54,7 +55,7 @@ export default function Page() {
       <section className="syn-section" id="flow">
         <p className="syn-kicker">The wedge</p>
         <h2 className="syn-h2">The record follows the patient through every room.</h2>
-        <p className="syn-section-lede">In most facilities the patient's story is rewritten at each desk. Here, a single record moves with them — every step writes to the same place.</p>
+        <p className="syn-section-lede">In most facilities the patient&apos;s story is rewritten at each desk. Here, a single record moves with them — every step writes to the same place.</p>
         <ol className="syn-flow">
           {flow.map((s, i) => (
             <li className="syn-flow-step" key={s.label}>
@@ -86,15 +87,15 @@ export default function Page() {
       </section>
       <section className="syn-section syn-close">
         <Knot size={56} />
-        <h2 className="syn-h2 syn-close-h">We're pre-traction, and saying so.</h2>
-        <p className="syn-section-lede">No vanity counters here. We're onboarding our first pilot facilities and building real operational depth before we scale breadth. If you run a clinic or pharmacy in Uganda and want in early, that's exactly who this is for.</p>
-        <a className="syn-btn syn-btn-primary" href="/apply">Apply for pilot access</a>
+        <h2 className="syn-h2 syn-close-h">We&apos;re pre-traction, and saying so.</h2>
+        <p className="syn-section-lede">No vanity counters here. We&apos;re onboarding our first pilot facilities and building real operational depth before we scale breadth. If you run a clinic or pharmacy in Uganda and want in early, that&apos;s exactly who this is for.</p>
+        <Link className="syn-btn syn-btn-primary" href="/apply">Apply for pilot access</Link>
       </section>
       <footer className="syn-footer">
         <div className="syn-foot-brand"><Knot size={28} /><span>Synapse Health Technologies</span></div>
         <nav className="syn-foot-links">
-          <a href="/login">Sign in</a>
-          <a href="/apply">Apply</a>
+          <Link href="/login">Sign in</Link>
+          <Link href="/apply">Apply</Link>
           <a href="https://pharm.synapseos.tech">Pharmacy</a>
           <a href="https://app.synapseos.tech">Patient app</a>
         </nav>
