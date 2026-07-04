@@ -19,9 +19,13 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { WorkspaceHeader } from '@/components/WorkspaceHeader'
 import { useAuth } from '@/lib/auth'
+import { getCachedWithTtl, setCached } from '@/lib/cache'
 import { fetchDashboard, type DashboardResponse, type DashboardQuickAction } from '@/lib/dashboard'
 import { dashboardKindForRole, formatRole, type DashboardKind } from '@/lib/roles'
 import { colors, radii, spacing, tabBarHeight, typography, TONE_COLORS } from '@/lib/theme'
+
+const DASHBOARD_CACHE_KEY = '/api/mobile/dashboard'
+const DASHBOARD_TTL_MS = 5 * 60 * 1000
 
 const WEB_APP_URL = (
   (Constants.expoConfig?.extra?.webAppUrl as string | undefined) ?? 'https://www.synapseos.tech'
@@ -48,24 +52,49 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const fetchFresh = useCallback(async () => {
+    if (!token) return
+    const res = await fetchDashboard(token)
+    setData(res)
+    setError(null)
+    await setCached(DASHBOARD_CACHE_KEY, res, DASHBOARD_TTL_MS)
+  }, [token])
+
   const load = useCallback(async () => {
     if (!token) {
       setLoading(false)
       return
     }
     try {
-      const res = await fetchDashboard(token)
-      setData(res)
-      setError(null)
+      await fetchFresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load dashboard')
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [token])
+  }, [token, fetchFresh])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadWithCache() {
+      const cached = await getCachedWithTtl<DashboardResponse>(DASHBOARD_CACHE_KEY, DASHBOARD_TTL_MS)
+      if (cancelled) return
+
+      if (cached) {
+        setData(cached.data)
+        setLoading(false)
+        if (cached.stale) fetchFresh().catch(() => {})
+        return
+      }
+
+      await load()
+    }
+
+    loadWithCache()
+    return () => { cancelled = true }
+  }, [load, fetchFresh])
 
   const onRefresh = () => {
     setRefreshing(true)
