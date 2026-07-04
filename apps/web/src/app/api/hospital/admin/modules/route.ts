@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
 import {
   fetchModuleRegistry,
-  gateHospitalModule,
   isContextError,
   logHospitalAudit,
   moduleToggleSchema,
@@ -104,21 +103,4 @@ export async function PATCH(req: NextRequest) {
   })
 
   return NextResponse.json({ module: data })
-}
-
-/** Example gated endpoint — returns 403 when module disabled */
-export async function POST(req: NextRequest) {
-  const ctx = await requireHospitalAdminContext()
-  if (isContextError(ctx)) return ctx
-
-  const body = (await req.json().catch(() => ({}))) as { module_key?: string }
-  const moduleKey = body.module_key?.trim()
-  if (!moduleKey) {
-    return NextResponse.json({ error: 'module_key required' }, { status: 400 })
-  }
-
-  const gate = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, moduleKey)
-  if (gate) return gate
-
-  return NextResponse.json({ ok: true, module_key: moduleKey })
 }
