@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native'
 import Constants from 'expo-constants'
+import { useRouter } from 'expo-router'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -32,6 +33,7 @@ const WEB_APP_URL = (
 
 export default function AppointmentsScreen() {
   const { token } = useAuth()
+  const router = useRouter()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -91,7 +93,10 @@ export default function AppointmentsScreen() {
             ) : null
           }
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <Pressable
+              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+              onPress={() => router.push(`/appointment/${item.id}` as never)}
+            >
               <View style={styles.cardTop}>
                 <Text style={styles.date}>{formatDate(item.scheduledFor)}</Text>
                 <StatusBadge status={item.status} />
@@ -107,7 +112,7 @@ export default function AppointmentsScreen() {
                 <Text style={styles.complaint} numberOfLines={2}>{item.chiefComplaint}</Text>
               ) : null}
               <Text style={styles.channel}>{item.channel.replace(/_/g, ' ')}</Text>
-            </View>
+            </Pressable>
           )}
         />
       )}
@@ -139,6 +144,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.sm,
   },
+  cardPressed: { backgroundColor: colors.surfaceHover },
   cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',

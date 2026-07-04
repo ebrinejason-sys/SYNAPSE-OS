@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   FlatList,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { SectionHeader } from '@/components/ui/Card'
@@ -30,6 +32,7 @@ interface RecordsProfile {
 
 export default function RecordsScreen() {
   const { token } = useAuth()
+  const router = useRouter()
   const [records, setRecords] = useState<HealthRecord[]>([])
   const [profile, setProfile] = useState<RecordsProfile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -105,7 +108,10 @@ export default function RecordsScreen() {
             />
           }
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <Pressable
+              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+              onPress={() => router.push(`/record/${item.id}` as never)}
+            >
               <View style={styles.typePill}>
                 <Text style={styles.typeText}>{TYPE_LABELS[item.type]}</Text>
               </View>
@@ -117,7 +123,7 @@ export default function RecordsScreen() {
                 <Text style={styles.date}>{formatDate(item.date)}</Text>
                 {item.meta ? <Text style={styles.meta}>{item.meta}</Text> : null}
               </View>
-            </View>
+            </Pressable>
           )}
         />
       )}
@@ -196,6 +202,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.sm,
   },
+  cardPressed: { backgroundColor: colors.surfaceHover },
   typePill: {
     alignSelf: 'flex-start',
     backgroundColor: colors.tealSoft,

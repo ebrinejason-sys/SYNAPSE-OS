@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native'
 import Constants from 'expo-constants'
+import { useRouter } from 'expo-router'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { useAuth } from '@/lib/auth'
@@ -50,6 +51,7 @@ const STATUS_LABELS: Record<InventoryItem['status'], string> = {
 
 export default function StockScreen() {
   const { token } = useAuth()
+  const router = useRouter()
   const [items, setItems] = useState<InventoryItem[]>([])
   const [summary, setSummary] = useState<InventorySummary | null>(null)
   const [loading, setLoading] = useState(true)
@@ -117,7 +119,10 @@ export default function StockScreen() {
             </Pressable>
           }
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <Pressable
+              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+              onPress={() => router.push(`/stock-item/${item.id}` as never)}
+            >
               <View style={styles.cardTop}>
                 <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
                 <Text style={[styles.status, { color: STATUS_COLORS[item.status] }]}>
@@ -131,7 +136,7 @@ export default function StockScreen() {
               {item.expiryDate ? (
                 <Text style={styles.expiry}>Exp {item.expiryDate}</Text>
               ) : null}
-            </View>
+            </Pressable>
           )}
         />
       )}
@@ -193,6 +198,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.sm,
   },
+  cardPressed: { backgroundColor: colors.surfaceHover },
   cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -13,6 +13,8 @@ export type MainTab =
   | 'queue'
   | 'patients'
   | 'stock'
+  | 'lab'
+  | 'claims'
   | 'profile'
 
 export interface TabDef {
@@ -31,6 +33,8 @@ const ALL_TABS: MainTab[] = [
   'queue',
   'patients',
   'stock',
+  'lab',
+  'claims',
   'profile',
 ]
 
@@ -42,6 +46,8 @@ const TAB_DEFS: Record<MainTab, Omit<TabDef, 'name'>> = {
   queue: { title: 'Queue', icon: 'list-outline', iconFocused: 'list', headerTitle: "Today's Queue" },
   patients: { title: 'Patients', icon: 'people-outline', iconFocused: 'people', headerTitle: 'Patients' },
   stock: { title: 'Stock', icon: 'cube-outline', iconFocused: 'cube', headerTitle: 'Inventory' },
+  lab: { title: 'Lab', icon: 'flask-outline', iconFocused: 'flask', headerTitle: 'Lab Orders' },
+  claims: { title: 'Claims', icon: 'receipt-outline', iconFocused: 'receipt', headerTitle: 'Billing Claims' },
   profile: { title: 'Profile', icon: 'person-circle-outline', iconFocused: 'person-circle', headerTitle: 'Profile' },
 }
 
@@ -52,8 +58,8 @@ const TABS_BY_KIND: Record<DashboardKind, MainTab[]> = {
   nurse: ['home', 'queue', 'patients', 'profile'],
   reception: ['home', 'queue', 'patients', 'profile'],
   pharmacy: ['home', 'stock', 'profile'],
-  lab: ['home', 'patients', 'profile'],
-  billing: ['home', 'profile'],
+  lab: ['home', 'lab', 'patients', 'profile'],
+  billing: ['home', 'claims', 'profile'],
   admin: ['home', 'queue', 'patients', 'profile'],
   generic: ['home', 'profile'],
 }

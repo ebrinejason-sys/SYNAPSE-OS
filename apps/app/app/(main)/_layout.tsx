@@ -112,6 +112,28 @@ export default function MainLayout() {
         }}
       />
       <Tabs.Screen
+        name="lab"
+        options={{
+          title: 'Lab',
+          headerTitle: 'Lab Orders',
+          href: tabHref(role, 'lab'),
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'flask' : 'flask-outline'} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="claims"
+        options={{
+          title: 'Claims',
+          headerTitle: 'Billing Claims',
+          href: tabHref(role, 'claims'),
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'receipt' : 'receipt-outline'} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',

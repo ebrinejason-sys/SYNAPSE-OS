@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
-import { useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -16,31 +13,26 @@ import { useAuth } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
 import { colors, radii, spacing, typography } from '@/lib/theme'
 
-interface QueueItem {
-  encounterId: string
+interface LabOrder {
+  id: string
+  patientName: string
+  patientMrn: string | null
+  testName: string
   status: string
-  chiefComplaint: string | null
-  clinicalStage: string | null
-  createdAt: string
-  patient: {
-    id: string
-    fullName: string
-    mrn: string | null
-  } | null
+  orderedAt: string
+  orderedBy: string | null
 }
 
-interface QueueStats {
-  waiting: number
+interface LabStats {
+  pending: number
   inProgress: number
-  completed: number
+  collected: number
 }
 
-
-export default function QueueScreen() {
+export default function LabScreen() {
   const { token } = useAuth()
-  const router = useRouter()
-  const [queue, setQueue] = useState<QueueItem[]>([])
-  const [stats, setStats] = useState<QueueStats>({ waiting: 0, inProgress: 0, completed: 0 })
+  const [orders, setOrders] = useState<LabOrder[]>([])
+  const [stats, setStats] = useState<LabStats>({ pending: 0, inProgress: 0, collected: 0 })
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -50,14 +42,14 @@ export default function QueueScreen() {
       return
     }
     try {
-      const data = await apiRequest<{ queue: QueueItem[]; stats: QueueStats }>(
-        '/api/mobile/queue',
+      const data = await apiRequest<{ orders: LabOrder[]; stats: LabStats }>(
+        '/api/mobile/lab',
         { token }
       )
-      setQueue(data.queue)
+      setOrders(data.orders)
       setStats(data.stats)
     } catch {
-      setQueue([])
+      setOrders([])
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -66,26 +58,22 @@ export default function QueueScreen() {
 
   useEffect(() => { load() }, [load])
 
-  const openEncounter = (item: QueueItem) => {
-    router.push(`/encounter/${item.encounterId}` as never)
-  }
-
   return (
     <View style={styles.container}>
       {!loading ? (
         <View style={styles.statsRow}>
-          <StatPill label="Waiting" value={stats.waiting} tone="warning" />
-          <StatPill label="In progress" value={stats.inProgress} tone="info" />
-          <StatPill label="Done" value={stats.completed} tone="success" />
+          <StatPill label="Pending" value={stats.pending} tone="warning" />
+          <StatPill label="In Progress" value={stats.inProgress} tone="info" />
+          <StatPill label="Collected" value={stats.collected} tone="success" />
         </View>
       ) : null}
 
       {loading ? (
-        <LoadingBlock message="Loading queue…" />
+        <LoadingBlock message="Loading lab orders…" />
       ) : (
         <FlatList
-          data={queue}
-          keyExtractor={(item) => item.encounterId}
+          data={orders}
+          keyExtractor={(item) => item.id}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -96,30 +84,30 @@ export default function QueueScreen() {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <EmptyState
-              title="Queue is clear"
-              body="No encounters scheduled for today. Pull down to refresh."
-              icon="checkmark-circle"
+              title="No pending orders"
+              body="Lab orders assigned to your facility will appear here."
+              icon="flask"
             />
           }
           renderItem={({ item }) => (
-            <Pressable
-              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-              onPress={() => openEncounter(item)}
-            >
+            <View style={styles.card}>
               <View style={styles.cardTop}>
-                <Text style={styles.patientName}>
-                  {item.patient?.fullName ?? 'Unknown patient'}
-                </Text>
+                <View style={styles.testPill}>
+                  <Text style={styles.testText}>{item.testName}</Text>
+                </View>
                 <StatusBadge status={item.status} />
               </View>
-              {item.patient?.mrn ? (
-                <Text style={styles.mrn}>MRN {item.patient.mrn}</Text>
+              <Text style={styles.patientName}>{item.patientName}</Text>
+              {item.patientMrn ? (
+                <Text style={styles.mrn}>MRN {item.patientMrn}</Text>
               ) : null}
-              {item.chiefComplaint ? (
-                <Text style={styles.complaint} numberOfLines={2}>{item.chiefComplaint}</Text>
-              ) : null}
-              <Text style={styles.time}>{formatTime(item.createdAt)}</Text>
-            </Pressable>
+              <View style={styles.cardFooter}>
+                {item.orderedBy ? (
+                  <Text style={styles.orderedBy}>Ordered by {item.orderedBy}</Text>
+                ) : null}
+                <Text style={styles.time}>{formatTime(item.orderedAt)}</Text>
+              </View>
+            </View>
           )}
         />
       )}
@@ -127,20 +115,9 @@ export default function QueueScreen() {
   )
 }
 
-function StatPill({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: number
-  tone: 'warning' | 'info' | 'success'
-}) {
-  const bg =
-    tone === 'warning' ? colors.warningSoft : tone === 'info' ? colors.infoSoft : colors.successSoft
-  const fg =
-    tone === 'warning' ? colors.warning : tone === 'info' ? colors.info : colors.success
-
+function StatPill({ label, value, tone }: { label: string; value: number; tone: 'warning' | 'info' | 'success' }) {
+  const bg = tone === 'warning' ? colors.warningSoft : tone === 'info' ? colors.infoSoft : colors.successSoft
+  const fg = tone === 'warning' ? colors.warning : tone === 'info' ? colors.info : colors.success
   return (
     <View style={[styles.statPill, { backgroundColor: bg }]}>
       <Text style={[styles.statValue, { color: fg }]}>{value}</Text>
@@ -168,8 +145,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statValue: {
-    ...typography.stat,
     fontSize: 20,
+    fontWeight: '700',
     fontFamily: 'DMSans_700Bold',
   },
   statLabel: {
@@ -187,35 +164,54 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.sm,
   },
-  cardPressed: { backgroundColor: colors.surfaceHover },
   cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  testPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.tealSoft,
+    borderRadius: radii.full,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  testText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.teal,
+    fontFamily: 'DMSans_500Medium',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   patientName: {
     ...typography.bodyMedium,
     color: colors.text,
     fontFamily: 'DMSans_700Bold',
-    flex: 1,
   },
   mrn: {
     ...typography.mono,
     color: colors.textMuted,
     fontSize: 11,
-    marginTop: 4,
+    marginTop: 3,
   },
-  complaint: {
-    ...typography.bodySm,
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  orderedBy: {
+    ...typography.caption,
     color: colors.textSecondary,
     fontFamily: 'DMSans_400Regular',
-    marginTop: spacing.sm,
+    flex: 1,
   },
   time: {
     ...typography.caption,
     color: colors.textMuted,
     fontFamily: 'DMSans_400Regular',
-    marginTop: spacing.sm,
   },
 })

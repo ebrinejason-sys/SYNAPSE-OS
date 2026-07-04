@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   FlatList,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { useAuth } from '@/lib/auth'
@@ -23,6 +25,7 @@ interface Medication {
 
 export default function MedsScreen() {
   const { token } = useAuth()
+  const router = useRouter()
   const [medications, setMedications] = useState<Medication[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -72,7 +75,10 @@ export default function MedsScreen() {
             />
           }
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <Pressable
+              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+              onPress={() => router.push(`/medication/${item.id}` as never)}
+            >
               <View style={styles.iconWrap}>
                 <Text style={styles.iconLetter}>{item.name[0]?.toUpperCase() ?? 'M'}</Text>
               </View>
@@ -88,7 +94,7 @@ export default function MedsScreen() {
                 ) : null}
                 <Text style={styles.source}>{item.source}</Text>
               </View>
-            </View>
+            </Pressable>
           )}
         />
       )}
@@ -109,6 +115,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     gap: spacing.md,
   },
+  cardPressed: { backgroundColor: colors.surfaceHover },
   iconWrap: {
     width: 44,
     height: 44,
