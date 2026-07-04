@@ -18,6 +18,10 @@ export async function GET() {
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
 
+  const tomorrowStart = new Date()
+  tomorrowStart.setHours(0, 0, 0, 0)
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1)
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
   const { data: encounters, error } = await db
@@ -27,6 +31,7 @@ export async function GET() {
     .eq('hospital_id', ctx.hospitalId)
     .eq('is_deleted', false)
     .gte('visit_date', todayStart.toISOString())
+    .lt('visit_date', tomorrowStart.toISOString())
     .in('status', ['open', 'in_progress', 'completed'])
     .order('visit_date', { ascending: true })
 
