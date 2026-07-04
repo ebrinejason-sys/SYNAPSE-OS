@@ -1,0 +1,5 @@
+export { requireHospitalAdminContext, isContextError, type HospitalAdminContext } from './context'
+export { logHospitalAudit } from './audit'
+export { fetchModuleRegistry, gateHospitalModule, isHospitalModuleActive, type ModuleRegistryEntry } from './modules'
+export { requireHospitalCapability } from './guard'
+export * from './schemas'
