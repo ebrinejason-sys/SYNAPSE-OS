@@ -738,15 +738,73 @@ git commit -m "feat(hospital): add POST /api/opd/triage"
 ### Task 6: Shared department UI primitives
 
 **Files:**
+- Create: `apps/web/src/app/api/patients/search/route.ts`
 - Create: `apps/web/src/components/hospital-dept/DepartmentShell.tsx`
 - Create: `apps/web/src/components/hospital-dept/PatientSearch.tsx`
 - Create: `apps/web/src/hooks/usePatientContext.ts`
 
 **Interfaces:**
-- Produces: `<DepartmentShell queuePanel={ReactNode} patientBanner={ReactNode}>{children}</DepartmentShell>`, `<PatientSearch onSelect={(patient: PatientSearchResult) => void} />` where `PatientSearchResult = { id: string; fullName: string; mrn: string | null }`, `usePatientContext()` returning `{ patient, setPatient }`.
+- Produces: `GET /api/patients/search?q=...&limit=...` → `{ patients: Array<{ id, fullName, mrn }> }`; `<DepartmentShell queuePanel={ReactNode} patientBanner={ReactNode}>{children}</DepartmentShell>`, `<PatientSearch onSelect={(patient: PatientSearchResult) => void} />` where `PatientSearchResult = { id: string; fullName: string; mrn: string | null }`, `usePatientContext()` returning `{ patient, setPatient }`.
 - Consumed by: Task 7 (`/dept/opd/queue/page.tsx`).
 
-- [ ] **Step 1: Write `hooks/usePatientContext.ts`**
+**Why a new search route:** `GET /api/mobile/patients` (existing) authenticates via `Authorization: Bearer` header only — it does not read the `SESSION_COOKIE` cookie the web app uses. A browser `fetch` with `credentials: 'include'` against that route would 401. `PatientSearch` is a web component, so it needs a cookie-authenticated route. This one uses `requireHospitalStaffContext()` (same as the other Phase 2a routes) with no capability gate — name/MRN lookup is a broadly-needed, non-sensitive-write read used across departments, matching the permission model `GET /api/mobile/patients` itself already uses (auth + tenant scope, no granular capability check).
+
+- [ ] **Step 1: Write `apps/web/src/app/api/patients/search/route.ts`**
+
+```ts
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@synapse/db/admin'
+import { isContextError } from '../../../../lib/hospital-shared'
+import { requireHospitalStaffContext } from '../../../../lib/hospital-dept'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET(req: NextRequest) {
+  const ctx = await requireHospitalStaffContext()
+  if (isContextError(ctx)) return ctx
+
+  const { searchParams } = new URL(req.url)
+  const q = searchParams.get('q')?.trim() ?? ''
+  const limit = Math.min(Number(searchParams.get('limit') ?? '10'), 50)
+
+  if (q.length < 2) return NextResponse.json({ patients: [] })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any
+  const { data: patients, error } = await db
+    .from('patients')
+    .select('id, full_name, mrn')
+    .eq('tenant_id', ctx.tenantId)
+    .eq('is_deleted', false)
+    .or(`full_name.ilike.%${q}%,mrn.ilike.%${q}%`)
+    .order('full_name', { ascending: true })
+    .limit(limit)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({
+    patients: (patients ?? []).map((p: { id: string; full_name: string; mrn: string | null }) => ({
+      id: p.id,
+      fullName: p.full_name,
+      mrn: p.mrn,
+    })),
+  })
+}
+```
+
+- [ ] **Step 2: Verify**
+
+Run: `cd apps/web && npm run type-check`
+Expected: exit code 0.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add apps/web/src/app/api/patients/search/route.ts
+git commit -m "feat(hospital): add GET /api/patients/search (cookie-authed, for web PatientSearch)"
+```
+
+- [ ] **Step 4: Write `hooks/usePatientContext.ts`**
 
 ```ts
 'use client'
@@ -770,7 +828,7 @@ export function usePatientContext() {
 }
 ```
 
-- [ ] **Step 2: Write `components/hospital-dept/PatientSearch.tsx`**
+- [ ] **Step 5: Write `components/hospital-dept/PatientSearch.tsx`**
 
 ```tsx
 'use client'
@@ -801,7 +859,7 @@ export function PatientSearch({ onSelect }: PatientSearchProps) {
     }
     setLoading(true)
     try {
-      const res = await fetch(`/api/mobile/patients?q=${encodeURIComponent(q)}&limit=10`, {
+      const res = await fetch(`/api/patients/search?q=${encodeURIComponent(q)}&limit=10`, {
         credentials: 'include',
       })
       const data = await res.json()
@@ -847,9 +905,9 @@ export function PatientSearch({ onSelect }: PatientSearchProps) {
 }
 ```
 
-Note: reuses the existing `GET /api/mobile/patients` endpoint (Bearer-token auth in that route's current form works because the browser session also carries the `SESSION_COOKIE`; if that route requires a Bearer header specifically rather than accepting the session cookie, this step's fetch will 401 — in that case, swap to querying `/api/patients/register`'s sibling search, or add `credentials: 'include'`-compatible cookie auth to `/api/mobile/patients` as a one-line follow-up. Flag this explicitly in the task's own review rather than silently guessing.)
+Note: calls the new cookie-authenticated `GET /api/patients/search` from Step 1 of this task (not `/api/mobile/patients`, which is Bearer-token-only and would 401 for a browser session). Response shape (`{ patients: [{ id, fullName, mrn }] }`) is identical between the two routes, so the `.map` below needs no special-casing.
 
-- [ ] **Step 3: Write `components/hospital-dept/DepartmentShell.tsx`**
+- [ ] **Step 6: Write `components/hospital-dept/DepartmentShell.tsx`**
 
 ```tsx
 import type { ReactNode } from 'react'
@@ -877,12 +935,12 @@ export function DepartmentShell({ patientBanner, queuePanel, children }: Departm
 }
 ```
 
-- [ ] **Step 4: Verify**
+- [ ] **Step 7: Verify**
 
 Run: `cd apps/web && npm run type-check`
 Expected: exit code 0.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add apps/web/src/components/hospital-dept apps/web/src/hooks/usePatientContext.ts
