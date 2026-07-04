@@ -45,8 +45,9 @@ export async function POST(req: NextRequest) {
   if (encounterError) return NextResponse.json({ error: encounterError.message }, { status: 500 })
 
   const hasVitals = Object.values(vitalsFields).some((v) => v !== undefined)
+  let vitalsRecorded = true
   if (hasVitals) {
-    await db.from('vitals').insert({
+    const { error: vitalsError } = await db.from('vitals').insert({
       tenant_id: ctx.tenantId,
       encounter_id: encounter.id,
       ...vitalsFields,
@@ -54,6 +55,9 @@ export async function POST(req: NextRequest) {
       recorded_at: new Date().toISOString(),
       is_deleted: false,
     })
+    if (vitalsError) {
+      vitalsRecorded = false
+    }
   }
 
   await logHospitalAudit({
@@ -64,5 +68,12 @@ export async function POST(req: NextRequest) {
     newValue: { patient_id, chief_complaint, clinical_stage },
   })
 
-  return NextResponse.json({ encounterId: encounter.id }, { status: 201 })
+  const response: { encounterId: string; vitalsRecorded?: boolean } = {
+    encounterId: encounter.id,
+  }
+  if (hasVitals && !vitalsRecorded) {
+    response.vitalsRecorded = false
+  }
+
+  return NextResponse.json(response, { status: 201 })
 }
