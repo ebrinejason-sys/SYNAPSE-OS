@@ -2,10 +2,10 @@ import 'server-only'
 
 import { NextResponse } from 'next/server'
 import { requireCapability, CapabilityError } from '@synapse/auth/capability'
-import type { HospitalAdminContext } from './context'
+import type { HospitalContext } from './context'
 
 export async function requireHospitalCapability(
-  ctx: HospitalAdminContext,
+  ctx: HospitalContext,
   resource: string,
   action: string,
   module = 'config',

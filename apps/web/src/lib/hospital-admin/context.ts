@@ -6,16 +6,9 @@ import { verifyToken } from '@synapse/auth/tokens'
 import { validateSession } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE } from '@synapse/config/constants'
+import type { HospitalContext } from '../hospital-shared'
 
-export interface HospitalAdminContext {
-  userId: string
-  email: string
-  role: string
-  tenantId: string
-  hospitalId: string
-  facilityType: string
-  fullName: string | null
-}
+export type HospitalAdminContext = HospitalContext
 
 const ADMIN_ROLES = new Set(['hospital_admin', 'platform_admin', 'admin'])
 
@@ -77,10 +70,4 @@ export async function requireHospitalAdminContext(): Promise<
     facilityType,
     fullName: profile.full_name ?? null,
   }
-}
-
-export function isContextError(
-  value: HospitalAdminContext | NextResponse,
-): value is NextResponse {
-  return value instanceof NextResponse
 }

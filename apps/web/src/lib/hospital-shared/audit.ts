@@ -1,10 +1,10 @@
 import 'server-only'
 
 import { supabaseAdmin } from '@synapse/db/admin'
-import type { HospitalAdminContext } from './context'
+import type { HospitalContext } from './context'
 
 export async function logHospitalAudit(params: {
-  ctx: HospitalAdminContext
+  ctx: HospitalContext
   action: string
   tableName: string
   recordId?: string | null
