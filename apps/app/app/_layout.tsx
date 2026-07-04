@@ -5,10 +5,27 @@ import { StatusBar } from 'expo-status-bar'
 import { useEffect, useState } from 'react'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
-import { AuthProvider } from '@/lib/auth'
+import { LockScreen } from '@/components/LockScreen'
+import { AuthProvider, useAuth } from '@/lib/auth'
 import { colors } from '@/lib/theme'
 
 SplashScreen.preventAutoHideAsync().catch(() => {})
+
+function RootNavigator() {
+  const { isLocked } = useAuth()
+
+  if (isLocked) return <LockScreen />
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.bg },
+        animation: 'fade',
+      }}
+    />
+  )
+}
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -40,13 +57,7 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
         <AuthProvider>
           <StatusBar style="light" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.bg },
-              animation: 'fade',
-            }}
-          />
+          <RootNavigator />
         </AuthProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
