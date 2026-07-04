@@ -62,11 +62,15 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'deviceId is required' }, { status: 400 })
   }
 
-  await db()
+  const { error } = await db()
     .from('mobile_push_tokens')
     .delete()
     .eq('user_id', user.userId)
     .eq('device_id', body.deviceId)
+
+  if (error) {
+    return NextResponse.json({ error: 'Failed to deregister push token' }, { status: 500 })
+  }
 
   return NextResponse.json({ success: true })
 }
