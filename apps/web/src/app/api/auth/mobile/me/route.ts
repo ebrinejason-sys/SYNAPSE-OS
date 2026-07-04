@@ -4,9 +4,20 @@ import { supabaseAdmin } from '@synapse/db/admin'
 
 const ROLE_KIND: Record<string, string> = {
   patient: 'patient',
-  doctor: 'clinician', nurse: 'nurse', pharmacist: 'pharmacy', pharmacy_admin: 'pharmacy',
-  lab_tech: 'lab', receptionist: 'reception', billing_officer: 'billing',
-  admin: 'admin', hospital_admin: 'admin', platform_admin: 'admin',
+  doctor: 'clinician', independent_doctor: 'clinician', clinician: 'clinician',
+  clinical_officer: 'clinician', specialist: 'clinician', surgeon: 'clinician',
+  anaesthetist: 'clinician', intensivist: 'clinician', cardiologist: 'clinician',
+  oncologist: 'clinician', psychiatrist: 'clinician', nephrologist: 'clinician',
+  art_clinician: 'clinician', obstetrician: 'clinician', paediatrician: 'clinician',
+  radiologist: 'clinician', radiographer: 'clinician',
+  nurse: 'nurse', theatre_nurse: 'nurse', icu_nurse: 'nurse',
+  hiv_counselor: 'nurse', chw: 'nurse', social_worker: 'nurse',
+  pharmacist: 'pharmacy', pharmacy_admin: 'pharmacy', pharmacy_store_manager: 'pharmacy',
+  lab_tech: 'lab', lab_technician: 'lab', lab_supervisor: 'lab',
+  receptionist: 'reception',
+  billing_officer: 'billing', claims_officer: 'billing', insurance_officer: 'billing',
+  admin: 'admin', hospital_admin: 'admin', facility_admin: 'admin',
+  superadmin: 'admin', super_admin: 'admin', overall_admin: 'admin', platform_admin: 'admin',
 }
 
 export async function GET(req: NextRequest) {
