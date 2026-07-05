@@ -6,9 +6,16 @@ type SectionShellProps = {
   label?: string
   title: string
   description?: string
-  variant?: 'default' | 'surface'
+  variant?: 'default' | 'surface' | 'warm' | 'cool'
   className?: string
   children: ReactNode
+}
+
+const VARIANT_CLASS: Record<NonNullable<SectionShellProps['variant']>, string> = {
+  default: '',
+  surface: 'landing-section-surface',
+  warm: 'landing-section-warm',
+  cool: 'landing-section-cool',
 }
 
 export function SectionShell({
@@ -23,7 +30,7 @@ export function SectionShell({
   return (
     <section
       id={id}
-      className={`landing-section ${variant === 'surface' ? 'landing-section-surface' : ''} ${className}`}
+      className={`landing-section ${VARIANT_CLASS[variant]} ${className}`}
     >
       <div className="landing-container">
         <Reveal>
