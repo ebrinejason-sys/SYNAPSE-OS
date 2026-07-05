@@ -1102,6 +1102,13 @@ code, pre, .mono {
   background: radial-gradient(ellipse 90% 60% at 50% 0%, rgba(31, 166, 166, 0.04) 0%, transparent 65%), var(--bg-base);
 }
 
+/* Reduced padding for secondary/detail sections — keeps the primary
+   journey sections at full 5rem spacing while supporting content takes
+   up less of the scroll. */
+.landing-section-tight {
+  padding-block: 3.5rem;
+}
+
 /* Deploy-steps timeline — genuinely sequential content gets a connected
    line instead of four identical cards. */
 .landing-timeline {

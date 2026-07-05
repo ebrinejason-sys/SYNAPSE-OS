@@ -10,6 +10,7 @@ import { LandingNav } from '../components/landing/LandingNav'
 import { LandingFooter } from '../components/landing/LandingFooter'
 import { SectionShell } from '../components/landing/SectionShell'
 import { Reveal } from '../components/landing/Reveal'
+import { ModuleGrid } from '../components/landing/ModuleGrid'
 
 const MODULES = [
   { abbr: 'OPD', name: 'OPD / Consultation', desc: 'Queue, consultation notes, fee schedules' },
@@ -236,7 +237,7 @@ export default function HomePage() {
         </div>
       </SectionShell>
 
-      <SectionShell id="deploy" label="Deployment" title="How a hospital goes live">
+      <SectionShell id="deploy" label="Deployment" title="How a hospital goes live" tight>
         <ol className="landing-timeline">
           {DEPLOY_STEPS.map((step, i) => (
             <li key={step.title} className="landing-timeline-step">
@@ -267,25 +268,10 @@ export default function HomePage() {
         title="Department modules"
         description="Enable only the modules your facility needs. Each module ships with role permissions and department-specific forms."
       >
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {MODULES.map((m) => (
-            <div key={m.name} className="landing-card !p-4">
-              <span
-                className="mb-2 inline-block rounded px-2 py-0.5 font-mono text-xs font-bold"
-                style={{ background: 'rgba(249,115,22,0.1)', color: 'var(--brand-orange)' }}
-              >
-                {m.abbr}
-              </span>
-              <p className="text-sm font-semibold">{m.name}</p>
-              <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                {m.desc}
-              </p>
-            </div>
-          ))}
-        </div>
+        <ModuleGrid modules={MODULES} />
       </SectionShell>
 
-      <SectionShell label="Reporting" title="National and donor reporting" variant="surface">
+      <SectionShell label="Reporting" title="National and donor reporting" variant="surface" tight>
         <div className="grid items-start gap-10 lg:grid-cols-2">
           <p className="landing-lead">
             Encounters, outcomes, and programme indicators can be mapped to SDG goals and exported for DHIS2.
@@ -379,7 +365,7 @@ export default function HomePage() {
         </div>
       </SectionShell>
 
-      <SectionShell id="pilot" label="Pilot programme" title="What hospitals evaluate in a pilot">
+      <SectionShell id="pilot" label="Pilot programme" title="What hospitals evaluate in a pilot" tight>
         <p className="landing-lead mb-8 max-w-2xl">
           We do not publish anonymous quotes or unaudited performance percentages on this page. During pilot,
           facilities measure outcomes that matter to them, typically documentation time, claim turnaround, stock
@@ -404,7 +390,7 @@ export default function HomePage() {
         </Link>
       </SectionShell>
 
-      <SectionShell label="Team" title="People building SynapseOS" variant="surface">
+      <SectionShell label="Team" title="People building SynapseOS" variant="surface" tight>
         <div className="grid gap-6 md:grid-cols-2 max-w-3xl">
           <div className="landing-card-elevated flex gap-4 p-5">
             <Image src="/team/founder.jpg" alt="Ebrine Tushabe" width={64} height={64} unoptimized className="shrink-0 rounded-lg object-cover" />
@@ -483,7 +469,7 @@ export default function HomePage() {
         </div>
       </SectionShell>
 
-      <SectionShell label="Standards" title="Standards & integrations" variant="surface" className="!py-16">
+      <SectionShell label="Standards" title="Standards & integrations" variant="surface" tight>
         <div className="landing-plain-list">
           {STANDARDS.map((s) => (
             <div key={s.name} className="landing-plain-item">
@@ -497,7 +483,7 @@ export default function HomePage() {
         </div>
       </SectionShell>
 
-      <SectionShell label="Security" title="How patient data is protected" variant="cool">
+      <SectionShell label="Security" title="How patient data is protected" variant="cool" tight>
         <div className="landing-plain-list">
           {TRUST.map((t) => (
             <div key={t.title} className="landing-plain-item">
