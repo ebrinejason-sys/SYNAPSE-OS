@@ -2,6 +2,7 @@ import { createClient } from "../../../../lib/supabase/server";
 import { headers } from "next/headers";
 import { resolveTenant } from "../../../../lib/tenant";
 import Link from "next/link";
+import { RegisterPatientForm } from "./RegisterPatientForm";
 
 export default async function PatientsPage({
   params,
@@ -37,6 +38,7 @@ export default async function PatientsPage({
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold">Patients</h1>
+        <RegisterPatientForm />
       </div>
 
       <form method="GET" className="mb-6">

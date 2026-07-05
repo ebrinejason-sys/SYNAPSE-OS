@@ -339,6 +339,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/lab/") ||
     pathname.startsWith("/pharmacy/") ||
     pathname.startsWith("/admin/") ||
+    pathname.startsWith("/hospital/") ||
     pathname.startsWith("/patient/");
 
   if (isProtected && !synapseValid) {
