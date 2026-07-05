@@ -3,6 +3,33 @@
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 
+function extractErrorMessage(error: any): string {
+  // Handle plain string errors
+  if (typeof error === 'string') {
+    return error
+  }
+
+  // Handle zod flatten() error object
+  if (error && typeof error === 'object') {
+    // Try formErrors first
+    if (Array.isArray(error.formErrors) && error.formErrors.length > 0) {
+      return error.formErrors[0]
+    }
+
+    // Try fieldErrors
+    if (error.fieldErrors && typeof error.fieldErrors === 'object') {
+      for (const fieldName in error.fieldErrors) {
+        const messages = error.fieldErrors[fieldName]
+        if (Array.isArray(messages) && messages.length > 0) {
+          return messages[0]
+        }
+      }
+    }
+  }
+
+  return 'Failed to register patient'
+}
+
 export function RegisterPatientForm() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -31,7 +58,7 @@ export function RegisterPatientForm() {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setError(data.error ? JSON.stringify(data.error) : 'Failed to register patient')
+        setError(data.error ? extractErrorMessage(data.error) : 'Failed to register patient')
         return
       }
       setFullName('')
