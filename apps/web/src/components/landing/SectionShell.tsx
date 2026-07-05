@@ -6,9 +6,20 @@ type SectionShellProps = {
   label?: string
   title: string
   description?: string
-  variant?: 'default' | 'surface'
+  variant?: 'default' | 'surface' | 'warm' | 'cool'
+  /** Reduced block padding for secondary/detail sections, so the primary
+   * journey (hero, products, features, modules, pricing, demo, compare)
+   * keeps its full spacing while supporting sections take up less room. */
+  tight?: boolean
   className?: string
   children: ReactNode
+}
+
+const VARIANT_CLASS: Record<NonNullable<SectionShellProps['variant']>, string> = {
+  default: '',
+  surface: 'landing-section-surface',
+  warm: 'landing-section-warm',
+  cool: 'landing-section-cool',
 }
 
 export function SectionShell({
@@ -17,13 +28,14 @@ export function SectionShell({
   title,
   description,
   variant = 'default',
+  tight = false,
   className = '',
   children,
 }: SectionShellProps) {
   return (
     <section
       id={id}
-      className={`landing-section ${variant === 'surface' ? 'landing-section-surface' : ''} ${className}`}
+      className={`landing-section ${VARIANT_CLASS[variant]} ${tight ? 'landing-section-tight' : ''} ${className}`}
     >
       <div className="landing-container">
         <Reveal>

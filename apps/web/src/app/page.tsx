@@ -10,6 +10,7 @@ import { LandingNav } from '../components/landing/LandingNav'
 import { LandingFooter } from '../components/landing/LandingFooter'
 import { SectionShell } from '../components/landing/SectionShell'
 import { Reveal } from '../components/landing/Reveal'
+import { ModuleGrid } from '../components/landing/ModuleGrid'
 
 const MODULES = [
   { abbr: 'OPD', name: 'OPD / Consultation', desc: 'Queue, consultation notes, fee schedules' },
@@ -236,24 +237,16 @@ export default function HomePage() {
         </div>
       </SectionShell>
 
-      <SectionShell id="deploy" label="Deployment" title="How a hospital goes live">
-        <ol className="grid gap-5 md:grid-cols-2">
+      <SectionShell id="deploy" label="Deployment" title="How a hospital goes live" tight>
+        <ol className="landing-timeline">
           {DEPLOY_STEPS.map((step, i) => (
-            <li key={step.title} className="landing-card relative overflow-hidden group hover:border-orange-500/30">
-              <div
-                aria-hidden
-                className="absolute -top-6 -right-6 flex h-20 w-20 items-center justify-center rounded-full font-mono text-5xl font-black opacity-[0.04]"
-                style={{ color: 'var(--brand-orange)' }}
-              >
-                {i + 1}
-              </div>
-              <p className="mb-2 font-mono text-xs font-bold" style={{ color: 'var(--brand-orange)' }}>
+            <li key={step.title} className="landing-timeline-step">
+              <span className="landing-timeline-badge">{i + 1}</span>
+              <p className="landing-timeline-eyebrow">
                 Step {i + 1} of {DEPLOY_STEPS.length}
               </p>
-              <p className="mb-2 font-semibold">{step.title}</p>
-              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                {step.body}
-              </p>
+              <p className="landing-timeline-title">{step.title}</p>
+              <p className="landing-timeline-body">{step.body}</p>
             </li>
           ))}
         </ol>
@@ -275,25 +268,10 @@ export default function HomePage() {
         title="Department modules"
         description="Enable only the modules your facility needs. Each module ships with role permissions and department-specific forms."
       >
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {MODULES.map((m) => (
-            <div key={m.name} className="landing-card !p-4">
-              <span
-                className="mb-2 inline-block rounded px-2 py-0.5 font-mono text-xs font-bold"
-                style={{ background: 'rgba(249,115,22,0.1)', color: 'var(--brand-orange)' }}
-              >
-                {m.abbr}
-              </span>
-              <p className="text-sm font-semibold">{m.name}</p>
-              <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                {m.desc}
-              </p>
-            </div>
-          ))}
-        </div>
+        <ModuleGrid modules={MODULES} />
       </SectionShell>
 
-      <SectionShell label="Reporting" title="National and donor reporting" variant="surface">
+      <SectionShell label="Reporting" title="National and donor reporting" variant="surface" tight>
         <div className="grid items-start gap-10 lg:grid-cols-2">
           <p className="landing-lead">
             Encounters, outcomes, and programme indicators can be mapped to SDG goals and exported for DHIS2.
@@ -319,6 +297,7 @@ export default function HomePage() {
         label="Pricing"
         title="Plans (UGX)"
         description="Prices shown on the marketing site; confirm current rates with sales before procurement."
+        variant="warm"
       >
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {TIERS.map((tier) => (
@@ -386,7 +365,7 @@ export default function HomePage() {
         </div>
       </SectionShell>
 
-      <SectionShell id="pilot" label="Pilot programme" title="What hospitals evaluate in a pilot">
+      <SectionShell id="pilot" label="Pilot programme" title="What hospitals evaluate in a pilot" tight>
         <p className="landing-lead mb-8 max-w-2xl">
           We do not publish anonymous quotes or unaudited performance percentages on this page. During pilot,
           facilities measure outcomes that matter to them, typically documentation time, claim turnaround, stock
@@ -411,7 +390,7 @@ export default function HomePage() {
         </Link>
       </SectionShell>
 
-      <SectionShell label="Team" title="People building SynapseOS" variant="surface">
+      <SectionShell label="Team" title="People building SynapseOS" variant="surface" tight>
         <div className="grid gap-6 md:grid-cols-2 max-w-3xl">
           <div className="landing-card-elevated flex gap-4 p-5">
             <Image src="/team/founder.jpg" alt="Ebrine Tushabe" width={64} height={64} unoptimized className="shrink-0 rounded-lg object-cover" />
@@ -490,30 +469,29 @@ export default function HomePage() {
         </div>
       </SectionShell>
 
-      <SectionShell label="Standards" title="Standards & integrations" variant="surface" className="!py-16">
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+      <SectionShell label="Standards" title="Standards & integrations" variant="surface" tight>
+        <div className="landing-plain-list">
           {STANDARDS.map((s) => (
-            <div key={s.name} className="landing-card-elevated p-4">
-              <p className="text-sm font-semibold">{s.name}</p>
-              <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                {s.detail}
-              </p>
+            <div key={s.name} className="landing-plain-item">
+              <span className="landing-plain-dot" style={{ background: 'var(--brand-orange)' }} aria-hidden />
+              <div>
+                <p>{s.name}</p>
+                <p>{s.detail}</p>
+              </div>
             </div>
           ))}
         </div>
       </SectionShell>
 
-      <SectionShell label="Security" title="How patient data is protected">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <SectionShell label="Security" title="How patient data is protected" variant="cool" tight>
+        <div className="landing-plain-list">
           {TRUST.map((t) => (
-            <div key={t.title} className="landing-card group hover:border-teal-500/30 transition-all">
-              <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: 'rgba(31,166,166,0.1)' }}>
-                <span className="text-xs font-bold" style={{ color: 'var(--brand-teal)' }}>✓</span>
+            <div key={t.title} className="landing-plain-item">
+              <span className="landing-plain-dot" style={{ background: 'var(--brand-teal)' }} aria-hidden />
+              <div>
+                <p>{t.title}</p>
+                <p>{t.desc}</p>
               </div>
-              <p className="mb-1 text-sm font-semibold">{t.title}</p>
-              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                {t.desc}
-              </p>
             </div>
           ))}
         </div>
