@@ -128,9 +128,9 @@ const COMPARE_ROWS: { feature: string; synapse: Cell; openmrs: Cell; slade: Cell
 ]
 
 function CompareCell({ v }: { v: Cell }) {
-  if (v === 'yes') return <span className="font-medium text-green-500">Yes</span>
-  if (v === 'no') return <span className="font-medium text-red-400">No</span>
-  return <span className="font-medium text-amber-400">Partial</span>
+  if (v === 'yes') return <span className="font-medium" style={{ color: 'var(--brand-teal)' }}>Yes</span>
+  if (v === 'no') return <span className="font-medium" style={{ color: 'var(--text-muted)' }}>No</span>
+  return <span className="font-medium" style={{ color: 'var(--brand-gold)' }}>Partial</span>
 }
 
 const STANDARDS = [
@@ -203,17 +203,17 @@ export default function HomePage() {
               Apply for deployment →
             </Link>
           </article>
-          <article className="landing-card-elevated group flex flex-col p-6 transition-all hover:border-green-500/40" style={{ borderColor: 'rgba(34,197,94,0.2)' }}>
-            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(34,197,94,0.12)' }}>
-              <span className="text-lg font-bold text-green-500">P</span>
+          <article className="landing-card-elevated group flex flex-col p-6 transition-all hover:border-teal-500/40" style={{ borderColor: 'rgba(31,166,166,0.2)' }}>
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(31,166,166,0.12)' }}>
+              <span className="text-lg font-bold" style={{ color: 'var(--brand-teal)' }}>P</span>
             </div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-widest text-green-500">Pharmacies</p>
+            <p className="mb-1 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--brand-teal)' }}>Pharmacies</p>
             <h3 className="font-display mb-3 text-xl font-bold">Synapse Pharm</h3>
             <p className="mb-5 flex-1 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               Inventory, FEFO batching, POS, supplier orders, and patient refill requests. Hosted at{' '}
               <span className="font-mono text-xs">pharm.synapseos.tech</span> or a custom domain.
             </p>
-            <Link href="/apply/pharmacy" className="inline-flex items-center gap-1 text-sm font-semibold text-green-500 transition-opacity group-hover:opacity-80">
+            <Link href="/apply/pharmacy" className="inline-flex items-center gap-1 text-sm font-semibold transition-opacity group-hover:opacity-80" style={{ color: 'var(--brand-teal)' }}>
               Apply for pharmacy →
             </Link>
           </article>
@@ -360,7 +360,7 @@ export default function HomePage() {
               <ul className="mb-4 flex-1 space-y-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
                 {tier.features.map((f) => (
                   <li key={f} className="flex items-start gap-1.5">
-                    <span className="mt-0.5 shrink-0 text-green-500">✓</span>
+                    <span className="mt-0.5 shrink-0" style={{ color: 'var(--brand-teal)' }}>✓</span>
                     {f}
                   </li>
                 ))}
