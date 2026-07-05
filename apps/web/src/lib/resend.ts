@@ -347,6 +347,59 @@ export async function sendPharmacyInviteEmail({
   })
 }
 
+export async function sendHospitalStaffInviteEmail({
+  to,
+  hospitalName,
+  staffName,
+  role,
+  tempPassword,
+}: {
+  to: string
+  hospitalName: string
+  staffName: string
+  role: string
+  tempPassword: string
+}): Promise<void> {
+  const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ?? 'https://synapseos.tech'}/login`
+  const firstName = staffName.split(' ')[0] || 'there'
+  await resend.emails.send({
+    from: `Synapse Health <${FROM_EMAIL}>`,
+    to: [to],
+    subject: `You've been invited to ${hospitalName} on Synapse OS`,
+    html: brandedEmail({
+      subject: `You've been invited to ${hospitalName}`,
+      body: `
+        <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#F5F5F7;">
+          Welcome to ${hospitalName}, ${firstName}.
+        </h2>
+        <p style="font-size:14px;line-height:1.7;color:#A0A0B0;margin:0 0 20px;">
+          You have been invited as <strong style="color:#F5F5F7;">${role.replace(/_/g, ' ')}</strong>
+          on Synapse Health Technologies. Use the credentials below to sign in.
+        </p>
+        <div style="background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.2);border-radius:12px;padding:20px 24px;margin-bottom:24px;">
+          <table style="width:100%;border-collapse:collapse;">
+            <tr>
+              <td style="font-size:13px;color:#A0A0B0;padding:4px 0;width:90px;">Email</td>
+              <td style="font-size:14px;font-weight:600;color:#F5F5F7;">${to}</td>
+            </tr>
+            <tr>
+              <td style="font-size:13px;color:#A0A0B0;padding:4px 0;">Password</td>
+              <td style="font-size:14px;font-weight:700;color:#F97316;font-family:monospace;">${tempPassword}</td>
+            </tr>
+          </table>
+        </div>
+        <a href="${loginUrl}"
+          style="display:inline-block;background:#F97316;color:#fff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;">
+          Sign In to Synapse OS
+        </a>
+        <p style="font-size:12px;color:#60607A;margin:20px 0 0;">
+          You will be asked to change your password on first login.
+        </p>
+      `,
+    }),
+  })
+}
+
 /* Transactional: waitlist confirmation for APK download */
 export async function sendWaitlistEmail(email: string): Promise<void> {
   await resend.emails.send({
