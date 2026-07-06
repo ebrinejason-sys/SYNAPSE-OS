@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { Building2, Kanban, UserRound } from "lucide-react";
+import { Building2, Kanban, Pill, UserRound } from "lucide-react";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
 import { formatDateTime, safeCount, safeRows } from "../_lib/platform-data";
 import { PlatformPageHeader } from "../_components/platform-page-header";
@@ -10,15 +10,14 @@ import { updateApplicationStatus, updateLeadStatus } from "./actions";
 
 type ApplicationRow = {
   id?: string;
-  organization?: string | null;
-  full_name?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  district?: string | null;
-  role?: string | null;
+  hospital_name?: string | null;
+  facility_type?: string | null;
+  contact_name?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  location?: string | null;
   status?: string | null;
   created_at?: string | null;
-  tenant_id?: string | null;
   source?: string | null;
 };
 
@@ -63,8 +62,8 @@ export default async function PlatformApplicationsPage() {
 
   const [applications, leads, pendingCount, leadCount] = await Promise.all([
     safeRows<ApplicationRow>(
-      "beta_access_requests",
-      "id, organization, full_name, email, phone, district, role, status, created_at, tenant_id, source",
+      "hospital_leads",
+      "id, hospital_name, facility_type, contact_name, contact_email, contact_phone, location, status, created_at, source",
       { orderBy: "created_at", limit: 100 }
     ),
     safeRows<LeadRow>(
@@ -72,13 +71,14 @@ export default async function PlatformApplicationsPage() {
       "id, full_name, email, phone, hospital_name, role, location, status, created_at, source",
       { orderBy: "created_at", limit: 100 }
     ),
-    safeCount("beta_access_requests", [["status", "pending"]]),
+    safeCount("hospital_leads", [["status", "new"]]),
     safeCount("professional_leads", [["status", "new"]]),
   ]);
 
   type PipelineCard = {
     id: string;
     kind: "facility" | "professional";
+    facilityType: "hospital" | "pharmacy" | null;
     title: string;
     subtitle: string;
     district: string;
@@ -91,16 +91,18 @@ export default async function PlatformApplicationsPage() {
     ...applications.map((row) => ({
       id: row.id ?? "",
       kind: "facility" as const,
-      title: row.organization ?? row.full_name ?? "Unnamed facility",
-      subtitle: row.email ?? "",
-      district: row.district ?? "—",
+      facilityType: row.facility_type === "pharmacy" ? ("pharmacy" as const) : ("hospital" as const),
+      title: row.hospital_name ?? row.contact_name ?? "Unnamed facility",
+      subtitle: row.contact_email ?? "",
+      district: row.location ?? "—",
       days: daysInStage(row.created_at),
-      status: row.status ?? "pending",
-      stage: stageForStatus(row.status, Boolean(row.tenant_id)),
+      status: row.status ?? "new",
+      stage: stageForStatus(row.status, false),
     })),
     ...leads.map((row) => ({
       id: row.id ?? "",
       kind: "professional" as const,
+      facilityType: null,
       title: row.full_name ?? "Unknown",
       subtitle: row.email ?? "",
       district: row.location ?? "—",
@@ -177,13 +179,22 @@ export default async function PlatformApplicationsPage() {
                     column.cards.map((card) => (
                       <article key={`${card.kind}-${card.id}`} className="rounded-lg border border-subtle bg-base p-3">
                         <div className="flex items-start gap-2">
-                          {card.kind === "facility" ? (
-                            <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-[#E8B84B]" />
-                          ) : (
+                          {card.kind === "professional" ? (
                             <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-[#1FA6A6]" />
+                          ) : card.facilityType === "pharmacy" ? (
+                            <Pill className="mt-0.5 h-4 w-4 shrink-0 text-[#1FA6A6]" />
+                          ) : (
+                            <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-[#E8B84B]" />
                           )}
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-primary-color">{card.title}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="truncate text-sm font-semibold text-primary-color">{card.title}</p>
+                              {card.kind === "facility" ? (
+                                <span className="shrink-0 rounded-full border border-subtle px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-muted-color">
+                                  {card.facilityType === "pharmacy" ? "Pharmacy" : "Hospital"}
+                                </span>
+                              ) : null}
+                            </div>
                             <p className="truncate text-xs text-muted-color">{card.subtitle}</p>
                             <p className="mt-1 text-[10px] text-muted-color">
                               {card.district} · {card.days}d in stage
@@ -258,7 +269,9 @@ export default async function PlatformApplicationsPage() {
               {cards.slice(0, 20).map((card) => (
                 <tr key={`${card.kind}-${card.id}`}>
                   <td className="px-4 py-3 font-medium text-primary-color">{card.title}</td>
-                  <td className="px-4 py-3 capitalize text-secondary-color">{card.kind}</td>
+                  <td className="px-4 py-3 capitalize text-secondary-color">
+                    {card.kind === "professional" ? "Professional" : card.facilityType === "pharmacy" ? "Pharmacy" : "Hospital"}
+                  </td>
                   <td className="px-4 py-3 text-secondary-color">{card.district}</td>
                   <td className="px-4 py-3">
                     <span className="rounded-full border border-subtle px-2 py-0.5 text-xs capitalize">{card.status}</span>

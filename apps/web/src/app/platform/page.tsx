@@ -36,13 +36,13 @@ type AuditRow = {
 };
 type ApplicationRow = {
   id?: string;
-  organization?: string | null;
-  full_name?: string | null;
-  email?: string | null;
-  district?: string | null;
+  hospital_name?: string | null;
+  facility_type?: string | null;
+  contact_name?: string | null;
+  contact_email?: string | null;
+  location?: string | null;
   status?: string | null;
   created_at?: string | null;
-  tenant_id?: string | null;
 };
 type LeadRow = {
   id?: string;
@@ -89,7 +89,7 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
     safeCount("synapse_sessions"),
     safeCount("verification_documents", [["status", "pending_review"]]),
     safeCount("support_tickets", [["status", "open"]]),
-    safeCount("beta_access_requests", [["status", "pending"]]),
+    safeCount("hospital_leads", [["status", "new"]]),
     safeRows<TenantRow>("tenants", "id, created_at, status, facility_type, district", { orderBy: "created_at", limit: 500 }),
     safeRows<TenantRow>("tenants", "id, created_at", { orderBy: "created_at", limit: 500 }),
     safeRows<ProfileRow>("profiles", "id, created_at", { orderBy: "created_at", limit: 500 }),
@@ -104,8 +104,8 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
       { orderBy: "created_at", limit: 20 }
     ),
     safeRows<ApplicationRow>(
-      "beta_access_requests",
-      "id, organization, full_name, email, district, status, created_at, tenant_id",
+      "hospital_leads",
+      "id, hospital_name, facility_type, contact_name, contact_email, location, status, created_at",
       { orderBy: "created_at", limit: 8 }
     ),
     safeRows<LeadRow>(
@@ -158,8 +158,8 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
   const activityFromApplications = applications.slice(0, 4).map((row) => ({
     id: `app-${row.id}`,
     kind: "application" as const,
-    title: `New application from ${row.organization ?? row.full_name ?? "Unknown facility"}`,
-    subtitle: `${row.district ?? "Unknown district"} · ${row.status ?? "pending"}`,
+    title: `New ${row.facility_type === "pharmacy" ? "pharmacy" : "hospital"} application from ${row.hospital_name ?? row.contact_name ?? "Unknown facility"}`,
+    subtitle: `${row.location ?? "Unknown district"} · ${row.status ?? "new"}`,
     href: "/platform/applications",
     createdAt: formatDateTime(row.created_at),
   }));
@@ -234,13 +234,13 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
   ].filter(Boolean) as OverviewCommandCenterData["attentionItems"];
 
   const topApplications = applications
-    .filter((row) => (row.status ?? "pending") === "pending")
+    .filter((row) => (row.status ?? "new") === "new")
     .slice(0, 3)
     .map((row) => ({
       id: row.id ?? "",
-      name: row.organization ?? row.full_name ?? "Unnamed",
-      email: row.email ?? "",
-      district: row.district ?? "—",
+      name: row.hospital_name ?? row.contact_name ?? "Unnamed",
+      email: row.contact_email ?? "",
+      district: row.location ?? "—",
     }));
 
   return {
