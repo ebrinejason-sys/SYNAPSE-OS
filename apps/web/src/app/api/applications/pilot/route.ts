@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     name, email, phone,
     hospital_name, location, bed_count,
     current_system, departments,
-    message,
+    message, facility_type,
   } = body
 
   if (!name || !email || !hospital_name) {
@@ -17,22 +17,28 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = await createClient()
-  await (supabase as any).from('hospital_leads').upsert(
+  const { error: insertError } = await (supabase as any).from('hospital_leads').upsert(
     {
       contact_name: name,
       contact_email: email,
       contact_phone: phone ?? null,
       hospital_name,
+      facility_type: facility_type === 'pharmacy' ? 'pharmacy' : 'hospital',
       location: location ?? null,
-      bed_count: bed_count ?? null,
+      bed_count: bed_count ? Number(bed_count) : null,
       current_system: current_system ?? null,
       departments: departments ?? [],
-      message: message ?? null,
+      notes: message ?? null,
       status: 'new',
       source: 'apply_page',
     },
     { onConflict: 'contact_email' }
   )
+
+  if (insertError) {
+    console.error('Failed to save pilot application:', insertError.message)
+    return NextResponse.json({ error: 'Failed to save application' }, { status: 500 })
+  }
 
   const deptList = Array.isArray(departments) && departments.length
     ? `<ul style="margin:8px 0;padding-left:20px;color:#A0A0B0;">${departments.map((d: string) => `<li style="margin:2px 0;">${d}</li>`).join('')}</ul>`

@@ -13,7 +13,7 @@ async function updatePilotStatus(formData: FormData) {
   }
 
   const supabaseAdmin = createServiceClient();
-  await (supabaseAdmin as any).from("beta_access_requests").update({ status }).eq("id", id);
+  await (supabaseAdmin as any).from("hospital_leads").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
 }
 
 async function updateVerificationStatus(formData: FormData) {
@@ -35,8 +35,8 @@ export default async function PlatformApprovalsPage() {
 
   const [{ data: pilotApplications }, { data: verifications }] = await Promise.all([
     (supabaseAdmin as any)
-      .from("beta_access_requests")
-      .select("id, hospital_name, contact_name, contact_email, message, created_at, status")
+      .from("hospital_leads")
+      .select("id, hospital_name, facility_type, contact_name, contact_email, notes, created_at, status")
       .order("created_at", { ascending: false })
       .limit(50),
     (supabaseAdmin as any)
@@ -60,9 +60,14 @@ export default async function PlatformApprovalsPage() {
             <div key={item.id} className="rounded-xl border border-slate-700 bg-slate-950/60 p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="font-medium text-slate-100">{item.hospital_name ?? "Unnamed hospital"}</p>
+                  <p className="font-medium text-slate-100">
+                    {item.hospital_name ?? "Unnamed facility"}{" "}
+                    <span className="ml-1 rounded-full border border-slate-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">
+                      {item.facility_type === "pharmacy" ? "Pharmacy" : "Hospital"}
+                    </span>
+                  </p>
                   <p className="text-xs text-slate-400">{item.contact_name} · {item.contact_email}</p>
-                  <p className="mt-2 text-sm text-slate-300">{item.message ?? "No message"}</p>
+                  <p className="mt-2 text-sm text-slate-300">{item.notes ?? "No message"}</p>
                 </div>
                 <div className="text-right text-xs text-slate-500">{new Date(item.created_at).toLocaleString()}</div>
               </div>
