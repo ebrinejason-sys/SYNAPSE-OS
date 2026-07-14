@@ -1,5 +1,7 @@
 # Mobile App Gap Fixes Implementation Plan
 
+> **STATUS: ✅ IMPLEMENTED (verified 2026-07-14).** All six tasks are live on `main`: the three expo deps are in `apps/app/package.json`, ROLE_KIND is synced in `/api/auth/mobile/me`, migration `20260704000001_add_mobile_push_tokens.sql` exists, and all routes (`push-token`, `encounter/[id]`, `records/[id]`, `appointments/[id]`, `medications/[id]`, `inventory/[id]`, `lab`, `claims`) plus `LockScreen` + root-layout wiring exist. Both workspaces type-check clean. Checkboxes below were never ticked — do not re-execute this plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Close the gaps left by a prior partial implementation of `docs/superpowers/specs/2026-06-22-mobile-app-improvements-design.md` so the Synapse mobile app actually boots, and every already-built role screen loads real data instead of a permanent error/empty state.

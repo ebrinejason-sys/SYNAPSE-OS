@@ -1,5 +1,7 @@
 # Hospital Phase 2a — Registration & OPD Implementation Plan
 
+> **STATUS: ✅ IMPLEMENTED (verified 2026-07-14).** Merged to `main` via the `integrate/hospital-phases-and-landing` PR: `apps/web/src/lib/hospital-shared/` exists, and `/api/patients/register`, `/api/patients/search`, `/api/opd/queue`, `/api/opd/triage` are all live. Checkboxes below were never ticked — do not re-execute this plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the shared hospital-department auth/UI infra, then wire real Registration (new-patient form) and OPD (queue + triage) functionality into `apps/web`, on branch `hospital-build/phase-2a-registration-opd`.
