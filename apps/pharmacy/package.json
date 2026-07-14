@@ -25,6 +25,8 @@
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.49.8",
     "@synapse/auth": "*",
+    "@synapse/config": "*",
+    "@synapse/db": "*",
     "@synapse/email": "*",
     "autoprefixer": "^10.4.23",
     "class-variance-authority": "^0.7.1",

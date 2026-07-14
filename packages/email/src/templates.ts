@@ -86,18 +86,26 @@ export function passwordResetHtml(params: { name: string; resetUrl: string }): s
   `)
 }
 
-export function welcomeHtml(params: { name: string }): string {
+export function welcomeHtml(params: {
+  name: string
+  product?: string
+  ctaUrl?: string
+  ctaLabel?: string
+}): string {
+  const product = params.product ?? 'Synapse OS'
+  const ctaUrl = params.ctaUrl ?? 'https://synapseos.tech/health/dashboard'
+  const ctaLabel = params.ctaLabel ?? 'Open Dashboard →'
   return brandedHtml(`
     <h2 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#F5F5F7;">
       Welcome, ${params.name.split(' ')[0]}. Your account is ready.
     </h2>
     <p style="font-size:15px;line-height:1.7;color:#A0A0B0;margin:0 0 20px;">
-      You've successfully joined Synapse OS — Africa's sovereign AI-powered health platform.
+      You've successfully joined ${product} — built for Ugandan pharmacies and health facilities.
     </p>
-    <a href="https://synapseos.tech/health/dashboard"
+    <a href="${ctaUrl}"
        style="display:inline-block;background:#F97316;color:#07070A;font-weight:700;
               font-size:13px;padding:12px 24px;border-radius:8px;text-decoration:none;">
-      Open Dashboard →
+      ${ctaLabel}
     </a>
   `)
 }
