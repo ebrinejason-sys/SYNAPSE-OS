@@ -80,8 +80,7 @@ export function LandingHero() {
             className="landing-hero-title mb-6"
           >
             Unified records for{' '}
-            <span className="shimmer-text">hospitals</span>, pharmacy&nbsp;operations,&nbsp;and patient
-            access.
+            <span className="shimmer-text">hospitals</span>, pharmacy operations, and patient access.
           </motion.h1>
 
           <motion.p

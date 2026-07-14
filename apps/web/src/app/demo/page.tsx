@@ -21,23 +21,48 @@ type DiagnosisResult = {
   ai_provider?: string;
 };
 
+const STEPS = [
+  { id: 1, label: "Complaint" },
+  { id: 2, label: "Patient" },
+  { id: 3, label: "History" },
+  { id: 4, label: "Vitals" },
+] as const;
+
 const EXAMPLE_CASES = [
   {
     complaint: "3-day fever, headache, and body aches in a child",
+    duration: "3 days",
     age: 8,
     sex: "male",
+    pregnancy: "not_applicable",
+    pastHistory: "Previously healthy; fully immunized for age",
+    allergies: "None known",
+    medications: "Paracetamol at home",
+    riskNotes: "Sibling had fever last week; no recent travel",
     vitals: { temperature_c: 38.9, heart_rate: 104, bp_systolic: 100, bp_diastolic: 65, spo2: 98 },
   },
   {
     complaint: "Persistent cough for 6 weeks with night sweats and weight loss",
+    duration: "6 weeks",
     age: 34,
     sex: "female",
+    pregnancy: "none",
+    pastHistory: "Treated for pneumonia 2 years ago",
+    allergies: "None",
+    medications: "None",
+    riskNotes: "Household contact with chronic cough; lives in Kampala",
     vitals: { temperature_c: 37.8, heart_rate: 88, bp_systolic: 110, bp_diastolic: 72, spo2: 95 },
   },
   {
     complaint: "Severe abdominal pain, vomiting, and watery diarrhoea for 2 days",
+    duration: "2 days",
     age: 22,
     sex: "male",
+    pregnancy: "not_applicable",
+    pastHistory: "No prior abdominal surgery",
+    allergies: "NKDA",
+    medications: "ORS started yesterday",
+    riskNotes: "Drank untreated well water while traveling upcountry",
     vitals: { temperature_c: 38.2, heart_rate: 112, bp_systolic: 95, bp_diastolic: 60, spo2: 99 },
   },
 ];
@@ -65,29 +90,44 @@ const VITALS_LABELS: Record<string, string> = {
 };
 type VitalKey = typeof VITALS_KEYS[number];
 
+const emptyVitals = (): Record<VitalKey, string> => ({
+  temperature_c: "",
+  heart_rate: "",
+  bp_systolic: "",
+  bp_diastolic: "",
+  spo2: "",
+});
+
 export default function DemoPage() {
+  const [step, setStep] = useState(1);
   const [complaint, setComplaint] = useState("");
+  const [duration, setDuration] = useState("");
   const [age, setAge] = useState("");
   const [sex, setSex] = useState("unknown");
-  const [showVitals, setShowVitals] = useState(false);
-  const [vitals, setVitals] = useState<Record<VitalKey, string>>({
-    temperature_c: "",
-    heart_rate: "",
-    bp_systolic: "",
-    bp_diastolic: "",
-    spo2: "",
-  });
+  const [pregnancy, setPregnancy] = useState("unknown");
+  const [pastHistory, setPastHistory] = useState("");
+  const [allergies, setAllergies] = useState("");
+  const [medications, setMedications] = useState("");
+  const [riskNotes, setRiskNotes] = useState("");
+  const [vitals, setVitals] = useState<Record<VitalKey, string>>(emptyVitals);
   const [result, setResult] = useState<DiagnosisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const showPregnancy = sex === "female" || sex === "unknown";
 
   function loadExample() {
     const ex = EXAMPLE_CASES[Math.floor(Math.random() * EXAMPLE_CASES.length)];
     if (!ex) return;
     setComplaint(ex.complaint);
+    setDuration(ex.duration);
     setAge(String(ex.age));
     setSex(ex.sex);
-    setShowVitals(true);
+    setPregnancy(ex.pregnancy);
+    setPastHistory(ex.pastHistory);
+    setAllergies(ex.allergies);
+    setMedications(ex.medications);
+    setRiskNotes(ex.riskNotes);
     setVitals({
       temperature_c: String(ex.vitals.temperature_c),
       heart_rate: String(ex.vitals.heart_rate),
@@ -95,6 +135,23 @@ export default function DemoPage() {
       bp_diastolic: String(ex.vitals.bp_diastolic),
       spo2: String(ex.vitals.spo2),
     });
+    setStep(1);
+    setResult(null);
+    setError(null);
+  }
+
+  function canAdvance(): boolean {
+    if (step === 1) return complaint.trim().length > 0;
+    return true;
+  }
+
+  function nextStep() {
+    if (!canAdvance()) return;
+    setStep((s) => Math.min(4, s + 1));
+  }
+
+  function prevStep() {
+    setStep((s) => Math.max(1, s - 1));
   }
 
   async function generate() {
@@ -103,6 +160,16 @@ export default function DemoPage() {
     setError(null);
     setResult(null);
     try {
+      const vitalsPayload = Object.fromEntries(
+        VITALS_KEYS.filter((k) => vitals[k]).map((k) => [k, Number(vitals[k])])
+      );
+      const pregnancyValue =
+        sex === "male"
+          ? "not_applicable"
+          : pregnancy === "unknown"
+            ? undefined
+            : pregnancy;
+
       const res = await fetch("/api/demo/differential", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -110,11 +177,13 @@ export default function DemoPage() {
           chiefComplaint: complaint,
           age: age ? Number(age) : undefined,
           sex,
-          vitals: showVitals
-            ? Object.fromEntries(
-                VITALS_KEYS.filter((k) => vitals[k]).map((k) => [k, Number(vitals[k])])
-              )
-            : undefined,
+          duration: duration.trim() || undefined,
+          pregnancy: pregnancyValue,
+          pastHistory: pastHistory.trim() || undefined,
+          allergies: allergies.trim() || undefined,
+          medications: medications.trim() || undefined,
+          riskNotes: riskNotes.trim() || undefined,
+          vitals: Object.keys(vitalsPayload).length > 0 ? vitalsPayload : undefined,
         }),
       });
       if (!res.ok) {
@@ -138,19 +207,20 @@ export default function DemoPage() {
     fontSize: "14px",
     width: "100%",
     outline: "none",
-  };
+  } as const;
+
+  const labelStyle = { color: "var(--text-muted)" } as const;
 
   return (
     <main style={{ minHeight: "100vh", background: "var(--bg-base)", color: "var(--text-primary)" }}>
-      {/* Nav */}
       <header
-        className="flex items-center justify-between px-6 py-4"
+        className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4"
         style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--nav-glass)", backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 10 }}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <SynapseLogo size="sm" />
           <span
-            className="text-xs font-bold px-2 py-0.5 rounded-md"
+            className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
             style={{ background: "rgba(249,115,22,0.15)", color: "var(--brand-orange)", border: "1px solid var(--border-orange)" }}
           >
             AI Demo
@@ -158,6 +228,7 @@ export default function DemoPage() {
         </div>
         <a
           href="https://synapseos.tech/apply"
+          className="shrink-0 text-center"
           style={{
             background: "var(--brand-orange)",
             color: "#07070A",
@@ -172,11 +243,10 @@ export default function DemoPage() {
         </a>
       </header>
 
-      <div className="max-w-6xl mx-auto px-4 py-10 grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* LEFT — Input */}
+      <div className="max-w-6xl mx-auto px-4 py-8 sm:py-10 grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-5">
           <div>
-            <h1 className="font-display font-bold text-2xl mb-1" style={{ letterSpacing: "-0.02em" }}>
+            <h1 className="font-display font-bold text-2xl mb-1" style={{ letterSpacing: "-0.02em", overflowWrap: "break-word" }}>
               Clinical AI Demo
             </h1>
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
@@ -184,64 +254,184 @@ export default function DemoPage() {
             </p>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-muted)" }}>
-              Chief Complaint *
-            </label>
-            <textarea
-              value={complaint}
-              onChange={(e) => setComplaint(e.target.value)}
-              placeholder="Describe the patient's main complaint..."
-              rows={4}
-              style={{ ...inp, resize: "none" }}
-              onFocus={e => (e.target.style.borderColor = "var(--brand-orange)")}
-              onBlur={e => (e.target.style.borderColor = "var(--border-edge)")}
-            />
-          </div>
+          {/* Step indicator */}
+          <nav aria-label="Case steps" className="flex gap-1 sm:gap-2">
+            {STEPS.map((s) => {
+              const active = step === s.id;
+              const done = step > s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    if (s.id < step || (s.id === step + 1 && canAdvance()) || s.id <= step) {
+                      if (s.id === 1 || complaint.trim() || s.id <= step) setStep(s.id);
+                    }
+                  }}
+                  className="flex-1 min-w-0 rounded-xl px-1.5 sm:px-2 py-2 text-center transition-all"
+                  style={{
+                    background: active ? "rgba(249,115,22,0.12)" : "var(--bg-surface)",
+                    border: `1px solid ${active || done ? "var(--border-orange)" : "var(--border-edge)"}`,
+                    color: active ? "var(--brand-orange)" : done ? "var(--text-primary)" : "var(--text-muted)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <span className="block text-[10px] sm:text-xs font-bold truncate">
+                    {s.id}. {s.label}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-muted)" }}>Age</label>
-              <input
-                type="number"
-                value={age}
-                onChange={(e) => setAge(e.target.value)}
-                placeholder="Years"
-                style={inp}
-                onFocus={e => (e.target.style.borderColor = "var(--brand-orange)")}
-                onBlur={e => (e.target.style.borderColor = "var(--border-edge)")}
-              />
+          {step === 1 && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={labelStyle}>
+                  Chief Complaint *
+                </label>
+                <textarea
+                  value={complaint}
+                  onChange={(e) => setComplaint(e.target.value)}
+                  placeholder="Describe the patient's main complaint..."
+                  rows={4}
+                  style={{ ...inp, resize: "none" }}
+                  onFocus={(e) => (e.target.style.borderColor = "var(--brand-orange)")}
+                  onBlur={(e) => (e.target.style.borderColor = "var(--border-edge)")}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={labelStyle}>
+                  Symptom duration
+                </label>
+                <input
+                  type="text"
+                  value={duration}
+                  onChange={(e) => setDuration(e.target.value)}
+                  placeholder="e.g. 3 days, 2 weeks"
+                  style={inp}
+                  onFocus={(e) => (e.target.style.borderColor = "var(--brand-orange)")}
+                  onBlur={(e) => (e.target.style.borderColor = "var(--border-edge)")}
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-muted)" }}>Sex</label>
-              <select
-                value={sex}
-                onChange={(e) => setSex(e.target.value)}
-                style={inp}
-              >
-                <option value="unknown">Unknown</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-              </select>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5" style={labelStyle}>Age</label>
+                  <input
+                    type="number"
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    placeholder="Years"
+                    style={inp}
+                    onFocus={(e) => (e.target.style.borderColor = "var(--brand-orange)")}
+                    onBlur={(e) => (e.target.style.borderColor = "var(--border-edge)")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5" style={labelStyle}>Sex</label>
+                  <select
+                    value={sex}
+                    onChange={(e) => {
+                      setSex(e.target.value);
+                      if (e.target.value === "male") setPregnancy("not_applicable");
+                    }}
+                    style={inp}
+                  >
+                    <option value="unknown">Unknown</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </div>
+              </div>
+              {showPregnancy && (
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5" style={labelStyle}>
+                    Pregnancy status
+                  </label>
+                  <select
+                    value={pregnancy}
+                    onChange={(e) => setPregnancy(e.target.value)}
+                    style={inp}
+                  >
+                    <option value="unknown">Unknown</option>
+                    <option value="none">Not pregnant</option>
+                    <option value="pregnant">Pregnant</option>
+                    <option value="postpartum">Postpartum</option>
+                  </select>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
-          <button
-            onClick={() => setShowVitals(!showVitals)}
-            className="text-xs font-semibold"
-            style={{ color: "var(--brand-orange)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-          >
-            {showVitals ? "▼ Hide vitals" : "▶ Add vitals (optional)"}
-          </button>
+          {step === 3 && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={labelStyle}>
+                  Past medical history
+                </label>
+                <textarea
+                  value={pastHistory}
+                  onChange={(e) => setPastHistory(e.target.value)}
+                  placeholder="Chronic illness, prior admissions, surgeries..."
+                  rows={2}
+                  style={{ ...inp, resize: "none" }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={labelStyle}>
+                  Allergies
+                </label>
+                <input
+                  type="text"
+                  value={allergies}
+                  onChange={(e) => setAllergies(e.target.value)}
+                  placeholder="Drug / food allergies"
+                  style={inp}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={labelStyle}>
+                  Current medications
+                </label>
+                <input
+                  type="text"
+                  value={medications}
+                  onChange={(e) => setMedications(e.target.value)}
+                  placeholder="Ongoing meds or recent antibiotics"
+                  style={inp}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={labelStyle}>
+                  Other risk notes
+                </label>
+                <textarea
+                  value={riskNotes}
+                  onChange={(e) => setRiskNotes(e.target.value)}
+                  placeholder="Travel, sick contacts, occupation, water source..."
+                  rows={2}
+                  style={{ ...inp, resize: "none" }}
+                />
+              </div>
+            </div>
+          )}
 
-          {showVitals && (
+          {step === 4 && (
             <div
               className="grid grid-cols-2 gap-3 p-4 rounded-xl"
               style={{ background: "var(--bg-surface)", border: "1px solid var(--border-edge)" }}
             >
+              <p className="col-span-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                Vitals are optional — add what you have, then generate.
+              </p>
               {VITALS_KEYS.map((key) => (
                 <div key={key}>
-                  <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+                  <label className="block text-xs mb-1" style={labelStyle}>
                     {VITALS_LABELS[key]}
                   </label>
                   <input
@@ -249,32 +439,62 @@ export default function DemoPage() {
                     value={vitals[key]}
                     onChange={(e) => setVitals((v) => ({ ...v, [key]: e.target.value }))}
                     style={{ ...inp, background: "var(--bg-elevated)" }}
-                    onFocus={e => (e.target.style.borderColor = "var(--brand-orange)")}
-                    onBlur={e => (e.target.style.borderColor = "var(--border-edge)")}
+                    onFocus={(e) => (e.target.style.borderColor = "var(--brand-orange)")}
+                    onBlur={(e) => (e.target.style.borderColor = "var(--border-edge)")}
                   />
                 </div>
               ))}
             </div>
           )}
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            {step > 1 && (
+              <button
+                type="button"
+                onClick={prevStep}
+                className="px-4 py-3 rounded-xl text-sm font-semibold"
+                style={{ background: "transparent", border: "1px solid var(--border-edge)", color: "var(--text-secondary)", cursor: "pointer" }}
+              >
+                ← Back
+              </button>
+            )}
+            {step < 4 ? (
+              <button
+                type="button"
+                onClick={nextStep}
+                disabled={!canAdvance()}
+                className="flex-1 min-w-[8rem] font-bold py-3 rounded-xl"
+                style={{
+                  background: !canAdvance() ? "rgba(249,115,22,0.4)" : "var(--brand-orange)",
+                  color: "#07070A",
+                  cursor: !canAdvance() ? "not-allowed" : "pointer",
+                  border: "none",
+                  fontSize: "15px",
+                }}
+              >
+                Next →
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={generate}
+                disabled={loading || !complaint.trim()}
+                className="flex-1 min-w-[8rem] font-bold py-3 rounded-xl"
+                style={{
+                  background: loading || !complaint.trim() ? "rgba(249,115,22,0.4)" : "var(--brand-orange)",
+                  color: "#07070A",
+                  cursor: loading || !complaint.trim() ? "not-allowed" : "pointer",
+                  border: "none",
+                  fontSize: "15px",
+                }}
+              >
+                {loading ? "Analysing…" : "Generate Differential →"}
+              </button>
+            )}
             <button
-              onClick={generate}
-              disabled={loading || !complaint.trim()}
-              className="flex-1 font-bold py-3 rounded-xl transition-all"
-              style={{
-                background: loading || !complaint.trim() ? "rgba(249,115,22,0.4)" : "var(--brand-orange)",
-                color: "#07070A",
-                cursor: loading || !complaint.trim() ? "not-allowed" : "pointer",
-                border: "none",
-                fontSize: "15px",
-              }}
-            >
-              {loading ? "Analysing…" : "Generate Differential →"}
-            </button>
-            <button
+              type="button"
               onClick={loadExample}
-              className="px-4 py-3 rounded-xl text-sm font-semibold transition-all"
+              className="px-4 py-3 rounded-xl text-sm font-semibold"
               style={{ background: "transparent", border: "1px solid var(--border-edge)", color: "var(--text-secondary)", cursor: "pointer" }}
             >
               Load Example
@@ -295,16 +515,15 @@ export default function DemoPage() {
           </p>
         </div>
 
-        {/* RIGHT — Results */}
         <div>
           {!result && !loading && (
             <div className="h-full flex items-center justify-center text-center" style={{ minHeight: "320px" }}>
-              <div className="space-y-4">
+              <div className="space-y-4 px-2">
                 <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--brand-orange)" strokeWidth="1.5" className="mx-auto opacity-50">
                   <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
                 </svg>
                 <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                  Enter a chief complaint and click Generate<br/>to see AI-assisted differentials.
+                  Complete the case steps and generate<br />to see AI-assisted differentials.
                 </p>
               </div>
             </div>
@@ -326,9 +545,8 @@ export default function DemoPage() {
 
           {result && !loading && (
             <div className="space-y-4">
-              {/* AI source badge */}
               {result.ai_provider && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs" style={{ color: "var(--text-muted)" }}>Powered by</span>
                   <span
                     className="text-xs font-bold px-2 py-0.5 rounded-md"
@@ -343,18 +561,16 @@ export default function DemoPage() {
                 </div>
               )}
 
-              {/* Clinical note */}
               {result.clinical_note && (
                 <div
                   className="px-4 py-3 rounded-xl"
                   style={{ background: "var(--bg-surface)", border: "1px solid var(--border-orange)" }}
                 >
                   <p className="text-xs font-bold mb-1" style={{ color: "var(--brand-orange)" }}>Clinical Summary</p>
-                  <p className="text-sm" style={{ color: "var(--text-primary)" }}>{result.clinical_note}</p>
+                  <p className="text-sm" style={{ color: "var(--text-primary)", overflowWrap: "break-word" }}>{result.clinical_note}</p>
                 </div>
               )}
 
-              {/* Differentials */}
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
                   Differential Diagnoses
@@ -369,7 +585,7 @@ export default function DemoPage() {
                         style={{ background: "var(--bg-surface)", border: "1px solid var(--border-edge)" }}
                       >
                         <div className="flex items-start justify-between gap-2 mb-2">
-                          <span className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{d.condition}</span>
+                          <span className="font-bold text-sm" style={{ color: "var(--text-primary)", overflowWrap: "break-word" }}>{d.condition}</span>
                           <span
                             className="text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0"
                             style={{ background: conf.bg, color: conf.text, border: `1px solid ${conf.border}` }}
@@ -388,7 +604,6 @@ export default function DemoPage() {
                 </div>
               </div>
 
-              {/* Workup */}
               {result.suggested_workup.length > 0 && (
                 <div
                   className="p-4 rounded-xl"
@@ -408,7 +623,6 @@ export default function DemoPage() {
                 </div>
               )}
 
-              {/* Red flags */}
               {result.red_flags.length > 0 && (
                 <div
                   className="p-4 rounded-xl"
@@ -431,7 +645,6 @@ export default function DemoPage() {
                 </p>
               )}
 
-              {/* CTA */}
               <div
                 className="p-5 rounded-xl text-center"
                 style={{ background: "var(--bg-surface)", border: "1px solid var(--border-orange)" }}

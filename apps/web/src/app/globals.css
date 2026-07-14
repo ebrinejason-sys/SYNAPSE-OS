@@ -683,7 +683,9 @@ code, pre, .mono {
 
 .landing-hero {
   position: relative;
-  overflow: hidden;
+  /* Clip decorative layers only — avoid clipping wrapped title text on narrow viewports */
+  overflow-x: clip;
+  overflow-y: visible;
   padding-block: 4rem 5rem;
 }
 
@@ -698,6 +700,7 @@ code, pre, .mono {
   position: absolute;
   inset: 0;
   z-index: 0;
+  overflow: hidden;
   background:
     radial-gradient(ellipse 70% 55% at 10% 0%, var(--hero-glow) 0%, transparent 58%),
     radial-gradient(ellipse 50% 45% at 92% 8%, var(--hero-glow-gold) 0%, transparent 52%),
@@ -802,10 +805,20 @@ code, pre, .mono {
 .landing-hero-title {
   font-family: 'Space Grotesk', 'DM Sans', sans-serif;
   font-weight: 700;
-  line-height: 1.08;
+  line-height: 1.15;
   letter-spacing: -0.03em;
-  font-size: clamp(2.125rem, 5vw, 3.5rem);
+  font-size: clamp(1.75rem, 6.5vw, 3.5rem);
   color: var(--text-primary);
+  overflow-wrap: anywhere;
+  word-break: normal;
+  hyphens: auto;
+}
+
+@media (min-width: 480px) {
+  .landing-hero-title {
+    overflow-wrap: break-word;
+    line-height: 1.1;
+  }
 }
 
 .landing-accent-text {
@@ -824,6 +837,13 @@ code, pre, .mono {
   font-size: 0.9375rem;
   line-height: 1.65;
   color: var(--text-secondary);
+  overflow-wrap: break-word;
+}
+
+@media (max-width: 479px) {
+  .landing-container {
+    padding-inline: 1rem;
+  }
 }
 
 .landing-section {
@@ -1176,7 +1196,14 @@ code, pre, .mono {
   line-height: 1.6;
   color: var(--text-secondary);
   margin: 0;
-  max-width: 22ch;
+  max-width: min(28ch, 100%);
+  overflow-wrap: break-word;
+}
+
+@media (max-width: 1023px) {
+  .landing-timeline-body {
+    max-width: 100%;
+  }
 }
 
 @media (max-width: 767px) {

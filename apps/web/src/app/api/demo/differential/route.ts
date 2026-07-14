@@ -2,17 +2,50 @@ import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimiters } from "../../../../lib/rate-limit";
 
+type DemoBody = {
+  chiefComplaint: string;
+  age?: number;
+  sex?: string;
+  vitals?: Record<string, number>;
+  requestFollowUp?: boolean;
+  duration?: string;
+  pregnancy?: string;
+  pastHistory?: string;
+  allergies?: string;
+  medications?: string;
+  riskNotes?: string;
+};
+
+function optionalLine(label: string, value: string | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? `${label}: ${trimmed}` : `${label}: not provided`;
+}
+
 const CLINICAL_PROMPT = (
   chiefComplaint: string,
   age: number | undefined,
   sex: string | undefined,
   vitalsText: string,
-  withFollowUp: boolean
+  withFollowUp: boolean,
+  extras: {
+    duration?: string;
+    pregnancy?: string;
+    pastHistory?: string;
+    allergies?: string;
+    medications?: string;
+    riskNotes?: string;
+  }
 ) =>
   `You are a clinical decision support AI for hospitals in Uganda and East Africa.
 
 Patient: ${age ?? "?"} year old ${sex ?? "unknown"}
 Chief Complaint: "${chiefComplaint}"
+${optionalLine("Duration", extras.duration)}
+${optionalLine("Pregnancy status", extras.pregnancy)}
+${optionalLine("Past medical history", extras.pastHistory)}
+${optionalLine("Allergies", extras.allergies)}
+${optionalLine("Current medications", extras.medications)}
+${optionalLine("Other risk notes (travel, contacts, chronic illness)", extras.riskNotes)}
 Vitals: ${vitalsText}
 
 Return ONLY valid JSON. No markdown. No preamble.
@@ -32,7 +65,7 @@ Return ONLY valid JSON. No markdown. No preamble.
   "ucg_reference": "string or null"${withFollowUp ? ',\n  "follow_up_questions": ["targeted question that would most reduce diagnostic uncertainty"]' : ''}
 }
 
-${withFollowUp ? 'Include exactly 3 follow_up_questions that would most sharpen the differential (travel, sick contacts, pregnancy, meds, etc.). ' : ''}Prioritise East African endemic diseases. Prefer tests available at district hospital level. Max 5 differentials.`;
+${withFollowUp ? 'Include exactly 3 follow_up_questions that would most sharpen the differential (travel, sick contacts, pregnancy, meds, etc.). ' : ''}Use all provided history when ranking differentials. Prioritise East African endemic diseases. Prefer tests available at district hospital level. Max 5 differentials.`;
 
 async function tryGemini(prompt: string): Promise<{ data: Record<string, unknown>; provider: string; model: string } | null> {
   const key = process.env.GEMINI_API_KEY;
@@ -125,14 +158,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body = await req.json() as {
-    chiefComplaint: string;
-    age?: number;
-    sex?: string;
-    vitals?: Record<string, number>;
-    requestFollowUp?: boolean;
-  };
-  const { chiefComplaint, age, sex, vitals, requestFollowUp } = body;
+  const body = await req.json() as DemoBody;
+  const {
+    chiefComplaint,
+    age,
+    sex,
+    vitals,
+    requestFollowUp,
+    duration,
+    pregnancy,
+    pastHistory,
+    allergies,
+    medications,
+    riskNotes,
+  } = body;
 
   if (!chiefComplaint) {
     return NextResponse.json({ error: "chiefComplaint is required" }, { status: 400 });
@@ -142,7 +181,14 @@ export async function POST(req: NextRequest) {
     ? `Temp: ${vitals.temperature_c ?? "?"}°C, HR: ${vitals.heart_rate ?? "?"}, BP: ${vitals.bp_systolic ?? "?"}/${vitals.bp_diastolic ?? "?"}, SpO2: ${vitals.spo2 ?? "?"}%`
     : "not recorded";
 
-  const prompt = CLINICAL_PROMPT(chiefComplaint, age, sex, vitalsText, Boolean(requestFollowUp));
+  const prompt = CLINICAL_PROMPT(
+    chiefComplaint,
+    age,
+    sex,
+    vitalsText,
+    Boolean(requestFollowUp),
+    { duration, pregnancy, pastHistory, allergies, medications, riskNotes }
+  );
 
   // Try AI providers in order: Gemini → OpenRouter (DeepSeek) → DeepSeek direct
   const result =
