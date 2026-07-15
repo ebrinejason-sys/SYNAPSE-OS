@@ -8,6 +8,7 @@ const MOBILE_SESSION_DAYS = 3
 const ROLE_KIND: Record<string, string> = {
   patient: 'patient',
   doctor: 'clinician', nurse: 'nurse', pharmacist: 'pharmacy', pharmacy_admin: 'pharmacy',
+  pharmacy_store_manager: 'pharmacy', pharmacy_cashier: 'pharmacy', cashier: 'pharmacy',
   lab_tech: 'lab', receptionist: 'reception', billing_officer: 'billing',
   admin: 'admin', hospital_admin: 'admin', platform_admin: 'admin',
 }

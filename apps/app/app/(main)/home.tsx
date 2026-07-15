@@ -18,6 +18,7 @@ import { Card, SectionHeader } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { WorkspaceHeader } from '@/components/WorkspaceHeader'
+import { isSubscriptionLocked } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { getCachedWithTtl, setCached } from '@/lib/cache'
 import { fetchDashboard, type DashboardResponse, type DashboardQuickAction } from '@/lib/dashboard'
@@ -68,12 +69,16 @@ export default function DashboardScreen() {
     try {
       await fetchFresh()
     } catch (err) {
+      if (isSubscriptionLocked(err)) {
+        router.replace({ pathname: '/billing-locked', params: { message: err.message } })
+        return
+      }
       setError(err instanceof Error ? err.message : 'Failed to load dashboard')
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [token, fetchFresh])
+  }, [token, fetchFresh, router])
 
   useEffect(() => {
     let cancelled = false
@@ -102,6 +107,10 @@ export default function DashboardScreen() {
   }
 
   const handleAction = (action: DashboardQuickAction) => {
+    if (action.target.startsWith('http')) {
+      Linking.openURL(action.target).catch(() => {})
+      return
+    }
     const [scheme, ...rest] = action.target.split(':')
     const path = rest.join(':')
     if (scheme === 'app') {

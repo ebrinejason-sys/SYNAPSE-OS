@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken, validateSession } from '@synapse/auth'
+import { verifyToken, validateSession, isTenantEntitled, getSubscriptionStatus } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 
 export const maxDuration = 60
@@ -20,6 +20,7 @@ const ROLE_KIND: Record<string, DashboardKind> = {
   nurse: 'nurse', theatre_nurse: 'nurse', icu_nurse: 'nurse',
   hiv_counselor: 'nurse', chw: 'nurse', social_worker: 'nurse',
   pharmacist: 'pharmacy', pharmacy_admin: 'pharmacy', pharmacy_store_manager: 'pharmacy',
+  pharmacy_cashier: 'pharmacy', cashier: 'pharmacy',
   lab_tech: 'lab', lab_technician: 'lab', lab_supervisor: 'lab',
   receptionist: 'reception',
   billing_officer: 'billing', claims_officer: 'billing', insurance_officer: 'billing',
@@ -92,6 +93,25 @@ export async function GET(req: NextRequest) {
   const role = (payload.role as string) ?? ''
   const tenantId = (payload.tenant_id as string) || ''
   const kind: DashboardKind = ROLE_KIND[role] ?? 'generic'
+  const isPlatformAdmin = role === 'platform_admin'
+
+  // Suspended tenants get the same 402 lock as the pharmacy app (Workstream C
+  // shape) so the mobile app can render its billing screen instead of crashing.
+  // isTenantEntitled fails open for tenants without a subscription row.
+  if (!isPlatformAdmin && tenantId) {
+    const entitlement = await isTenantEntitled(tenantId).catch(() => null)
+    if (entitlement && !entitlement.entitled) {
+      return NextResponse.json(
+        {
+          error: 'subscription_required',
+          message: 'This facility’s subscription is not active. An administrator can renew it from the billing page.',
+          subscription_status: entitlement.status,
+          reactivate_url: '/portal/billing',
+        },
+        { status: 402 },
+      )
+    }
+  }
 
   // Tenant context
   let tenantName = ''
@@ -116,7 +136,7 @@ export async function GET(req: NextRequest) {
   let quickActions: QuickAction[] = []
 
   if (kind === 'pharmacy') {
-    const [salesRows, lowStock, expiringSoon, pendingOrders] = await Promise.all([
+    const [salesRows, lowStock, expiringSoon, pendingOrders, subscription] = await Promise.all([
       safeRows<{ total_amount: number | null }>(
         'pharmacy_pos_sales',
         'total_amount',
@@ -134,6 +154,7 @@ export async function GET(req: NextRequest) {
       safeCount('pharmacy_orders', (q) =>
         q.eq('tenant_id', tenantId).eq('is_online_order', true).eq('status', 'pending')
       ),
+      getSubscriptionStatus(tenantId).catch(() => null),
     ])
     const salesTotal = salesRows.reduce((s, r) => s + (Number(r.total_amount) || 0), 0)
     const low = lowStock.filter(
@@ -146,6 +167,23 @@ export async function GET(req: NextRequest) {
       { key: 'expiring', label: 'Expiring ≤60d', value: String(expiringSoon), tone: expiringSoon ? 'red' : 'muted' },
       { key: 'online', label: 'Online Orders', value: String(pendingOrders), tone: pendingOrders ? 'gold' : 'muted' },
     ]
+    if (subscription) {
+      const subTone: Tone =
+        subscription.status === 'active' || subscription.status === 'trialing'
+          ? 'green'
+          : subscription.status === 'past_due'
+            ? 'gold'
+            : 'red'
+      const periodEnd = subscription.currentPeriodEnd
+        ? new Date(subscription.currentPeriodEnd).toLocaleDateString('en-GB', { timeZone: 'Africa/Kampala' })
+        : null
+      stats.push({
+        key: 'billing',
+        label: periodEnd ? `Billing (until ${periodEnd})` : 'Billing',
+        value: subscription.status,
+        tone: subTone,
+      })
+    }
     if (low.length) {
       list = {
         title: 'Low Stock Alerts',
@@ -158,10 +196,12 @@ export async function GET(req: NextRequest) {
         })),
       }
     }
+    const pharmacyPortalUrl = (process.env.NEXT_PUBLIC_PHARMACY_APP_URL ?? 'https://pharm.synapseos.tech').replace(/\/$/, '')
     quickActions = [
       { key: 'pos', label: 'New Sale (POS)', target: `web:/os/${tenantSlug}/pharmacy/pos` },
       { key: 'inventory', label: 'Inventory', target: `web:/os/${tenantSlug}/pharmacy/inventory` },
       { key: 'orders', label: 'Online Orders', target: `web:/os/${tenantSlug}/pharmacy/orders` },
+      { key: 'billing', label: 'Billing & Renewal', target: `${pharmacyPortalUrl}/portal/billing` },
     ]
   } else if (kind === 'clinician') {
     const [openEnc, signedToday, totalToday, queue] = await Promise.all([
@@ -292,19 +332,28 @@ export async function GET(req: NextRequest) {
       { key: 'claims', label: 'View Claims', target: `web:/os/${tenantSlug}/insurance` },
     ]
   } else if (kind === 'admin') {
-    if (!tenantId) {
-      // Platform admin — no single tenant. Show platform-wide overview.
-      const [tenants, users, patientsAll, activeTenants] = await Promise.all([
+    if (isPlatformAdmin || !tenantId) {
+      // Platform admin — read-only platform-wide overview, regardless of any
+      // tenant the profile happens to be attached to.
+      const [tenants, users, patientsAll, activeTenants, subsActive, subsTrialing, subsPastDue, subsSuspended] = await Promise.all([
         safeCount('tenants', (q) => q),
         safeCount('profiles', (q) => q.eq('is_deleted', false)),
         safeCount('patients', (q) => q.eq('is_deleted', false)),
         safeCount('tenants', (q) => q.eq('status', 'active')),
+        safeCount('tenant_subscriptions', (q) => q.eq('status', 'active')),
+        safeCount('tenant_subscriptions', (q) => q.eq('status', 'trialing')),
+        safeCount('tenant_subscriptions', (q) => q.eq('status', 'past_due')),
+        safeCount('tenant_subscriptions', (q) => q.eq('status', 'suspended')),
       ])
       stats = [
         { key: 'tenants', label: 'Facilities', value: String(tenants), tone: 'primary' },
         { key: 'active', label: 'Active', value: String(activeTenants), tone: 'green' },
         { key: 'users', label: 'Users', value: String(users), tone: 'gold' },
         { key: 'patients', label: 'Patients', value: String(patientsAll), tone: 'muted' },
+        { key: 'subs', label: 'Paying Subs', value: String(subsActive), tone: 'green' },
+        { key: 'trialing', label: 'Trialing', value: String(subsTrialing), tone: 'gold' },
+        { key: 'pastdue', label: 'Past Due', value: String(subsPastDue), tone: subsPastDue ? 'red' : 'muted' },
+        { key: 'suspended', label: 'Suspended', value: String(subsSuspended), tone: subsSuspended ? 'red' : 'muted' },
       ]
       const tRows = await safeRows<{ id: string; name: string; facility_type: string; status: string }>(
         'tenants', 'id, name, facility_type, status',

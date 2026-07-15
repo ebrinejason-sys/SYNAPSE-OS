@@ -22,6 +22,25 @@ const DEFAULT_TIMEOUT_MS = 45_000
 
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
+/** Non-2xx API response. `status` lets callers branch (401 → re-login,
+ * 402 → billing-locked screen) instead of string-matching messages. */
+export class ApiError extends Error {
+  readonly status: number
+  readonly payload: Record<string, unknown>
+
+  constructor(message: string, status: number, payload: Record<string, unknown> = {}) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.payload = payload
+  }
+}
+
+/** True when the server returned the Workstream C subscription lock (HTTP 402). */
+export function isSubscriptionLocked(err: unknown): err is ApiError {
+  return err instanceof ApiError && err.status === 402
+}
+
 interface RequestOptions {
   method?: Method
   body?: unknown
@@ -69,7 +88,12 @@ export async function apiRequest<T>(
     : {}
 
   if (!res.ok) {
-    throw new Error((data as { error?: string })?.error ?? `Request failed (${res.status})`)
+    const payload = data as Record<string, unknown>
+    const message =
+      (typeof payload.message === 'string' && payload.message) ||
+      (typeof payload.error === 'string' && payload.error) ||
+      `Request failed (${res.status})`
+    throw new ApiError(message, res.status, payload)
   }
 
   if (!contentType.includes('application/json')) {

@@ -13,6 +13,7 @@ const ROLE_KIND: Record<string, string> = {
   nurse: 'nurse', theatre_nurse: 'nurse', icu_nurse: 'nurse',
   hiv_counselor: 'nurse', chw: 'nurse', social_worker: 'nurse',
   pharmacist: 'pharmacy', pharmacy_admin: 'pharmacy', pharmacy_store_manager: 'pharmacy',
+  pharmacy_cashier: 'pharmacy', cashier: 'pharmacy',
   lab_tech: 'lab', lab_technician: 'lab', lab_supervisor: 'lab',
   receptionist: 'reception',
   billing_officer: 'billing', claims_officer: 'billing', insurance_officer: 'billing',
