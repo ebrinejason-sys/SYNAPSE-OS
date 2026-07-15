@@ -2,7 +2,7 @@ import Link from "next/link"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { supabaseAdmin } from "@/lib/supabase/admin"
-import { KnotMark } from "@/components/brand/knot-mark"
+import { SynapseMark } from "@/components/brand/synapse-mark"
 import { PosMock } from "@/components/landing/pos-mock"
 import {
   effectiveMonthlyUgx,
@@ -64,7 +64,7 @@ function CustomDomainPortal({
     <main className="min-h-screen bg-[#07070A] px-4 py-10 text-white">
       <section className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-2xl flex-col justify-center">
         <div className="mb-8 flex items-center gap-3">
-          <KnotMark className="h-12 w-12" />
+          <SynapseMark className="h-12 w-12" />
           <div>
             <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[#E8B84B]">
               Synapse Pharm
@@ -132,7 +132,7 @@ export default async function Page() {
 
       <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
         <Link href="/" className="flex items-center gap-3">
-          <KnotMark className="h-9 w-9" />
+          <SynapseMark className="h-9 w-9" />
           <span className="font-display text-lg font-bold tracking-tight">
             Synapse <span className="text-[#1FA6A6]">Pharm</span>
           </span>
@@ -358,7 +358,7 @@ export default async function Page() {
       <footer className="border-t border-[#1C1C24] px-4 py-10 sm:px-6">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <KnotMark className="h-8 w-8" />
+            <SynapseMark className="h-8 w-8" />
             <div>
               <p className="font-display font-semibold">Synapse Pharm</p>
               <p className="font-mono text-[11px] text-zinc-500">

@@ -93,7 +93,6 @@ const styles = StyleSheet.create({
   title: {
     ...typography.h2,
     color: colors.text,
-    fontFamily: 'DMSans_700Bold',
   },
   subtitle: {
     ...typography.caption,

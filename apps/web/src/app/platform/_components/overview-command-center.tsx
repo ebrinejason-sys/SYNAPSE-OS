@@ -62,12 +62,26 @@ export type OverviewCommandCenterData = {
   attentionItems: AttentionItem[];
   topApplications: ApplicationPreview[];
   openTickets: Array<{ id: string; subject: string; createdAt: string }>;
+  subscriptions: {
+    mrr: string;
+    trialing: number;
+    active: number;
+    pastDue: number;
+    suspended: number;
+  };
   ecosystemSummary: {
     pharmacyTenants: number;
     hospitalTenants: number;
     districts: number;
   };
 };
+
+const SUB_STAGES = [
+  { key: "trialing", label: "Trialing", tone: "text-amber-300", dot: "bg-amber-400" },
+  { key: "active", label: "Active", tone: "text-green-300", dot: "bg-green-400" },
+  { key: "pastDue", label: "Past due", tone: "text-orange-300", dot: "bg-orange-400" },
+  { key: "suspended", label: "Suspended", tone: "text-red-300", dot: "bg-red-400" },
+] as const;
 
 function healthDot(status: HealthItem["status"]) {
   if (status === "green") return "bg-green-400";
@@ -231,6 +245,38 @@ export function OverviewCommandCenter({ data }: { data: OverviewCommandCenterDat
                 </div>
               </div>
             ) : null}
+          </section>
+
+          <section className="rounded-xl border border-subtle bg-surface p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-primary-color">
+                <Pill className="h-4 w-4 text-[#E8B84B]" />
+                Subscriptions
+              </h2>
+              <Link href="/platform/billing" className="text-xs font-medium text-[#F97316] hover:underline">
+                Billing →
+              </Link>
+            </div>
+            <div className="mt-3 rounded-lg border border-subtle bg-base px-3 py-3">
+              <p className="text-[10px] uppercase tracking-wide text-muted-color">Monthly recurring revenue</p>
+              <p className="mt-0.5 font-mono text-xl font-bold text-[#F97316]">{data.subscriptions.mrr}</p>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {SUB_STAGES.map((stage) => (
+                <div
+                  key={stage.key}
+                  className="flex items-center justify-between rounded-lg border border-subtle bg-base px-3 py-2"
+                >
+                  <span className="flex items-center gap-2 text-xs text-secondary-color">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${stage.dot}`} aria-hidden />
+                    {stage.label}
+                  </span>
+                  <span className={`text-sm font-semibold tabular-nums ${stage.tone}`}>
+                    {data.subscriptions[stage.key]}
+                  </span>
+                </div>
+              ))}
+            </div>
           </section>
 
           <section className="rounded-xl border border-subtle bg-surface p-4">

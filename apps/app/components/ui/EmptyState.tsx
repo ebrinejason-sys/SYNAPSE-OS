@@ -54,7 +54,6 @@ const styles = StyleSheet.create({
   title: {
     ...typography.h3,
     color: colors.text,
-    fontFamily: 'DMSans_700Bold',
     marginBottom: spacing.sm,
   },
   body: {

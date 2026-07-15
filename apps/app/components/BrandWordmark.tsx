@@ -24,7 +24,6 @@ const styles = StyleSheet.create({
   title: {
     ...typography.title,
     color: colors.text,
-    fontFamily: 'DMSans_700Bold',
     marginTop: 4,
   },
   accent: { color: colors.gold },

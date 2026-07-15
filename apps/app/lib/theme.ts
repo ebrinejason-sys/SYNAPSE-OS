@@ -87,29 +87,44 @@ export const radii = {
   full: 9999,
 } as const
 
+/**
+ * Shared Synapse type system (matches apps/web + apps/pharmacy and the brief):
+ * Bricolage Grotesque for display/headings, DM Sans for body, IBM Plex Mono for
+ * data. Loaded in app/_layout.tsx via @expo-google-fonts.
+ */
+export const fonts = {
+  display: 'BricolageGrotesque_700Bold',
+  heading: 'BricolageGrotesque_600SemiBold',
+  body: 'DMSans_400Regular',
+  bodyMedium: 'DMSans_500Medium',
+  bodyBold: 'DMSans_700Bold',
+  mono: 'IBMPlexMono_500Medium',
+} as const
+
 export const typography = {
-  display: { fontSize: 36, fontWeight: '600' as const, letterSpacing: -0.4, lineHeight: 43 },
-  h1: { fontSize: 28, fontWeight: '600' as const, letterSpacing: -0.3, lineHeight: 34 },
-  h2: { fontSize: 22, fontWeight: '600' as const, letterSpacing: -0.2, lineHeight: 28 },
-  h3: { fontSize: 17, fontWeight: '600' as const, lineHeight: 24 },
-  h4: { fontSize: 15, fontWeight: '600' as const, lineHeight: 21 },
-  bodyLg: { fontSize: 18, fontWeight: '400' as const, lineHeight: 29 },
-  body: { fontSize: 16, fontWeight: '400' as const, lineHeight: 26 },
-  bodySm: { fontSize: 14, fontWeight: '400' as const, lineHeight: 21 },
-  caption: { fontSize: 12, fontWeight: '500' as const, letterSpacing: 0.12, lineHeight: 17 },
+  display: { fontFamily: fonts.display, fontSize: 36, fontWeight: '600' as const, letterSpacing: -0.4, lineHeight: 43 },
+  h1: { fontFamily: fonts.display, fontSize: 28, fontWeight: '600' as const, letterSpacing: -0.3, lineHeight: 34 },
+  h2: { fontFamily: fonts.heading, fontSize: 22, fontWeight: '600' as const, letterSpacing: -0.2, lineHeight: 28 },
+  h3: { fontFamily: fonts.heading, fontSize: 17, fontWeight: '600' as const, lineHeight: 24 },
+  h4: { fontFamily: fonts.heading, fontSize: 15, fontWeight: '600' as const, lineHeight: 21 },
+  bodyLg: { fontFamily: fonts.body, fontSize: 18, fontWeight: '400' as const, lineHeight: 29 },
+  body: { fontFamily: fonts.body, fontSize: 16, fontWeight: '400' as const, lineHeight: 26 },
+  bodySm: { fontFamily: fonts.body, fontSize: 14, fontWeight: '400' as const, lineHeight: 21 },
+  caption: { fontFamily: fonts.bodyMedium, fontSize: 12, fontWeight: '500' as const, letterSpacing: 0.12, lineHeight: 17 },
   label: {
+    fontFamily: fonts.bodyMedium,
     fontSize: 11,
     fontWeight: '600' as const,
     letterSpacing: 1.1,
     textTransform: 'uppercase' as const,
   },
-  mono: { fontSize: 14, fontWeight: '500' as const, lineHeight: 21, fontFamily: 'monospace' },
-  stat: { fontSize: 24, fontWeight: '600' as const, letterSpacing: -0.5, lineHeight: 29 },
+  mono: { fontFamily: fonts.mono, fontSize: 14, fontWeight: '500' as const, lineHeight: 21 },
+  stat: { fontFamily: fonts.display, fontSize: 24, fontWeight: '600' as const, letterSpacing: -0.5, lineHeight: 29 },
   // Legacy aliases
-  hero: { fontSize: 28, fontWeight: '600' as const, letterSpacing: -0.3 },
-  title: { fontSize: 22, fontWeight: '600' as const, letterSpacing: -0.2 },
-  heading: { fontSize: 17, fontWeight: '600' as const },
-  bodyMedium: { fontSize: 15, fontWeight: '500' as const },
+  hero: { fontFamily: fonts.display, fontSize: 28, fontWeight: '600' as const, letterSpacing: -0.3 },
+  title: { fontFamily: fonts.heading, fontSize: 22, fontWeight: '600' as const, letterSpacing: -0.2 },
+  heading: { fontFamily: fonts.heading, fontSize: 17, fontWeight: '600' as const },
+  bodyMedium: { fontFamily: fonts.bodyMedium, fontSize: 15, fontWeight: '500' as const },
 } as const
 
 export const tabBarHeight = 56

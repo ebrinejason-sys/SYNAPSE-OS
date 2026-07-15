@@ -82,7 +82,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <img src="/logo-dark.png" alt="Synapse Pharm" className="w-16 h-16 rounded-2xl object-contain mb-4 shadow-lg" />
+          <img src="/logo.png" alt="SynapseOS" className="w-16 h-16 rounded-2xl object-contain mb-4 shadow-lg" />
           <h1 className="font-display text-xl font-bold text-white">
             Synapse <span className="text-[#1FA6A6]">Pharm</span>
           </h1>

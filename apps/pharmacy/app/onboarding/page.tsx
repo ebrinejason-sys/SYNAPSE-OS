@@ -252,7 +252,7 @@ export default function OnboardingPage() {
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
           <Image
-            src="/logo-dark.png"
+            src="/logo.png"
             alt="Synapse Pharmacy"
             width={160}
             height={48}
