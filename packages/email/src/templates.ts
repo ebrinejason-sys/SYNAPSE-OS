@@ -109,3 +109,40 @@ export function welcomeHtml(params: {
     </a>
   `)
 }
+
+// ── Billing lifecycle notices (Workstream C) ─────────────────────────────────
+
+export type BillingNoticeParams = {
+  name: string
+  pharmacyName: string
+  heading: string
+  /** pre-rendered inner HTML lines (already escaped by callers — values are server-derived) */
+  bodyHtml: string
+  ctaUrl: string
+  ctaLabel: string
+  tone?: 'info' | 'warning' | 'critical'
+}
+
+export function billingNoticeHtml(params: BillingNoticeParams): string {
+  const toneColor =
+    params.tone === 'critical' ? '#EF4444' : params.tone === 'warning' ? '#E8B84B' : ORANGE
+  return brandedHtml(`
+    <h2 style="margin:0 0 8px;font-size:18px;font-weight:700;color:#F5F5F7;">${params.heading}</h2>
+    <p style="font-size:14px;line-height:1.7;color:${MUTED};margin:0 0 8px;">
+      Hello ${params.name || 'there'},
+    </p>
+    <div style="border-left:3px solid ${toneColor};padding:4px 0 4px 14px;margin:16px 0;
+                font-size:14px;line-height:1.7;color:${MUTED};">
+      ${params.bodyHtml}
+    </div>
+    <a href="${params.ctaUrl}"
+       style="display:inline-block;background:${toneColor};color:#07070A;font-weight:700;
+              font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;margin:8px 0 20px;">
+      ${params.ctaLabel}
+    </a>
+    <p style="font-size:12px;color:${DIM};margin:0;">
+      ${params.pharmacyName} · Synapse Pharm · Pay via MTN MoMo, Airtel Money, or card.<br/>
+      Questions? Reply to this email or write to support@synapseos.tech.
+    </p>
+  `)
+}

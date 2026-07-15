@@ -1,12 +1,63 @@
 import { supabaseAdmin } from '@synapse/db/admin'
-import { initFlutterwavePayment } from './flutterwave'
+import { initFlutterwavePayment, verifyFlutterwaveTransaction } from './flutterwave'
 import { evaluateEntitlement, type EntitlementResult } from './entitlement'
+
+// ── Kampala time + billing-cycle helpers ─────────────────────────────────────
+// Kampala is UTC+3 year-round (no DST), so a fixed offset is safe.
+const KAMPALA_OFFSET_MS = 3 * 60 * 60 * 1000
+
+function kampalaDateParts(date: Date = new Date()): { y: string; m: string; d: string; hh: string; mm: string; ss: string } {
+  const k = new Date(date.getTime() + KAMPALA_OFFSET_MS)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return {
+    y: String(k.getUTCFullYear()),
+    m: pad(k.getUTCMonth() + 1),
+    d: pad(k.getUTCDate()),
+    hh: pad(k.getUTCHours()),
+    mm: pad(k.getUTCMinutes()),
+    ss: pad(k.getUTCSeconds()),
+  }
+}
+
+/** yyyymmddhhmmss in Africa/Kampala — used for tx_ref stamps */
+export function kampalaStamp(date: Date = new Date()): string {
+  const p = kampalaDateParts(date)
+  return `${p.y}${p.m}${p.d}${p.hh}${p.mm}${p.ss}`
+}
+
+/** YYYYMMDD in Africa/Kampala — used for invoice numbers */
+export function kampalaDateYMD(date: Date = new Date()): string {
+  const p = kampalaDateParts(date)
+  return `${p.y}${p.m}${p.d}`
+}
+
+/** UTC instant of midnight (00:00) Africa/Kampala for the given date's Kampala day */
+export function kampalaMidnightUtc(date: Date = new Date()): Date {
+  const k = new Date(date.getTime() + KAMPALA_OFFSET_MS)
+  return new Date(Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate()) - KAMPALA_OFFSET_MS)
+}
+
+export type BillingCycle = 'monthly' | 'quarterly' | 'yearly'
+
+export function billingCycleMonths(cycle: string | null | undefined): number {
+  if (cycle === 'yearly') return 12
+  if (cycle === 'quarterly') return 3
+  return 1
+}
+
+export function addBillingCycle(from: Date, cycle: string | null | undefined): Date {
+  const d = new Date(from)
+  d.setMonth(d.getMonth() + billingCycleMonths(cycle))
+  return d
+}
 
 export type SubscriptionStatus = {
   status: string
   planSlug: string | null
   planName: string | null
   priceUgx: number | null
+  billingCycle: string | null
+  trialEnds: string | null
   currentPeriodEnd: string | null
   graceUntil: string | null
   lastPaymentAt: string | null
@@ -34,25 +85,45 @@ export async function getSubscriptionStatus(tenantId: string): Promise<Subscript
   const { data, error } = await db()
     .from('tenant_subscriptions')
     .select(`
-      status, current_period_end, grace_until, last_payment_at, cancel_at_period_end,
-      subscription_plans ( slug, name, price_ugx )
+      status, trial_ends, current_period_end, grace_until, last_payment_at, cancel_at_period_end,
+      subscription_plans ( slug, name, price_ugx, billing_cycle )
     `)
     .eq('tenant_id', tenantId)
     .maybeSingle()
 
   if (error || !data) return null
 
-  const plan = data.subscription_plans as { slug?: string; name?: string; price_ugx?: number } | null
+  const plan = data.subscription_plans as { slug?: string; name?: string; price_ugx?: number; billing_cycle?: string } | null
   return {
     status: data.status,
     planSlug: plan?.slug ?? null,
     planName: plan?.name ?? null,
     priceUgx: plan?.price_ugx ?? null,
+    billingCycle: plan?.billing_cycle ?? null,
+    trialEnds: data.trial_ends,
     currentPeriodEnd: data.current_period_end,
     graceUntil: data.grace_until,
     lastPaymentAt: data.last_payment_at,
     cancelAtPeriodEnd: Boolean(data.cancel_at_period_end),
   }
+}
+
+export type ActivePlanRow = {
+  slug: string
+  name: string
+  price_ugx: number | null
+  billing_cycle: string
+}
+
+/** Active pharmacy plans, cheapest first — the only plans self-serve checkout accepts. */
+export async function listActivePharmacyPlans(): Promise<ActivePlanRow[]> {
+  const { data } = await db()
+    .from('subscription_plans')
+    .select('slug, name, price_ugx, billing_cycle')
+    .eq('facility_type', 'pharmacy')
+    .eq('is_active', true)
+    .order('price_ugx', { ascending: true })
+  return (data ?? []) as ActivePlanRow[]
 }
 
 /**
@@ -124,7 +195,7 @@ export type InitSubscribeResult = {
 export async function initiateSubscriptionPayment(input: InitSubscribeInput): Promise<InitSubscribeResult> {
   const { data: plan, error: planErr } = await db()
     .from('subscription_plans')
-    .select('id, slug, name, price_ugx, is_active')
+    .select('id, slug, name, price_ugx, billing_cycle, is_active')
     .eq('slug', input.planSlug)
     .eq('is_active', true)
     .maybeSingle()
@@ -134,14 +205,20 @@ export async function initiateSubscriptionPayment(input: InitSubscribeInput): Pr
 
   const { data: sub } = await db()
     .from('tenant_subscriptions')
-    .select('id')
+    .select('id, status, current_period_end')
     .eq('tenant_id', input.tenantId)
     .maybeSingle()
 
-  const txRef = `syn-${input.tenantId.slice(0, 8)}-${Date.now()}`
-  const periodStart = new Date()
-  const periodEnd = new Date(periodStart)
-  periodEnd.setMonth(periodEnd.getMonth() + 1)
+  const now = new Date()
+  // Early renewal on an active subscription extends from the existing period end,
+  // never from now() — the tenant keeps the days they already paid for.
+  const existingEnd = sub?.current_period_end ? new Date(sub.current_period_end) : null
+  const extendsExisting =
+    sub?.status === 'active' && existingEnd != null && !Number.isNaN(existingEnd.getTime()) && existingEnd > now
+
+  const txRef = `SUB-${input.tenantId}-${kampalaStamp(now)}`
+  const periodStart = extendsExisting ? existingEnd : now
+  const periodEnd = addBillingCycle(periodStart, plan.billing_cycle)
 
   const { data: payment, error: payErr } = await db()
     .from('subscription_payments')
@@ -169,7 +246,7 @@ export async function initiateSubscriptionPayment(input: InitSubscribeInput): Pr
     name: input.name,
     phone: input.phone,
     title: `Synapse — ${plan.name}`,
-    description: `Monthly subscription (${plan.slug})`,
+    description: `${plan.billing_cycle ?? 'monthly'} subscription (${plan.slug})`,
     redirectUrl: input.redirectUrl,
   })
 
@@ -179,6 +256,160 @@ export async function initiateSubscriptionPayment(input: InitSubscribeInput): Pr
     paymentLink: fw.link,
     amountUgx: Number(plan.price_ugx),
   }
+}
+
+// ── Payment confirmation (shared by webhook + redirect-verify) ───────────────
+
+type PaymentRecord = {
+  id: string
+  tenant_id: string
+  plan_id: string | null
+  status: string
+  amount_ugx: number
+  provider_tx_ref: string | null
+  period_start: string | null
+  period_end: string | null
+  raw_payload: Record<string, unknown> | null
+}
+
+export type ConfirmPaymentInput = {
+  /** Flutterwave numeric transaction id (from webhook data.id or redirect ?transaction_id=) */
+  transactionId: string
+  /** our tx_ref — preferred lookup key */
+  txRef?: string | null
+  /** scope lookup to a tenant (redirect-verify path); webhook passes nothing */
+  tenantId?: string | null
+  actor: string
+  /** raw webhook payload to persist for audit; redirect path omits it */
+  rawPayload?: unknown
+  method?: string | null
+}
+
+export type ConfirmPaymentResult = {
+  ok: boolean
+  idempotent?: boolean
+  reason: string
+  planName?: string | null
+  invoiceNo?: string | null
+}
+
+/**
+ * Verify a Flutterwave transaction server-to-server and, only if it checks out,
+ * activate the matching pending subscription payment.
+ *
+ * Security invariants (never relaxed):
+ *  - the webhook payload / redirect query params are NEVER trusted for money facts;
+ *    amount, currency and tx_ref come from Flutterwave's verify endpoint
+ *  - currency must be UGX and verified amount must cover the payment row's amount
+ *    (which was computed server-side from subscription_plans at checkout)
+ *  - the verified tx_ref must match the payment row, so a cheap successful
+ *    transaction cannot activate someone else's (or a pricier) pending payment
+ *  - replays are no-ops: an already-successful payment short-circuits
+ */
+export async function confirmSubscriptionPayment(input: ConfirmPaymentInput): Promise<ConfirmPaymentResult> {
+  let query = db()
+    .from('subscription_payments')
+    .select('id, tenant_id, plan_id, status, amount_ugx, provider_tx_ref, period_start, period_end, raw_payload')
+  query = input.txRef
+    ? query.eq('provider_tx_ref', input.txRef)
+    : query.eq('provider_tx_id', input.transactionId)
+  if (input.tenantId) query = query.eq('tenant_id', input.tenantId)
+
+  const { data: payment, error } = (await query.maybeSingle()) as {
+    data: PaymentRecord | null
+    error: { message: string } | null
+  }
+  if (error || !payment) return { ok: false, reason: 'payment_not_found' }
+  if (payment.status === 'successful') return { ok: true, idempotent: true, reason: 'already_activated' }
+
+  const v = await verifyFlutterwaveTransaction(input.transactionId)
+  if (!v.ok) return { ok: false, reason: 'flutterwave_verification_failed' }
+  if ((v.currency ?? '').toUpperCase() !== 'UGX') return { ok: false, reason: 'currency_mismatch' }
+  if (v.amount == null || v.amount < Number(payment.amount_ugx)) {
+    return { ok: false, reason: 'amount_below_plan_price' }
+  }
+  if (v.txRef && payment.provider_tx_ref && v.txRef !== payment.provider_tx_ref) {
+    return { ok: false, reason: 'tx_ref_mismatch' }
+  }
+
+  const updates: Record<string, unknown> = { provider_tx_id: String(input.transactionId) }
+  if (input.method != null) updates.method = input.method
+  if (input.rawPayload != null) updates.raw_payload = input.rawPayload
+  await db().from('subscription_payments').update(updates).eq('id', payment.id)
+
+  const { data: result, error: actErr } = await db().rpc('activate_subscription_payment', {
+    p_payment_id: payment.id,
+    p_actor: input.actor,
+  })
+  if (actErr) return { ok: false, reason: actErr.message }
+  if (!result?.ok) return { ok: false, reason: result?.error ?? 'activation_failed' }
+
+  const invoiceNo = await recordSubscriptionInvoice(payment).catch(() => null)
+
+  let planName: string | null = null
+  if (payment.plan_id) {
+    const { data: plan } = await db().from('subscription_plans').select('name').eq('id', payment.plan_id).maybeSingle()
+    planName = plan?.name ?? null
+  }
+
+  return { ok: true, reason: 'activated', planName, invoiceNo }
+}
+
+/**
+ * Issue a Kampala-numbered invoice (INV-YYYYMMDD-####) for a confirmed payment.
+ *
+ * Writes to subscription_invoices when the table exists. Until that migration is
+ * applied to the live project, falls back to stamping invoice_no into the payment's
+ * raw_payload so the number is never lost. Best-effort by design — activation must
+ * never fail because invoicing did.
+ */
+async function recordSubscriptionInvoice(payment: PaymentRecord): Promise<string | null> {
+  const ymd = kampalaDateYMD()
+
+  // Concurrent confirmations of the same payment must not double-invoice.
+  const { data: existing, error: existErr } = await db()
+    .from('subscription_invoices')
+    .select('invoice_no')
+    .eq('payment_id', payment.id)
+    .maybeSingle()
+  if (!existErr && existing?.invoice_no) return existing.invoice_no
+
+  const { count, error: countErr } = await db()
+    .from('subscription_invoices')
+    .select('id', { count: 'exact', head: true })
+    .like('invoice_no', `INV-${ymd}-%`)
+
+  if (!countErr) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const invoiceNo = `INV-${ymd}-${String((count ?? 0) + 1 + attempt).padStart(4, '0')}`
+      const { error: insErr } = await db().from('subscription_invoices').insert({
+        tenant_id: payment.tenant_id,
+        payment_id: payment.id,
+        plan_id: payment.plan_id,
+        invoice_no: invoiceNo,
+        amount_ugx: payment.amount_ugx,
+        currency: 'UGX',
+        period_start: payment.period_start,
+        period_end: payment.period_end,
+      })
+      if (!insErr) return invoiceNo
+      if (insErr.code !== '23505') break // only retry unique-collision; else fall through
+    }
+  }
+
+  // Fallback: table missing (or insert failed) — number from today's confirmed payments
+  const stamped = payment.raw_payload?.invoice_no
+  if (typeof stamped === 'string' && stamped) return stamped
+  const sinceMidnight = kampalaMidnightUtc().toISOString()
+  const { count: paidToday } = await db()
+    .from('subscription_payments')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'successful')
+    .gte('confirmed_at', sinceMidnight)
+  const invoiceNo = `INV-${ymd}-${String((paidToday ?? 0) + 1).padStart(4, '0')}`
+  const mergedPayload = { ...(payment.raw_payload ?? {}), invoice_no: invoiceNo }
+  await db().from('subscription_payments').update({ raw_payload: mergedPayload }).eq('id', payment.id)
+  return invoiceNo
 }
 
 export async function handleFlutterwaveWebhook(payload: {
@@ -227,8 +458,7 @@ export async function handleFlutterwaveWebhook(payload: {
 
   if (!data?.tx_ref) return { ok: false, error: 'missing_tx_ref' }
 
-  const successful =
-    event === 'charge.completed' && data.status === 'successful'
+  const claimsSuccess = event === 'charge.completed' && data.status === 'successful'
 
   const { data: payment, error } = await db()
     .from('subscription_payments')
@@ -237,29 +467,36 @@ export async function handleFlutterwaveWebhook(payload: {
     .maybeSingle()
 
   if (error || !payment) return { ok: false, error: 'payment_not_found' }
+  if (payment.status === 'successful') {
+    // Replayed webhook for an already-confirmed payment — no-op, ack with 200.
+    return { ok: true, idempotent: true }
+  }
 
-  await db()
-    .from('subscription_payments')
-    .update({
-      raw_payload: payload,
-      provider_tx_id: data.id != null ? String(data.id) : null,
-      method: data.payment_type ?? null,
-    })
-    .eq('id', payment.id)
-
-  if (payment.status === 'successful') return { ok: true, idempotent: true }
-
-  if (!successful) {
-    await db().from('subscription_payments').update({ status: 'failed' }).eq('id', payment.id)
+  if (!claimsSuccess) {
+    await db()
+      .from('subscription_payments')
+      .update({
+        status: 'failed',
+        raw_payload: payload,
+        provider_tx_id: data.id != null ? String(data.id) : null,
+        method: data.payment_type ?? null,
+      })
+      .eq('id', payment.id)
     return { ok: true }
   }
 
-  const { data: result, error: actErr } = await db().rpc('activate_subscription_payment', {
-    p_payment_id: payment.id,
-    p_actor: 'webhook',
+  if (data.id == null) return { ok: false, error: 'missing_transaction_id' }
+
+  // Never trust the webhook payload alone — confirm re-verifies with Flutterwave
+  // (status/currency/amount/tx_ref) before activating.
+  const result = await confirmSubscriptionPayment({
+    transactionId: String(data.id),
+    txRef: data.tx_ref,
+    actor: 'webhook',
+    rawPayload: payload,
+    method: data.payment_type ?? null,
   })
 
-  if (actErr) return { ok: false, error: actErr.message }
-  if (!result?.ok) return { ok: false, error: result?.error ?? 'activation_failed' }
-  return { ok: true }
+  if (!result.ok) return { ok: false, error: result.reason }
+  return { ok: true, idempotent: result.idempotent }
 }
