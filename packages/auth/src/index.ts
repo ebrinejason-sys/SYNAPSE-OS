@@ -38,11 +38,27 @@ export {
   getSubscriptionStatus,
   listSubscriptionPayments,
   listAllPayments,
+  listActivePharmacyPlans,
   initiateSubscriptionPayment,
+  confirmSubscriptionPayment,
   handleFlutterwaveWebhook,
   isTenantEntitled,
+  billingCycleMonths,
+  addBillingCycle,
+  kampalaStamp,
+  kampalaDateYMD,
+  kampalaMidnightUtc,
 } from './billing/subscription'
-export type { SubscriptionStatus, PaymentRow, InitSubscribeInput, InitSubscribeResult } from './billing/subscription'
+export type {
+  SubscriptionStatus,
+  PaymentRow,
+  ActivePlanRow,
+  InitSubscribeInput,
+  InitSubscribeResult,
+  ConfirmPaymentInput,
+  ConfirmPaymentResult,
+  BillingCycle,
+} from './billing/subscription'
 export {
   evaluateEntitlement,
   ENTITLED_STATUSES,

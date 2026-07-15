@@ -10,10 +10,19 @@ type Subscription = {
   planSlug: string | null
   planName: string | null
   priceUgx: number | null
+  billingCycle: string | null
+  trialEnds: string | null
   currentPeriodEnd: string | null
   graceUntil: string | null
   lastPaymentAt: string | null
   cancelAtPeriodEnd?: boolean
+}
+
+type Plan = {
+  slug: string
+  name: string
+  price_ugx: number | null
+  billing_cycle: string
 }
 
 type Payment = {
@@ -26,67 +35,35 @@ type Payment = {
   confirmed_at: string | null
 }
 
-// ── Pharmacy pricing tiers ────────────────────────────────────────────────────
-// Synapse Pharmacy Plans (Uganda market, billed in UGX via MTN MoMo / Airtel)
-// USD reference: at ~UGX 3,700/USD exchange rate (June 2026)
-//
-// DB slugs match subscription_plans seeds in migration 20260620000001.
-const PLANS = [
-  {
-    slug: 'pharmacy_starter',
-    name: 'Starter',
-    priceUgx: 250_000,
-    priceUsdRef: 29,
-    billing: 'per month',
-    tagline: 'Launch your pharmacy on Synapse',
-    features: [
-      '1 location',
-      '1 admin + 2 staff accounts',
-      'Point of Sale (POS)',
-      'Inventory management',
-      'Printed receipts',
-      'Basic reports',
-    ],
-    highlight: false,
-  },
-  {
-    slug: 'pharmacy_growth',
-    name: 'Growth',
-    priceUgx: 750_000,
-    priceUsdRef: 59,
-    billing: 'per month',
-    tagline: 'Scale your pharmacy network',
-    features: [
-      '3 locations',
-      '1 admin + 5 staff accounts',
-      'Full POS + inventory',
-      'Supplier orders & restock',
-      'WhatsApp refill alerts',
-      'Advanced analytics & reports',
-      'Synapse Network listing',
-    ],
-    highlight: true,
-  },
-  {
-    slug: 'pharmacy_multi_branch',
-    name: 'Multi-Branch',
-    priceUgx: 1_500_000,
-    priceUsdRef: 99,
-    billing: 'per month',
-    tagline: 'For pharmacy chains & distributors',
-    features: [
-      'Unlimited locations',
-      'Unlimited staff',
-      'Multi-branch inventory & transfers',
-      'API access',
-      'Priority support (WhatsApp & phone)',
-      'All Growth features',
-    ],
-    highlight: false,
-  },
+// ── Pharmacy pricing ──────────────────────────────────────────────────────────
+// Plans are read from the database (subscription_plans, facility_type='pharmacy',
+// is_active=true) via /api/billing/status — one product, three billing cycles.
+// Every cycle includes the full product; only the cadence and price differ.
+
+const INCLUDED_FEATURES = [
+  'Point of Sale with printed receipts',
+  'FEFO expiry-aware batch inventory',
+  'Sales reporting & daily summaries',
+  'Staff roles & cashier sessions',
 ] as const
 
-type PlanSlug = (typeof PLANS)[number]['slug']
+const CYCLE_LABEL: Record<string, { per: string; noun: string; months: number }> = {
+  monthly: { per: 'per month', noun: 'month', months: 1 },
+  quarterly: { per: 'per quarter', noun: 'quarter', months: 3 },
+  yearly: { per: 'per year', noun: 'year', months: 12 },
+}
+
+function cycleInfo(cycle: string | null | undefined) {
+  return CYCLE_LABEL[cycle ?? 'monthly'] ?? CYCLE_LABEL.monthly
+}
+
+/** UGX saved vs paying the monthly price for the same coverage; null when N/A */
+function savingsVsMonthly(plan: Plan, plans: Plan[]): number | null {
+  const monthly = plans.find((p) => p.billing_cycle === 'monthly')
+  if (!monthly?.price_ugx || !plan.price_ugx || plan.billing_cycle === 'monthly') return null
+  const saved = monthly.price_ugx * cycleInfo(plan.billing_cycle).months - plan.price_ugx
+  return saved > 0 ? saved : null
+}
 
 function formatUgx(n: number) {
   return `UGX ${Math.round(n).toLocaleString('en-UG')}`
@@ -97,12 +74,11 @@ function formatDate(iso: string | null) {
   return new Date(iso).toLocaleDateString('en-GB', { timeZone: 'Africa/Kampala' })
 }
 
-function PlanBadge({ planSlug }: { planSlug: string | null }) {
-  const plan = PLANS.find((p) => p.slug === planSlug)
-  if (!plan) return null
+function PlanBadge({ planName }: { planName: string | null }) {
+  if (!planName) return null
   return (
     <span className="ml-2 rounded-full border border-[#F97316]/40 bg-[#F97316]/15 px-2 py-0.5 text-xs font-semibold text-[#F97316]">
-      {plan.name}
+      {planName}
     </span>
   )
 }
@@ -140,13 +116,14 @@ function StatusBanner({ sub }: { sub: Subscription | null }) {
   }
 
   if (status === 'trialing' || status === 'trial') {
+    const trialEnd = sub.trialEnds ?? currentPeriodEnd
     return (
       <div className="mb-6 flex gap-3 rounded-xl border border-[#E8B84B]/30 bg-[#E8B84B]/10 p-4 text-sm">
         <CreditCard className="h-5 w-5 shrink-0 text-[#E8B84B]" />
         <div>
           <p className="font-semibold text-[#E8B84B]">Trial active</p>
           <p className="mt-1 text-slate-300">
-            {currentPeriodEnd ? `Trial ends ${formatDate(currentPeriodEnd)}.` : 'Subscribe before your trial ends to keep full access.'}
+            {trialEnd ? `Trial ends ${formatDate(trialEnd)}.` : 'Subscribe before your trial ends to keep full access.'}
           </p>
         </div>
       </div>
@@ -180,6 +157,7 @@ export default function BillingPage() {
   const searchParams = useSearchParams()
 
   const [subscription, setSubscription] = useState<Subscription | null>(null)
+  const [plans, setPlans] = useState<Plan[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [smsCredits, setSmsCredits] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -196,6 +174,7 @@ export default function BillingPage() {
       if (!res.ok) throw new Error('Failed to load billing')
       const data = await res.json()
       setSubscription(data.subscription)
+      setPlans(data.plans ?? [])
       setPayments(data.payments ?? [])
       // NOTE: sms_credits column — requires migration: ALTER TABLE tenants ADD COLUMN sms_credits integer DEFAULT 0
       setSmsCredits(data.smsCredits ?? null)
@@ -240,7 +219,7 @@ export default function BillingPage() {
     load()
   }, [load])
 
-  async function pay(planSlug: PlanSlug) {
+  async function pay(planSlug: string) {
     setPaying(planSlug)
     setError(null)
     try {
@@ -273,7 +252,7 @@ export default function BillingPage() {
     )
   }
 
-  const currentPlanSlug = subscription?.planSlug as PlanSlug | null | undefined
+  const currentPlanSlug = subscription?.planSlug ?? null
 
   return (
     <div className="mx-auto max-w-3xl p-6">
@@ -281,10 +260,11 @@ export default function BillingPage() {
         <div>
           <h1 className="text-2xl font-bold">
             Billing &amp; Subscription
-            {currentPlanSlug && <PlanBadge planSlug={currentPlanSlug} />}
+            <PlanBadge planName={subscription?.planName ?? null} />
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            Pay monthly via MTN MoMo, Airtel Money, or card. Reactivation is instant after payment confirms.
+            Pay via MTN MoMo, Airtel Money, or card — monthly, quarterly, or yearly. Reactivation is instant after
+            payment confirms.
           </p>
         </div>
       </div>
@@ -326,7 +306,9 @@ export default function BillingPage() {
           <p className="text-xs uppercase tracking-wide text-slate-500">Current plan</p>
           <p className="mt-1 text-lg font-semibold">{subscription.planName}</p>
           {subscription.priceUgx != null && (
-            <p className="font-mono text-sm text-[#F97316]">{formatUgx(subscription.priceUgx)}/month</p>
+            <p className="font-mono text-sm text-[#F97316]">
+              {formatUgx(subscription.priceUgx)}/{cycleInfo(subscription.billingCycle).noun}
+            </p>
           )}
           {subscription.currentPeriodEnd && (
             <p className="mt-1 text-xs text-slate-500">Renews {formatDate(subscription.currentPeriodEnd)}</p>
@@ -334,73 +316,86 @@ export default function BillingPage() {
         </div>
       )}
 
-      {/* ── Pricing tiers ── */}
+      {/* ── Pricing — one product, three billing cycles ── */}
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Plans — billed monthly
+        Choose your billing cycle
       </h2>
-      <p className="mb-4 text-xs text-slate-500">
-        Prices in UGX via MTN MoMo or Airtel Money. USD reference rate shown. Less than hiring one extra staff member.
+      <p className="mb-3 text-xs text-slate-500">
+        Every cycle includes the full product. Prices in UGX via MTN MoMo, Airtel Money, or card.
       </p>
-      <div className="mb-10 grid gap-4 sm:grid-cols-3">
-        {PLANS.map((plan) => {
-          const isCurrent = currentPlanSlug === plan.slug
-          const isHighlighted = plan.highlight
-          return (
-            <div
-              key={plan.slug}
-              className={`flex flex-col rounded-xl border p-5 ${
-                isCurrent
-                  ? 'border-[#F97316]/50 bg-[#F97316]/5'
-                  : isHighlighted
-                    ? 'border-[#E8B84B]/40 bg-[#0E0E14]'
-                    : 'border-slate-800 bg-[#111117]'
-              }`}
-            >
-              {isHighlighted && (
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[#E8B84B]">Most popular</p>
-              )}
-              {isCurrent && (
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[#F97316]">Current plan</p>
-              )}
-              <p className="text-base font-bold">{plan.name}</p>
-              <p className="mt-0.5 text-xs text-slate-500">{plan.tagline}</p>
-              <p className="mt-3 font-mono text-2xl font-bold text-white">
-                {formatUgx(plan.priceUgx)}
-              </p>
-              <p className="text-xs text-slate-500">
-                {plan.billing} · ~${plan.priceUsdRef} USD
-              </p>
-              <ul className="mt-4 grow space-y-1.5">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-xs text-slate-300">
-                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-400" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Button
-                onClick={() => pay(plan.slug as PlanSlug)}
-                disabled={paying !== null || isCurrent}
-                className={`mt-5 w-full font-semibold ${
+      <ul className="mb-4 flex flex-wrap gap-x-5 gap-y-1.5">
+        {INCLUDED_FEATURES.map((f) => (
+          <li key={f} className="flex items-center gap-1.5 text-xs text-slate-300">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-400" />
+            {f}
+          </li>
+        ))}
+      </ul>
+      {plans.length === 0 ? (
+        <p className="mb-10 text-sm text-slate-500">No plans available — contact support@synapseos.tech.</p>
+      ) : (
+        <div className="mb-10 grid gap-4 sm:grid-cols-3">
+          {plans.map((plan) => {
+            const isCurrent = currentPlanSlug === plan.slug
+            const info = cycleInfo(plan.billing_cycle)
+            const saved = savingsVsMonthly(plan, plans)
+            const isHighlighted = plan.billing_cycle === 'yearly'
+            const effectiveMonthly = plan.price_ugx != null && info.months > 1 ? plan.price_ugx / info.months : null
+            return (
+              <div
+                key={plan.slug}
+                className={`flex flex-col rounded-xl border p-5 ${
                   isCurrent
-                    ? 'cursor-default bg-slate-700 text-slate-400'
-                    : 'bg-[#F97316] text-black hover:bg-[#EA6500]'
+                    ? 'border-[#F97316]/50 bg-[#F97316]/5'
+                    : isHighlighted
+                      ? 'border-[#E8B84B]/40 bg-[#0E0E14]'
+                      : 'border-slate-800 bg-[#111117]'
                 }`}
               >
-                {paying === plan.slug ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : isCurrent ? (
-                  'Current plan'
-                ) : currentPlanSlug ? (
-                  'Switch plan'
-                ) : (
-                  'Subscribe'
+                {saved != null && (
+                  <p className="mb-2 w-fit rounded-full border border-[#1FA6A6]/40 bg-[#1FA6A6]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-[#1FA6A6]">
+                    Save {formatUgx(saved)}
+                  </p>
                 )}
-              </Button>
-            </div>
-          )
-        })}
-      </div>
+                {isCurrent && (
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[#F97316]">Current plan</p>
+                )}
+                <p className="text-base font-bold">{plan.name}</p>
+                <p className="mt-3 font-mono text-2xl font-bold text-white">
+                  {plan.price_ugx != null ? formatUgx(plan.price_ugx) : '—'}
+                </p>
+                <p className="text-xs text-slate-500">{info.per}</p>
+                <div className="grow">
+                  {effectiveMonthly != null && (
+                    <p className="mt-2 text-xs text-slate-400">
+                      ≈ <span className="font-mono text-slate-200">{formatUgx(effectiveMonthly)}</span>/month effective
+                    </p>
+                  )}
+                </div>
+                <Button
+                  onClick={() => pay(plan.slug)}
+                  disabled={paying !== null || isCurrent}
+                  className={`mt-5 w-full font-semibold ${
+                    isCurrent
+                      ? 'cursor-default bg-slate-700 text-slate-400'
+                      : 'bg-[#F97316] text-black hover:bg-[#EA6500]'
+                  }`}
+                >
+                  {paying === plan.slug ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : isCurrent ? (
+                    'Current plan'
+                  ) : currentPlanSlug ? (
+                    'Switch cycle'
+                  ) : (
+                    'Subscribe'
+                  )}
+                </Button>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* ── Transaction fee section ── */}
       <div className="mb-6 rounded-xl border border-slate-800 bg-[#111117] p-5">

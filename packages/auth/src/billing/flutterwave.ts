@@ -75,11 +75,39 @@ export async function initFlutterwavePayment(params: FlutterwaveInitParams): Pro
   }
 }
 
-export async function verifyFlutterwaveTransaction(txId: string): Promise<{ ok: boolean; status?: string }> {
+export type FlutterwaveVerifyResult = {
+  ok: boolean
+  status?: string
+  /** settled amount as reported by Flutterwave's verify endpoint */
+  amount?: number
+  currency?: string
+  /** tx_ref echoed back by Flutterwave — must match our payment row */
+  txRef?: string
+  flwId?: string
+}
+
+export async function verifyFlutterwaveTransaction(txId: string): Promise<FlutterwaveVerifyResult> {
   const res = await fetch(`${FLW_BASE}/transactions/${encodeURIComponent(txId)}/verify`, {
     headers: { Authorization: `Bearer ${secretKey()}` },
   })
-  const json = (await res.json()) as { status?: string; data?: { status?: string } }
+  const json = (await res.json()) as {
+    status?: string
+    data?: {
+      status?: string
+      amount?: number | string
+      currency?: string
+      tx_ref?: string
+      id?: number | string
+    }
+  }
   if (json.status !== 'success') return { ok: false }
-  return { ok: json.data?.status === 'successful', status: json.data?.status }
+  const amount = json.data?.amount != null ? Number(json.data.amount) : undefined
+  return {
+    ok: json.data?.status === 'successful',
+    status: json.data?.status,
+    amount: Number.isFinite(amount) ? amount : undefined,
+    currency: json.data?.currency,
+    txRef: json.data?.tx_ref,
+    flwId: json.data?.id != null ? String(json.data.id) : undefined,
+  }
 }
