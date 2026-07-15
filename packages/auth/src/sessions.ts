@@ -31,6 +31,18 @@ export async function createSession(params: {
   })
 
   if (error) throw new Error(`Session creation failed: ${error.message}`)
+
+  // Stamp last_sign_in_at on every successful session (web + pharmacy + mobile).
+  // Non-fatal: session is already established even if the profile update fails.
+  const { error: signInErr } = await supabaseAdmin
+    .from('profiles')
+    .update({ last_sign_in_at: new Date().toISOString() })
+    .eq('id', params.userId)
+  if (signInErr) {
+    console.error(
+      `[SYNAPSE] Failed to stamp last_sign_in_at for ${params.userId}: ${signInErr.message}`,
+    )
+  }
 }
 
 export async function validateSession(

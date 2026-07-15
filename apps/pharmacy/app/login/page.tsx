@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { Mail } from "lucide-react"
 
@@ -54,7 +55,10 @@ export default function LoginPage() {
       return
     }
 
-    window.location.assign(data.mustChangePassword ? "/change-password" : "/onboarding")
+    window.location.assign(
+      data.redirect ??
+        (data.mustChangePassword ? "/change-password" : "/portal/dashboard"),
+    )
   }
 
   const handleResend = async () => {
@@ -78,11 +82,11 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <img src="/logo-dark.png" alt="Synapse Pharmacy" className="w-16 h-16 rounded-2xl object-contain mb-4 shadow-lg" />
-          <h1 className="text-xl font-bold text-white">
-            Synapse <span className="text-[#E8B84B]">Pharmacy</span>
+          <img src="/logo-dark.png" alt="Synapse Pharm" className="w-16 h-16 rounded-2xl object-contain mb-4 shadow-lg" />
+          <h1 className="font-display text-xl font-bold text-white">
+            Synapse <span className="text-[#1FA6A6]">Pharm</span>
           </h1>
-          <p className="text-sm mt-1 text-zinc-400">
+          <p className="font-mono text-xs mt-1 uppercase tracking-wider text-zinc-400">
             {step === "credentials" ? "Staff & Admin Portal" : `Code sent to ${email}`}
           </p>
         </div>
@@ -218,6 +222,14 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs mt-6 text-zinc-600">
+          <Link href="/" className="text-zinc-500 hover:text-[#E8B84B]">
+            Home
+          </Link>
+          {" · "}
+          <Link href="/register" className="text-[#F97316] hover:text-orange-400">
+            Start free trial
+          </Link>
+          <br />
           Synapse Health Technologies &copy; {new Date().getFullYear()}
         </p>
       </div>

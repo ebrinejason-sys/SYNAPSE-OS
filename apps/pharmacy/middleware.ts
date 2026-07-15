@@ -321,6 +321,7 @@ export async function middleware(request: NextRequest) {
   const synapseValid = synapseUserId !== null
   const isAuthenticated = synapseValid
 
+  const isMarketingPage = pathname === '/' || pathname.startsWith('/register')
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/auth')
   const isPublicApi =
     pathname.startsWith('/api/public') ||
@@ -334,7 +335,15 @@ export async function middleware(request: NextRequest) {
   const isForgotPasswordPage = pathname.startsWith('/forgot-password')
   const isResetPasswordPage = pathname.startsWith('/reset-password')
 
-  const isPublicPath = isAuthPage || isPublicApi || isInvitePage || isOnboardingPage || isChangePasswordPage || isForgotPasswordPage || isResetPasswordPage
+  const isPublicPath =
+    isMarketingPage ||
+    isAuthPage ||
+    isPublicApi ||
+    isInvitePage ||
+    isOnboardingPage ||
+    isChangePasswordPage ||
+    isForgotPasswordPage ||
+    isResetPasswordPage
 
   if (!isAuthenticated && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url))

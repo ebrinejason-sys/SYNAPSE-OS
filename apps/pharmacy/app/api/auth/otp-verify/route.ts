@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
   const { data: profile, error: profileErr } = await supabaseAdmin
     .from('profiles')
-    .select('id, role, tenant_id, synapse_id, must_change_password')
+    .select('id, role, tenant_id, synapse_id, must_change_password, onboarding_complete')
     .eq('email', email)
     .single()
 
@@ -62,7 +62,22 @@ export async function POST(req: NextRequest) {
   const expires = new Date()
   expires.setDate(expires.getDate() + SESSION_DURATION_DAYS)
 
-  const response = NextResponse.json({ ok: true, mustChangePassword: Boolean(profile.must_change_password) })
+  const role = String(profile.role ?? '')
+  let redirect = '/portal/dashboard'
+  if (profile.must_change_password) {
+    redirect = '/change-password'
+  } else if (role === 'cashier') {
+    redirect = '/portal/pos'
+  } else if (!profile.onboarding_complete) {
+    redirect = '/onboarding'
+  }
+
+  const response = NextResponse.json({
+    ok: true,
+    mustChangePassword: Boolean(profile.must_change_password),
+    role,
+    redirect,
+  })
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure:   process.env.NODE_ENV === 'production',

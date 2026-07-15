@@ -53,11 +53,15 @@ export async function sendPasswordReset(params: {
 export async function sendWelcome(params: {
   to: string
   name: string
+  product?: string
+  ctaUrl?: string
+  ctaLabel?: string
 }): Promise<void> {
+  const product = params.product ?? 'Synapse OS'
   await getResend().emails.send({
     from: FROM_ADDRESS,
     to: params.to,
-    subject: `Welcome to Synapse OS, ${params.name.split(' ')[0]}`,
+    subject: `Welcome to ${product}, ${params.name.split(' ')[0]}`,
     html: welcomeHtml(params),
   })
 }
