@@ -52,6 +52,10 @@ const ROLE_KIND: Record<string, DashboardKind> = {
   pharmacy_store_manager: 'pharmacy',
   pharmacy_cashier: 'pharmacy',
   cashier: 'pharmacy',
+  // Live DB profiles.role check permits pharmacy_staff / pharmacy_ceo (not cashier);
+  // these are the real cashier/owner equivalents at a pharmacy tenant.
+  pharmacy_staff: 'pharmacy',
+  pharmacy_ceo: 'pharmacy',
 
   // Lab
   lab_tech: 'lab',
