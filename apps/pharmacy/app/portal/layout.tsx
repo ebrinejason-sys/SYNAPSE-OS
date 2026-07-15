@@ -197,10 +197,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           <Link href="/portal/dashboard" className="hover:opacity-80 transition-opacity flex items-center gap-2">
             <div className="relative w-8 h-8 shrink-0">
               <Image
-                src={isDark ? "/logo-dark.png" : "/logo-light.png"}
-                alt="Synapse"
+                src="/logo.png"
+                alt="SynapseOS"
                 fill
-                className="object-contain"
+                className="rounded-[22%] object-contain"
                 priority
               />
             </div>

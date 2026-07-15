@@ -324,6 +324,13 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
       subject: row.subject ?? "Support ticket",
       createdAt: formatDateTime(row.created_at),
     })),
+    subscriptions: {
+      mrr: formatUGX(mrr),
+      trialing: trialCount,
+      active: activeSubCount,
+      pastDue: pastDueCount,
+      suspended: suspendedCount,
+    },
     ecosystemSummary: {
       pharmacyTenants: tenants.filter((t) => t.facility_type === "pharmacy" && t.status !== "deleted").length,
       hospitalTenants: tenants.filter((t) => t.facility_type !== "pharmacy" && t.status !== "deleted").length,

@@ -157,7 +157,7 @@ export async function sendOtpEmail(email: string, otp: string): Promise<void> {
           Use this code to sign in to Synapse OS. It expires in <strong style="color:#F5F5F7;">10 minutes</strong>.
         </p>
         <div style="background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.25);border-radius:12px;padding:28px 20px;text-align:center;margin-bottom:28px;">
-          <span style="font-family:'JetBrains Mono',monospace,Courier;font-size:42px;font-weight:700;letter-spacing:0.25em;color:#F97316;">${otp}</span>
+          <span style="font-family:'IBM Plex Mono',monospace,Courier;font-size:42px;font-weight:700;letter-spacing:0.25em;color:#F97316;">${otp}</span>
         </div>
         <p style="font-size:13px;color:#60607A;margin:0;">
           Never share this code. Synapse OS will never ask for it by phone or chat.<br/>
@@ -283,11 +283,11 @@ export async function sendPharmacyCredentialsEmail({
           <table style="width:100%;border-collapse:collapse;">
             <tr>
               <td style="font-size:13px;color:#A0A0B0;padding:4px 0;width:90px;">Username</td>
-              <td style="font-size:14px;font-weight:600;color:#F5F5F7;font-family:'JetBrains Mono',monospace,Courier;">${to}</td>
+              <td style="font-size:14px;font-weight:600;color:#F5F5F7;font-family:'IBM Plex Mono',monospace,Courier;">${to}</td>
             </tr>
             <tr>
               <td style="font-size:13px;color:#A0A0B0;padding:4px 0;">Password</td>
-              <td style="font-size:14px;font-weight:700;color:#F97316;font-family:'JetBrains Mono',monospace,Courier;letter-spacing:0.05em;">${tempPassword}</td>
+              <td style="font-size:14px;font-weight:700;color:#F97316;font-family:'IBM Plex Mono',monospace,Courier;letter-spacing:0.05em;">${tempPassword}</td>
             </tr>
           </table>
         </div>

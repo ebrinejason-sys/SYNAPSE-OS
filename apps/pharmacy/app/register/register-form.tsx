@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { UGANDA_DISTRICTS } from "@synapse/config/constants"
-import { KnotMark } from "@/components/brand/knot-mark"
+import { SynapseMark } from "@/components/brand/synapse-mark"
 import { formatUgx } from "@/lib/format-ugx"
 
 type PlanOption = {
@@ -142,7 +142,7 @@ export default function RegisterForm({ plans }: { plans: PlanOption[] }) {
 
       <header className="mx-auto flex max-w-xl items-center justify-between px-4 py-5">
         <Link href="/" className="flex items-center gap-2">
-          <KnotMark className="h-8 w-8" />
+          <SynapseMark className="h-8 w-8" />
           <span className="font-display font-bold">
             Synapse <span className="text-[#1FA6A6]">Pharm</span>
           </span>

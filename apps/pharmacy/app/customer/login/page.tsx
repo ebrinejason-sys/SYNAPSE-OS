@@ -116,7 +116,7 @@ export default function CustomerLoginPage() {
           <Link href="/" className="flex justify-center mb-2">
             <div className="relative w-20 h-20 bg-white rounded-2xl shadow-lg overflow-hidden">
               <Image
-                src="/logo.jpg"
+                src="/logo.png"
                 alt="Logo"
                 fill
                 className="object-contain p-2"

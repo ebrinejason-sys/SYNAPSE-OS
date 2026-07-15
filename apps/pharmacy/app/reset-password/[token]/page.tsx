@@ -58,7 +58,7 @@ export default function ResetPasswordPage({ params }: { params: { token: string 
     <div className="min-h-screen flex items-center justify-center p-4 bg-[#07070A]">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <img src="/logo-dark.png" alt="Synapse Pharmacy" className="w-16 h-16 rounded-2xl object-contain mb-4 shadow-lg" />
+          <img src="/logo.png" alt="SynapseOS" className="w-16 h-16 rounded-2xl object-contain mb-4 shadow-lg" />
           <h1 className="text-xl font-bold text-white">
             Synapse <span className="text-[#E8B84B]">Pharmacy</span>
           </h1>
