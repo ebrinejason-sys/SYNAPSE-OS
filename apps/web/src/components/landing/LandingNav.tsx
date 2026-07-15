@@ -9,6 +9,7 @@ import { ThemeToggle } from '../ThemeToggle'
 const NAV = [
   ['#get-started', 'Get started'],
   ['#products', 'Products'],
+  ['#pharm', 'Pharmacy'],
   ['#features', 'Features'],
   ['#pricing', 'Pricing'],
   ['#demo', 'Demo'],

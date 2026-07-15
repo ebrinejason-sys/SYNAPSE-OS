@@ -3,6 +3,7 @@ import { SynapseLogo } from '../SynapseLogo'
 
 const FOOTER_LINKS = {
   Product: [
+    { href: 'https://pharm.synapseos.tech', label: 'Synapse Pharm' },
     { href: '/docs', label: 'Documentation' },
     { href: '/status', label: 'Status' },
     { href: '/changelog', label: 'Changelog' },
