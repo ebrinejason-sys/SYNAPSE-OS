@@ -236,6 +236,17 @@ export type TenantSubscriptionRow = {
 // from realised revenue but counted separately.
 export const MRR_STATUSES = new Set(["active"]);
 
+/** Monthly value of a plan in UGX — quarterly and yearly prices are normalized
+ * (÷3, ÷12) so MRR is comparable across billing cycles. */
+export function monthlyValueUGX(plan: PlanRow | null | undefined) {
+  const price = Number(plan?.price_ugx ?? 0);
+  if (!price || Number.isNaN(price)) return 0;
+  const cycle = (plan?.billing_cycle ?? "monthly").toLowerCase();
+  if (cycle === "quarterly") return price / 3;
+  if (cycle === "yearly" || cycle === "annual" || cycle === "annually") return price / 12;
+  return price;
+}
+
 /**
  * Load all tenant_subscriptions joined with their plan, returning a plan lookup
  * map and the computed monthly recurring revenue (UGX) from active subs.
@@ -257,7 +268,7 @@ export async function loadSubscriptionData() {
   const planMap = new Map(plans.map((plan) => [plan.id, plan]));
   const mrr = subscriptions
     .filter((sub) => MRR_STATUSES.has(sub.status ?? ""))
-    .reduce((sum, sub) => sum + Number(planMap.get(sub.plan_id ?? "")?.price_ugx ?? 0), 0);
+    .reduce((sum, sub) => sum + monthlyValueUGX(planMap.get(sub.plan_id ?? "")), 0);
 
   const counts = subscriptions.reduce<Record<string, number>>((acc, sub) => {
     const key = sub.status ?? "unknown";

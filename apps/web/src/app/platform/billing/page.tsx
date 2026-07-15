@@ -245,9 +245,14 @@ export default async function PlatformBillingPage() {
               <h2 className="text-sm font-semibold">Subscriptions</h2>
               <p className="mt-1 text-xs text-slate-500">Invoices, manual payments, plan changes, and outstanding balances.</p>
             </div>
-            <span className="cursor-not-allowed rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-500" title="CSV export — coming soon">
-              Export billing CSV
-            </span>
+            <div className="flex gap-2">
+              <a href="/api/platform/billing/export?type=payments" className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-300 hover:border-slate-500">
+                Export payments CSV
+              </a>
+              <a href="/api/platform/billing/export?type=invoices" className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-300 hover:border-slate-500">
+                Export invoices CSV
+              </a>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
