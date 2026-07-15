@@ -93,10 +93,11 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
     safeRows<TenantRow>("tenants", "id, created_at, status, facility_type, district", { orderBy: "created_at", limit: 500 }),
     safeRows<TenantRow>("tenants", "id, created_at", { orderBy: "created_at", limit: 500 }),
     safeRows<ProfileRow>("profiles", "id, created_at", { orderBy: "created_at", limit: 500 }),
-    safeRows<{ created_at?: string | null }>("pharmacy_transactions", "created_at", {
-      orderBy: "created_at",
-      limit: 500,
-    }),
+    safeRows<{ created_at?: string | null; total_amount?: number | string | null }>(
+      "pharmacy_pos_sales",
+      "created_at, total_amount",
+      { orderBy: "created_at", limit: 500 }
+    ),
     loadSubscriptionData(),
     safeRows<AuditRow>(
       "audit_log",
@@ -133,9 +134,11 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
   const userSparkline = dailyCountsFromRows(recentProfileRows);
   const salesSparkline = dailyCountsFromRows(transactionRows);
   const salesPeriod = transactionRows.length;
-  const salesRecent = transactionRows.filter(
+  const salesRecentRows = transactionRows.filter(
     (row) => row.created_at && new Date(row.created_at) >= new Date(fourteenDaysAgo)
-  ).length;
+  );
+  const salesRecent = salesRecentRows.length;
+  const salesRecentUGX = salesRecentRows.reduce((sum, row) => sum + Number(row.total_amount ?? 0), 0);
 
   const facilityDelta = percentDelta(sumWindow(facilitySparkline, 7, 14), sumWindow(facilitySparkline, 0, 7));
   const userDelta = percentDelta(sumWindow(userSparkline, 7, 14), sumWindow(userSparkline, 0, 7));
@@ -270,12 +273,12 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
         deltaLabel: `${activeSubCount} active · ${trialCount} trial`,
       },
       {
-        label: "Sales volume",
+        label: "POS sales",
         value: salesPeriod.toLocaleString(),
         href: "/platform/analytics",
         sparkline: salesSparkline,
         delta: salesDelta,
-        deltaLabel: `${salesRecent} in last 14 days`,
+        deltaLabel: `${salesRecent} in last 14 days · ${formatUGX(salesRecentUGX)}`,
       },
       {
         label: "Active sessions",

@@ -2,9 +2,21 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { Building2, Download, Filter, MapPin, ShieldAlert } from "lucide-react";
-import { createServiceClient } from "../../../lib/supabase/server";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
-import { formatDate, formatUGX, safeCount, safeRows } from "../_lib/platform-data";
+import {
+  formatDate,
+  formatUGX,
+  loadSubscriptionData,
+  monthlyValueUGX,
+  safeCount,
+  safeRows,
+  subscriptionStatusClass,
+} from "../_lib/platform-data";
+import {
+  extendSubscriptionPeriod,
+  reactivateSubscription,
+  suspendSubscription,
+} from "../_lib/subscription-actions";
 
 type TenantRow = {
   id?: string;
@@ -34,22 +46,12 @@ type FeatureFlagRow = {
 
 type ProfileRow = {
   tenant_id?: string | null;
+  last_sign_in_at?: string | null;
 };
 
 type PatientRow = {
   tenant_id?: string | null;
 };
-
-async function suspendFacility(formData: FormData) {
-  "use server";
-  await requirePlatformAdmin();
-
-  const tenantId = String(formData.get("tenantId") ?? "");
-  if (!tenantId) return;
-
-  const supabaseAdmin = createServiceClient();
-  await (supabaseAdmin as any).from("tenants").update({ status: "suspended" }).eq("id", tenantId);
-}
 
 function statusClass(status: string | null | undefined) {
   if (status === "active") return "border-green-500/25 bg-green-500/10 text-green-300";
@@ -66,7 +68,7 @@ function typeLabel(type: string | null | undefined) {
 export default async function PlatformHospitalsPage() {
   await requirePlatformAdmin();
 
-  const [tenants, subscriptions, flags, staffRows, patientRows, activeFacilities, suspendedFacilities] = await Promise.all([
+  const [tenants, subscriptions, flags, staffRows, patientRows, activeFacilities, suspendedFacilities, subData] = await Promise.all([
     safeRows<TenantRow>(
       "tenants",
       "id, name, type, district, status, subscription_tier, monthly_fee_ugx, bed_count, contact_email, created_at",
@@ -74,13 +76,22 @@ export default async function PlatformHospitalsPage() {
     ),
     safeRows<SubscriptionRow>("facility_subscriptions", "tenant_id, plan, status, monthly_amount_ugx", { limit: 1000 }),
     safeRows<FeatureFlagRow>("feature_flags", "tenant_id, feature_key, is_enabled", { filters: [["is_enabled", true]], limit: 5000 }),
-    safeRows<ProfileRow>("profiles", "tenant_id", { limit: 5000 }),
+    safeRows<ProfileRow>("profiles", "tenant_id, last_sign_in_at", { limit: 5000 }),
     safeRows<PatientRow>("patients", "tenant_id", { limit: 5000 }),
     safeCount("tenants", [["status", "active"]]),
     safeCount("tenants", [["status", "suspended"]]),
+    loadSubscriptionData(),
   ]);
 
   const subscriptionMap = new Map(subscriptions.map((row) => [row.tenant_id, row]));
+  const tenantSubMap = new Map(subData.subscriptions.map((row) => [row.tenant_id, row]));
+
+  const lastSignInByTenant = new Map<string, string>();
+  for (const row of staffRows) {
+    if (!row.tenant_id || !row.last_sign_in_at) continue;
+    const current = lastSignInByTenant.get(row.tenant_id);
+    if (!current || row.last_sign_in_at > current) lastSignInByTenant.set(row.tenant_id, row.last_sign_in_at);
+  }
   const modulesByTenant = new Map<string, number>();
   for (const flag of flags) {
     if (!flag.tenant_id) continue;
@@ -99,9 +110,12 @@ export default async function PlatformHospitalsPage() {
     patientsByTenant.set(row.tenant_id, (patientsByTenant.get(row.tenant_id) ?? 0) + 1);
   }
 
-  const totalMrr = subscriptions
-    .filter((row) => row.status === "active")
-    .reduce((sum, row) => sum + Number(row.monthly_amount_ugx ?? 0), 0);
+  // Legacy hospital subs (facility_subscriptions, already monthly) + SaaS subs
+  // (tenant_subscriptions, normalized to monthly across billing cycles).
+  const totalMrr =
+    subscriptions
+      .filter((row) => row.status === "active")
+      .reduce((sum, row) => sum + Number(row.monthly_amount_ugx ?? 0), 0) + subData.mrr;
 
   return (
     <div className="space-y-6">
@@ -163,6 +177,10 @@ export default async function PlatformHospitalsPage() {
                   <th className="px-4 py-3">Staff</th>
                   <th className="px-4 py-3">Patients</th>
                   <th className="px-4 py-3">Monthly</th>
+                  <th className="px-4 py-3">Billing</th>
+                  <th className="px-4 py-3">Period end</th>
+                  <th className="px-4 py-3">Last payment</th>
+                  <th className="px-4 py-3">Last sign-in</th>
                   <th className="px-4 py-3">Joined</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Actions</th>
@@ -171,7 +189,12 @@ export default async function PlatformHospitalsPage() {
               <tbody className="divide-y divide-slate-800">
                 {tenants.map((tenant) => {
                   const subscription = subscriptionMap.get(tenant.id ?? "");
-                  const monthlyFee = Number(subscription?.monthly_amount_ugx ?? tenant.monthly_fee_ugx ?? 0);
+                  const tenantSub = tenantSubMap.get(tenant.id ?? "");
+                  const tenantSubPlan = tenantSub ? subData.planMap.get(tenantSub.plan_id ?? "") : undefined;
+                  const monthlyFee = tenantSubPlan
+                    ? monthlyValueUGX(tenantSubPlan)
+                    : Number(subscription?.monthly_amount_ugx ?? tenant.monthly_fee_ugx ?? 0);
+                  const isSuspended = tenantSub?.status === "suspended";
                   return (
                     <tr key={tenant.id ?? tenant.name ?? crypto.randomUUID()} className="align-top">
                       <td className="px-4 py-3">
@@ -180,11 +203,23 @@ export default async function PlatformHospitalsPage() {
                       </td>
                       <td className="px-4 py-3 capitalize text-slate-300">{typeLabel(tenant.type)}</td>
                       <td className="px-4 py-3 text-slate-400">{tenant.district ?? "Unknown"}</td>
-                      <td className="px-4 py-3 capitalize text-slate-300">{subscription?.plan ?? tenant.subscription_tier ?? "unassigned"}</td>
+                      <td className="px-4 py-3 capitalize text-slate-300">{tenantSubPlan?.slug ?? subscription?.plan ?? tenant.subscription_tier ?? "unassigned"}</td>
                       <td className="px-4 py-3 text-slate-300">{modulesByTenant.get(tenant.id ?? "") ?? 0}</td>
                       <td className="px-4 py-3 text-slate-300">{staffByTenant.get(tenant.id ?? "") ?? 0}</td>
                       <td className="px-4 py-3 text-slate-300">{patientsByTenant.get(tenant.id ?? "") ?? 0}</td>
                       <td className="px-4 py-3 text-slate-300">{formatUGX(monthlyFee)}</td>
+                      <td className="px-4 py-3">
+                        {tenantSub ? (
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${subscriptionStatusClass(tenantSub.status)}`}>
+                            {tenantSub.status ?? "unknown"}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-400">{tenantSub ? formatDate(tenantSub.current_period_end) : "—"}</td>
+                      <td className="px-4 py-3 text-slate-400">{tenantSub?.last_payment_at ? formatDate(tenantSub.last_payment_at) : "—"}</td>
+                      <td className="px-4 py-3 text-slate-400">{formatDate(lastSignInByTenant.get(tenant.id ?? ""))}</td>
                       <td className="px-4 py-3 text-slate-500">{formatDate(tenant.created_at)}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusClass(tenant.status)}`}>
@@ -199,12 +234,32 @@ export default async function PlatformHospitalsPage() {
                           <Link href={`/platform/hospitals/${tenant.id}?tab=modules`} className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">
                             Modules
                           </Link>
-                          <form action={suspendFacility}>
-                            <input type="hidden" name="tenantId" value={tenant.id ?? ""} />
-                            <button type="submit" className="rounded-lg border border-red-500/40 px-2 py-1 text-xs text-red-300">
-                              Suspend
-                            </button>
-                          </form>
+                          {tenantSub ? (
+                            <>
+                              {isSuspended ? (
+                                <form action={reactivateSubscription}>
+                                  <input type="hidden" name="tenantId" value={tenant.id ?? ""} />
+                                  <button type="submit" className="rounded-lg border border-green-500/40 px-2 py-1 text-xs text-green-300">
+                                    Reactivate
+                                  </button>
+                                </form>
+                              ) : (
+                                <form action={suspendSubscription}>
+                                  <input type="hidden" name="tenantId" value={tenant.id ?? ""} />
+                                  <button type="submit" className="rounded-lg border border-red-500/40 px-2 py-1 text-xs text-red-300">
+                                    Suspend
+                                  </button>
+                                </form>
+                              )}
+                              <form action={extendSubscriptionPeriod}>
+                                <input type="hidden" name="tenantId" value={tenant.id ?? ""} />
+                                <input type="hidden" name="days" value="30" />
+                                <button type="submit" className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300">
+                                  Extend 30d
+                                </button>
+                              </form>
+                            </>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -212,7 +267,7 @@ export default async function PlatformHospitalsPage() {
                 })}
                 {tenants.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-4 py-8 text-center text-slate-500">
+                    <td colSpan={15} className="px-4 py-8 text-center text-slate-500">
                       No facility tenants found. Connect the tenants table to activate this registry.
                     </td>
                   </tr>
