@@ -50,6 +50,8 @@ const ROLE_KIND: Record<string, DashboardKind> = {
   pharmacist: 'pharmacy',
   pharmacy_admin: 'pharmacy',
   pharmacy_store_manager: 'pharmacy',
+  pharmacy_cashier: 'pharmacy',
+  cashier: 'pharmacy',
 
   // Lab
   lab_tech: 'lab',
