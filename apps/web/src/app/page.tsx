@@ -115,6 +115,44 @@ const TIERS = [
   },
 ]
 
+// Must match the active pharm_* rows in subscription_plans (canonical Pharm pricing).
+const PHARM_PLANS = [
+  {
+    slug: 'pharm_monthly',
+    name: 'Pharm Monthly',
+    price: 'UGX 20,000',
+    period: '/month',
+    effective: null,
+    badge: null,
+    description: 'Full product, one flat monthly price.',
+  },
+  {
+    slug: 'pharm_quarterly',
+    name: 'Pharm Quarterly',
+    price: 'UGX 52,000',
+    period: '/quarter',
+    effective: '≈ UGX 17,333 per month',
+    badge: 'Save UGX 8,000',
+    description: 'One payment per quarter.',
+  },
+  {
+    slug: 'pharm_yearly',
+    name: 'Pharm Yearly',
+    price: 'UGX 200,000',
+    period: '/year',
+    effective: '≈ UGX 16,667 per month',
+    badge: 'Save UGX 40,000',
+    description: 'One payment per year.',
+  },
+]
+
+const PHARM_FEATURES = [
+  'POS with printed receipts',
+  'FEFO expiry-aware batch inventory',
+  'Sales reporting',
+  'Staff roles & cashier sessions',
+]
+
 type Cell = 'yes' | 'no' | 'partial'
 const COMPARE_ROWS: { feature: string; synapse: Cell; openmrs: Cell; slade: Cell; paper: Cell }[] = [
   { feature: 'AI differential diagnosis (UCG-grounded)', synapse: 'yes', openmrs: 'no', slade: 'no', paper: 'no' },
@@ -214,9 +252,9 @@ export default function HomePage() {
               Inventory, FEFO batching, POS, supplier orders, and patient refill requests. Hosted at{' '}
               <span className="font-mono text-xs">pharm.synapseos.tech</span> or a custom domain.
             </p>
-            <Link href="/apply/pharmacy" className="inline-flex items-center gap-1 text-sm font-semibold transition-opacity group-hover:opacity-80" style={{ color: 'var(--brand-teal)' }}>
-              Apply for pharmacy →
-            </Link>
+            <a href="https://pharm.synapseos.tech" className="inline-flex items-center gap-1 text-sm font-semibold transition-opacity group-hover:opacity-80" style={{ color: 'var(--brand-teal)' }}>
+              Start free trial →
+            </a>
           </article>
           <article className="landing-card-elevated group flex flex-col p-6 transition-all" style={{ borderColor: 'rgba(232,184,75,0.2)' }}>
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(232,184,75,0.12)' }}>
@@ -235,6 +273,70 @@ export default function HomePage() {
             </Link>
           </article>
         </div>
+      </SectionShell>
+
+      <SectionShell
+        id="pharm"
+        label="Synapse Pharm"
+        title="Pharmacy POS with expiry-aware inventory"
+        description="POS with printed receipts, FEFO batch inventory, sales reporting, and staff roles — built for Ugandan pharmacies. Register self-serve and start selling the same day. Every plan starts with a 14-day free trial, no card required."
+        variant="cool"
+      >
+        <div className="grid gap-4 lg:grid-cols-3">
+          {PHARM_PLANS.map((plan) => (
+            <div
+              key={plan.slug}
+              className="landing-card flex flex-col !p-5"
+              style={{
+                borderColor: plan.badge ? 'var(--brand-teal)' : undefined,
+                boxShadow: plan.badge ? '0 0 0 1px var(--brand-teal), 0 8px 32px rgba(31,166,166,0.14)' : undefined,
+              }}
+            >
+              {plan.badge && (
+                <span className="mb-2 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--brand-teal)' }}>
+                  <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: 'var(--brand-teal)' }} />
+                  {plan.badge}
+                </span>
+              )}
+              <p className="font-bold">{plan.name}</p>
+              <p className="font-display my-1 text-xl font-bold">
+                {plan.price}
+                <span className="ml-1 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>
+                  {plan.period}
+                </span>
+              </p>
+              {plan.effective && (
+                <p className="font-mono text-xs" style={{ color: 'var(--brand-teal)' }}>
+                  {plan.effective}
+                </p>
+              )}
+              <p className="mb-4 mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                {plan.description}
+              </p>
+              <ul className="mb-4 flex-1 space-y-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                {PHARM_FEATURES.map((f) => (
+                  <li key={f} className="flex items-start gap-1.5">
+                    <span className="mt-0.5 shrink-0" style={{ color: 'var(--brand-teal)' }}>✓</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href="https://pharm.synapseos.tech"
+                className={`glow-ring text-center text-sm font-semibold py-2.5 rounded-lg ${plan.badge ? 'landing-btn-primary !w-full' : 'landing-btn-secondary !w-full'}`}
+              >
+                Start free trial
+              </a>
+            </div>
+          ))}
+        </div>
+        <p className="mt-6 text-xs" style={{ color: 'var(--text-muted)' }}>
+          Same product on every plan — quarterly and yearly only change how often you pay. Sign in or register at{' '}
+          <a href="https://pharm.synapseos.tech" className="font-mono underline underline-offset-2" style={{ color: 'var(--brand-teal)' }}>
+            pharm.synapseos.tech
+          </a>
+          .
+        </p>
       </SectionShell>
 
       <SectionShell id="deploy" label="Deployment" title="How a hospital goes live" tight>
