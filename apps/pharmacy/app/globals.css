@@ -73,11 +73,15 @@
     background: hsl(var(--primary) / 0.08) !important;
   }
 
-  /* Light-mode: header tinted */
-  [data-theme="light"] header,
-  .light header {
-    background: hsl(220 30% 98% / 0.92) !important;
-    border-bottom-color: hsl(220 25% 86%) !important;
+  /* Light-mode: app header gets a branded orange→gold wash instead of white.
+     Scoped to .app-header so marketing/landing headers (hardcoded dark) are
+     never repainted when the saved theme is light. */
+  [data-theme="light"] header.app-header,
+  .light header.app-header {
+    background:
+      linear-gradient(90deg, hsl(var(--primary) / 0.12), hsl(var(--accent) / 0.08)),
+      hsl(0 0% 100%) !important;
+    border-bottom-color: hsl(var(--primary) / 0.30) !important;
   }
 
   * { @apply border-border; }
@@ -85,6 +89,16 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Brand type system — same as synapseos.tech (apps/web globals.css):
+     Bricolage Grotesque for headings, IBM Plex Mono for code/mono. */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-bricolage), var(--font-dm-sans), system-ui, sans-serif;
+  }
+
+  code, pre, .mono {
+    font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
   }
 
   ::-webkit-scrollbar       { width: 6px; height: 6px; }

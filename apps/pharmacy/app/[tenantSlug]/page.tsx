@@ -69,7 +69,7 @@ export default async function PharmacyTenantPage({
             S
           </div>
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#E8B84B]">
+            <p className="font-mono text-sm font-semibold uppercase tracking-[0.18em] text-[#E8B84B]">
               Synapse Pharmacy
             </p>
             <h1 className="text-3xl font-bold tracking-tight">{tenant.name}</h1>
@@ -77,7 +77,7 @@ export default async function PharmacyTenantPage({
         </div>
 
         <div className="rounded-2xl border border-[#2A2A36] bg-[#111117] p-6 shadow-xl">
-          <p className="text-sm uppercase tracking-[0.18em] text-zinc-500">Tenant portal</p>
+          <p className="font-mono text-sm uppercase tracking-[0.18em] text-zinc-500">Tenant portal</p>
           <h2 className="mt-3 text-2xl font-bold">Pharmacy workspace is ready</h2>
           <p className="mt-3 text-sm leading-6 text-zinc-400">
             Sign in to manage inventory, dispensing, staff access, migration uploads, customer refills,

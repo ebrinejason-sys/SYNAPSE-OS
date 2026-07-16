@@ -3,7 +3,6 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import { Package, AlertTriangle } from 'lucide-react'
-import { createClient } from '../../../lib/supabase/client'
 
 interface Drug {
   id: string
@@ -25,20 +24,9 @@ export default function PharmacyInventoryPage() {
 
   useEffect(() => {
     async function load() {
-      const supabase = createClient()
-      const meRes = await fetch('/api/auth/me')
-      const { user } = meRes.ok ? await meRes.json() : { user: null }
-      if (!user) return
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sb = supabase as any
-      const { data: profile } = await sb.from('profiles').select('hospital_id').eq('id', user.id).single() as { data: { hospital_id: string } | null }
-      if (!profile?.hospital_id) { setLoading(false); return }
-      const { data } = await sb
-        .from('drug_inventory')
-        .select('id, generic_name, brand_name, formulation, strength, quantity_in_stock, reorder_level, unit_price_ugx, expiry_date, category')
-        .eq('hospital_id', profile.hospital_id)
-        .order('generic_name') as { data: Drug[] | null }
-      setDrugs(data ?? [])
+      const res = await fetch('/api/pharmacy/inventory')
+      const { drugs } = res.ok ? await res.json() as { drugs: Drug[] } : { drugs: [] }
+      setDrugs(drugs ?? [])
       setLoading(false)
     }
     load()
