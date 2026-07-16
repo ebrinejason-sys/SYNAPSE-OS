@@ -123,7 +123,7 @@ export default function StaffLayout({
       {/* Main content */}
       <div className="lg:pl-64">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 flex items-center h-16 px-4 bg-white/80 backdrop-blur-md border-b shadow-sm lg:px-6">
+        <header className="sticky top-0 z-30 flex items-center h-16 px-4 bg-white/90 bg-gradient-to-r from-[#F97316]/10 to-[#E8B84B]/10 backdrop-blur-md border-b border-[#F97316]/30 shadow-sm lg:px-6">
           <Button
             variant="ghost"
             size="icon"

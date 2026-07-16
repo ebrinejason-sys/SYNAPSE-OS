@@ -287,7 +287,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {/* Main — fills remaining width, scrolls independently */}
       <div className={cn("lg:pl-64 flex flex-col h-screen", user?.isImpersonation && "pt-10")}>
         {/* Top bar — sticky within the flex column */}
-        <header className="shrink-0 z-30 flex items-center justify-between h-16 px-4 lg:px-6 bg-card/80 backdrop-blur-md border-b border-border">
+        <header className="app-header shrink-0 z-30 flex items-center justify-between h-16 px-4 lg:px-6 bg-card/80 backdrop-blur-md border-b border-border">
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(true)}>
             <Menu className="h-5 w-5" />
           </Button>
