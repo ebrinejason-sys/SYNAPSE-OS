@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
   const profileId = crypto.randomUUID()
   const now = new Date()
   const trialEnds = new Date(now)
-  trialEnds.setDate(trialEnds.getDate() + 14)
+  trialEnds.setDate(trialEnds.getDate() + 7)
   const passwordHash = await hashPassword(password)
   const nameParts = fullName.split(/\s+/)
   const firstName = nameParts[0] ?? fullName

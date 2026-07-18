@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic"
 
 export const metadata = {
   title: "Register · Synapse Pharm",
-  description: "Start a 14-day free trial of Synapse Pharm for your Ugandan pharmacy.",
+  description: "Start a 7-day free trial of Synapse Pharm for your Ugandan pharmacy.",
 }
 
 async function loadPlans() {

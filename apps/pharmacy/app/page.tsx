@@ -181,7 +181,7 @@ export default async function Page() {
             </Link>
           </div>
           <p className="mt-4 font-mono text-xs text-zinc-500">
-            14-day trial · No card required · MTN MoMo & Airtel Money when you pay
+            7-day trial · No card required · MTN MoMo & Airtel Money when you pay
           </p>
         </div>
         <div className="reveal reveal-delay-1 rounded-2xl border border-[#2A2A36] bg-[#111117]/80 p-3 shadow-2xl">
@@ -248,7 +248,7 @@ export default async function Page() {
               Simple UGX plans
             </h2>
             <p className="mt-3 text-zinc-400">
-              14-day free trial on every tier. No card required to start.
+              7-day free trial on every tier. No card required to start.
             </p>
           </div>
 
@@ -296,7 +296,7 @@ export default async function Page() {
                     <ul className="mt-6 flex-1 space-y-2 text-sm text-zinc-400">
                       <li>Full POS + FEFO inventory</li>
                       <li>Printed receipts · staff roles</li>
-                      <li>14-day free trial</li>
+                      <li>7-day free trial</li>
                     </ul>
                     <Link
                       href={`/register?plan=${encodeURIComponent(plan.slug)}`}

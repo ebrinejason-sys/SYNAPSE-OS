@@ -21,3 +21,6 @@ coverage/
 # Temporary debug/probe scripts — may contain hardcoded production data
 scripts/_tmp_*
 .worktrees/
+
+# Claude Code local config
+.claude/
