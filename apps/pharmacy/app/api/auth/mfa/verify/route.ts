@@ -7,11 +7,11 @@ import {
   pharmMfaCookieOptions,
   PHARM_MFA_SATISFIED_COOKIE,
 } from '@synapse/auth/mfa'
-import { requireSynapseSessionUser, unauthorized } from '@/lib/mfa-session'
-
+import { requirePharmacyApiSession } from "@/lib/api-auth"
 export async function POST(req: NextRequest) {
-  const user = await requireSynapseSessionUser()
-  if (!user) return unauthorized()
+  const auth = await requirePharmacyApiSession()
+  if (!auth.ok) return auth.response
+  const user = { id: auth.session.userId, email: auth.session.email }
 
   const body = await req.json().catch(() => ({}))
   const code = typeof body.code === 'string' ? body.code.trim() : ''

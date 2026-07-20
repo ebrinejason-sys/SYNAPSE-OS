@@ -1,27 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession, hasPermission, isPharmacyAdmin } from "@/lib/auth"
+import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
-
-function canViewLedger(session: NonNullable<Awaited<ReturnType<typeof getPharmacySession>>>) {
-  return (
-    isPharmacyAdmin(session) ||
-    hasPermission(session, "VIEW_REPORTS") ||
-    hasPermission(session, "VIEW_TRANSACTIONS") ||
-    hasPermission(session, "MANAGE_TRANSACTIONS")
-  )
-}
 
 export async function GET() {
   try {
-    const session = await getPharmacySession()
-    if (!session || !canViewLedger(session)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { data, error } = await (supabaseAdmin as any)
       .from("pharmacy_credit_ledger")
       .select("*, customer:pharmacy_customers(id, name, email, phone)")
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
 
     if (error) throw error
@@ -62,10 +52,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session || !canViewLedger(session)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const body = await request.json()
     const customerId = String(body.customerId ?? "").trim()
@@ -79,7 +68,7 @@ export async function POST(request: NextRequest) {
     const { data: latest } = await supabaseAdmin
       .from("pharmacy_credit_ledger")
       .select("balance_after")
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .eq("customer_id", customerId)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -91,7 +80,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from("pharmacy_credit_ledger")
       .insert({
-        tenant_id: session.profile.tenant_id!,
+        tenant_id: tenantId,
         customer_id: customerId,
         transaction_id: body.transactionId || null,
         amount,
@@ -107,7 +96,7 @@ export async function POST(request: NextRequest) {
     if (error) throw error
 
     await supabaseAdmin.from("pharmacy_audit_logs").insert({
-      tenant_id: session.profile.tenant_id!,
+      tenant_id: tenantId,
       profile_id: session.user.id,
       action: "CREATE_CREDIT_LEDGER_ENTRY",
       entity: "PHARMACY_CREDIT_LEDGER",

@@ -5,11 +5,11 @@ import {
   verifyPharmMfaSatisfiedToken,
 } from '@synapse/auth/mfa'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { requireSynapseSessionUser, unauthorized } from '@/lib/mfa-session'
-
+import { requirePharmacyApiSession } from "@/lib/api-auth"
 export async function GET() {
-  const user = await requireSynapseSessionUser()
-  if (!user) return unauthorized()
+  const auth = await requirePharmacyApiSession()
+  if (!auth.ok) return auth.response
+  const user = { id: auth.session.userId, email: auth.session.email }
 
   const cookieStore = await cookies()
   const satisfiedToken = cookieStore.get(PHARM_MFA_SATISFIED_COOKIE)?.value

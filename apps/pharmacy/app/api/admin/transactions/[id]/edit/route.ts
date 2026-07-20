@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession } from "@/lib/auth"
+import { requirePharmacyTenant } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 interface EditItemRequest {
@@ -21,13 +21,10 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getPharmacySession()
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const tenantId = session.profile.tenant_id
     if (!tenantId) {
       return NextResponse.json({ error: "No tenant" }, { status: 403 })
     }
@@ -246,11 +243,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getPharmacySession()
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { id } = await params
 
@@ -270,7 +265,7 @@ export async function GET(
       ...new Set((edits ?? []).map((e: { edited_by: string }) => e.edited_by)),
     ]
 
-    let profileMap: Record<string, { full_name: string | null; email: string | null }> = {}
+    const profileMap: Record<string, { full_name: string | null; email: string | null }> = {}
 
     if (editorIds.length > 0) {
       const { data: profiles } = await supabaseAdmin

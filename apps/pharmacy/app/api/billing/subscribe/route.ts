@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPharmacySession } from '@/lib/auth'
+import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { initiateSubscriptionPayment } from '@synapse/auth/billing'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  const session = await getPharmacySession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requirePharmacyAdmin()
+  if (!auth.ok) return auth.response
+  const { session, tenantId } = auth
   if (!session.isAdmin && session.role !== 'pharmacy_admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }

@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
+import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { data: settings, error } = await (supabaseAdmin as any)
       .from("pharmacy_settings")
       .select("*")
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .single()
 
     if (error && error.code !== "PGRST116") throw error
@@ -47,11 +45,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-
-    if (!session || !isPharmacyAdmin(session)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const data = await request.json()
 
@@ -59,7 +55,7 @@ export async function POST(request: NextRequest) {
       .from("pharmacy_settings")
       .upsert(
         {
-          tenant_id: session.profile.tenant_id!,
+          tenant_id: tenantId,
           pharmacy_name: data.pharmacyName,
           location: data.location,
           contact: data.contact,
@@ -82,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     // Audit log
     await supabaseAdmin.from("pharmacy_audit_logs").insert({
-      tenant_id: session.profile.tenant_id!,
+      tenant_id: tenantId,
       profile_id: session.user.id,
       action: "UPDATE_SETTINGS",
       entity: "SETTINGS",

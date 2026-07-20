@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { randomUUID } from "node:crypto"
-import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
+import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail, generateWelcomeEmail } from "@/lib/email"
 import { generatePassword } from "@/lib/utils"
@@ -30,11 +30,10 @@ type ProfileSummaryRow = {
 
 export async function GET() {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    if (!isPharmacyAdmin(session)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const auth = await requirePharmacyAdmin()
+  if (!auth.ok) return auth.response
+  const { session, tenantId } = auth
 
-    const tenantId = session.profile.tenant_id
     if (!tenantId) return NextResponse.json({ error: "Tenant not found" }, { status: 400 })
 
     const { data: userSettings, error: settingsError } = await db
@@ -92,11 +91,10 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    if (!isPharmacyAdmin(session)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const auth = await requirePharmacyAdmin()
+  if (!auth.ok) return auth.response
+  const { session, tenantId } = auth
 
-    const tenantId = session.profile.tenant_id
     if (!tenantId) return NextResponse.json({ error: "Tenant not found" }, { status: 400 })
 
     const { name, email, username, role, permissions } = await request.json()
@@ -211,11 +209,10 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    if (!isPharmacyAdmin(session)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const auth = await requirePharmacyAdmin()
+  if (!auth.ok) return auth.response
+  const { session, tenantId } = auth
 
-    const tenantId = session.profile.tenant_id
     if (!tenantId) return NextResponse.json({ error: "Tenant not found" }, { status: 400 })
 
     const { searchParams } = new URL(request.url)
@@ -265,11 +262,10 @@ export async function DELETE(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    if (!isPharmacyAdmin(session)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const auth = await requirePharmacyAdmin()
+  if (!auth.ok) return auth.response
+  const { session, tenantId } = auth
 
-    const tenantId = session.profile.tenant_id
     if (!tenantId) return NextResponse.json({ error: "Tenant not found" }, { status: 400 })
 
     const { id, name, username, role, permissions, isActive, resetPassword } = await request.json()

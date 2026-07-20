@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
+import { getPharmacySession } from "@/lib/auth"
+import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail } from "@/lib/email"
 
 // GET - List all inquiries (admin only)
 export async function GET(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-
-    if (!session || !isPharmacyAdmin(session)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { data: inquiries, error } = await (supabaseAdmin as any)
       .from("pharmacy_inquiries")
       .select("*")
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
 
     if (error) throw error
@@ -134,11 +133,9 @@ export async function POST(request: NextRequest) {
 // PATCH - Update inquiry status (admin only)
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-
-    if (!session || !isPharmacyAdmin(session)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const body = await request.json()
     const { id, status, adminResponse } = body
@@ -213,7 +210,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     await supabaseAdmin.from("pharmacy_audit_logs").insert({
-      tenant_id: session.profile.tenant_id!,
+      tenant_id: tenantId,
       profile_id: session.user.id,
       action: "UPDATE_INQUIRY",
       entity: "INQUIRY",

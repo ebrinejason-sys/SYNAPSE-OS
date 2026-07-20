@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
+import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 const db = supabaseAdmin as any
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session || !isPharmacyAdmin(session)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const tenantId = session.profile.tenant_id!
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { data: logs, error } = await db
       .from("pharmacy_audit_logs")

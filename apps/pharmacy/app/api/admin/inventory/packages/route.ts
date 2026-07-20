@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession } from "@/lib/auth"
+import { requirePharmacyTenant } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 // GET packages for a product
 export async function GET(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { searchParams } = new URL(request.url)
     const productId = searchParams.get("productId")
@@ -34,10 +34,9 @@ export async function GET(request: NextRequest) {
 // POST - Create a new package
 export async function POST(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
-    const tenantId = session.profile.tenant_id
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const data: Record<string, unknown> = await request.json()
 
@@ -98,10 +97,9 @@ export async function POST(request: NextRequest) {
 // PATCH - Update a package
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
-    const tenantId = session.profile.tenant_id
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const data: Record<string, unknown> = await request.json()
 
@@ -144,10 +142,9 @@ export async function PATCH(request: NextRequest) {
 // DELETE - Delete a package
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
-    const tenantId = session.profile.tenant_id
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")

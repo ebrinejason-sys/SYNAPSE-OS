@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
+import { requirePharmacyTenant } from "@/lib/api-auth"
 import { gateFeature } from "@synapse/auth/features"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { generateReceiptNumber } from "@/lib/receipt-number"
@@ -123,13 +123,10 @@ async function deductFromBatches(
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const tenantId = session.profile.tenant_id
     if (!tenantId) {
       return NextResponse.json({ error: "No tenant" }, { status: 403 })
     }

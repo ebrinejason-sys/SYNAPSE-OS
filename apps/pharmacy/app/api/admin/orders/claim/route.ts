@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession, isPharmacyAdmin, hasPermission } from "@/lib/auth"
+import { isPharmacyAdmin, hasPermission } from "@/lib/auth"
+import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail } from "@/lib/email"
 
 // Claim an order
 export async function POST(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const auth = await requirePharmacyAdmin()
+  if (!auth.ok) return auth.response
+  const { session, tenantId } = auth
 
     // Check if user has permission to claim orders
     const canClaim =
@@ -19,7 +21,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "You don't have permission to claim orders" }, { status: 403 })
     }
 
-    const tenantId = session.profile.tenant_id
     if (!tenantId) return NextResponse.json({ error: "Tenant not found" }, { status: 400 })
 
     const { orderId } = await request.json()
@@ -185,10 +186,10 @@ export async function POST(request: NextRequest) {
 // Unclaim an order (for admins or the user who claimed it)
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const auth = await requirePharmacyAdmin()
+  if (!auth.ok) return auth.response
+  const { session, tenantId } = auth
 
-    const tenantId = session.profile.tenant_id
     if (!tenantId) return NextResponse.json({ error: "Tenant not found" }, { status: 400 })
 
     const { searchParams } = new URL(request.url)

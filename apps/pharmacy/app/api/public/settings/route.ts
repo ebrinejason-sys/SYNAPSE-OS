@@ -1,32 +1,39 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { getTrustedRequestTenantId } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
-// Public endpoint — no authentication required.
-// Returns non-sensitive pharmacy settings for the landing page.
-// Note: for multi-tenant deployments the caller should pass a tenant identifier;
-// for now we return the first settings row found as a single-tenant fallback.
-export async function GET() {
+const FALLBACK = {
+  pharmacyName: "SYNAPSE Pharm",
+  location: "Kampala, Uganda",
+  contact: "0787599099",
+  email: "info@synapseos.tech",
+  logo: null,
+  footerText: "Thank you for choosing us!",
+}
+
+/**
+ * Public, non-sensitive pharmacy settings for storefront/landing.
+ * Tenant must come from middleware-injected x-tenant-id (custom domain)
+ * or an explicit ?tenant_id= query — never "first row wins".
+ */
+export async function GET(request: NextRequest) {
   try {
+    const tenantId = getTrustedRequestTenantId(
+      request,
+      request.nextUrl.searchParams.get("tenant_id"),
+    )
+    if (!tenantId) {
+      return NextResponse.json(FALLBACK)
+    }
+
     const { data: settings, error } = await supabaseAdmin
       .from("pharmacy_settings")
-      .select(
-        "pharmacy_name, location, contact, email, logo, footer_text"
-      )
-      .limit(1)
-      .single()
+      .select("pharmacy_name, location, contact, email, logo, footer_text")
+      .eq("tenant_id", tenantId)
+      .maybeSingle()
 
     if (error && error.code !== "PGRST116") throw error
-
-    if (!settings) {
-      return NextResponse.json({
-        pharmacyName: "SYNAPSE Pharm",
-        location: "Kampala, Uganda",
-        contact: "0787599099",
-        email: "info@synapseos.tech",
-        logo: null,
-        footerText: "Thank you for choosing us!",
-      })
-    }
+    if (!settings) return NextResponse.json(FALLBACK)
 
     return NextResponse.json({
       pharmacyName: settings.pharmacy_name,
@@ -38,9 +45,6 @@ export async function GET() {
     })
   } catch (error) {
     console.error("Failed to fetch public settings:", error)
-    return NextResponse.json(
-      { error: "Failed to fetch settings" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Failed to fetch settings" }, { status: 500 })
   }
 }

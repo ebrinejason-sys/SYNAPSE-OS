@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
+import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function DELETE(request: NextRequest) {
-  const session = await getPharmacySession()
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!isPharmacyAdmin(session)) return NextResponse.json({ error: "Admin only" }, { status: 403 })
-
-  const tenantId = session.profile.tenant_id
+  const auth = await requirePharmacyAdmin()
+  if (!auth.ok) return auth.response
+  const { session, tenantId } = auth
 
   const body = await request.json().catch(() => ({}))
   const productIds: string[] = Array.isArray(body.productIds) ? body.productIds : []

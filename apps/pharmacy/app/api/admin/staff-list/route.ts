@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getPharmacySession } from "@/lib/auth"
+import { requirePharmacyTenant } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 const db = supabaseAdmin as any
@@ -7,10 +7,9 @@ const db = supabaseAdmin as any
 // Returns active staff members for POS staff selection.
 export async function GET() {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-    const tenantId = session.profile.tenant_id!
+    const auth = await requirePharmacyTenant()
+  if (!auth.ok) return auth.response
+  const { session, tenantId } = auth
 
     const { data: settings, error: settingsErr } = await db
       .from("pharmacy_user_settings")

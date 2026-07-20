@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
+import { isPharmacyAdmin } from "@/lib/auth"
+import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 /**
@@ -13,11 +14,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const session = await getPharmacySession()
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     if (!isPharmacyAdmin(session)) {
       return NextResponse.json(
@@ -26,7 +25,6 @@ export async function DELETE(
       )
     }
 
-    const tenantId = session.profile.tenant_id
     if (!tenantId) {
       return NextResponse.json({ error: "No tenant" }, { status: 403 })
     }
@@ -132,13 +130,10 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params
-    const session = await getPharmacySession()
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const tenantId = session.profile.tenant_id
     if (!tenantId) {
       return NextResponse.json({ error: "No tenant" }, { status: 403 })
     }

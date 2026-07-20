@@ -12,11 +12,10 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   transpilePackages: ['@synapse/auth', '@synapse/db', '@synapse/config', '@synapse/email'],
   typescript: {
-    // Type-safety enforced via tsc --noEmit; don't block deployment on inference-only errors
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   output: 'standalone',
   images: {

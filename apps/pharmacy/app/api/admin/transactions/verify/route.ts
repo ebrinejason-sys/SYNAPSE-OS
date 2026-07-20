@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
+import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 /**
@@ -17,17 +17,10 @@ import { supabaseAdmin } from "@/lib/supabase/admin"
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    if (!isPharmacyAdmin(session)) {
-      return NextResponse.json({ error: "Admin only" }, { status: 403 })
-    }
-
-    const tenantId = session.profile.tenant_id
     if (!tenantId) {
       return NextResponse.json({ error: "No tenant" }, { status: 403 })
     }
@@ -343,13 +336,10 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
-    if (!session || !isPharmacyAdmin(session)) {
-      return NextResponse.json({ error: "Admin only" }, { status: 403 })
-    }
-
-    const tenantId = session.profile.tenant_id
     if (!tenantId) {
       return NextResponse.json({ error: "No tenant" }, { status: 403 })
     }

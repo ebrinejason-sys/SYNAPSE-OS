@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPharmacySession } from '@/lib/auth'
+import { requirePlatformAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
 // Platform-admin management of pharmacy custom domains.
@@ -31,20 +31,11 @@ function normalizeDomain(raw: unknown): string | null {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function db() { return supabaseAdmin as any }
 
-async function requirePlatformAdmin() {
-  const session = await getPharmacySession()
-  if (!session) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  }
-  if (!isPlatformAdmin(session)) {
-    return { error: NextResponse.json({ error: 'Forbidden — platform admin only' }, { status: 403 }) }
-  }
-  return { session }
-}
+
 
 export async function GET(request: NextRequest) {
-  const guard = await requirePlatformAdmin()
-  if (guard.error) return guard.error
+  const auth = await requirePlatformAdmin()
+  if (!auth.ok) return auth.response
 
   const tenantId = request.nextUrl.searchParams.get('tenant_id')
   let query = db()
@@ -59,8 +50,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const guard = await requirePlatformAdmin()
-  if (guard.error) return guard.error
+  const auth = await requirePlatformAdmin()
+  if (!auth.ok) return auth.response
 
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
@@ -104,8 +95,8 @@ export async function POST(request: NextRequest) {
 
 // Verify / update a mapping. Body: { id?, domain?, verified?, is_primary? }
 export async function PATCH(request: NextRequest) {
-  const guard = await requirePlatformAdmin()
-  if (guard.error) return guard.error
+  const auth = await requirePlatformAdmin()
+  if (!auth.ok) return auth.response
 
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
@@ -135,8 +126,8 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const guard = await requirePlatformAdmin()
-  if (guard.error) return guard.error
+  const auth = await requirePlatformAdmin()
+  if (!auth.ok) return auth.response
 
   const id = request.nextUrl.searchParams.get('id')
   const domain = normalizeDomain(request.nextUrl.searchParams.get('domain'))
