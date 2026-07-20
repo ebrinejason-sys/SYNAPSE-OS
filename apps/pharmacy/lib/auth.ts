@@ -16,7 +16,6 @@ export type PharmacySession = {
   mustChangePassword: boolean
   isImpersonation: boolean
   impersonatorId: string | null
-  // Backwards-compat aliases used by existing route files
   profile: { tenant_id: string; is_admin: boolean; full_name: string | null; first_name: string | null; last_name: string | null }
   user: { id: string; email: string }
 }
@@ -53,7 +52,7 @@ export async function requirePharmacySession(): Promise<PharmacySession> {
   return toPharmacySession(ctx)
 }
 
-export function hasPharmacyPermission(session: PharmacySession, permission: string): boolean {
+export function hasPharmacyPermission(session: PharmacySession, _permission: string): boolean {
   if (session.isAdmin) return true
   if (session.role === 'pharmacy_admin') return true
   return false

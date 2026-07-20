@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession, isPharmacyAdmin, hasPermission } from "@/lib/auth"
+import { isPharmacyAdmin, hasPermission } from "@/lib/auth"
+import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 // GET - List refunds
 export async function GET(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const canManageTransactions =
       isPharmacyAdmin(session) || hasPermission(session, "MANAGE_TRANSACTIONS")
@@ -28,7 +27,7 @@ export async function GET(request: NextRequest) {
           product:pharmacy_products ( name, sku )
         )
       `)
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .eq("status", "REFUNDED")
       .order("updated_at", { ascending: false })
 
@@ -47,11 +46,9 @@ export async function GET(request: NextRequest) {
 // POST - Process a refund
 export async function POST(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const canManageTransactions =
       isPharmacyAdmin(session) || hasPermission(session, "MANAGE_TRANSACTIONS")
@@ -60,7 +57,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
     }
 
-    const tenantId = session.profile.tenant_id
     if (!tenantId) {
       return NextResponse.json({ error: "No tenant" }, { status: 403 })
     }

@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession } from "@/lib/auth"
+import { requirePharmacyTenant } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 // Get notifications for the current user
 export async function GET(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { searchParams } = new URL(request.url)
     const unreadOnly = searchParams.get("unread") === "true"
@@ -18,7 +16,7 @@ export async function GET(request: NextRequest) {
     let query = (supabaseAdmin as any)
       .from("pharmacy_notifications")
       .select("*")
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .eq("profile_id", session.user.id)
       .order("created_at", { ascending: false })
       .limit(limit)
@@ -34,7 +32,7 @@ export async function GET(request: NextRequest) {
     const { count: unreadCount, error: countError } = await (supabaseAdmin as any)
       .from("pharmacy_notifications")
       .select("id", { count: "exact", head: true })
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .eq("profile_id", session.user.id)
       .eq("is_read", false)
 
@@ -56,11 +54,9 @@ export async function GET(request: NextRequest) {
 // Mark notifications as read
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { notificationIds, markAll } = await request.json()
 
@@ -95,11 +91,9 @@ export async function PATCH(request: NextRequest) {
 // Delete notifications
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { searchParams } = new URL(request.url)
     const notificationId = searchParams.get("id")

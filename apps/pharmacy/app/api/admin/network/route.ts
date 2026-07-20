@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPharmacySession } from '@/lib/auth'
+import { requirePharmacyTenant } from "@/lib/api-auth"
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
 const db = supabaseAdmin as any
 
 // GET /api/admin/network — fetch network settings + inventory
 export async function GET() {
-  const session = await getPharmacySession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requirePharmacyTenant()
+  if (!auth.ok) return auth.response
+  const { session, tenantId } = auth
 
-  const { tenantId } = session
 
   const [{ data: tenant }, { data: inventory }] = await Promise.all([
     db.from('tenants')
@@ -33,10 +33,10 @@ export async function GET() {
 
 // POST /api/admin/network — save settings or sync
 export async function POST(req: NextRequest) {
-  const session = await getPharmacySession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requirePharmacyTenant()
+  if (!auth.ok) return auth.response
+  const { session, tenantId } = auth
 
-  const { tenantId } = session
   const body = await req.json()
 
   // action=sync: copy active products to network inventory

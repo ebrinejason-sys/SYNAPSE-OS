@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession } from "@/lib/auth"
+import { requirePharmacyTenant } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search")
@@ -16,7 +15,7 @@ export async function GET(request: NextRequest) {
     let query = (supabaseAdmin as any)
       .from("pharmacy_clients")
       .select("id, name, phone, address, notes, last_visit")
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .order("last_visit", { ascending: false })
       .limit(limit)
@@ -43,10 +42,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { name, phone, address, notes } = await request.json()
 
@@ -60,7 +58,7 @@ export async function POST(request: NextRequest) {
     const { data: client, error } = await supabaseAdmin
       .from("pharmacy_clients")
       .insert({
-        tenant_id: session.profile.tenant_id!,
+        tenant_id: tenantId,
         name: name.trim(),
         phone: phone?.trim() || null,
         address: address?.trim() || null,

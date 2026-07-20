@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { generateTotpSecret, totpUri } from '@synapse/auth'
-import { requireSynapseSessionUser, unauthorized } from '@/lib/mfa-session'
-
+import { requirePharmacyApiSession } from "@/lib/api-auth"
 export async function POST() {
-  const user = await requireSynapseSessionUser()
-  if (!user) return unauthorized()
+  const auth = await requirePharmacyApiSession()
+  if (!auth.ok) return auth.response
+  const user = { id: auth.session.userId, email: auth.session.email }
 
   const secret = generateTotpSecret()
   const uri = totpUri(secret, user.email)

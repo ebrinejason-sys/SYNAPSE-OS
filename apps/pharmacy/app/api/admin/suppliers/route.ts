@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
+import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { data: suppliers, error } = await (supabaseAdmin as any)
       .from("pharmacy_suppliers")
       .select("*")
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
 
     if (error) throw error
@@ -30,11 +28,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-
-    if (!session || !isPharmacyAdmin(session)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { name, email, phone, address, contactPerson, notes } =
       await request.json()
@@ -50,7 +46,7 @@ export async function POST(request: NextRequest) {
     const { data: existing } = await (supabaseAdmin as any)
       .from("pharmacy_suppliers")
       .select("id")
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .eq("email", email)
       .single()
 
@@ -64,7 +60,7 @@ export async function POST(request: NextRequest) {
     const { data: supplier, error } = await supabaseAdmin
       .from("pharmacy_suppliers")
       .insert({
-        tenant_id: session.profile.tenant_id!,
+        tenant_id: tenantId,
         name,
         email,
         phone: phone ?? null,
@@ -78,7 +74,7 @@ export async function POST(request: NextRequest) {
     if (error) throw error
 
     await supabaseAdmin.from("pharmacy_audit_logs").insert({
-      tenant_id: session.profile.tenant_id!,
+      tenant_id: tenantId,
       profile_id: session.user.id,
       action: "CREATE_SUPPLIER",
       entity: "SUPPLIER",
@@ -98,11 +94,9 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-
-    if (!session || !isPharmacyAdmin(session)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { id, name, email, phone, address, contactPerson, notes, isActive } =
       await request.json()
@@ -116,7 +110,7 @@ export async function PATCH(request: NextRequest) {
       const { data: existing } = await (supabaseAdmin as any)
         .from("pharmacy_suppliers")
         .select("id")
-        .eq("tenant_id", session.profile.tenant_id!)
+        .eq("tenant_id", tenantId)
         .eq("email", email)
         .neq("id", id)
         .single()
@@ -142,14 +136,14 @@ export async function PATCH(request: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .select()
       .single()
 
     if (error) throw error
 
     await supabaseAdmin.from("pharmacy_audit_logs").insert({
-      tenant_id: session.profile.tenant_id!,
+      tenant_id: tenantId,
       profile_id: session.user.id,
       action: "UPDATE_SUPPLIER",
       entity: "SUPPLIER",
@@ -169,11 +163,9 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-
-    if (!session || !isPharmacyAdmin(session)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { searchParams } = new URL(request.url)
     const supplierId = searchParams.get("id")
@@ -187,7 +179,7 @@ export async function DELETE(request: NextRequest) {
       .from("pharmacy_suppliers")
       .select("name")
       .eq("id", supplierId)
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .single()
 
     if (!supplier) {
@@ -199,7 +191,7 @@ export async function DELETE(request: NextRequest) {
       .from("pharmacy_products")
       .update({ supplier_id: null })
       .eq("supplier_id", supplierId)
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
 
     if (unlinkError) throw unlinkError
 
@@ -208,12 +200,12 @@ export async function DELETE(request: NextRequest) {
       .from("pharmacy_suppliers")
       .delete()
       .eq("id", supplierId)
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
 
     if (deleteError) throw deleteError
 
     await supabaseAdmin.from("pharmacy_audit_logs").insert({
-      tenant_id: session.profile.tenant_id!,
+      tenant_id: tenantId,
       profile_id: session.user.id,
       action: "DELETE_SUPPLIER",
       entity: "SUPPLIER",

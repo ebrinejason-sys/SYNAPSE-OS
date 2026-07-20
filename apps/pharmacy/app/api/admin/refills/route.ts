@@ -1,24 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession, hasPermission, isPharmacyAdmin } from "@/lib/auth"
+import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
-
-function canManageRefills(session: NonNullable<Awaited<ReturnType<typeof getPharmacySession>>>) {
-  return isPharmacyAdmin(session) || hasPermission(session, "MANAGE_POS")
-}
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session || !canManageRefills(session)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const status = new URL(request.url).searchParams.get("status") ?? "due"
     const today = new Date().toISOString().slice(0, 10)
     let query = (supabaseAdmin as any)
       .from("refill_reminders")
       .select("*, customer:pharmacy_customers(id, name, email, phone)")
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .order("refill_due_date", { ascending: true })
 
     if (status === "due") query = query.lte("refill_due_date", today).eq("dispensed", false)
@@ -37,10 +32,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session || !canManageRefills(session)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const body = await request.json()
     const drugName = String(body.drugName ?? "").trim()
@@ -55,7 +49,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from("refill_reminders")
       .insert({
-        tenant_id: session.profile.tenant_id!,
+        tenant_id: tenantId,
         customer_id: customerId,
         drug_name: drugName,
         last_dispensed: body.lastDispensed || null,
@@ -68,7 +62,7 @@ export async function POST(request: NextRequest) {
     if (error) throw error
 
     await supabaseAdmin.from("pharmacy_audit_logs").insert({
-      tenant_id: session.profile.tenant_id!,
+      tenant_id: tenantId,
       profile_id: session.user.id,
       action: "CREATE_REFILL_REMINDER",
       entity: "REFILL_REMINDER",
@@ -85,10 +79,9 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session || !canManageRefills(session)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { id, action } = await request.json()
     if (!id || !["mark_sent", "mark_dispensed"].includes(action)) {
@@ -104,7 +97,7 @@ export async function PATCH(request: NextRequest) {
       .from("refill_reminders")
       .update(patch)
       .eq("id", id)
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .select()
       .single()
 

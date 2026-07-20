@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getTrustedRequestTenantId } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const tenantId = searchParams.get("tenant_id")
+    const tenantId = getTrustedRequestTenantId(
+      request,
+      request.nextUrl.searchParams.get("tenant_id"),
+    )
 
     if (!tenantId) {
       return NextResponse.json({ error: "Tenant ID is required" }, { status: 400 })

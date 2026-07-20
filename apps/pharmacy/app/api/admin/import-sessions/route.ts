@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession, hasPermission, isPharmacyAdmin } from "@/lib/auth"
+import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 const FIELD_PATTERNS: Record<string, RegExp[]> = {
@@ -15,10 +15,6 @@ const FIELD_PATTERNS: Record<string, RegExp[]> = {
   batch_number: [/batch/i, /lot/i],
   manufacturer: [/manufacturer/i, /maker/i, /brand/i],
   unit_of_measure: [/unit/i, /uom/i, /pack/i],
-}
-
-function canImport(session: NonNullable<Awaited<ReturnType<typeof getPharmacySession>>>) {
-  return isPharmacyAdmin(session) || hasPermission(session, "MANAGE_INVENTORY")
 }
 
 function mapHeaders(headers: string[]) {
@@ -46,15 +42,14 @@ function mapHeaders(headers: string[]) {
 
 export async function GET() {
   try {
-    const session = await getPharmacySession()
-    if (!session || !canImport(session)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { data, error } = await (supabaseAdmin as any)
       .from("pharmacy_import_sessions")
       .select("*")
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
       .limit(20)
 
@@ -68,10 +63,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session || !canImport(session)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const auth = await requirePharmacyAdmin()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const body = await request.json()
     const headers = Array.isArray(body.headers) ? body.headers.map(String).filter(Boolean) : []
@@ -92,7 +86,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from("pharmacy_import_sessions")
       .insert({
-        tenant_id: session.profile.tenant_id!,
+        tenant_id: tenantId,
         source_system: body.sourceSystem || "Unknown",
         file_name: body.fileName || "Manual mapping session",
         status: "review",

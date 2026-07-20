@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPharmacySession } from '@/lib/auth'
+import { requirePharmacyTenant } from "@/lib/api-auth"
 import { supabaseAdmin } from '@synapse/db/admin'
 
 // GET /api/onboarding — fetch all pre-filled data for the wizard
 export async function GET() {
-  const session = await getPharmacySession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requirePharmacyTenant()
+  if (!auth.ok) return auth.response
+  const { session, tenantId } = auth
 
-  const { tenantId } = session
   const db = supabaseAdmin as any
 
   const [
@@ -41,10 +41,10 @@ export async function GET() {
 
 // POST /api/onboarding — save a wizard step
 export async function POST(req: NextRequest) {
-  const session = await getPharmacySession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requirePharmacyTenant()
+  if (!auth.ok) return auth.response
+  const { session, tenantId } = auth
 
-  const { tenantId } = session
   const body = await req.json()
   const { step, data } = body as { step: number; data: Record<string, unknown> }
   const db = supabaseAdmin as any

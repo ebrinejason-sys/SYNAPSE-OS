@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession } from "@/lib/auth"
+import { requirePharmacyTenant } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const { data: products, error } = await (supabaseAdmin as any)
       .from("pharmacy_products")
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
         pharmacy_product_packages(*),
         pharmacy_product_batches(*)
       `)
-      .eq("tenant_id", session.profile.tenant_id!)
+      .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
 
@@ -73,10 +73,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
-    const tenantId = session.profile.tenant_id
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const data: Record<string, unknown> = await request.json()
 
@@ -193,10 +192,9 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
-    const tenantId = session.profile.tenant_id
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const data: Record<string, unknown> = await request.json()
 
@@ -356,16 +354,14 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getPharmacySession()
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    if (!session.profile.tenant_id) return NextResponse.json({ error: "No tenant" }, { status: 403 })
+    const auth = await requirePharmacyTenant()
+    if (!auth.ok) return auth.response
+    const { session, tenantId } = auth
 
     const productId = request.nextUrl.searchParams.get("id")
     if (!productId) {
       return NextResponse.json({ error: "Product id is required" }, { status: 400 })
     }
-
-    const tenantId = session.profile.tenant_id
 
     const { data: product, error: fetchError } = await supabaseAdmin
       .from("pharmacy_products")
