@@ -33,6 +33,10 @@ export async function GET(request: NextRequest) {
       taxRate:           settings.tax_rate ?? 0,
       lowStockThreshold: settings.low_stock_threshold ?? 10,
       printerType:       settings.printer_type ?? "default",
+      discountApprovalThresholdPct: Number(settings.discount_approval_threshold_pct ?? 5),
+      mandatoryReceiptPrint: settings.mandatory_receipt_print !== false,
+      vatEnabled: Boolean(settings.vat_enabled),
+      vatRate: Number(settings.vat_rate ?? 18),
     })
   } catch (error) {
     console.error("Get settings error:", error)

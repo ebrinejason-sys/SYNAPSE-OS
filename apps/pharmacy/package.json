@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && node --experimental-strip-types --test lib/pos/fefo.test.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
