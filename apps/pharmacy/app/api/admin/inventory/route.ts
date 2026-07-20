@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
           quantity:    batch.quantity,
           expiryDate:  batch.expiry_date,
           costPrice:   batch.cost_price != null ? Number(batch.cost_price) : null,
+          manufacturer: batch.manufacturer ?? null,
         })),
     }))
 

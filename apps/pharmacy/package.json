@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test lib/pos/fefo.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.2",

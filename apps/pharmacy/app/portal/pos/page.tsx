@@ -15,6 +15,14 @@ import { useToast } from "@/hooks/use-toast"
 import { formatCurrency, generateTransactionNo } from "@/lib/utils"
 import { Search, ShoppingCart, Trash2, Printer, Clock, Eye, Calculator, Package, Wifi, WifiOff, Download } from "lucide-react"
 import { queueMutation, saveOfflineTransaction, getPendingActions, saveMetadata, getMetadata } from "@/lib/offlineStorage"
+import {
+  allocateFefoBatches,
+  DISCOUNT_REASONS,
+  expiryBadgeClass,
+  expiryTone,
+  type BatchAllocation,
+  type DiscountReasonValue,
+} from "@/lib/pos/fefo"
 
 // Debounce hook for search
 function useDebounce<T>(value: T, delay: number): T {
@@ -47,6 +55,7 @@ interface ProductBatch {
   quantity: number
   expiryDate: string
   costPrice: number
+  manufacturer?: string | null
 }
 
 interface Product {
@@ -72,18 +81,25 @@ interface Product {
 }
 
 interface CartItem extends Product {
-  cartQuantity: number  // Quantity in base units OR package units
-  costPrice: number  // Original price from inventory (constant)
-  sellingPrice: number  // Editable selling price (like Tally)
+  cartQuantity: number
+  /** Catalog unit/package price — locked for cashiers */
+  listPrice: number
+  costPrice: number
+  /** Effective sold unit price after discount */
+  sellingPrice: number
   subtotal: number
-  expiryDate?: string  // Expiry date for receipt
-  batchNumber?: string  // Batch number for records
-  // Package info
-  selectedPackage?: ProductPackage | null  // Selected package (null = base units)
-  packageQuantity?: number  // Number of packages (e.g., 2 strips)
-  baseUnitsTotal?: number  // Total in base units (for stock deduction)
-  // Batch info  
+  discountAmount: number
+  discountReason: DiscountReasonValue | ""
+  discountReasonOther: string
+  discountApprovedBy: string | null
+  expiryDate?: string
+  batchNumber?: string
+  selectedPackage?: ProductPackage | null
+  packageQuantity?: number
+  baseUnitsTotal?: number
   selectedBatchId?: string
+  /** FEFO split when qty spans batches */
+  batchAllocations: BatchAllocation[]
 }
 
 interface Settings {
@@ -95,6 +111,10 @@ interface Settings {
   footerText?: string
   currency: string
   taxRate: number
+  discountApprovalThresholdPct?: number
+  mandatoryReceiptPrint?: boolean
+  vatEnabled?: boolean
+  vatRate?: number
 }
 
 interface StaffMember {
@@ -117,6 +137,7 @@ function formatPaymentLabel(method: string) {
 
 export default function POSPage() {
   const { user } = usePharmacySession()
+  const cashierCanEditPrice = Boolean(user?.isAdmin || user?.pharmacyRole === "pharmacy_admin")
   const [products, setProducts] = useState<Product[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -147,6 +168,15 @@ export default function POSPage() {
   const [printReceiptData, setPrintReceiptData] = useState<any>(null)
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false)
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+  const [showSupervisorDialog, setShowSupervisorDialog] = useState(false)
+  const [supervisorId, setSupervisorId] = useState("")
+  const [supervisorPassword, setSupervisorPassword] = useState("")
+  const [supervisorApproving, setSupervisorApproving] = useState(false)
+  const [discountApprovedBy, setDiscountApprovedBy] = useState<string | null>(null)
+  const [pendingSaleAfterApproval, setPendingSaleAfterApproval] = useState<{
+    staffForReceipt: StaffMember | null
+    client: { name: string; phone: string; address: string }
+  } | null>(null)
   const [pendingSyncCount, setPendingSyncCount] = useState(0)
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const { toast } = useToast()
@@ -356,49 +386,84 @@ export default function POSPage() {
 
   const hasMoreProducts = !debouncedSearchQuery && displayCount < products.length
 
+  const rebuildCartLine = (
+    base: Product,
+    opts: {
+      cartQuantity: number
+      selectedPackage?: ProductPackage | null
+      discountAmount?: number
+      discountReason?: DiscountReasonValue | ""
+      discountReasonOther?: string
+      discountApprovedBy?: string | null
+      listPrice?: number
+    },
+  ): CartItem => {
+    const selectedPackage = opts.selectedPackage ?? null
+    const listPrice = opts.listPrice ?? (selectedPackage ? selectedPackage.price : base.price)
+    const cartQuantity = opts.cartQuantity
+    const baseUnits = selectedPackage ? cartQuantity * selectedPackage.unitsPerPackage : cartQuantity
+    const allocations = allocateFefoBatches(
+      (base.batches ?? []).map((b) => ({
+        id: b.id,
+        batchNumber: b.batchNumber,
+        quantity: b.quantity,
+        expiryDate: b.expiryDate,
+        manufacturer: b.manufacturer,
+        costPrice: b.costPrice,
+      })),
+      baseUnits,
+    )
+    const discountAmount = Math.max(0, opts.discountAmount ?? 0)
+    const lineListTotal = listPrice * cartQuantity
+    const soldTotal = Math.max(0, lineListTotal - discountAmount)
+    const sellingPrice = cartQuantity > 0 ? soldTotal / cartQuantity : listPrice
+    const first = allocations[0]
+    return {
+      ...base,
+      cartQuantity,
+      listPrice,
+      costPrice: first?.costPrice ?? base.costPrice,
+      sellingPrice,
+      subtotal: soldTotal,
+      discountAmount,
+      discountReason: opts.discountReason ?? "",
+      discountReasonOther: opts.discountReasonOther ?? "",
+      discountApprovedBy: opts.discountApprovedBy ?? null,
+      selectedPackage,
+      packageQuantity: selectedPackage ? cartQuantity : undefined,
+      baseUnitsTotal: baseUnits,
+      selectedBatchId: first?.batchId,
+      batchNumber: first?.batchNumber ?? base.batchNumber,
+      expiryDate: first?.expiryDate ?? base.expiryDate,
+      batchAllocations: allocations,
+    }
+  }
+
   const addToCart = (product: Product, selectedPackage?: ProductPackage | null) => {
     const existingItem = cart.find((item) => item.id === product.id &&
       item.selectedPackage?.id === selectedPackage?.id)
 
-    // Get the first active batch (FIFO - earliest expiry first)
-    const firstBatch = product.batches && product.batches.length > 0 ? product.batches[0] : null
-
-    // Determine price: use package price if selected, otherwise base price
-    const priceToUse = selectedPackage ? selectedPackage.price : product.price
-
     if (existingItem) {
-      // Allow selling beyond stock (negative stock allowed)
-      // Move updated item to top of cart
       const newQty = existingItem.cartQuantity + 1
-      const baseUnits = selectedPackage ? newQty * selectedPackage.unitsPerPackage : newQty
-      const updatedItem = {
-        ...existingItem,
+      const updatedItem = rebuildCartLine(product, {
         cartQuantity: newQty,
-        packageQuantity: selectedPackage ? newQty : undefined,
-        baseUnitsTotal: baseUnits,
-        subtotal: newQty * existingItem.sellingPrice,
-      }
+        selectedPackage: selectedPackage || null,
+        discountAmount: existingItem.discountAmount,
+        discountReason: existingItem.discountReason,
+        discountReasonOther: existingItem.discountReasonOther,
+        discountApprovedBy: existingItem.discountApprovedBy,
+        listPrice: existingItem.listPrice,
+      })
       setCart([
         updatedItem,
         ...cart.filter((item) => !(item.id === product.id && item.selectedPackage?.id === selectedPackage?.id))
       ])
     } else {
-      // Add new item at the top of cart
-      const baseUnits = selectedPackage ? 1 * selectedPackage.unitsPerPackage : 1
       setCart([
-        {
-          ...product,
+        rebuildCartLine(product, {
           cartQuantity: 1,
-          costPrice: firstBatch?.costPrice || product.costPrice,
-          sellingPrice: priceToUse,
-          subtotal: priceToUse,
           selectedPackage: selectedPackage || null,
-          packageQuantity: selectedPackage ? 1 : undefined,
-          baseUnitsTotal: baseUnits,
-          selectedBatchId: firstBatch?.id,
-          batchNumber: firstBatch?.batchNumber || product.batchNumber,
-          expiryDate: firstBatch?.expiryDate || product.expiryDate,
-        },
+        }),
         ...cart,
       ])
     }
@@ -409,7 +474,6 @@ export default function POSPage() {
   }
 
   const updateCartQuantity = (productId: string, quantity: number, packageId?: string) => {
-    // Allow any quantity (negative stock allowed for continuous sales)
     if (quantity <= 0) {
       removeFromCart(productId)
       return
@@ -417,42 +481,55 @@ export default function POSPage() {
 
     setCart(
       cart.map((item) => {
-        // Match by product id and optionally package id
         const matches = item.id === productId &&
           (packageId === undefined || item.selectedPackage?.id === packageId)
         if (!matches) return item
-
-        const baseUnits = item.selectedPackage
-          ? quantity * item.selectedPackage.unitsPerPackage
-          : quantity
-
-        return {
-          ...item,
+        return rebuildCartLine(item, {
           cartQuantity: quantity,
-          packageQuantity: item.selectedPackage ? quantity : undefined,
-          baseUnitsTotal: baseUnits,
-          subtotal: quantity * item.sellingPrice,
-        }
+          selectedPackage: item.selectedPackage,
+          discountAmount: item.discountAmount,
+          discountReason: item.discountReason,
+          discountReasonOther: item.discountReasonOther,
+          discountApprovedBy: item.discountApprovedBy,
+          listPrice: item.listPrice,
+        })
       })
     )
   }
 
-  // Update selling price for an item (Tally-like flexible pricing)
-  const updateSellingPrice = (productId: string, newPrice: number) => {
-    if (newPrice < 0) return
-
+  const updateLineDiscount = (
+    productId: string,
+    patch: Partial<Pick<CartItem, "discountAmount" | "discountReason" | "discountReasonOther">>,
+    packageId?: string,
+  ) => {
+    setDiscountApprovedBy(null)
     setCart(
-      cart.map((item) =>
-        item.id === productId
-          ? {
-            ...item,
-            sellingPrice: newPrice,
-            subtotal: item.cartQuantity * newPrice,
-          }
-          : item
-      )
+      cart.map((item) => {
+        const matches = item.id === productId &&
+          (packageId === undefined || item.selectedPackage?.id === packageId)
+        if (!matches) return item
+        return rebuildCartLine(item, {
+          cartQuantity: item.cartQuantity,
+          selectedPackage: item.selectedPackage,
+          discountAmount: patch.discountAmount ?? item.discountAmount,
+          discountReason: patch.discountReason ?? item.discountReason,
+          discountReasonOther: patch.discountReasonOther ?? item.discountReasonOther,
+          discountApprovedBy: null,
+          listPrice: item.listPrice,
+        })
+      }),
     )
   }
+
+  const discountThreshold = settings?.discountApprovalThresholdPct ?? 5
+  const cartDiscountPct =
+    cart.reduce((s, i) => s + i.listPrice * i.cartQuantity, 0) > 0
+      ? (cart.reduce((s, i) => s + i.discountAmount, 0) /
+          cart.reduce((s, i) => s + i.listPrice * i.cartQuantity, 0)) *
+        100
+      : 0
+  const needsSupervisorApproval =
+    !cashierCanEditPrice && cartDiscountPct > discountThreshold && !discountApprovedBy
 
   const total = cart.reduce((sum, item) => sum + item.subtotal, 0)
   const taxRate = settings?.taxRate || 0
@@ -497,7 +574,30 @@ export default function POSPage() {
     setShowClientDetailsBeforeSaleDialog(true)
   }
 
-  const processTransaction = async (staffForReceipt: StaffMember | null, client: { name: string; phone: string; address: string }) => {
+  const processTransaction = async (
+    staffForReceipt: StaffMember | null,
+    client: { name: string; phone: string; address: string },
+    approvedByOverride?: string | null,
+  ) => {
+    // Discount lines must include a reason (DB constraint + UX).
+    const badDiscount = cart.find((i) => i.discountAmount > 0 && !i.discountReason)
+    if (badDiscount) {
+      toast({
+        variant: "destructive",
+        title: "Discount reason required",
+        description: `Add a reason for the discount on ${badDiscount.name}.`,
+      })
+      return
+    }
+    const effectiveApproval = approvedByOverride ?? discountApprovedBy
+    const needsApprovalNow =
+      !cashierCanEditPrice && cartDiscountPct > discountThreshold && !effectiveApproval
+    if (needsApprovalNow) {
+      setPendingSaleAfterApproval({ staffForReceipt, client })
+      setShowSupervisorDialog(true)
+      return
+    }
+
     setIsProcessing(true)
 
     // Determine staff name for this specific transaction
@@ -513,18 +613,30 @@ export default function POSPage() {
 
     const transactionPayload = {
       transactionNo: txnNo,
-      items: cart.map((item) => ({
-        productId: item.id,
-        quantity: item.baseUnitsTotal || item.cartQuantity,
-        unitPrice: item.sellingPrice,
-        costPrice: item.costPrice,
-        packageName: item.selectedPackage?.name || null,
-        packageQuantity: item.packageQuantity || null,
-        batchId: item.selectedBatchId || null,
-      })),
+      items: cart.map((item) => {
+        const reason =
+          item.discountReason === "other"
+            ? `other:${item.discountReasonOther || "unspecified"}`
+            : item.discountReason || null
+        return {
+          productId: item.id,
+          quantity: item.baseUnitsTotal || item.cartQuantity,
+          listPrice: item.listPrice,
+          unitPrice: item.sellingPrice,
+          discountAmount: item.discountAmount,
+          discountReason: reason,
+          discountApprovedBy: effectiveApproval,
+          costPrice: item.costPrice,
+          packageName: item.selectedPackage?.name || null,
+          packageQuantity: item.packageQuantity || null,
+          batchId: item.selectedBatchId || null,
+        }
+      }),
       paymentMethod,
       staffId: receiptStaffId,
       staffName: receiptStaffName,
+      taxAmount,
+      discountApprovedBy: effectiveApproval,
       clientName: client.name,
       clientPhone: client.phone,
       clientAddress: client.address,
@@ -570,7 +682,7 @@ export default function POSPage() {
         }
 
         await saveOfflineTransaction(mockTransaction)
-        await queueMutation("/api/admin/pos/transaction", "POST", transactionPayload);
+        await queueMutation("/api/admin/pos/complete-sale", "POST", transactionPayload);
 
         // Register sync via service worker if available
         if ('serviceWorker' in navigator && (navigator as any).serviceWorker.ready) {
@@ -611,7 +723,7 @@ export default function POSPage() {
     } else {
       // Online: Proceed with API call
       try {
-        const response = await fetch("/api/admin/pos/transaction", {
+        const response = await fetch("/api/admin/pos/complete-sale", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(transactionPayload),
@@ -620,31 +732,51 @@ export default function POSPage() {
         const data = await response.json();
 
         if (response.ok) {
-          // Transaction successfully recorded to database
+          const sale = data.sale ?? data
           toast({
             title: "Success",
-            description: "Transaction completed successfully",
+            description: sale?.receipt_number
+              ? `Sale ${sale.receipt_number} completed`
+              : "Sale completed successfully",
           })
 
-          // Store the transaction for potential printing and show print prompt
-          setPendingTransaction(data.transaction)
+          const printTxn = {
+            id: sale?.sale_id ?? sale?.id ?? `sale-${Date.now()}`,
+            transactionNo: sale?.receipt_number ?? txnNo,
+            createdAt: new Date().toISOString(),
+            clientName: client.name,
+            clientPhone: client.phone,
+            clientAddress: client.address,
+            totalAmount: Number(sale?.subtotal ?? total),
+            tax: Number(sale?.tax_amount ?? taxAmount),
+            netAmount: Number(sale?.total_amount ?? grandTotal),
+            paymentMethod,
+            items: cart.map((item, idx) => ({
+              id: `item-${idx}`,
+              quantity: item.baseUnitsTotal || item.cartQuantity,
+              unitPrice: item.sellingPrice,
+              totalPrice: item.subtotal,
+              packageName: item.selectedPackage?.name || null,
+              packageQuantity: item.packageQuantity || null,
+              product: { name: item.name, sku: item.sku },
+              batch: item.batchNumber
+                ? { batchNumber: item.batchNumber, expiryDate: item.expiryDate }
+                : null,
+            })),
+          }
+
+          setPendingTransaction(printTxn)
           setReceiptStaffNamePending(receiptStaffName)
           setPendingReceiptMeta({ paymentMethod, amountPaid, change })
           setShowPrintPrompt(true)
 
-          // Clear cart and localStorage immediately after successful recording
           setCart([])
           localStorage.removeItem('pos-cart')
-
-          // Reset selected staff for next transaction
           setSelectedStaff(null)
-
-          // Reset payment fields
           setAmountPaid("")
           setCreditCustomerId("")
           setCreditDueDate("")
-
-          // Refresh products
+          setDiscountApprovedBy(null)
           fetchProducts()
         } else {
           toast({
@@ -871,6 +1003,99 @@ export default function POSPage() {
               >
                 Cancel
               </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {showSupervisorDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Supervisor approval</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Discount {cartDiscountPct.toFixed(1)}% exceeds the {discountThreshold}% threshold.
+                Enter a supervisor password to continue.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <Label>Supervisor</Label>
+                <select
+                  className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={supervisorId}
+                  onChange={(e) => setSupervisorId(e.target.value)}
+                >
+                  <option value="">Select…</option>
+                  {staffMembers.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>Password</Label>
+                <Input
+                  type="password"
+                  className="mt-1 font-mono"
+                  value={supervisorPassword}
+                  onChange={(e) => setSupervisorPassword(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowSupervisorDialog(false)
+                    setPendingSaleAfterApproval(null)
+                    setSupervisorPassword("")
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-[#1FA6A6] hover:bg-[#1FA6A6]/90"
+                  disabled={supervisorApproving || !supervisorId || !supervisorPassword}
+                  onClick={async () => {
+                    setSupervisorApproving(true)
+                    try {
+                      const res = await fetch("/api/admin/pos/supervisor-approve", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          supervisorId,
+                          password: supervisorPassword,
+                        }),
+                      })
+                      const data = await res.json()
+                      if (!res.ok) {
+                        toast({
+                          variant: "destructive",
+                          title: "Approval failed",
+                          description: data.error || "Incorrect password",
+                        })
+                        return
+                      }
+                      setDiscountApprovedBy(data.supervisorId)
+                      setShowSupervisorDialog(false)
+                      setSupervisorPassword("")
+                      const pending = pendingSaleAfterApproval
+                      setPendingSaleAfterApproval(null)
+                      if (pending) {
+                        await processTransaction(
+                          pending.staffForReceipt,
+                          pending.client,
+                          data.supervisorId as string,
+                        )
+                      }
+                    } finally {
+                      setSupervisorApproving(false)
+                    }
+                  }}
+                >
+                  {supervisorApproving ? "Checking…" : "Approve"}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -1164,13 +1389,31 @@ export default function POSPage() {
                             {item.selectedPackage.name} ({item.selectedPackage.unitsPerPackage} {item.unitOfMeasure}s)
                           </div>
                         )}
-                        <div className="text-xs text-muted-foreground">Cost: {formatCurrency(item.costPrice)}</div>
-                        {(item.batchNumber || item.expiryDate) && (
-                          <div className="text-xs font-medium" style={{ color: item.expiryDate && new Date(item.expiryDate) < new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) ? '#f59e0b' : undefined }}>
-                            {item.batchNumber && `Batch: ${item.batchNumber}`}
-                            {item.expiryDate && `${item.batchNumber ? ' · ' : ''}Exp: ${new Date(item.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`}
-                          </div>
-                        )}
+                        <div className="mt-1 space-y-0.5">
+                          {(item.batchAllocations?.length ? item.batchAllocations : [{
+                            batchId: item.selectedBatchId ?? "",
+                            batchNumber: item.batchNumber ?? "—",
+                            expiryDate: item.expiryDate ?? null,
+                            manufacturer: null,
+                            quantity: item.baseUnitsTotal || item.cartQuantity,
+                            costPrice: item.costPrice,
+                          }]).map((alloc) => {
+                            const tone = expiryTone(alloc.expiryDate)
+                            return (
+                              <div
+                                key={`${item.id}-${alloc.batchId}-${alloc.batchNumber}`}
+                                className={`font-mono text-[11px] tabular-nums ${expiryBadgeClass(tone)}`}
+                              >
+                                {alloc.batchNumber}
+                                {alloc.expiryDate
+                                  ? ` · Exp ${new Date(alloc.expiryDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`
+                                  : ""}
+                                {alloc.manufacturer ? ` · ${alloc.manufacturer}` : " · Mfg —"}
+                                {item.batchAllocations?.length > 1 ? ` · ×${alloc.quantity}` : ""}
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
                       <Button
                         variant="ghost"
@@ -1180,26 +1423,19 @@ export default function POSPage() {
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
-                    {/* Editable Selling Price (Tally-like) */}
+                    {/* Locked unit price + discount control */}
                     <div className="flex items-center gap-2 mt-2">
                       <div className="flex-1">
                         <Label className="text-xs text-muted-foreground">
-                          {item.selectedPackage ? `Price/${item.selectedPackage.name}` : 'Selling Price'}
+                          {item.selectedPackage ? `List / ${item.selectedPackage.name}` : "Unit price"}
                         </Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.sellingPrice}
-                          onChange={(e) =>
-                            updateSellingPrice(item.id, parseFloat(e.target.value) || 0)
-                          }
-                          className="h-8 text-sm"
-                        />
+                        <div className="h-8 flex items-center font-mono text-sm tabular-nums border border-border rounded-md px-2 bg-muted/30">
+                          {formatCurrency(item.listPrice)}
+                        </div>
                       </div>
                       <div className="flex-1">
                         <Label className="text-xs text-muted-foreground">
-                          {item.selectedPackage ? `${item.selectedPackage.name}s` : 'Qty'}
+                          {item.selectedPackage ? `${item.selectedPackage.name}s` : "Qty"}
                         </Label>
                         <Input
                           type="number"
@@ -1208,11 +1444,61 @@ export default function POSPage() {
                           onChange={(e) =>
                             updateCartQuantity(item.id, parseInt(e.target.value), item.selectedPackage?.id)
                           }
-                          className="h-8 text-sm"
+                          className="h-8 text-sm font-mono tabular-nums"
                         />
                       </div>
                     </div>
-                    {/* Show base units if package selected */}
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Discount (UGX)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={item.discountAmount || ""}
+                          onChange={(e) =>
+                            updateLineDiscount(
+                              item.id,
+                              { discountAmount: Math.max(0, parseFloat(e.target.value) || 0) },
+                              item.selectedPackage?.id,
+                            )
+                          }
+                          className="h-8 text-sm font-mono tabular-nums"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Reason</Label>
+                        <select
+                          className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                          value={item.discountReason}
+                          onChange={(e) =>
+                            updateLineDiscount(
+                              item.id,
+                              { discountReason: e.target.value as DiscountReasonValue | "" },
+                              item.selectedPackage?.id,
+                            )
+                          }
+                        >
+                          <option value="">—</option>
+                          {DISCOUNT_REASONS.map((r) => (
+                            <option key={r.value} value={r.value}>{r.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    {item.discountReason === "other" && (
+                      <Input
+                        className="h-8 text-xs mt-2"
+                        placeholder="Describe other reason"
+                        value={item.discountReasonOther}
+                        onChange={(e) =>
+                          updateLineDiscount(
+                            item.id,
+                            { discountReasonOther: e.target.value },
+                            item.selectedPackage?.id,
+                          )
+                        }
+                      />
+                    )}
                     {item.selectedPackage && item.baseUnitsTotal && (
                       <div className="text-xs text-muted-foreground mt-1">
                         = {item.baseUnitsTotal} {item.unitOfMeasure}s total
@@ -1220,13 +1506,11 @@ export default function POSPage() {
                     )}
                     <div className="flex items-center justify-between mt-2 pt-2 border-t">
                       <span className="text-xs text-muted-foreground">Subtotal</span>
-                      <div className="font-semibold">{formatCurrency(item.subtotal)}</div>
+                      <div className="font-semibold font-mono tabular-nums text-[#E8B84B]">{formatCurrency(item.subtotal)}</div>
                     </div>
-                    {item.sellingPrice !== item.costPrice && (
-                      <div className={`text-xs mt-1 ${item.sellingPrice > item.costPrice ? 'text-[#22C55E]' : 'text-primary'}`}>
-                        {item.sellingPrice > item.costPrice
-                          ? `+${formatCurrency(item.sellingPrice - item.costPrice)} margin`
-                          : `${formatCurrency(item.sellingPrice - item.costPrice)} discount`}
+                    {item.discountAmount > 0 && (
+                      <div className="text-xs mt-1 text-[#E8B84B] font-mono tabular-nums">
+                        −{formatCurrency(item.discountAmount)} off list {formatCurrency(item.listPrice * item.cartQuantity)}
                       </div>
                     )}
                   </div>
@@ -1234,9 +1518,14 @@ export default function POSPage() {
               </div>
 
               <div className="border-t mt-4 pt-4 space-y-3" data-checkout-section>
+                {needsSupervisorApproval && (
+                  <p className="text-xs text-[#F97316]">
+                    Cart discount {cartDiscountPct.toFixed(1)}% exceeds {discountThreshold}% — supervisor PIN required at checkout.
+                  </p>
+                )}
                 <div className="flex justify-between text-sm">
                   <span>Subtotal</span>
-                  <span>{formatCurrency(total)}</span>
+                  <span className="font-mono tabular-nums">{formatCurrency(total)}</span>
                 </div>
                 {taxRate > 0 && (
                   <div className="flex justify-between text-sm text-muted-foreground">
