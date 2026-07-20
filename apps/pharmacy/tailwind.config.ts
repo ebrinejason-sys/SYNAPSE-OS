@@ -35,8 +35,8 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["var(--font-dm-sans)", "system-ui", "sans-serif"],
-        display: ["var(--font-bricolage)", "var(--font-dm-sans)", "system-ui", "sans-serif"],
+        sans: ["var(--font-outfit)", "system-ui", "sans-serif"],
+        display: ["var(--font-syne)", "var(--font-outfit)", "system-ui", "sans-serif"],
         mono: ["var(--font-ibm-plex-mono)", "ui-monospace", "monospace"],
       },
     },

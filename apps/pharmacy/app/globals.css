@@ -91,10 +91,10 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* Brand type system — same as synapseos.tech (apps/web globals.css):
-     Bricolage Grotesque for headings, IBM Plex Mono for code/mono. */
+  /* Pharm type system — Syne for headings, Outfit for body,
+     IBM Plex Mono for labels / receipt-adjacent UI. */
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-bricolage), var(--font-dm-sans), system-ui, sans-serif;
+    font-family: var(--font-syne), var(--font-outfit), system-ui, sans-serif;
   }
 
   code, pre, .mono {
