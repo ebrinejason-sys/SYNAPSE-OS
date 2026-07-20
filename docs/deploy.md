@@ -35,7 +35,7 @@ This is enforced from the repo — no dashboard click required after push.
 
 ## Sync dashboard settings (optional)
 
-Dashboard may still show stale values (e.g. `npm run build:demo`). Repo `vercel.json` overrides on deploy, but to align the dashboard:
+Dashboard may still show stale values (e.g. an old Vite `build:demo` command). Repo `vercel.json` overrides on deploy, but to align the dashboard:
 
 1. Create a token at https://vercel.com/account/tokens  
 2. Run:
