@@ -1,4 +1,4 @@
-import { createServiceClient } from "../../../lib/supabase/server";
+import { createServiceClient } from "../../../../lib/supabase/server";
 import { listSubscriptionInvoices, type SubscriptionInvoiceRow } from "@synapse/auth/billing";
 import { kampalaDateYMD } from "@synapse/auth/billing";
 
