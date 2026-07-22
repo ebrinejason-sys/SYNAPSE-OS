@@ -19,7 +19,7 @@ function db() {
   return createServiceClient() as any;
 }
 
-function failCreate(kind: string, code: string, detail?: string) {
+function failCreate(kind: string, code: string, detail?: string): never {
   const q = new URLSearchParams({ kind, error: code });
   if (detail) q.set("detail", detail.slice(0, 180));
   redirect(`/platform/receipts/new?${q.toString()}`);
@@ -118,8 +118,9 @@ export async function createManualDocument(formData: FormData) {
 
   if (!facilityName) failCreate(kind, "facility");
   if (!customerName) failCreate(kind, "customer");
-  if (amount == null) failCreate(kind, "amount");
-  if (kind === "receipt" && amount <= 0) failCreate(kind, "amount");
+  if (amount == null || (kind === "receipt" && amount <= 0)) {
+    failCreate(kind, "amount");
+  }
 
   const settings = await db()
     .from("platform_document_settings")
@@ -138,7 +139,7 @@ export async function createManualDocument(formData: FormData) {
     customerName,
     customerEmail: customerEmail || null,
     description: description || null,
-    amountUgx: amount!,
+    amountUgx: amount,
     method: method || (kind === "receipt" ? "Manual / offline" : null),
     notes: notes || null,
     dueDate: dueDate || null,
