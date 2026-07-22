@@ -11,19 +11,24 @@ type TenantOption = { id?: string; name?: string | null };
 const ERRORS: Record<string, string> = {
   facility: "Facility / customer organization is required.",
   customer: "Customer name is required.",
-  amount: "Enter a valid amount in UGX.",
-  save: "Could not save the document. Try again.",
+  amount: "Enter a valid amount in UGX (decimals allowed, e.g. 150000.50).",
+  save: "Could not save the document. The billing documents table may still be migrating — try again in a minute.",
 };
 
 export default async function CreateDocumentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kind?: string; error?: string }>;
+  searchParams: Promise<{ kind?: string; error?: string; detail?: string }>;
 }) {
   await requirePlatformAdmin();
   const params = await searchParams;
   const kind = params.kind === "invoice" ? "invoice" : "receipt";
-  const error = params.error ? ERRORS[params.error] ?? "Something went wrong." : null;
+  const errorBase = params.error ? ERRORS[params.error] ?? "Something went wrong." : null;
+  const error = errorBase
+    ? params.detail
+      ? `${errorBase} (${params.detail})`
+      : errorBase
+    : null;
   const [tenants, settings] = await Promise.all([
     safeRows<TenantOption>("tenants", "id, name", { orderBy: "name", ascending: true, limit: 2000 }),
     getDocumentSettings(),
@@ -40,8 +45,8 @@ export default async function CreateDocumentPage({
         </h1>
         <p className="mt-1 text-sm text-slate-400">
           {kind === "invoice"
-            ? "Issue a bill for an amount due. The authorized signature on file will be stamped on the document."
-            : "Record a payment received (online or offline). The authorized signature on file will be stamped on the receipt."}
+            ? "Issue a bill for an amount due. Signed by Ebrine Tushabe — CEO, Synapse OS."
+            : "Record a payment received (online or offline). Signed by Ebrine Tushabe — CEO, Synapse OS."}
         </p>
       </div>
 
@@ -74,21 +79,12 @@ export default async function CreateDocumentPage({
         </p>
       ) : null}
 
-      {!settings.signatureSrc ? (
-        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-          No authorized signature available.{" "}
-          <Link href="/platform/receipts#signature" className="underline">
-            Upload signature
-          </Link>
-        </p>
-      ) : (
-        <p className="rounded-xl border border-slate-700 bg-[#111117] px-4 py-3 text-sm text-slate-400">
-          Will be signed by <span className="text-slate-200">{settings.signerName}</span>
-          {" — "}
-          <span className="text-slate-200">{settings.signerTitle}</span>
-          . Date under the signature is set automatically on issue.
-        </p>
-      )}
+      <p className="rounded-xl border border-slate-700 bg-[#111117] px-4 py-3 text-sm text-slate-400">
+        Will be signed by <span className="text-slate-200">{settings.signerName}</span>
+        {" — "}
+        <span className="text-slate-200">{settings.signerTitle}</span>
+        . Date under the signature is set automatically on issue.
+      </p>
 
       <form action={createManualDocument} className="space-y-4 rounded-xl border border-slate-800 bg-[#111117] p-5">
         <input type="hidden" name="kind" value={kind} />
@@ -109,6 +105,10 @@ export default async function CreateDocumentPage({
               </option>
             ))}
           </select>
+          <span className="text-[11px] text-slate-500">
+            Leave as External for walk-in customers — the system attaches an internal billing tenant
+            automatically.
+          </span>
         </label>
 
         <label className="block space-y-1.5">
@@ -160,13 +160,17 @@ export default async function CreateDocumentPage({
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Amount (UGX) *</span>
             <input
               name="amount_ugx"
-              type="number"
-              min={kind === "receipt" ? 1 : 0}
-              step={1000}
+              type="text"
+              inputMode="decimal"
               required
-              placeholder="150000"
-              className="w-full rounded-xl border border-slate-700 bg-[#07070A] px-3 py-2.5 text-sm text-slate-200"
+              placeholder="150000.00"
+              pattern="[0-9]+([.,][0-9]{1,2})?"
+              title="Enter an amount like 150000 or 150000.50"
+              className="w-full rounded-xl border border-slate-700 bg-[#07070A] px-3 py-2.5 font-mono text-sm text-slate-200"
             />
+            <span className="text-[11px] text-slate-500">
+              Decimals allowed (e.g. 25000.50). Commas are optional.
+            </span>
           </label>
           {kind === "invoice" ? (
             <label className="block space-y-1.5">

@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { kampalaDateYMD } from "@synapse/auth/billing";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
 import { createServiceClient } from "../../../lib/supabase/server";
 import { logPlatformEvent } from "../_lib/platform-data";
@@ -11,22 +10,19 @@ import {
   DEFAULT_SIGNER_TITLE,
   DEFAULT_SIGNATURE_SRC,
 } from "./_lib/document-settings";
+import { createPlatformBillingDocument, parseAmountUgx } from "./_lib/documents";
 
-const MAX_SIGNATURE_BYTES = 900_000; // ~900KB raw → fine as data URL
+const MAX_SIGNATURE_BYTES = 900_000;
 const ALLOWED_MIME = new Set(["image/png", "image/jpeg", "image/webp", "image/svg+xml"]);
 
 function db() {
   return createServiceClient() as any;
 }
 
-async function nextDocumentNo(prefix: "RCT" | "INV"): Promise<string> {
-  const ymd = kampalaDateYMD();
-  const like = `${prefix}-${ymd}-%`;
-  const { count } = await db()
-    .from("subscription_invoices")
-    .select("id", { count: "exact", head: true })
-    .like("invoice_no", like);
-  return `${prefix}-${ymd}-${String((count ?? 0) + 1).padStart(4, "0")}`;
+function failCreate(kind: string, code: string, detail?: string) {
+  const q = new URLSearchParams({ kind, error: code });
+  if (detail) q.set("detail", detail.slice(0, 180));
+  redirect(`/platform/receipts/new?${q.toString()}`);
 }
 
 export async function uploadAuthorizedSignature(formData: FormData) {
@@ -87,6 +83,8 @@ export async function clearAuthorizedSignature() {
       {
         id: "default",
         signature_data_url: null,
+        signer_name: DEFAULT_SIGNER_NAME,
+        signer_title: DEFAULT_SIGNER_TITLE,
         updated_at: new Date().toISOString(),
         updated_by: profile.id,
       },
@@ -116,19 +114,12 @@ export async function createManualDocument(formData: FormData) {
   const method = String(formData.get("method") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
   const dueDate = String(formData.get("due_date") ?? "").trim();
-  const amount = Number(formData.get("amount_ugx") ?? 0);
+  const amount = parseAmountUgx(formData.get("amount_ugx"));
 
-  if (!facilityName) redirect(`/platform/receipts/new?kind=${kind}&error=facility`);
-  if (!customerName) redirect(`/platform/receipts/new?kind=${kind}&error=customer`);
-  if (!Number.isFinite(amount) || amount < 0) {
-    redirect(`/platform/receipts/new?kind=${kind}&error=amount`);
-  }
-  if (kind === "receipt" && amount <= 0) {
-    redirect(`/platform/receipts/new?kind=${kind}&error=amount`);
-  }
-
-  const prefix = kind === "invoice" ? "INV" : "RCT";
-  let documentNo = await nextDocumentNo(prefix);
+  if (!facilityName) failCreate(kind, "facility");
+  if (!customerName) failCreate(kind, "customer");
+  if (amount == null) failCreate(kind, "amount");
+  if (kind === "receipt" && amount <= 0) failCreate(kind, "amount");
 
   const settings = await db()
     .from("platform_document_settings")
@@ -136,69 +127,47 @@ export async function createManualDocument(formData: FormData) {
     .eq("id", "default")
     .maybeSingle();
 
-  const now = new Date();
-  const periodEnd = dueDate ? new Date(`${dueDate}T12:00:00+03:00`) : null;
+  const signerName = settings.data?.signer_name ?? DEFAULT_SIGNER_NAME;
+  const signerTitle = settings.data?.signer_title ?? DEFAULT_SIGNER_TITLE;
+  const signatureDataUrl = settings.data?.signature_data_url ?? null;
 
-  const metadata = {
-    type: kind === "invoice" ? "manual_invoice" : "manual_receipt",
-    document_kind: kind,
-    facility_name: facilityName,
-    customer_name: customerName,
-    customer_email: customerEmail || null,
-    plan_name: description || (kind === "invoice" ? "Invoice" : "Receipt"),
+  const result = await createPlatformBillingDocument({
+    kind,
+    tenantId: tenantIdRaw || null,
+    facilityName,
+    customerName,
+    customerEmail: customerEmail || null,
     description: description || null,
+    amountUgx: amount!,
     method: method || (kind === "receipt" ? "Manual / offline" : null),
     notes: notes || null,
-    due_date: dueDate || null,
-    created_by: profile.id,
-    created_by_email: profile.email,
-    signer_name: settings.data?.signer_name ?? DEFAULT_SIGNER_NAME,
-    signer_title: settings.data?.signer_title ?? DEFAULT_SIGNER_TITLE,
-    // Snapshot so historical docs keep the signature used at issue time
-    signature_data_url: settings.data?.signature_data_url ?? null,
-    signature_src: settings.data?.signature_data_url ? null : DEFAULT_SIGNATURE_SRC,
-    signed_at: now.toISOString(),
-  };
+    dueDate: dueDate || null,
+    createdBy: profile.id,
+    createdByEmail: profile.email,
+    signerName,
+    signerTitle,
+    signatureDataUrl,
+    signatureSrc: signatureDataUrl ? null : DEFAULT_SIGNATURE_SRC,
+  });
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const candidate =
-      attempt === 0 ? documentNo : `${prefix}-${kampalaDateYMD()}-${String(Date.now()).slice(-4)}`;
-    const { data, error } = await db()
-      .from("subscription_invoices")
-      .insert({
-        tenant_id: tenantIdRaw || null,
-        payment_id: null,
-        plan_id: null,
-        invoice_no: candidate,
-        amount_ugx: amount,
-        currency: "UGX",
-        period_start: now.toISOString(),
-        period_end: periodEnd && !Number.isNaN(periodEnd.getTime()) ? periodEnd.toISOString() : null,
-        metadata,
-        issued_at: now.toISOString(),
-      })
-      .select("id")
-      .single();
-
-    if (!error && data?.id) {
-      await logPlatformEvent({
-        actorId: profile.id,
-        action: kind === "invoice" ? "receipts.invoice_created" : "receipts.receipt_created",
-        entityType: "subscription_invoices",
-        entityId: data.id,
-        tenantId: tenantIdRaw || null,
-        metadata: { invoice_no: candidate, amount_ugx: amount, facility_name: facilityName },
-      });
-      revalidatePath("/platform/receipts");
-      redirect(`/platform/receipts/${data.id}`);
-    }
-
-    if (error?.code !== "23505") {
-      console.error("[receipts] create failed:", error?.message);
-      redirect(`/platform/receipts/new?kind=${kind}&error=save`);
-    }
-    documentNo = candidate;
+  if ("error" in result) {
+    console.error("[receipts] createManualDocument failed:", result.error);
+    failCreate(kind, "save", result.error);
   }
 
-  redirect(`/platform/receipts/new?kind=${kind}&error=save`);
+  await logPlatformEvent({
+    actorId: profile.id,
+    action: kind === "invoice" ? "receipts.invoice_created" : "receipts.receipt_created",
+    entityType: "platform_billing_documents",
+    entityId: result.id,
+    tenantId: tenantIdRaw || null,
+    metadata: {
+      document_no: result.documentNo,
+      amount_ugx: amount,
+      facility_name: facilityName,
+    },
+  });
+
+  revalidatePath("/platform/receipts");
+  redirect(`/platform/receipts/${result.id}`);
 }

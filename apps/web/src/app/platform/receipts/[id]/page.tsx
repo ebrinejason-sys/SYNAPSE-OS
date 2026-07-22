@@ -2,30 +2,19 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getSubscriptionInvoice } from "@synapse/auth/billing";
 import { requirePlatformAdmin } from "../../../../lib/platform/auth";
-import { formatDate, formatUGX } from "../../_lib/platform-data";
+import { formatDate } from "../../_lib/platform-data";
 import { PlatformReceiptDocument } from "../../_components/ReceiptDocument";
 import {
   DEFAULT_SIGNATURE_SRC,
   getDocumentSettings,
 } from "../_lib/document-settings";
+import { formatMoneyUGX, getPlatformBillingDocument } from "../_lib/documents";
 import { PrintReceiptButton } from "./print-button";
 
 function kampalaLabel(iso: string | null | undefined) {
   if (!iso) return null;
   return formatDate(iso);
-}
-
-function resolveKind(invoiceNo: string, metadata: Record<string, unknown>) {
-  const metaType = String(metadata?.type ?? "");
-  const metaKind = String(metadata?.document_kind ?? "");
-  if (invoiceNo.startsWith("TRIAL-") || metaType === "free_trial") return "trial" as const;
-  if (invoiceNo.startsWith("RCT-") || metaType === "manual_receipt" || metaKind === "receipt") {
-    return "receipt" as const;
-  }
-  if (metaType === "manual_invoice" || metaKind === "invoice") return "invoice" as const;
-  return "payment" as const;
 }
 
 export default async function PlatformReceiptDetailPage({
@@ -35,39 +24,30 @@ export default async function PlatformReceiptDetailPage({
 }) {
   await requirePlatformAdmin();
   const { id } = await params;
-  const [invoice, settings] = await Promise.all([
-    getSubscriptionInvoice(id),
+  const [doc, settings] = await Promise.all([
+    getPlatformBillingDocument(id),
     getDocumentSettings(),
   ]);
-  if (!invoice) notFound();
+  if (!doc) notFound();
 
-  const kind = resolveKind(invoice.invoice_no, invoice.metadata);
-  const facilityName =
-    invoice.tenant_name ??
-    (invoice.metadata?.facility_name as string | undefined) ??
-    "Unknown facility";
-  const planName =
-    invoice.plan_name ??
-    (invoice.metadata?.plan_name as string | undefined) ??
-    (invoice.metadata?.description as string | undefined) ??
-    (kind === "invoice" ? "Invoice" : "Subscription");
-  const periodLabel =
-    invoice.period_start && invoice.period_end
-      ? `${kampalaLabel(invoice.period_start)} – ${kampalaLabel(invoice.period_end)}`
-      : null;
-
-  const issuedAtLabel = kampalaLabel(invoice.issued_at) ?? "—";
-  const metaSig = invoice.metadata?.signature_data_url as string | undefined;
+  const kind = doc.kind;
+  const issuedAtLabel = kampalaLabel(doc.issued_at) ?? "—";
+  const metaSig = doc.metadata?.signature_data_url as string | undefined;
   const signatureSrc = metaSig || settings.signatureSrc || DEFAULT_SIGNATURE_SRC;
-  const signerName = (invoice.metadata?.signer_name as string | undefined) ?? settings.signerName;
-  const signerTitle = (invoice.metadata?.signer_title as string | undefined) ?? settings.signerTitle;
+  const signerName = (doc.metadata?.signer_name as string | undefined) ?? settings.signerName;
+  const signerTitle = (doc.metadata?.signer_title as string | undefined) ?? settings.signerTitle;
+
+  const periodLabel =
+    doc.period_start && doc.period_end
+      ? `${kampalaLabel(doc.period_start)} – ${kampalaLabel(doc.period_end)}`
+      : null;
 
   const methodLabel =
     kind === "trial"
       ? "Free trial registration"
       : kind === "invoice"
         ? "Pay by MTN MoMo, Airtel Money, bank transfer, or card"
-        : ((invoice.metadata?.method as string | undefined) ?? "Flutterwave / Mobile money");
+        : doc.method ?? "Flutterwave / Mobile money";
 
   return (
     <div className="space-y-6">
@@ -77,7 +57,7 @@ export default async function PlatformReceiptDetailPage({
             ← All documents
           </Link>
           <h1 className="mt-2 font-display text-2xl font-bold">
-            {kind === "invoice" ? "Invoice" : "Receipt"} {invoice.invoice_no}
+            {kind === "invoice" ? "Invoice" : "Receipt"} {doc.document_no}
           </h1>
           <p className="mt-1 text-sm text-slate-400">
             Printable official document — signed by {signerName}, {signerTitle}.
@@ -88,21 +68,19 @@ export default async function PlatformReceiptDetailPage({
 
       <PlatformReceiptDocument
         receipt={{
-          receiptNo: invoice.invoice_no,
+          receiptNo: doc.document_no,
           kind,
-          facilityName,
-          planName,
+          facilityName: doc.facility_name,
+          planName: doc.description ?? (kind === "invoice" ? "Invoice" : "Receipt"),
           amountLabel:
-            kind === "trial" ? "UGX 0 (free trial)" : formatUGX(Number(invoice.amount_ugx ?? 0)),
-          customerName: (invoice.metadata?.customer_name as string | undefined) ?? null,
-          customerEmail: (invoice.metadata?.customer_email as string | undefined) ?? null,
+            kind === "trial" ? "UGX 0 (free trial)" : formatMoneyUGX(Number(doc.amount_ugx ?? 0)),
+          customerName: doc.customer_name,
+          customerEmail: doc.customer_email,
           periodLabel,
           methodLabel,
-          notes: (invoice.metadata?.notes as string | undefined) ?? null,
+          notes: doc.notes,
           issuedAtLabel,
-          dueDateLabel: invoice.metadata?.due_date
-            ? formatDate(String(invoice.metadata.due_date))
-            : kampalaLabel(invoice.period_end),
+          dueDateLabel: doc.due_date ? formatDate(doc.due_date) : kampalaLabel(doc.period_end),
           signatureSrc,
           signerName,
           signerTitle,

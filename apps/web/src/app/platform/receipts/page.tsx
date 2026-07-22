@@ -2,21 +2,10 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
-import { formatDateTime, formatUGX } from "../_lib/platform-data";
-import { listSubscriptionInvoices } from "@synapse/auth/billing";
+import { formatDateTime } from "../_lib/platform-data";
 import { clearAuthorizedSignature, uploadAuthorizedSignature } from "./actions";
 import { getDocumentSettings } from "./_lib/document-settings";
-
-function kindOf(invoiceNo: string, metadata: Record<string, unknown>) {
-  const metaType = String(metadata?.type ?? "");
-  const metaKind = String(metadata?.document_kind ?? "");
-  if (invoiceNo.startsWith("TRIAL-") || metaType === "free_trial") return "trial";
-  if (invoiceNo.startsWith("RCT-") || metaType === "manual_receipt" || metaKind === "receipt") return "receipt";
-  if (metaType === "manual_invoice" || metaKind === "invoice") return "invoice";
-  if (invoiceNo.startsWith("INV-") && metaType === "manual_invoice") return "invoice";
-  if (invoiceNo.startsWith("INV-")) return "payment";
-  return "payment";
-}
+import { formatMoneyUGX, listPlatformBillingDocuments } from "./_lib/documents";
 
 function kindClass(kind: string) {
   if (kind === "trial") return "border-amber-500/25 bg-amber-500/10 text-amber-300";
@@ -34,7 +23,7 @@ function kindLabel(kind: string) {
 
 const FLASH: Record<string, string> = {
   signature: "Authorized signature saved. It will appear on new receipts and invoices.",
-  signature_cleared: "Signature removed.",
+  signature_cleared: "Reverted to the bundled CEO signature.",
   signature_required: "Choose a signature image to upload.",
   signature_type: "Use PNG, JPG, WebP, or SVG.",
   signature_too_large: "Signature file is too large (max ~900KB).",
@@ -48,20 +37,17 @@ export default async function PlatformReceiptsPage({
 }) {
   await requirePlatformAdmin();
   const params = await searchParams;
-  const [invoices, settings] = await Promise.all([
-    listSubscriptionInvoices(250),
+  const [docs, settings] = await Promise.all([
+    listPlatformBillingDocuments(250),
     getDocumentSettings(),
   ]);
 
   const flashOk = params.ok ? FLASH[params.ok] : null;
   const flashErr = params.error ? FLASH[params.error] : null;
 
-  const paid = invoices.filter((row) => {
-    const k = kindOf(row.invoice_no, row.metadata);
-    return k === "payment" || k === "receipt";
-  });
-  const invoicesOnly = invoices.filter((row) => kindOf(row.invoice_no, row.metadata) === "invoice");
-  const trials = invoices.filter((row) => kindOf(row.invoice_no, row.metadata) === "trial");
+  const paid = docs.filter((row) => row.kind === "payment" || row.kind === "receipt");
+  const invoicesOnly = docs.filter((row) => row.kind === "invoice");
+  const trials = docs.filter((row) => row.kind === "trial");
   const collected = paid.reduce((sum, row) => sum + Number(row.amount_ugx ?? 0), 0);
 
   return (
@@ -71,8 +57,8 @@ export default async function PlatformReceiptsPage({
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#E8B84B]">Money</p>
           <h1 className="mt-2 font-display text-2xl font-bold">Receipts & invoices</h1>
           <p className="mt-1 text-sm text-slate-400">
-            Auto-issued payment and trial documents, plus manual receipts and invoices stamped with your
-            authorized signature.
+            Create and print official documents signed by Ebrine Tushabe — CEO, Synapse OS. Auto
+            payment and trial receipts also appear here.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -168,8 +154,8 @@ export default async function PlatformReceiptsPage({
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ["All documents", invoices.length.toLocaleString()],
-          ["Collected (receipts)", formatUGX(collected)],
+          ["All documents", docs.length.toLocaleString()],
+          ["Collected (receipts)", formatMoneyUGX(collected)],
           ["Invoices", invoicesOnly.length.toLocaleString()],
           ["Trial receipts", trials.length.toLocaleString()],
         ].map(([label, value]) => (
@@ -185,7 +171,7 @@ export default async function PlatformReceiptsPage({
           <div>
             <h2 className="text-sm font-semibold">Ledger</h2>
             <p className="mt-1 text-xs text-slate-500">
-              Open any row for a printable document with logo and signature.
+              Open any row for a printable document with logo, CEO signature, and auto date.
             </p>
           </div>
           <Link
@@ -210,47 +196,34 @@ export default async function PlatformReceiptsPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
-              {invoices.map((invoice) => {
-                const kind = kindOf(invoice.invoice_no, invoice.metadata);
-                const facility =
-                  invoice.tenant_name ??
-                  (invoice.metadata?.facility_name as string | undefined) ??
-                  "Unknown facility";
-                const plan =
-                  invoice.plan_name ??
-                  (invoice.metadata?.plan_name as string | undefined) ??
-                  (invoice.metadata?.description as string | undefined) ??
-                  "—";
-                return (
-                  <tr key={invoice.id}>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-200">{invoice.invoice_no}</td>
-                    <td className="px-4 py-3 font-medium text-slate-100">{facility}</td>
-                    <td className="px-4 py-3 text-slate-300">{plan}</td>
-                    <td className="px-4 py-3 text-slate-300">
-                      {kind === "trial" ? "UGX 0" : formatUGX(Number(invoice.amount_ugx ?? 0))}
-                    </td>
-                    <td className="px-4 py-3 text-slate-500">{formatDateTime(invoice.issued_at)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full border px-2 py-0.5 text-xs ${kindClass(kind)}`}>
-                        {kindLabel(kind)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/platform/receipts/${invoice.id}`}
-                        className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-[#E8B84B] hover:border-[#E8B84B]/40"
-                      >
-                        View
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-              {invoices.length === 0 ? (
+              {docs.map((doc) => (
+                <tr key={`${doc.source}-${doc.id}`}>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-200">{doc.document_no}</td>
+                  <td className="px-4 py-3 font-medium text-slate-100">{doc.facility_name}</td>
+                  <td className="px-4 py-3 text-slate-300">{doc.description ?? "—"}</td>
+                  <td className="px-4 py-3 text-slate-300">
+                    {doc.kind === "trial" ? "UGX 0" : formatMoneyUGX(Number(doc.amount_ugx ?? 0))}
+                  </td>
+                  <td className="px-4 py-3 text-slate-500">{formatDateTime(doc.issued_at)}</td>
+                  <td className="px-4 py-3">
+                    <span className={`rounded-full border px-2 py-0.5 text-xs ${kindClass(doc.kind)}`}>
+                      {kindLabel(doc.kind)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/platform/receipts/${doc.id}`}
+                      className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-[#E8B84B] hover:border-[#E8B84B]/40"
+                    >
+                      View
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+              {docs.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
-                    No documents yet. Create a receipt or invoice, or wait for automatic payment / trial
-                    issues.
+                    No documents yet. Create a receipt or invoice to get started.
                   </td>
                 </tr>
               ) : null}
