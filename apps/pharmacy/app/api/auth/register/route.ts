@@ -4,6 +4,7 @@ import {
   hashPassword,
   signToken,
   validatePasswordStrength,
+  recordAndSendTrialReceipt,
 } from "@synapse/auth"
 import { SESSION_COOKIE, SESSION_DURATION_DAYS, UGANDA_DISTRICTS } from "@synapse/config/constants"
 import { sendWelcome } from "@synapse/email"
@@ -119,7 +120,7 @@ export async function POST(req: NextRequest) {
 
   const { data: plan, error: planErr } = await supabaseAdmin
     .from("subscription_plans")
-    .select("id, slug, billing_cycle, price_ugx")
+    .select("id, slug, name, billing_cycle, price_ugx")
     .eq("slug", planSlug)
     .eq("facility_type", "pharmacy")
     .eq("is_active", true)
@@ -286,6 +287,20 @@ export async function POST(req: NextRequest) {
     })
   } catch (emailErr) {
     console.error("[register] welcome email failed:", emailErr)
+  }
+
+  try {
+    await recordAndSendTrialReceipt({
+      tenantId,
+      planId: plan.id,
+      planName: plan.name ?? plan.slug,
+      trialEnds: trialEnds.toISOString(),
+      customerName: fullName,
+      customerEmail: email,
+      facilityName: pharmacyName,
+    })
+  } catch (receiptErr) {
+    console.error("[register] trial receipt failed:", receiptErr)
   }
 
   const token = await signToken({

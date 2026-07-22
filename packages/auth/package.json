@@ -19,6 +19,7 @@
   "dependencies": {
     "@synapse/config": "*",
     "@synapse/db": "*",
+    "@synapse/email": "*",
     "bcryptjs": "^2.4.3",
     "jose": "^5.10.0"
   },

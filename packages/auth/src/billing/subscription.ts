@@ -352,6 +352,15 @@ export async function confirmSubscriptionPayment(input: ConfirmPaymentInput): Pr
     planName = plan?.name ?? null
   }
 
+  if (invoiceNo) {
+    void dispatchPaymentReceipt({
+      payment,
+      invoiceNo,
+      planName,
+      method: input.method ?? null,
+    }).catch((err) => console.error('[billing] payment receipt failed:', err))
+  }
+
   return { ok: true, reason: 'activated', planName, invoiceNo }
 }
 
@@ -391,6 +400,7 @@ async function recordSubscriptionInvoice(payment: PaymentRecord): Promise<string
         currency: 'UGX',
         period_start: payment.period_start,
         period_end: payment.period_end,
+        metadata: { type: 'subscription_payment' },
       })
       if (!insErr) return invoiceNo
       if (insErr.code !== '23505') break // only retry unique-collision; else fall through
@@ -410,6 +420,249 @@ async function recordSubscriptionInvoice(payment: PaymentRecord): Promise<string
   const mergedPayload = { ...(payment.raw_payload ?? {}), invoice_no: invoiceNo }
   await db().from('subscription_payments').update({ raw_payload: mergedPayload }).eq('id', payment.id)
   return invoiceNo
+}
+
+function formatUgx(n: number): string {
+  return `UGX ${Math.round(n).toLocaleString('en-UG')}`
+}
+
+function kampalaDateLabel(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('en-GB', {
+    timeZone: 'Africa/Kampala',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+async function resolveTenantBillingContact(tenantId: string): Promise<{
+  email: string | null
+  name: string
+  facilityName: string
+}> {
+  const { data: tenant } = await db().from('tenants').select('name').eq('id', tenantId).maybeSingle()
+  const facilityName = (tenant?.name as string | null) ?? 'Facility'
+
+  const { data: admin } = await db()
+    .from('profiles')
+    .select('email, full_name, first_name, last_name')
+    .eq('tenant_id', tenantId)
+    .or('is_admin.eq.true,role.eq.pharmacy_admin')
+    .order('is_admin', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const joined = [admin?.first_name, admin?.last_name].filter(Boolean).join(' ')
+  const name = (admin?.full_name as string | null) || joined || 'Customer'
+  const email = (admin?.email as string | null) ?? null
+  return { email, name, facilityName }
+}
+
+async function dispatchPaymentReceipt(input: {
+  payment: PaymentRecord
+  invoiceNo: string
+  planName: string | null
+  method: string | null
+}): Promise<void> {
+  const contact = await resolveTenantBillingContact(input.payment.tenant_id)
+  if (!contact.email) return
+
+  const periodLabel =
+    input.payment.period_start && input.payment.period_end
+      ? `${kampalaDateLabel(input.payment.period_start)} – ${kampalaDateLabel(input.payment.period_end)}`
+      : null
+
+  const { sendPaymentReceipt } = await import('@synapse/email')
+  await sendPaymentReceipt({
+    to: contact.email,
+    receiptNo: input.invoiceNo,
+    customerName: contact.name,
+    customerEmail: contact.email,
+    facilityName: contact.facilityName,
+    planName: input.planName ?? 'Subscription',
+    amountLabel: formatUgx(Number(input.payment.amount_ugx ?? 0)),
+    periodLabel,
+    issuedAtLabel: kampalaDateLabel(new Date().toISOString()),
+    methodLabel: input.method ?? 'Flutterwave',
+    ctaUrl: 'https://pharm.synapseos.tech/portal/billing',
+    ctaLabel: 'View billing →',
+  })
+
+  await db()
+    .from('subscription_invoices')
+    .update({
+      metadata: {
+        type: 'subscription_payment',
+        customer_email: contact.email,
+        customer_name: contact.name,
+        facility_name: contact.facilityName,
+        plan_name: input.planName,
+        method: input.method ?? 'Flutterwave',
+      },
+    })
+    .eq('invoice_no', input.invoiceNo)
+}
+
+export type TrialReceiptInput = {
+  tenantId: string
+  planId: string | null
+  planName: string
+  trialEnds: string
+  customerName: string
+  customerEmail: string
+  facilityName: string
+}
+
+/**
+ * Issue a TRIAL-YYYYMMDD-#### receipt for successful free-trial registration
+ * and email it. Best-effort — registration must never fail because of this.
+ */
+export async function recordAndSendTrialReceipt(input: TrialReceiptInput): Promise<string | null> {
+  const ymd = kampalaDateYMD()
+  let receiptNo: string | null = null
+
+  const { count, error: countErr } = await db()
+    .from('subscription_invoices')
+    .select('id', { count: 'exact', head: true })
+    .like('invoice_no', `TRIAL-${ymd}-%`)
+
+  if (!countErr) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate = `TRIAL-${ymd}-${String((count ?? 0) + 1 + attempt).padStart(4, '0')}`
+      const { error: insErr } = await db().from('subscription_invoices').insert({
+        tenant_id: input.tenantId,
+        payment_id: null,
+        plan_id: input.planId,
+        invoice_no: candidate,
+        amount_ugx: 0,
+        currency: 'UGX',
+        period_start: new Date().toISOString(),
+        period_end: input.trialEnds,
+        metadata: {
+          type: 'free_trial',
+          customer_email: input.customerEmail,
+          customer_name: input.customerName,
+          facility_name: input.facilityName,
+          plan_name: input.planName,
+        },
+      })
+      if (!insErr) {
+        receiptNo = candidate
+        break
+      }
+      if (insErr.code !== '23505') break
+    }
+  }
+
+  if (!receiptNo) {
+    receiptNo = `TRIAL-${ymd}-${String(Date.now()).slice(-4)}`
+  }
+
+  try {
+    const { sendTrialReceipt } = await import('@synapse/email')
+    await sendTrialReceipt({
+      to: input.customerEmail,
+      receiptNo,
+      customerName: input.customerName,
+      customerEmail: input.customerEmail,
+      facilityName: input.facilityName,
+      planName: input.planName,
+      periodLabel: `Trial ends ${kampalaDateLabel(input.trialEnds)}`,
+      issuedAtLabel: kampalaDateLabel(new Date().toISOString()),
+      lines: [{ label: 'Status', value: 'Free trial active' }],
+      ctaUrl: 'https://pharm.synapseos.tech/portal/dashboard',
+      ctaLabel: 'Open pharmacy dashboard →',
+    })
+  } catch (err) {
+    console.error('[billing] trial receipt email failed:', err)
+  }
+
+  return receiptNo
+}
+
+export type SubscriptionInvoiceRow = {
+  id: string
+  tenant_id: string
+  payment_id: string | null
+  plan_id: string | null
+  invoice_no: string
+  amount_ugx: number
+  currency: string
+  period_start: string | null
+  period_end: string | null
+  issued_at: string
+  metadata: Record<string, unknown>
+  tenant_name?: string
+  plan_name?: string | null
+}
+
+export async function listSubscriptionInvoices(limit = 200): Promise<SubscriptionInvoiceRow[]> {
+  const { data } = await db()
+    .from('subscription_invoices')
+    .select(`
+      id, tenant_id, payment_id, plan_id, invoice_no, amount_ugx, currency,
+      period_start, period_end, issued_at, metadata,
+      tenants ( name ),
+      subscription_plans ( name )
+    `)
+    .order('issued_at', { ascending: false })
+    .limit(limit)
+
+  return ((data ?? []) as Array<
+    SubscriptionInvoiceRow & {
+      tenants?: { name?: string }
+      subscription_plans?: { name?: string } | null
+    }
+  >).map((row) => ({
+    id: row.id,
+    tenant_id: row.tenant_id,
+    payment_id: row.payment_id,
+    plan_id: row.plan_id,
+    invoice_no: row.invoice_no,
+    amount_ugx: Number(row.amount_ugx ?? 0),
+    currency: row.currency,
+    period_start: row.period_start,
+    period_end: row.period_end,
+    issued_at: row.issued_at,
+    metadata: (row.metadata ?? {}) as Record<string, unknown>,
+    tenant_name: row.tenants?.name,
+    plan_name: row.subscription_plans?.name ?? (row.metadata?.plan_name as string | undefined) ?? null,
+  }))
+}
+
+export async function getSubscriptionInvoice(id: string): Promise<SubscriptionInvoiceRow | null> {
+  const { data } = await db()
+    .from('subscription_invoices')
+    .select(`
+      id, tenant_id, payment_id, plan_id, invoice_no, amount_ugx, currency,
+      period_start, period_end, issued_at, metadata,
+      tenants ( name ),
+      subscription_plans ( name )
+    `)
+    .eq('id', id)
+    .maybeSingle()
+
+  if (!data) return null
+  const row = data as SubscriptionInvoiceRow & {
+    tenants?: { name?: string }
+    subscription_plans?: { name?: string } | null
+  }
+  return {
+    id: row.id,
+    tenant_id: row.tenant_id,
+    payment_id: row.payment_id,
+    plan_id: row.plan_id,
+    invoice_no: row.invoice_no,
+    amount_ugx: Number(row.amount_ugx ?? 0),
+    currency: row.currency,
+    period_start: row.period_start,
+    period_end: row.period_end,
+    issued_at: row.issued_at,
+    metadata: (row.metadata ?? {}) as Record<string, unknown>,
+    tenant_name: row.tenants?.name,
+    plan_name: row.subscription_plans?.name ?? (row.metadata?.plan_name as string | undefined) ?? null,
+  }
 }
 
 export async function handleFlutterwaveWebhook(payload: {

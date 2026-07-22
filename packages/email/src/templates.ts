@@ -146,3 +146,115 @@ export function billingNoticeHtml(params: BillingNoticeParams): string {
     </p>
   `)
 }
+
+// ── Official receipts (payment + free trial) ─────────────────────────────────
+
+export type ReceiptLine = { label: string; value: string }
+
+export type ReceiptHtmlParams = {
+  receiptNo: string
+  kind: 'payment' | 'trial'
+  customerName: string
+  customerEmail: string
+  facilityName: string
+  planName: string
+  amountLabel: string
+  currency?: string
+  periodLabel?: string | null
+  issuedAtLabel: string
+  methodLabel?: string | null
+  lines?: ReceiptLine[]
+  ctaUrl?: string
+  ctaLabel?: string
+}
+
+/** Clear, printable-style receipt with Synapse logo (via branded shell). */
+export function receiptHtml(params: ReceiptHtmlParams): string {
+  const isTrial = params.kind === 'trial'
+  const title = isTrial ? 'Free trial confirmation' : 'Payment receipt'
+  const badge = isTrial ? 'TRIAL' : 'PAID'
+  const badgeColor = isTrial ? '#E8B84B' : '#22C55E'
+  const extraRows = (params.lines ?? [])
+    .map(
+      (line) => `
+      <tr>
+        <td style="padding:8px 0;font-size:13px;color:${MUTED};border-bottom:1px solid rgba(255,255,255,0.06);">${line.label}</td>
+        <td style="padding:8px 0;font-size:13px;color:#F5F5F7;text-align:right;border-bottom:1px solid rgba(255,255,255,0.06);">${line.value}</td>
+      </tr>`,
+    )
+    .join('')
+
+  const cta =
+    params.ctaUrl && params.ctaLabel
+      ? `<a href="${params.ctaUrl}"
+         style="display:inline-block;background:${ORANGE};color:#07070A;font-weight:700;
+                font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;margin-top:8px;">
+         ${params.ctaLabel}
+       </a>`
+      : ''
+
+  return brandedHtml(`
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 8px;">
+      <h2 style="margin:0;font-size:20px;font-weight:700;color:#F5F5F7;">${title}</h2>
+      <span style="display:inline-block;font-size:11px;font-weight:700;letter-spacing:0.12em;
+                   color:${badgeColor};border:1px solid ${badgeColor}55;border-radius:999px;padding:4px 10px;">
+        ${badge}
+      </span>
+    </div>
+    <p style="font-size:13px;color:${DIM};margin:0 0 20px;font-family:monospace;">
+      ${params.receiptNo} · Issued ${params.issuedAtLabel}
+    </p>
+    <p style="font-size:14px;line-height:1.7;color:${MUTED};margin:0 0 20px;">
+      Hello ${params.customerName || 'there'},<br/>
+      ${
+        isTrial
+          ? `Your free trial of <strong style="color:#F5F5F7;">Synapse Pharm</strong> for
+             <strong style="color:#F5F5F7;">${params.facilityName}</strong> is active.`
+          : `Thank you. We received your subscription payment for
+             <strong style="color:#F5F5F7;">${params.facilityName}</strong>.`
+      }
+    </p>
+    <div style="background:#1A1A24;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:20px;margin:0 0 20px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+        <tr>
+          <td style="padding:8px 0;font-size:13px;color:${MUTED};border-bottom:1px solid rgba(255,255,255,0.06);">Facility</td>
+          <td style="padding:8px 0;font-size:13px;color:#F5F5F7;text-align:right;border-bottom:1px solid rgba(255,255,255,0.06);">${params.facilityName}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 0;font-size:13px;color:${MUTED};border-bottom:1px solid rgba(255,255,255,0.06);">Plan</td>
+          <td style="padding:8px 0;font-size:13px;color:#F5F5F7;text-align:right;border-bottom:1px solid rgba(255,255,255,0.06);">${params.planName}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 0;font-size:13px;color:${MUTED};border-bottom:1px solid rgba(255,255,255,0.06);">Amount</td>
+          <td style="padding:8px 0;font-size:18px;font-weight:700;color:${ORANGE};text-align:right;border-bottom:1px solid rgba(255,255,255,0.06);">${params.amountLabel}</td>
+        </tr>
+        ${
+          params.periodLabel
+            ? `<tr>
+          <td style="padding:8px 0;font-size:13px;color:${MUTED};border-bottom:1px solid rgba(255,255,255,0.06);">Period</td>
+          <td style="padding:8px 0;font-size:13px;color:#F5F5F7;text-align:right;border-bottom:1px solid rgba(255,255,255,0.06);">${params.periodLabel}</td>
+        </tr>`
+            : ''
+        }
+        ${
+          params.methodLabel
+            ? `<tr>
+          <td style="padding:8px 0;font-size:13px;color:${MUTED};border-bottom:1px solid rgba(255,255,255,0.06);">Method</td>
+          <td style="padding:8px 0;font-size:13px;color:#F5F5F7;text-align:right;border-bottom:1px solid rgba(255,255,255,0.06);">${params.methodLabel}</td>
+        </tr>`
+            : ''
+        }
+        <tr>
+          <td style="padding:8px 0;font-size:13px;color:${MUTED};border-bottom:1px solid rgba(255,255,255,0.06);">Billed to</td>
+          <td style="padding:8px 0;font-size:13px;color:#F5F5F7;text-align:right;border-bottom:1px solid rgba(255,255,255,0.06);">${params.customerEmail}</td>
+        </tr>
+        ${extraRows}
+      </table>
+    </div>
+    ${cta}
+    <p style="font-size:12px;color:${DIM};margin:20px 0 0;">
+      Synapse Health Technologies Ltd · Official receipt<br/>
+      Keep this email for your records. Questions? support@synapseos.tech
+    </p>
+  `)
+}

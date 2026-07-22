@@ -19,9 +19,11 @@ import {
   Menu,
   Pill,
   Radio,
+  Receipt,
   Search,
   Settings,
   ShieldCheck,
+  TrendingUp,
   UserRound,
   Users,
   X,
@@ -59,6 +61,7 @@ const SIDEBAR_SECTIONS: NavSection[] = [
     caption: "Growth",
     items: [
       { href: "/platform/applications", label: "Applications", icon: Kanban },
+      { href: "/platform/sales", label: "Sales Pipeline", icon: TrendingUp },
       { href: "/platform/hospitals", label: "Facilities", icon: Building2 },
       { href: "/platform/users", label: "Users & Professionals", icon: Users },
     ],
@@ -73,7 +76,10 @@ const SIDEBAR_SECTIONS: NavSection[] = [
   },
   {
     caption: "Money",
-    items: [{ href: "/platform/billing", label: "Revenue & Billing", icon: CreditCard }],
+    items: [
+      { href: "/platform/billing", label: "Revenue & Billing", icon: CreditCard },
+      { href: "/platform/receipts", label: "Receipts", icon: Receipt },
+    ],
   },
   {
     caption: "Intelligence",
@@ -191,7 +197,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
       {/* Sidebar — fixed height, scrolls independently */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r border-subtle bg-[#0a0a0f] transition-transform lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r border-subtle bg-[#0a0a0f] transition-transform print:hidden lg:static lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -264,7 +270,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
       {/* Main column — header fixed, content scrolls independently */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-subtle bg-[var(--nav-glass)] px-4 backdrop-blur lg:px-6">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-subtle bg-[var(--nav-glass)] px-4 backdrop-blur print:hidden lg:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"

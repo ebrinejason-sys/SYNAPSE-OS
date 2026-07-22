@@ -41,11 +41,11 @@ export const synapseTheme = {
       },
     },
     fontFamily: {
-      // Brand type system (matches apps/pharmacy and the design brief):
-      // Bricolage Grotesque for display, IBM Plex Mono for clinical/data labels.
-      sans:    ["DM Sans", "Inter", "system-ui", "sans-serif"],
-      display: ["Bricolage Grotesque", "DM Sans", "sans-serif"],
-      mono:    ["IBM Plex Mono", "ui-monospace", "monospace"],
+      // Canonical Synapse type system (web · pharmacy · mobile):
+      // Bricolage Grotesque (display) · DM Sans (body) · IBM Plex Mono (data).
+      sans:    ["var(--font-dm-sans)", "DM Sans", "system-ui", "sans-serif"],
+      display: ["var(--font-bricolage)", "Bricolage Grotesque", "DM Sans", "sans-serif"],
+      mono:    ["var(--font-ibm-plex-mono)", "IBM Plex Mono", "ui-monospace", "monospace"],
       clinical: ["Source Serif 4", "serif"],
     },
     fontSize: {

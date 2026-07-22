@@ -1,7 +1,7 @@
 'use server'
 
 import { supabaseAdmin } from '@synapse/db/admin'
-import { hashPassword } from '@synapse/auth'
+import { hashPassword, recordAndSendTrialReceipt } from '@synapse/auth'
 import { requirePlatformAdmin } from '../../../../lib/platform/auth'
 import { Resend } from 'resend'
 
@@ -204,7 +204,7 @@ export async function provisionPharmacy(input: PharmacyProvisionInput): Promise<
   try {
     let { data: planRow } = await db
       .from('subscription_plans')
-      .select('id')
+      .select('id, name, slug')
       .eq('slug', 'pharmacy_starter')
       .eq('is_active', true)
       .maybeSingle()
@@ -212,7 +212,7 @@ export async function provisionPharmacy(input: PharmacyProvisionInput): Promise<
     if (!planRow) {
       const { data: anyPharmacyPlan } = await db
         .from('subscription_plans')
-        .select('id')
+        .select('id, name, slug')
         .eq('facility_type', 'pharmacy')
         .eq('is_active', true)
         .order('price_ugx', { ascending: true })
@@ -237,6 +237,16 @@ export async function provisionPharmacy(input: PharmacyProvisionInput): Promise<
         },
         { onConflict: 'tenant_id' },
       )
+
+      await recordAndSendTrialReceipt({
+        tenantId: tenant.id,
+        planId: planRow.id,
+        planName: planRow.name ?? planRow.slug ?? 'Pharmacy trial',
+        trialEnds: trialEnd.toISOString(),
+        customerName: input.adminFullName.trim(),
+        customerEmail: input.adminEmail.trim().toLowerCase(),
+        facilityName: input.name.trim(),
+      }).catch((err) => console.error('[provision] trial receipt failed:', err))
     }
   } catch { /* non-fatal */ }
 

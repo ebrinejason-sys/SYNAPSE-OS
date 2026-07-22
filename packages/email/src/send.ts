@@ -1,6 +1,14 @@
 // packages/email/src/send.ts
 import { getResend, FROM_ADDRESS } from './client'
-import { otpHtml, inviteHtml, passwordResetHtml, welcomeHtml, billingNoticeHtml } from './templates'
+import {
+  otpHtml,
+  inviteHtml,
+  passwordResetHtml,
+  welcomeHtml,
+  billingNoticeHtml,
+  receiptHtml,
+  type ReceiptHtmlParams,
+} from './templates'
 
 export async function sendOTP(params: {
   to: string
@@ -167,6 +175,37 @@ export async function sendSuspensionNotice(params: {
       ctaUrl: params.payUrl,
       ctaLabel: 'Reactivate now',
       tone: 'critical',
+    }),
+  })
+}
+
+// ── Receipts ─────────────────────────────────────────────────────────────────
+
+export async function sendPaymentReceipt(
+  params: Omit<ReceiptHtmlParams, 'kind'> & { to: string },
+): Promise<void> {
+  await getResend().emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    subject: `Receipt ${params.receiptNo} — ${params.facilityName}`,
+    html: receiptHtml({ ...params, kind: 'payment' }),
+  })
+}
+
+export async function sendTrialReceipt(
+  params: Omit<ReceiptHtmlParams, 'kind' | 'amountLabel'> & {
+    to: string
+    amountLabel?: string
+  },
+): Promise<void> {
+  await getResend().emails.send({
+    from: FROM_ADDRESS,
+    to: params.to,
+    subject: `Trial confirmation ${params.receiptNo} — ${params.facilityName}`,
+    html: receiptHtml({
+      ...params,
+      kind: 'trial',
+      amountLabel: params.amountLabel ?? 'UGX 0 (free trial)',
     }),
   })
 }

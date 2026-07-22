@@ -91,14 +91,13 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* Pharm type system — Syne for headings, Outfit for body,
-     IBM Plex Mono for labels / receipt-adjacent UI. */
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-syne), var(--font-outfit), system-ui, sans-serif;
+  /* Synapse type system — Bricolage display, DM Sans body, IBM Plex Mono data. */
+  h1, h2, h3, h4, h5, h6, .font-display {
+    font-family: var(--font-bricolage), "Bricolage Grotesque", "DM Sans", sans-serif;
   }
 
-  code, pre, .mono {
-    font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  code, pre, .mono, .font-mono {
+    font-family: var(--font-ibm-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
   }
 
   ::-webkit-scrollbar       { width: 6px; height: 6px; }

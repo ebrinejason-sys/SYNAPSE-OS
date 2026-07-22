@@ -2,7 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { verifyToken } from '@synapse/auth/tokens'
 import { SESSION_COOKIE } from '@synapse/config/constants'
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "").split(",").map((e) => e.trim()).filter(Boolean);
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
 
 type PharmacyDomainLookup = {
   tenant_id?: string | null;
@@ -218,13 +221,17 @@ export async function middleware(request: NextRequest) {
 
     const { valid: synapseValid } = await hasSynapseSession(request)
 
-    if (synapseValid && ADMIN_EMAILS.length > 0 && !isAuthPage) {
+    if (synapseValid && !isAuthPage) {
       const token = request.cookies.get(SESSION_COOKIE)?.value;
       if (token) {
         try {
           const payload = await verifyToken(token);
-          // platform_admin role is the canonical gate; email list is a secondary allow-list
-          if (payload.role !== 'platform_admin' && !ADMIN_EMAILS.includes(payload.email)) {
+          const emailAllow =
+            ADMIN_EMAILS.length > 0 &&
+            typeof payload.email === "string" &&
+            ADMIN_EMAILS.includes(payload.email.toLowerCase());
+          // Always require platform_admin (or ADMIN_EMAILS allow-list when configured)
+          if (payload.role !== "platform_admin" && !emailAllow) {
             const url = request.nextUrl.clone();
             url.pathname = "/platform/login";
             url.searchParams.set("error", "unauthorized");

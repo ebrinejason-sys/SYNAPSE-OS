@@ -39,6 +39,8 @@ export {
   listSubscriptionPayments,
   listAllPayments,
   listActivePharmacyPlans,
+  listSubscriptionInvoices,
+  getSubscriptionInvoice,
   initiateSubscriptionPayment,
   confirmSubscriptionPayment,
   handleFlutterwaveWebhook,
@@ -48,6 +50,7 @@ export {
   kampalaStamp,
   kampalaDateYMD,
   kampalaMidnightUtc,
+  recordAndSendTrialReceipt,
 } from './billing/subscription'
 export type {
   SubscriptionStatus,
@@ -58,6 +61,8 @@ export type {
   ConfirmPaymentInput,
   ConfirmPaymentResult,
   BillingCycle,
+  TrialReceiptInput,
+  SubscriptionInvoiceRow,
 } from './billing/subscription'
 export {
   evaluateEntitlement,

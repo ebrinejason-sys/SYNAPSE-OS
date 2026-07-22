@@ -1,18 +1,18 @@
 import type { Metadata } from "next"
-import { IBM_Plex_Mono, Outfit, Syne } from "next/font/google"
+import { Bricolage_Grotesque, DM_Sans, IBM_Plex_Mono } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 
-const outfit = Outfit({
+const dmSans = DM_Sans({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-outfit",
+  variable: "--font-dm-sans",
 })
 
-const syne = Syne({
+const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-syne",
+  variable: "--font-bricolage",
 })
 
 const ibmPlexMono = IBM_Plex_Mono({
@@ -35,7 +35,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-theme="dark"
-      className={`dark scroll-smooth ${outfit.variable} ${syne.variable} ${ibmPlexMono.variable}`}
+      className={`dark scroll-smooth ${dmSans.variable} ${bricolage.variable} ${ibmPlexMono.variable}`}
       suppressHydrationWarning
     >
       <head>
