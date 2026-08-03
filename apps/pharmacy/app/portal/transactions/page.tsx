@@ -42,6 +42,7 @@ interface Transaction {
   paymentMethod: string
   isEdited?: boolean
   createdAt: string
+  source?: "pos" | "order"
   user: {
     name: string
   }
@@ -269,6 +270,10 @@ export default function TransactionsPage() {
 
   // Start editing a transaction
   const startEditTransaction = (transaction: Transaction) => {
+    if (transaction.source === "pos") {
+      alert("POS sales are append-only. Use Refunds/Void to reverse stock and cash.")
+      return
+    }
     setEditingTransaction(transaction)
     setEditItems(transaction.items.map(item => ({
       id: item.id,
@@ -623,6 +628,7 @@ export default function TransactionsPage() {
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
+                      {transaction.source !== "pos" && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -632,6 +638,7 @@ export default function TransactionsPage() {
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"

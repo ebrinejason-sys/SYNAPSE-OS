@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
+  Download,
   FlaskConical,
   Pill,
   Shield,
@@ -13,14 +14,16 @@ import {
 } from 'lucide-react'
 import { AnimatedCounter } from './AnimatedCounter'
 import { AvatarCluster } from './AvatarCluster'
+import { LandingParticleField } from './LandingParticleField'
+import { BodyText, DisplayHeading, Eyebrow, LeadText } from '../typography'
 
 const COMPLIANCE = [
-  'FHIR R4',
   'ICD-11 coding',
-  'DHIS2 exports',
   'DPPA 2019 aligned',
   'Postgres RLS',
   'Clinician-in-the-loop AI',
+  'Audit logging',
+  'FHIR roadmap',
 ]
 
 const PREVIEW_CARDS = [
@@ -50,6 +53,7 @@ const PREVIEW_CARDS = [
 const LIVE_SURFACES = [
   { label: 'AI diagnostic demo', href: 'https://demo.synapseos.tech', status: 'Live' },
   { label: 'Pharmacy POS', href: 'https://pharm.synapseos.tech', status: 'Live' },
+  { label: 'Android APK', href: '/download/android', status: 'Download' },
   { label: 'Personal health app', href: 'https://app.synapseos.tech', status: 'Sign up' },
 ]
 
@@ -61,43 +65,50 @@ export function LandingHero() {
       <div className="landing-hero-bg" aria-hidden />
       <div className="landing-hero-grid" aria-hidden />
       <div className="landing-hero-aurora" aria-hidden />
+      <LandingParticleField />
 
-      <div className="landing-container grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
+      <div className="landing-container relative z-[1] grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
         <div>
-          <motion.p
+          <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45 }}
-            className="landing-eyebrow shimmer-sweep mb-6"
+            className="mb-6"
           >
-            Health management platform · Kampala, Uganda
-          </motion.p>
+            <Eyebrow className="shimmer-sweep">
+              Health management platform · Kampala, Uganda
+            </Eyebrow>
+          </motion.div>
 
-          <motion.h1
+          <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.05 }}
-            className="landing-hero-title mb-6"
+            className="mb-6"
           >
-            Unified records for{' '}
-            <span className="shimmer-text">hospitals</span>, pharmacy operations, and patient access.
-          </motion.h1>
+            <DisplayHeading size="xl" className="landing-hero-title !max-w-none">
+              Unified records for{' '}
+              <span className="shimmer-text">hospitals</span>, pharmacy operations, and patient access.
+            </DisplayHeading>
+          </motion.div>
 
-          <motion.p
+          <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="landing-lead mb-8 max-w-xl text-lg"
+            className="mb-8"
           >
-            SynapseOS connects OPD, wards, laboratory, pharmacy POS, insurance claims, and telemedicine on
-            a single tenant, with Uganda Clinical Guidelines in the workflow and audit logs from day one.
-          </motion.p>
+            <LeadText>
+              SynapseOS connects OPD, wards, laboratory, pharmacy POS, insurance claims, and telemedicine on
+              a single tenant, with Uganda Clinical Guidelines in the workflow and audit logs from day one.
+            </LeadText>
+          </motion.div>
 
           <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.15 }}
-            className="mb-10 flex flex-wrap items-center gap-3"
+            className="mb-4 flex flex-wrap items-center gap-3"
           >
             <a
               href="https://demo.synapseos.tech"
@@ -108,6 +119,13 @@ export function LandingHero() {
               Open live demo
               <ArrowRight className="h-4 w-4" />
             </a>
+            <a
+              href="/download/android"
+              className="landing-btn-secondary inline-flex items-center gap-2 px-6 py-3.5"
+            >
+              <Download className="h-4 w-4" style={{ color: 'var(--brand-teal)' }} />
+              Download Android APK
+            </a>
             <Link
               href="/apply"
               className="landing-btn-secondary inline-flex items-center gap-2 px-6 py-3.5"
@@ -116,6 +134,9 @@ export function LandingHero() {
               Apply for hospital pilot
             </Link>
           </motion.div>
+          <p className="mb-10 text-caption" style={{ color: 'var(--text-muted)' }}>
+            Preview APK for staff &amp; pharmacy roles · sideload on Android · updates via Expo builds
+          </p>
 
           <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 12 }}
@@ -133,9 +154,11 @@ export function LandingHero() {
             className="mb-10 grid gap-2 sm:grid-cols-2"
           >
             {COMPLIANCE.map((item) => (
-              <li key={item} className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              <li key={item} className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: 'var(--brand-teal)' }} />
-                {item}
+                <BodyText as="span" size="sm" className="!max-w-none">
+                  {item}
+                </BodyText>
               </li>
             ))}
           </motion.ul>
@@ -156,9 +179,9 @@ export function LandingHero() {
                 <AnimatedCounter
                   value={stat.v}
                   suffix={stat.suffix}
-                  className="font-display text-2xl font-bold tracking-tight"
+                  className="font-display text-heading-2 tabular-nums tracking-tight"
                 />
-                <p className="mt-1 text-xs leading-snug" style={{ color: 'var(--text-muted)' }}>
+                <p className="mt-1 text-caption leading-snug" style={{ color: 'var(--text-muted)' }}>
                   {stat.l}
                 </p>
               </div>
@@ -175,7 +198,7 @@ export function LandingHero() {
           <div className="landing-preview landing-preview-float">
             <div className="landing-preview-header">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'var(--text-muted)' }}>
+                <p className="type-overline" style={{ color: 'var(--text-muted)' }}>
                   Clinical operating layer
                 </p>
                 <p className="mt-1 text-sm font-medium">Mulago General · Tenant dashboard</p>
@@ -216,7 +239,7 @@ export function LandingHero() {
         </motion.div>
       </div>
 
-      <div className="landing-container mt-14 border-t pt-8" style={{ borderColor: 'var(--border-subtle)' }}>
+      <div className="landing-container relative z-[1] mt-14 border-t pt-8" style={{ borderColor: 'var(--border-subtle)' }}>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
             Try now

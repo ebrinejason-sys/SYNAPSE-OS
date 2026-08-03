@@ -1,5 +1,2 @@
-import { NextResponse } from "next/server";
-
-export async function GET() {
-  return NextResponse.json({ success: true, message: "FHIR endpoint active" });
-}
+import { GET, POST } from "../../_lib/not-ready";
+export { GET, POST };

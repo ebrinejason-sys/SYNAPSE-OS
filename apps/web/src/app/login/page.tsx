@@ -570,7 +570,7 @@ function LoginContent() {
 
           {/* Trust line */}
           <div className="mt-10 pt-6 flex items-center justify-center gap-4" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-            {['DPPA 2019', 'Encrypted', 'FHIR R4'].map(t => (
+            {['DPPA 2019', 'Encrypted', 'Audit-ready'].map(t => (
               <span key={t} className="text-xs" style={{ color: 'var(--text-muted)' }}>✓ {t}</span>
             ))}
           </div>

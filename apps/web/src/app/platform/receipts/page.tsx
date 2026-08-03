@@ -4,6 +4,7 @@ import Link from "next/link";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
 import { formatDateTime } from "../_lib/platform-data";
 import { clearAuthorizedSignature, uploadAuthorizedSignature } from "./actions";
+import { DeleteDocumentLink } from "./_components/delete-document-link";
 import { getDocumentSettings } from "./_lib/document-settings";
 import { formatMoneyUGX, listPlatformBillingDocuments } from "./_lib/documents";
 
@@ -22,21 +23,34 @@ function kindLabel(kind: string) {
 }
 
 const FLASH: Record<string, string> = {
-  signature: "Authorized signature saved. It will appear on new receipts and invoices.",
+  signature: "Signer details saved. New receipts and invoices will use this signature.",
   signature_cleared: "Reverted to the bundled CEO signature.",
   signature_required: "Choose a signature image to upload.",
   signature_type: "Use PNG, JPG, WebP, or SVG.",
   signature_too_large: "Signature file is too large (max ~900KB).",
   signature_save: "Could not save the signature. Check the database migration is applied.",
+  deleted: "Document deleted.",
+  delete: "Could not delete the document.",
 };
+
+type FilterKind = "all" | "receipt" | "invoice" | "payment" | "trial";
 
 export default async function PlatformReceiptsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; error?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; kind?: string; q?: string }>;
 }) {
   await requirePlatformAdmin();
   const params = await searchParams;
+  const filter: FilterKind =
+    params.kind === "receipt" ||
+    params.kind === "invoice" ||
+    params.kind === "payment" ||
+    params.kind === "trial"
+      ? params.kind
+      : "all";
+  const q = (params.q ?? "").trim().toLowerCase();
+
   const [docs, settings] = await Promise.all([
     listPlatformBillingDocuments(250),
     getDocumentSettings(),
@@ -49,6 +63,34 @@ export default async function PlatformReceiptsPage({
   const invoicesOnly = docs.filter((row) => row.kind === "invoice");
   const trials = docs.filter((row) => row.kind === "trial");
   const collected = paid.reduce((sum, row) => sum + Number(row.amount_ugx ?? 0), 0);
+
+  const filtered = docs.filter((doc) => {
+    if (filter === "receipt") {
+      if (doc.kind !== "receipt" && doc.kind !== "payment") return false;
+    } else if (filter !== "all" && doc.kind !== filter) {
+      return false;
+    }
+    if (!q) return true;
+    const hay = [
+      doc.document_no,
+      doc.facility_name,
+      doc.customer_name,
+      doc.customer_email,
+      doc.description,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return hay.includes(q);
+  });
+
+  const filters: { key: FilterKind; label: string; href: string }[] = [
+    { key: "all", label: "All", href: "/platform/receipts" },
+    { key: "receipt", label: "Receipts", href: "/platform/receipts?kind=receipt" },
+    { key: "invoice", label: "Invoices", href: "/platform/receipts?kind=invoice" },
+    { key: "payment", label: "Payments", href: "/platform/receipts?kind=payment" },
+    { key: "trial", label: "Trials", href: "/platform/receipts?kind=trial" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -94,7 +136,8 @@ export default async function PlatformReceiptsPage({
             <h2 className="text-sm font-semibold">Authorized signature</h2>
             <p className="mt-1 text-xs text-slate-500">
               Default signatory: <span className="text-slate-300">Ebrine Tushabe — CEO, Synapse OS</span>.
-              The document date under the signature is filled automatically on issue.
+              Save name/title anytime — image upload is optional. Date under the signature is filled
+              automatically on issue.
             </p>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -130,7 +173,6 @@ export default async function PlatformReceiptsPage({
               name="signature"
               type="file"
               accept="image/png,image/jpeg,image/webp,image/svg+xml"
-              required
               className="w-full rounded-xl border border-slate-700 bg-[#07070A] px-3 py-2 text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-[#F97316]/15 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-[#F97316]"
             />
           </label>
@@ -139,7 +181,7 @@ export default async function PlatformReceiptsPage({
               type="submit"
               className="rounded-xl border border-[#E8B84B]/40 bg-[#E8B84B]/10 px-4 py-2 text-sm font-semibold text-[#E8B84B]"
             >
-              Save signature
+              Save
             </button>
           </div>
         </form>
@@ -154,15 +196,31 @@ export default async function PlatformReceiptsPage({
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ["All documents", docs.length.toLocaleString()],
-          ["Collected (receipts)", formatMoneyUGX(collected)],
-          ["Invoices", invoicesOnly.length.toLocaleString()],
-          ["Trial receipts", trials.length.toLocaleString()],
-        ].map(([label, value]) => (
-          <article key={label} className="rounded-xl border border-slate-800 bg-[#111117] p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-            <p className="mt-2 text-xl font-bold text-[#F97316]">{value}</p>
-          </article>
+          { label: "All documents", value: docs.length.toLocaleString(), href: "/platform/receipts" },
+          {
+            label: "Collected (receipts)",
+            value: formatMoneyUGX(collected),
+            href: "/platform/receipts?kind=receipt",
+          },
+          {
+            label: "Invoices",
+            value: invoicesOnly.length.toLocaleString(),
+            href: "/platform/receipts?kind=invoice",
+          },
+          {
+            label: "Trial receipts",
+            value: trials.length.toLocaleString(),
+            href: "/platform/receipts?kind=trial",
+          },
+        ].map((card) => (
+          <Link
+            key={card.label}
+            href={card.href}
+            className="rounded-xl border border-slate-800 bg-[#111117] p-4 transition hover:border-slate-600"
+          >
+            <p className="text-xs uppercase tracking-wide text-slate-500">{card.label}</p>
+            <p className="mt-2 text-xl font-bold text-[#F97316]">{card.value}</p>
+          </Link>
         ))}
       </section>
 
@@ -182,12 +240,44 @@ export default async function PlatformReceiptsPage({
           </Link>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 px-4 py-3">
+          {filters.map((f) => (
+            <Link
+              key={f.key}
+              href={q ? `${f.href}${f.href.includes("?") ? "&" : "?"}q=${encodeURIComponent(q)}` : f.href}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                filter === f.key
+                  ? "border border-[#F97316]/40 bg-[#F97316]/10 text-[#F97316]"
+                  : "border border-slate-700 text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              {f.label}
+            </Link>
+          ))}
+          <form className="ml-auto flex min-w-[200px] flex-1 max-w-sm gap-2" method="get">
+            {filter !== "all" ? <input type="hidden" name="kind" value={filter} /> : null}
+            <input
+              name="q"
+              defaultValue={params.q ?? ""}
+              placeholder="Search number, facility, customer…"
+              className="w-full rounded-xl border border-slate-700 bg-[#07070A] px-3 py-1.5 text-xs text-slate-200"
+            />
+            <button
+              type="submit"
+              className="rounded-xl border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300"
+            >
+              Search
+            </button>
+          </form>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-[#07070A] text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-3">Number</th>
                 <th className="px-4 py-3">Facility</th>
+                <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Description</th>
                 <th className="px-4 py-3">Amount</th>
                 <th className="px-4 py-3">Issued</th>
@@ -196,10 +286,11 @@ export default async function PlatformReceiptsPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
-              {docs.map((doc) => (
+              {filtered.map((doc) => (
                 <tr key={`${doc.source}-${doc.id}`}>
                   <td className="px-4 py-3 font-mono text-xs text-slate-200">{doc.document_no}</td>
                   <td className="px-4 py-3 font-medium text-slate-100">{doc.facility_name}</td>
+                  <td className="px-4 py-3 text-slate-300">{doc.customer_name ?? "—"}</td>
                   <td className="px-4 py-3 text-slate-300">{doc.description ?? "—"}</td>
                   <td className="px-4 py-3 text-slate-300">
                     {doc.kind === "trial" ? "UGX 0" : formatMoneyUGX(Number(doc.amount_ugx ?? 0))}
@@ -211,19 +302,34 @@ export default async function PlatformReceiptsPage({
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <Link
-                      href={`/platform/receipts/${doc.id}`}
-                      className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-[#E8B84B] hover:border-[#E8B84B]/40"
-                    >
-                      View
-                    </Link>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Link
+                        href={`/platform/receipts/${doc.id}`}
+                        className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-[#E8B84B] hover:border-[#E8B84B]/40"
+                      >
+                        View
+                      </Link>
+                      <Link
+                        href={`/platform/receipts/${doc.id}/edit`}
+                        className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:border-slate-500"
+                      >
+                        Edit
+                      </Link>
+                      <DeleteDocumentLink
+                        id={doc.id}
+                        source={doc.source}
+                        documentNo={doc.document_no}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}
-              {docs.length === 0 ? (
+              {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
-                    No documents yet. Create a receipt or invoice to get started.
+                  <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
+                    {docs.length === 0
+                      ? "No documents yet. Create a receipt or invoice to get started."
+                      : "No documents match this filter."}
                   </td>
                 </tr>
               ) : null}

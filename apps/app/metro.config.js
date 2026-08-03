@@ -13,6 +13,8 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ]
-config.resolver.disableHierarchicalLookup = true
+// Allow nested package deps (e.g. react-native → scheduler) on EAS,
+// where monorepo hoisting differs from local installs.
+config.resolver.disableHierarchicalLookup = false
 
 module.exports = config

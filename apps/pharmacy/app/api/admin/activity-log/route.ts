@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePharmacyAdmin } from "@/lib/api-auth"
+import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 const db = supabaseAdmin as any
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requirePharmacyAdmin()
+    const auth = await requirePharmacyPermission("audit.read")
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 

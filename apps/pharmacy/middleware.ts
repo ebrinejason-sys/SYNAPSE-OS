@@ -152,15 +152,69 @@ async function getTenantEntitlement(tenantId: string): Promise<{
   })
 }
 
+function isSubscriptionWriteBlocked(pathname: string, method: string): boolean {
+  const m = method.toUpperCase()
+  // Billing always allowed so tenants can recover.
+  if (pathname.startsWith('/api/admin/billing') || pathname.startsWith('/portal/billing')) {
+    return false
+  }
+  // Healthcare degradation: allow GET/HEAD on read/safety surfaces.
+  const readSafePrefixes = [
+    '/api/admin/transactions',
+    '/api/admin/products',
+    '/api/admin/inventory',
+    '/api/admin/batches',
+    '/api/admin/reports',
+    '/api/admin/settings',
+    '/api/admin/notifications',
+    '/api/admin/activity',
+    '/api/admin/audit',
+    '/api/admin/dashboard',
+    '/api/admin/customers',
+  ]
+  if (m === 'GET' || m === 'HEAD') {
+    if (readSafePrefixes.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
+      return false
+    }
+  }
+  // Portal page allowlist for unpaid tenants (read/safety + billing).
+  const portalReadSafe = [
+    '/portal/billing',
+    '/portal/dashboard',
+    '/portal/transactions',
+    '/portal/products',
+    '/portal/inventory',
+    '/portal/reports',
+    '/portal/customers',
+    '/portal/notifications',
+    '/portal/activity',
+  ]
+  if (!pathname.startsWith('/api/') && portalReadSafe.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
+    // Still block POS / refunds / users / settings mutation pages.
+    if (
+      pathname.startsWith('/portal/pos') ||
+      pathname.startsWith('/portal/refunds') ||
+      pathname.startsWith('/portal/users') ||
+      pathname.startsWith('/portal/settings') ||
+      pathname.startsWith('/portal/purchases')
+    ) {
+      return true
+    }
+    return false
+  }
+  return true
+}
+
 function subscriptionRequired402(status: string | null, reason: string): NextResponse {
   return NextResponse.json(
     {
       error: 'subscription_required',
       message:
-        'This pharmacy\u2019s subscription is not active. Pay the monthly fee to restore access.',
+        'Subscription inactive. Billing writes are blocked; historical records and safety reads remain available. Pay to restore full access.',
       status: status ?? 'unknown',
       reason,
       reactivate_url: '/portal/billing',
+      mode: 'degraded_read',
     },
     { status: 402 },
   )
@@ -307,7 +361,7 @@ export async function middleware(request: NextRequest) {
         // pharmacy's own owner-admin) are gated when the subscription is unpaid.
         if (profile && profile.tenant_id && !isPlatformAdmin(profile.role)) {
           const ent = await getTenantEntitlement(profile.tenant_id)
-          if (!ent.entitled) {
+          if (!ent.entitled && isSubscriptionWriteBlocked(pathname, request.method)) {
             return subscriptionRequired402(ent.status, ent.reason)
           }
         }
@@ -373,16 +427,16 @@ export async function middleware(request: NextRequest) {
       })
       if (redirect) return redirect
 
-      // Feature 1: lock the whole portal module when the subscription is unpaid.
-      // The billing page itself stays reachable so the tenant can pay to recover.
-      // Only true platform/superadmins bypass — the pharmacy owner-admin is gated.
+      // Healthcare degradation: unpaid tenants keep billing + read/safety portal pages.
+      // Elective commercial writes (POS, refunds, purchasing, user admin) stay locked.
       const isPortalPath = pathname.startsWith('/portal')
       const isBillingPage = pathname.startsWith('/portal/billing')
       if (isPortalPath && !isBillingPage && profile.tenant_id && !isPlatformAdmin(profile.role)) {
         const ent = await getTenantEntitlement(profile.tenant_id)
-        if (!ent.entitled) {
+        if (!ent.entitled && isSubscriptionWriteBlocked(pathname, request.method)) {
           const url = new URL('/portal/billing', request.url)
           url.searchParams.set('billing', 'past_due')
+          url.searchParams.set('mode', 'degraded_read')
           return NextResponse.redirect(url)
         }
       }

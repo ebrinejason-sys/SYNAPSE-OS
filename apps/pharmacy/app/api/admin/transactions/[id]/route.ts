@@ -29,6 +29,23 @@ export async function DELETE(
       return NextResponse.json({ error: "No tenant" }, { status: 403 })
     }
 
+    const { data: posSale } = await (supabaseAdmin as any)
+      .from("pharmacy_pos_sales")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("id", id)
+      .maybeSingle()
+    if (posSale) {
+      return NextResponse.json(
+        {
+          error:
+            "POS sales cannot be deleted here. Use void/refund so stock and cash stay reconciled.",
+          code: "POS_APPEND_ONLY",
+        },
+        { status: 409 },
+      )
+    }
+
     // Fetch the transaction with all its items
     const { data: transaction, error: fetchError } = await (supabaseAdmin as any)
       .from("pharmacy_transactions")

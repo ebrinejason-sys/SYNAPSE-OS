@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
     "@synapse/config",
     "@synapse/email",
   ],
+  // ESLint flat-config + monorepo ajv hoist can trip `defaultMeta` during CI;
+  // type-check still runs in verify scripts / local tsc.
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   experimental: {
     serverActions: {
       allowedOrigins: ["*.synapseos.tech", "localhost:3001"],

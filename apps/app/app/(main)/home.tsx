@@ -54,12 +54,13 @@ export default function DashboardScreen() {
   const [error, setError] = useState<string | null>(null)
 
   const fetchFresh = useCallback(async () => {
-    if (!token) return
+    if (!token || !user?.id) return
+    const cacheKey = `synapse_cache:${user.id}:${DASHBOARD_CACHE_KEY}`
     const res = await fetchDashboard(token)
     setData(res)
     setError(null)
-    await setCached(DASHBOARD_CACHE_KEY, res, DASHBOARD_TTL_MS)
-  }, [token])
+    await setCached(cacheKey, res, DASHBOARD_TTL_MS, user.id)
+  }, [token, user?.id])
 
   const load = useCallback(async () => {
     if (!token) {
@@ -84,7 +85,12 @@ export default function DashboardScreen() {
     let cancelled = false
 
     async function loadWithCache() {
-      const cached = await getCachedWithTtl<DashboardResponse>(DASHBOARD_CACHE_KEY, DASHBOARD_TTL_MS)
+      if (!user?.id) {
+        await load()
+        return
+      }
+      const cacheKey = `synapse_cache:${user.id}:${DASHBOARD_CACHE_KEY}`
+      const cached = await getCachedWithTtl<DashboardResponse>(cacheKey, DASHBOARD_TTL_MS)
       if (cancelled) return
 
       if (cached) {
@@ -99,7 +105,7 @@ export default function DashboardScreen() {
 
     loadWithCache()
     return () => { cancelled = true }
-  }, [load, fetchFresh])
+  }, [load, fetchFresh, user?.id])
 
   const onRefresh = () => {
     setRefreshing(true)

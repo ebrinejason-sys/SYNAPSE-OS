@@ -6,7 +6,8 @@
   "exports": {
     "./tailwind": "./tailwind.ts",
     "./typescript": "./tsconfig.json",
-    "./constants": "./src/constants.ts"
+    "./constants": "./src/constants.ts",
+    "./typography.css": "./typography.css"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.0"

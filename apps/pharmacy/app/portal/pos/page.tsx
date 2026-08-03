@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency, generateTransactionNo } from "@/lib/utils"
 import { Search, ShoppingCart, Trash2, Printer, Clock, Eye, Calculator, Package, Wifi, WifiOff, Download } from "lucide-react"
-import { queueMutation, saveOfflineTransaction, getPendingActions, saveMetadata, getMetadata } from "@/lib/offlineStorage"
+import { getPendingActions, saveMetadata, getMetadata } from "@/lib/offlineStorage"
 import {
   allocateFefoBatches,
   DISCOUNT_REASONS,
@@ -605,14 +605,15 @@ export default function POSPage() {
       ? `${staffForReceipt.name} of SYNAPSE PHARM`
       : user?.fullName ?? "Staff"
 
-    const receiptStaffId = isSynapsePharmAccount && staffForReceipt
-      ? staffForReceipt.id
-      : user?.id
-
     const txnNo = generateTransactionNo()
+    const idempotencyKey =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `pos-${txnNo}-${Date.now()}`
 
     const transactionPayload = {
       transactionNo: txnNo,
+      idempotencyKey,
       items: cart.map((item) => {
         const reason =
           item.discountReason === "other"
@@ -633,8 +634,8 @@ export default function POSPage() {
         }
       }),
       paymentMethod,
-      staffId: receiptStaffId,
-      staffName: receiptStaffName,
+      // Receipt display name only — cashier identity is always the authenticated session user.
+      receiptStaffName,
       taxAmount,
       discountApprovedBy: effectiveApproval,
       clientName: client.name,
@@ -649,83 +650,24 @@ export default function POSPage() {
     };
 
     if (!navigator.onLine) {
-      // Offline: Store locally and queue for sync
-      try {
-        // Create mock transaction for printing
-        const mockTransaction = {
-          id: `offline-${Date.now()}`,
-          transactionNo: txnNo,
-          createdAt: new Date().toISOString(),
-          clientName: client.name,
-          clientPhone: client.phone,
-          clientAddress: client.address,
-          totalAmount: total,
-          tax: taxAmount,
-          netAmount: grandTotal,
-          paymentMethod,
-          items: cart.map((item, idx) => ({
-            id: `item-${idx}`,
-            quantity: item.baseUnitsTotal || item.cartQuantity,
-            unitPrice: item.sellingPrice,
-            totalPrice: item.subtotal,
-            packageName: item.selectedPackage?.name || null,
-            packageQuantity: item.packageQuantity || null,
-            product: {
-              name: item.name,
-              sku: item.sku
-            },
-            batch: item.batchNumber ? {
-              batchNumber: item.batchNumber,
-              expiryDate: item.expiryDate
-            } : null
-          }))
-        }
+      toast({
+        variant: "destructive",
+        title: "You are offline",
+        description:
+          "Sales cannot be completed offline. Stay connected — nothing was charged or deducted from stock.",
+      })
+      setIsProcessing(false)
+      return
+    }
 
-        await saveOfflineTransaction(mockTransaction)
-        await queueMutation("/api/admin/pos/complete-sale", "POST", transactionPayload);
-
-        // Register sync via service worker if available
-        if ('serviceWorker' in navigator && (navigator as any).serviceWorker.ready) {
-          (navigator as any).serviceWorker.ready.then((sw: any) => {
-            if (sw.sync) sw.sync.register('sync-mutations');
-          });
-        }
-
-        toast({
-          title: "Stored Offline",
-          description: "Transaction saved locally. Will sync when online.",
-        });
-
-        // Set pending for printing
-        setPendingTransaction(mockTransaction)
-        setReceiptStaffNamePending(receiptStaffName)
-        setPendingReceiptMeta({ paymentMethod, amountPaid, change })
-        setShowPrintPrompt(true)
-
-        // Clear cart and proceed as if successful
-        setCart([]);
-        localStorage.removeItem('pos-cart');
-        setSelectedStaff(null);
-        setAmountPaid("");
-        setCreditCustomerId("");
-        setCreditDueDate("");
-        // We can't really fetchProducts while offline, but we can try
-        fetchProducts();
-      } catch (err) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Unable to access offline storage",
-        });
-      }
-      setIsProcessing(false);
-      return;
-    } else {
-      // Online: Proceed with API call
-      try {
+    // Online: Proceed with API call
+    try {
         const response = await fetch("/api/admin/pos/complete-sale", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": idempotencyKey,
+          },
           body: JSON.stringify(transactionPayload),
         });
 
@@ -792,7 +734,6 @@ export default function POSPage() {
           description: "An error occurred",
         })
       }
-    }
 
     setIsProcessing(false);
   }

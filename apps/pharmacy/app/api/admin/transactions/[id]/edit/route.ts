@@ -32,6 +32,24 @@ export async function PUT(
     const { id } = await params
     const body: EditTransactionRequest = await request.json()
 
+    // POS sales are append-only — use void/refund, not in-place edit.
+    const { data: posSale } = await (supabaseAdmin as any)
+      .from("pharmacy_pos_sales")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("id", id)
+      .maybeSingle()
+    if (posSale) {
+      return NextResponse.json(
+        {
+          error:
+            "POS sales cannot be edited in place. Use void/refund to reverse stock and cash.",
+          code: "POS_APPEND_ONLY",
+        },
+        { status: 409 },
+      )
+    }
+
     // Validate reason is provided and not empty
     if (!body.reason || body.reason.trim().length < 10) {
       return NextResponse.json(

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight, Heart, Pill, Stethoscope, Building2 } from 'lucide-react'
 import { SynapseLogo } from '../../components/SynapseLogo'
+import { Eyebrow, LeadText, SectionHeading } from '../typography'
 import { Reveal } from './Reveal'
 
 const PATHS = [
@@ -51,12 +52,14 @@ export function AudiencePaths() {
     <section id="get-started" className="landing-section">
       <div className="landing-container">
         <Reveal>
-          <p className="section-label">Who it&apos;s for</p>
-          <h2 className="landing-heading mb-3">Four ways into Synapse</h2>
-          <p className="landing-lead mb-10 max-w-2xl">
+          <Eyebrow variant="section">Who it&apos;s for</Eyebrow>
+          <SectionHeading level={2} className="mb-3">
+            Four ways into Synapse
+          </SectionHeading>
+          <LeadText className="mb-10 max-w-2xl">
             Facilities apply for onboarding. People self-register. One login can later link staff membership at a
             hospital or pharmacy without losing personal health features.
-          </p>
+          </LeadText>
         </Reveal>
 
         <div className="grid gap-5 sm:grid-cols-2">
@@ -75,11 +78,13 @@ export function AudiencePaths() {
                 >
                   <path.icon className="h-5 w-5" />
                 </div>
-                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+                <Eyebrow as="span" variant="section" style={{ color: 'var(--text-muted)' }}>
                   {path.eyebrow}
-                </span>
+                </Eyebrow>
               </div>
-              <h3 className="font-display text-xl font-bold">{path.title}</h3>
+              <SectionHeading as="h3" level={3}>
+                {path.title}
+              </SectionHeading>
               <p className="mt-2 flex-1 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                 {path.body}
               </p>

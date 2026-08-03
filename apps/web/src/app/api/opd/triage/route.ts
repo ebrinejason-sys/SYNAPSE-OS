@@ -68,6 +68,12 @@ export async function POST(req: NextRequest) {
     newValue: { patient_id, chief_complaint, clinical_stage },
   })
 
+  const { notifyClinicalQueue } = await import('@synapse/auth/mobile-push')
+  notifyClinicalQueue({
+    tenantId: ctx.tenantId,
+    chiefComplaint: chief_complaint,
+  })
+
   const response: { encounterId: string; vitalsRecorded?: boolean } = {
     encounterId: encounter.id,
   }

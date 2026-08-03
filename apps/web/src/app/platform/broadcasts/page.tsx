@@ -43,6 +43,9 @@ async function publishBulletin(formData: FormData) {
     published_at: new Date().toISOString(),
     expires_at: expiresAt || null,
   });
+
+  const { notifyPlatformBroadcast } = await import("@synapse/auth/mobile-push");
+  notifyPlatformBroadcast({ title, body, severity });
 }
 
 function severityClass(severity: string | null | undefined) {

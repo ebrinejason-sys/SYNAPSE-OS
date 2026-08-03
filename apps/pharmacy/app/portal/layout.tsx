@@ -16,6 +16,7 @@ import { IdleLogoutModal } from "@/components/idle-logout-modal"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { usePharmacySession } from "@/hooks/use-pharmacy-session"
+import { sessionHasCapability } from "@/lib/capabilities"
 
 export const dynamic = "force-dynamic"
 
@@ -119,11 +120,20 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   const hasPermission = (permission?: string, adminOnly?: boolean) => {
     if (!user) return false
-    const isAdminRole = user.pharmacyRole === "pharmacy_admin" || user.pharmacyRole === "pharmacy_ceo" || user.isAdmin
+    const isAdminRole =
+      user.pharmacyRole === "pharmacy_admin" ||
+      user.pharmacyRole === "pharmacy_ceo" ||
+      user.isAdmin
     if (adminOnly) return isAdminRole
     if (!permission) return true
-    if (isAdminRole) return true
-    return user.permissions.includes(permission)
+    return sessionHasCapability(
+      {
+        isAdmin: user.isAdmin,
+        pharmacyRole: user.pharmacyRole,
+        permissions: user.permissions,
+      },
+      permission,
+    )
   }
 
   const handleSignOut = async () => {

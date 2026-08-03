@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { colors, radii, spacing, typography } from '@/lib/theme'
 
-type EmptyIcon = 'inbox' | 'search' | 'calendar' | 'medkit' | 'document' | 'cube' | 'checkmark-circle' | 'flask' | 'receipt'
+type EmptyIcon = 'inbox' | 'search' | 'calendar' | 'medkit' | 'document' | 'cube' | 'checkmark-circle' | 'flask' | 'receipt' | 'cash'
 
 interface EmptyStateProps {
   title: string
@@ -20,6 +20,7 @@ const ICON_MAP: Record<EmptyIcon, keyof typeof Ionicons.glyphMap> = {
   'checkmark-circle': 'checkmark-circle-outline',
   flask: 'flask-outline',
   receipt: 'receipt-outline',
+  cash: 'cash-outline',
 }
 
 export function EmptyState({ title, body, icon = 'inbox' }: EmptyStateProps) {
@@ -37,8 +38,9 @@ export function EmptyState({ title, body, icon = 'inbox' }: EmptyStateProps) {
 const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
-    paddingTop: spacing.xxxl * 2,
-    paddingHorizontal: spacing.xxl,
+    paddingTop: spacing.xxl,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
   },
   iconRing: {
     width: 56,

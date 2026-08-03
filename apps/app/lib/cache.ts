@@ -7,29 +7,22 @@ const KEY_PREFIX = 'synapse_cache:'
 interface CacheEntry<T> {
   data: T
   cachedAt: number
+  userId?: string
+}
+
+function scopedKey(userId: string | null | undefined, path: string): string {
+  const scope = userId?.trim() || '_anon'
+  return `${KEY_PREFIX}${scope}:${path}`
 }
 
 // ─── Core cache helpers ──────────────────────────────────────────────────────
-
-export async function getCached<T>(
-  key: string
-): Promise<{ data: T; stale: boolean } | null> {
-  try {
-    const raw = await AsyncStorage.getItem(`${KEY_PREFIX}${key}`)
-    if (!raw) return null
-    const entry: CacheEntry<T> = JSON.parse(raw)
-    return { data: entry.data, stale: false }
-  } catch {
-    return null
-  }
-}
 
 export async function getCachedWithTtl<T>(
   key: string,
   ttlMs: number
 ): Promise<{ data: T; stale: boolean } | null> {
   try {
-    const raw = await AsyncStorage.getItem(`${KEY_PREFIX}${key}`)
+    const raw = await AsyncStorage.getItem(key)
     if (!raw) return null
     const entry: CacheEntry<T> = JSON.parse(raw)
     const stale = Date.now() - entry.cachedAt > ttlMs
@@ -42,21 +35,18 @@ export async function getCachedWithTtl<T>(
 export async function setCached<T>(
   key: string,
   data: T,
-  _ttlMs: number
+  _ttlMs: number,
+  userId?: string | null
 ): Promise<void> {
   try {
-    const entry: CacheEntry<T> = { data, cachedAt: Date.now() }
-    await AsyncStorage.setItem(`${KEY_PREFIX}${key}`, JSON.stringify(entry))
+    const entry: CacheEntry<T> = {
+      data,
+      cachedAt: Date.now(),
+      userId: userId ?? undefined,
+    }
+    await AsyncStorage.setItem(key, JSON.stringify(entry))
   } catch {
     // Storage failure is non-fatal — app continues with live data
-  }
-}
-
-export async function clearCached(key: string): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(`${KEY_PREFIX}${key}`)
-  } catch {
-    // Ignore
   }
 }
 
@@ -72,33 +62,49 @@ export async function clearAllCache(): Promise<void> {
   }
 }
 
+/** Purge cache for one user scope (and legacy unscoped keys). */
+export async function clearUserCache(userId?: string | null): Promise<void> {
+  try {
+    const keys = await AsyncStorage.getAllKeys()
+    const prefixes = userId
+      ? [`${KEY_PREFIX}${userId}:`, `${KEY_PREFIX}_anon:`, KEY_PREFIX]
+      : [KEY_PREFIX]
+    const cacheKeys = keys.filter((k) => prefixes.some((p) => k.startsWith(p)))
+    if (cacheKeys.length > 0) {
+      await AsyncStorage.multiRemove(cacheKeys)
+    }
+  } catch {
+    // Ignore
+  }
+}
+
 // ─── Hook ───────────────────────────────────────────────────────────────────
 
 export function useCachedRequest<T>(
   path: string,
   token: string | null,
-  ttlMs: number
+  ttlMs: number,
+  userId?: string | null
 ): { data: T | null; loading: boolean; stale: boolean; refresh: () => void } {
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(true)
   const [stale, setStale] = useState(false)
 
-  // Stable ref so refresh closure never captures a stale version
   const fetchRef = useRef<(() => Promise<void>) | null>(null)
-
-  const cacheKey = path
+  // Never read cache without a known user scope — prevents cross-user PHI flash.
+  const cacheKey = token ? scopedKey(userId, path) : null
 
   const fetchFresh = useCallback(async () => {
-    if (!token) return
+    if (!token || !cacheKey) return
     try {
       const fresh = await apiRequest<T>(path, { token })
       setData(fresh)
       setStale(false)
-      await setCached(cacheKey, fresh, ttlMs)
+      await setCached(cacheKey, fresh, ttlMs, userId)
     } catch {
       // Keep showing cached data on fetch failure
     }
-  }, [path, token, ttlMs, cacheKey])
+  }, [path, token, ttlMs, cacheKey, userId])
 
   fetchRef.current = fetchFresh
 
@@ -112,33 +118,33 @@ export function useCachedRequest<T>(
     async function load() {
       setLoading(true)
 
-      // 1. Show cached data immediately (no spinner)
+      if (!token || !cacheKey) {
+        setData(null)
+        setStale(false)
+        setLoading(false)
+        return
+      }
+
       const cached = await getCachedWithTtl<T>(cacheKey, ttlMs)
       if (!cancelled && cached) {
         setData(cached.data)
         setStale(cached.stale)
         setLoading(false)
-
-        // Revalidate in background if stale
-        if (cached.stale && token) {
+        if (cached.stale) {
           fetchRef.current?.()
         }
         return
       }
 
-      // 2. No cache — fetch live
-      if (!cancelled) setLoading(true)
-      if (token) {
-        try {
-          const fresh = await apiRequest<T>(path, { token })
-          if (!cancelled) {
-            setData(fresh)
-            setStale(false)
-            await setCached(cacheKey, fresh, ttlMs)
-          }
-        } catch {
-          // Network failure — data stays null
+      try {
+        const fresh = await apiRequest<T>(path, { token })
+        if (!cancelled) {
+          setData(fresh)
+          setStale(false)
+          await setCached(cacheKey, fresh, ttlMs, userId)
         }
+      } catch {
+        // Network failure — data stays null
       }
 
       if (!cancelled) setLoading(false)
@@ -149,7 +155,7 @@ export function useCachedRequest<T>(
     return () => {
       cancelled = true
     }
-  }, [path, token, ttlMs, cacheKey])
+  }, [path, token, ttlMs, cacheKey, userId])
 
   return { data, loading, stale, refresh }
 }

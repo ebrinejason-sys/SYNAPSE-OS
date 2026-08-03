@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
-  Linking,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,8 +9,8 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import Constants from 'expo-constants'
 import { Button } from '@/components/ui/Button'
+import { TextField } from '@/components/ui/TextField'
 import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { useAuth } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
@@ -46,10 +46,6 @@ const STATUS_LABELS: Record<string, string> = {
   expired: 'Expired',
 }
 
-const WEB_APP_URL = (
-  (Constants.expoConfig?.extra?.webAppUrl as string | undefined) ?? 'https://www.synapseos.tech'
-).replace(/\/$/, '')
-
 export default function StockItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { token } = useAuth()
@@ -57,17 +53,75 @@ export default function StockItemDetailScreen() {
   const [item, setItem] = useState<StockItemDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [qtyText, setQtyText] = useState('')
+  const [reorderText, setReorderText] = useState('')
+  const [reason, setReason] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    if (!id || !token) { setLoading(false); return }
-    apiRequest<{ item: StockItemDetail }>(`/api/mobile/inventory/${id}`, { token })
-      .then((data) => setItem(data.item))
-      .catch(() => setError('Failed to load item'))
-      .finally(() => setLoading(false))
+  const load = useCallback(async () => {
+    if (!id || !token) {
+      setLoading(false)
+      return
+    }
+    try {
+      const data = await apiRequest<{ item: StockItemDetail }>(`/api/mobile/inventory/${id}`, {
+        token,
+      })
+      setItem(data.item)
+      setQtyText(String(data.item.quantity))
+      setReorderText(String(data.item.reorderLevel))
+      setError(null)
+    } catch {
+      setError('Failed to load item')
+    } finally {
+      setLoading(false)
+    }
   }, [id, token])
 
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const save = async () => {
+    if (!token || !id) return
+    const quantity = Number(qtyText)
+    const reorderLevel = Number(reorderText)
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      Alert.alert('Invalid quantity', 'Enter a whole number ≥ 0.')
+      return
+    }
+    if (!Number.isFinite(reorderLevel) || reorderLevel < 0) {
+      Alert.alert('Invalid reorder level', 'Enter a whole number ≥ 0.')
+      return
+    }
+    setSaving(true)
+    try {
+      await apiRequest(`/api/mobile/inventory/${id}`, {
+        method: 'PATCH',
+        token,
+        body: {
+          quantity: Math.floor(quantity),
+          reorderLevel: Math.floor(reorderLevel),
+          reason: reason.trim() || undefined,
+        },
+      })
+      setEditing(false)
+      setReason('')
+      await load()
+    } catch (err) {
+      Alert.alert('Save failed', err instanceof Error ? err.message : 'Try again')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) {
-    return <View style={styles.center}><LoadingBlock message="Loading item…" /></View>
+    return (
+      <View style={styles.center}>
+        <LoadingBlock message="Loading item…" />
+      </View>
+    )
   }
 
   if (error || !item) {
@@ -98,8 +152,18 @@ export default function StockItemDetailScreen() {
       </View>
 
       <View style={styles.statsRow}>
-        <StatCard label="In Stock" value={String(item.quantity)} unit={item.unit ?? 'units'} color={colors.text} />
-        <StatCard label="Reorder At" value={String(item.reorderLevel)} unit={item.unit ?? 'units'} color={colors.warning} />
+        <StatCard
+          label="In Stock"
+          value={String(item.quantity)}
+          unit={item.unit ?? 'units'}
+          color={colors.text}
+        />
+        <StatCard
+          label="Reorder At"
+          value={String(item.reorderLevel)}
+          unit={item.unit ?? 'units'}
+          color={colors.warning}
+        />
         {item.unitCost ? (
           <StatCard
             label="Unit Cost"
@@ -120,18 +184,55 @@ export default function StockItemDetailScreen() {
           {item.expiryDate ? (
             <InfoRow
               label="Expiry date"
-              value={new Date(item.expiryDate).toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' })}
+              value={new Date(item.expiryDate).toLocaleDateString([], {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
             />
           ) : null}
         </View>
       </View>
 
-      <Button
-        label="Manage in web portal"
-        onPress={() => Linking.openURL(`${WEB_APP_URL}/portal/inventory`).catch(() => {})}
-        variant="ghost"
-        style={styles.ctaBtn}
-      />
+      {editing ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Adjust stock</Text>
+          <TextField
+            label="Quantity on hand"
+            value={qtyText}
+            onChangeText={setQtyText}
+            keyboardType="number-pad"
+          />
+          <TextField
+            label="Reorder level"
+            value={reorderText}
+            onChangeText={setReorderText}
+            keyboardType="number-pad"
+          />
+          <TextField
+            label="Reason (optional)"
+            value={reason}
+            onChangeText={setReason}
+            placeholder="e.g. Count correction"
+          />
+          <View style={styles.editActions}>
+            <Button
+              label="Cancel"
+              onPress={() => {
+                setEditing(false)
+                setQtyText(String(item.quantity))
+                setReorderText(String(item.reorderLevel))
+                setReason('')
+              }}
+              variant="ghost"
+              style={styles.editBtn}
+            />
+            <Button label="Save" onPress={save} loading={saving} style={styles.editBtn} />
+          </View>
+        </View>
+      ) : (
+        <Button label="Adjust stock" onPress={() => setEditing(true)} style={styles.ctaBtn} />
+      )}
     </ScrollView>
   )
 }
@@ -145,7 +246,17 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function StatCard({ label, value, unit, color }: { label: string; value: string; unit: string; color: string }) {
+function StatCard({
+  label,
+  value,
+  unit,
+  color,
+}: {
+  label: string
+  value: string
+  unit: string
+  color: string
+}) {
   return (
     <View style={styles.statCard}>
       <Text style={[styles.statValue, { color }]}>{value}</Text>
@@ -158,24 +269,94 @@ function StatCard({ label, value, unit, color }: { label: string; value: string;
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, paddingBottom: spacing.xxxl * 2 },
-  center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', padding: spacing.xxl, gap: spacing.lg },
-  errorText: { ...typography.body, color: colors.error, fontFamily: 'DMSans_400Regular', textAlign: 'center' },
+  center: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xxl,
+    gap: spacing.lg,
+  },
+  errorText: {
+    ...typography.body,
+    color: colors.error,
+    fontFamily: 'DMSans_400Regular',
+    textAlign: 'center',
+  },
   backRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xl, gap: 4 },
-  backLabel: { ...typography.bodyMedium, color: colors.primary, fontFamily: 'DMSans_500Medium' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.xxl },
+  backLabel: {
+    ...typography.bodyMedium,
+    color: colors.primary,
+    fontFamily: 'DMSans_500Medium',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    marginBottom: spacing.xxl,
+  },
   name: { ...typography.h2, color: colors.text, fontFamily: 'DMSans_700Bold', flex: 1 },
   statusBadge: { borderRadius: radii.full, paddingHorizontal: 10, paddingVertical: 4 },
   statusText: { fontSize: 12, fontWeight: '600', fontFamily: 'DMSans_500Medium' },
   statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xxl },
-  statCard: { flex: 1, backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, alignItems: 'center' },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
   statValue: { fontSize: 16, fontWeight: '700', fontFamily: 'DMSans_700Bold' },
-  statUnit: { ...typography.caption, color: colors.textMuted, fontFamily: 'DMSans_400Regular', marginTop: 1 },
-  statLabel: { ...typography.caption, color: colors.textSecondary, fontFamily: 'DMSans_400Regular', marginTop: 2 },
+  statUnit: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontFamily: 'DMSans_400Regular',
+    marginTop: 1,
+  },
+  statLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_400Regular',
+    marginTop: 2,
+  },
   section: { marginBottom: spacing.xxl },
-  sectionTitle: { ...typography.label, color: colors.textMuted, fontFamily: 'DMSans_500Medium', marginBottom: spacing.sm },
-  card: { backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderSubtle, gap: spacing.md },
-  infoLabel: { ...typography.bodySm, color: colors.textSecondary, fontFamily: 'DMSans_400Regular' },
-  infoValue: { ...typography.bodySm, color: colors.text, fontFamily: 'DMSans_500Medium', flex: 1, textAlign: 'right' },
+  sectionTitle: {
+    ...typography.label,
+    color: colors.textMuted,
+    fontFamily: 'DMSans_500Medium',
+    marginBottom: spacing.sm,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+    gap: spacing.md,
+  },
+  infoLabel: {
+    ...typography.bodySm,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_400Regular',
+  },
+  infoValue: {
+    ...typography.bodySm,
+    color: colors.text,
+    fontFamily: 'DMSans_500Medium',
+    flex: 1,
+    textAlign: 'right',
+  },
   ctaBtn: { marginTop: spacing.sm },
+  editActions: { flexDirection: 'row', gap: spacing.sm },
+  editBtn: { flex: 1 },
 })

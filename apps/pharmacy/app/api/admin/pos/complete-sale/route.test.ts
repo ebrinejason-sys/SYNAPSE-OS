@@ -1,0 +1,237 @@
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { NextResponse } from "next/server"
+
+const {
+  requirePharmacyPermission,
+  gateFeature,
+  findSaleIdempotency,
+  storeSaleIdempotency,
+  rpc,
+  productMaybeSingle,
+  settingsMaybeSingle,
+} = vi.hoisted(() => ({
+  requirePharmacyPermission: vi.fn(),
+  gateFeature: vi.fn(),
+  findSaleIdempotency: vi.fn(),
+  storeSaleIdempotency: vi.fn(),
+  rpc: vi.fn(),
+  productMaybeSingle: vi.fn(),
+  settingsMaybeSingle: vi.fn(),
+}))
+
+vi.mock("@/lib/api-auth", () => ({
+  requirePharmacyPermission: (...args: unknown[]) => requirePharmacyPermission(...args),
+}))
+
+vi.mock("@synapse/auth/features", () => ({
+  gateFeature: (...args: unknown[]) => gateFeature(...args),
+}))
+
+vi.mock("@/lib/pos/idempotency", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/pos/idempotency")>()
+  return {
+    ...actual,
+    findSaleIdempotency: (...args: unknown[]) => findSaleIdempotency(...args),
+    storeSaleIdempotency: (...args: unknown[]) => storeSaleIdempotency(...args),
+  }
+})
+
+vi.mock("@/lib/supabase/admin", () => ({
+  supabaseAdmin: {
+    from: (table: string) => {
+      if (table === "pharmacy_settings") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: settingsMaybeSingle,
+            }),
+          }),
+        }
+      }
+      if (table === "pharmacy_products") {
+        return {
+          select: () => ({
+            eq: (_col: string, _val: unknown) => {
+              // Product lookup: .eq(id).eq(tenant).maybeSingle()
+              // Reorder scan: .eq(tenant).in(ids)
+              return {
+                eq: () => ({ maybeSingle: productMaybeSingle }),
+                in: () => Promise.resolve({ data: [], error: null }),
+                maybeSingle: productMaybeSingle,
+              }
+            },
+          }),
+        }
+      }
+      return {
+        select: () => ({
+          eq: () => ({
+            in: () => Promise.resolve({ data: [], error: null }),
+          }),
+        }),
+      }
+    },
+    rpc,
+  },
+}))
+
+import { POST } from "./route"
+
+function sessionAuth() {
+  return {
+    ok: true as const,
+    tenantId: "tenant-1",
+    session: {
+      userId: "cashier-1",
+      email: "c@test.com",
+      role: "pharmacy_cashier",
+      pharmacyRole: "pharmacy_cashier",
+      tenantId: "tenant-1",
+      fullName: "Cashier",
+      firstName: "Cash",
+      lastName: "Ier",
+      isAdmin: false,
+      tenantName: "Care",
+      tenantSlug: "care",
+      tenantStatus: "active",
+      modulesEnabled: [],
+      mustChangePassword: false,
+      permissions: [],
+      isImpersonation: false,
+      impersonatorId: null,
+      profile: {
+        tenant_id: "tenant-1",
+        is_admin: false,
+        full_name: "Cashier",
+        first_name: "Cash",
+        last_name: "Ier",
+      },
+      user: { id: "cashier-1", email: "c@test.com" },
+    },
+  }
+}
+
+function makeRequest(body: unknown, headers?: Record<string, string>) {
+  return new Request("https://pharm.test/api/admin/pos/complete-sale", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+    body: JSON.stringify(body),
+  }) as any
+}
+
+describe("POST /api/admin/pos/complete-sale", () => {
+  beforeEach(() => {
+    requirePharmacyPermission.mockReset()
+    gateFeature.mockReset()
+    findSaleIdempotency.mockReset()
+    storeSaleIdempotency.mockReset()
+    rpc.mockReset()
+    productMaybeSingle.mockReset()
+    settingsMaybeSingle.mockReset()
+
+    requirePharmacyPermission.mockResolvedValue(sessionAuth())
+    gateFeature.mockResolvedValue(null)
+    settingsMaybeSingle.mockResolvedValue({
+      data: { discount_approval_threshold_pct: 5 },
+      error: null,
+    })
+    productMaybeSingle.mockResolvedValue({
+      data: { id: "p1", price: 1000, name: "Paracetamol", is_active: true },
+      error: null,
+    })
+    findSaleIdempotency.mockResolvedValue(null)
+    storeSaleIdempotency.mockResolvedValue(undefined)
+  })
+
+  it("rejects empty cart", async () => {
+    const res = await POST(makeRequest({ items: [], paymentMethod: "cash" }))
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ error: "Cart is empty" })
+  })
+
+  it("rejects missing payment method", async () => {
+    const res = await POST(
+      makeRequest({ items: [{ productId: "p1", quantity: 1, unitPrice: 1000 }] }),
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it("replays prior sale when Idempotency-Key matches", async () => {
+    findSaleIdempotency.mockResolvedValue({
+      saleId: "sale-9",
+      response: { id: "sale-9", receipt_number: "R-9" },
+    })
+    const res = await POST(
+      makeRequest(
+        {
+          items: [{ productId: "p1", quantity: 1, unitPrice: 1000 }],
+          paymentMethod: "cash",
+        },
+        { "Idempotency-Key": "retry-1" },
+      ),
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers.get("X-Idempotent-Replay")).toBe("true")
+    const body = await res.json()
+    expect(body.idempotentReplay).toBe(true)
+    expect(body.sale).toEqual({ id: "sale-9", receipt_number: "R-9" })
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it("uses session user as cashier and ignores client staffId", async () => {
+    rpc.mockResolvedValue({
+      data: { id: "sale-1", receipt_number: "R-1" },
+      error: null,
+    })
+    const res = await POST(
+      makeRequest({
+        items: [{ productId: "p1", quantity: 2, unitPrice: 1000 }],
+        paymentMethod: "cash",
+        staffId: "someone-else",
+        idempotencyKey: "k-new",
+      }),
+    )
+    expect(res.status).toBe(200)
+    expect(rpc).toHaveBeenCalledWith(
+      "complete_pharmacy_sale",
+      expect.objectContaining({
+        p_cashier_id: "cashier-1",
+        p_confirmed_by: "cashier-1",
+        p_payment_method: "cash",
+      }),
+    )
+    expect(storeSaleIdempotency).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "k-new", tenantId: "tenant-1" }),
+    )
+  })
+
+  it("maps insufficient stock to 409", async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: { message: "INSUFFICIENT_STOCK: only 0 left" },
+    })
+    const res = await POST(
+      makeRequest({
+        items: [{ productId: "p1", quantity: 1, unitPrice: 1000 }],
+        paymentMethod: "mobile_money",
+      }),
+    )
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.code).toBe("INSUFFICIENT_STOCK")
+  })
+
+  it("forbids cashiers without pos.sell", async () => {
+    requirePharmacyPermission.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ error: "Missing capability: pos.sell" }, { status: 403 }),
+    })
+    const res = await POST(
+      makeRequest({
+        items: [{ productId: "p1", quantity: 1, unitPrice: 1000 }],
+        paymentMethod: "cash",
+      }),
+    )
+    expect(res.status).toBe(403)
+  })
+})

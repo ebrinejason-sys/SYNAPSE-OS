@@ -11,6 +11,7 @@ import { LandingFooter } from '../components/landing/LandingFooter'
 import { SectionShell } from '../components/landing/SectionShell'
 import { Reveal } from '../components/landing/Reveal'
 import { ModuleGrid } from '../components/landing/ModuleGrid'
+import { Eyebrow, LeadText, SectionHeading } from '../components/typography'
 
 const MODULES = [
   { abbr: 'OPD', name: 'OPD / Consultation', desc: 'Queue, consultation notes, fee schedules' },
@@ -156,14 +157,14 @@ const PHARM_FEATURES = [
 type Cell = 'yes' | 'no' | 'partial'
 const COMPARE_ROWS: { feature: string; synapse: Cell; openmrs: Cell; slade: Cell; paper: Cell }[] = [
   { feature: 'AI differential diagnosis (UCG-grounded)', synapse: 'yes', openmrs: 'no', slade: 'no', paper: 'no' },
-  { feature: 'Offline-first with sync', synapse: 'yes', openmrs: 'partial', slade: 'no', paper: 'yes' },
-  { feature: 'FHIR R4 resources', synapse: 'yes', openmrs: 'yes', slade: 'partial', paper: 'no' },
+  { feature: 'Offline-first with sync', synapse: 'partial', openmrs: 'partial', slade: 'no', paper: 'yes' },
+  { feature: 'FHIR R4 resources', synapse: 'partial', openmrs: 'yes', slade: 'partial', paper: 'no' },
   { feature: 'Insurance claim copilot', synapse: 'yes', openmrs: 'no', slade: 'partial', paper: 'no' },
   { feature: 'ICD-11 coding on output', synapse: 'yes', openmrs: 'partial', slade: 'partial', paper: 'no' },
   { feature: 'Uganda Clinical Guidelines in workflow', synapse: 'yes', openmrs: 'no', slade: 'yes', paper: 'no' },
   { feature: 'Patient mobile app', synapse: 'yes', openmrs: 'no', slade: 'no', paper: 'no' },
   { feature: 'Integrated pharmacy POS', synapse: 'yes', openmrs: 'no', slade: 'yes', paper: 'no' },
-  { feature: 'DHIS2 export pipeline', synapse: 'yes', openmrs: 'no', slade: 'no', paper: 'no' },
+  { feature: 'DHIS2 export pipeline', synapse: 'partial', openmrs: 'no', slade: 'no', paper: 'no' },
 ]
 
 function CompareCell({ v }: { v: Cell }) {
@@ -173,10 +174,10 @@ function CompareCell({ v }: { v: Cell }) {
 }
 
 const STANDARDS = [
-  { name: 'FHIR R4', detail: 'Interoperability resources for patients, encounters, claims' },
+  { name: 'FHIR R4', detail: 'Roadmap — not a live production interoperability surface yet' },
   { name: 'ICD-11', detail: 'Diagnosis and procedure coding on clinical output' },
-  { name: 'DHIS2', detail: 'Scheduled anonymised export for national reporting' },
-  { name: 'HL7 / ASTM', detail: 'Lab instrument messaging bridges' },
+  { name: 'DHIS2', detail: 'Pilot/export path — production national pipeline in progress' },
+  { name: 'HL7 / ASTM', detail: 'Lab instrument messaging bridges (selected sites)' },
   { name: 'DPPA 2019', detail: 'Uganda data protection baseline in product design' },
 ]
 
@@ -199,14 +200,14 @@ export default function HomePage() {
 
       <SectionShell label="Context" title="Why hospitals need a single clinical record">
         <div className="grid gap-12 lg:grid-cols-2">
-          <p className="landing-lead">
+          <LeadText>
             Fragmented paper files, separate billing spreadsheets, and pharmacy stock kept in isolation make
             continuity of care and revenue collection harder. SynapseOS connects encounters, orders, results,
             dispense, and claims in one audit-backed system.
             <span className="mt-4 block text-xs" style={{ color: 'var(--text-muted)' }}>
               Uganda doctor-to-population ratio is well below WHO recommendations (MOH / WHO public data).
             </span>
-          </p>
+          </LeadText>
           <div className="space-y-4">
             {[
               { title: 'Continuity', body: 'One patient record across OPD, ward, lab, pharmacy, and billing.' },
@@ -230,10 +231,12 @@ export default function HomePage() {
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(249,115,22,0.12)' }}>
               <span className="text-lg font-bold" style={{ color: 'var(--brand-orange)' }}>H</span>
             </div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--brand-orange)' }}>
+            <Eyebrow className="mb-1" style={{ color: 'var(--brand-orange)' }}>
               Hospitals &amp; clinics
-            </p>
-            <h3 className="font-display mb-3 text-xl font-bold">SynapseOS</h3>
+            </Eyebrow>
+            <SectionHeading as="h3" level={3} className="mb-3">
+              SynapseOS
+            </SectionHeading>
             <p className="mb-5 flex-1 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               Web HMIS: encounters, nursing, lab, radiology, theatre, finance, and admin. Each hospital runs on
               its own tenant with role-based access.
@@ -246,8 +249,12 @@ export default function HomePage() {
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(31,166,166,0.12)' }}>
               <span className="text-lg font-bold" style={{ color: 'var(--brand-teal)' }}>P</span>
             </div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--brand-teal)' }}>Pharmacies</p>
-            <h3 className="font-display mb-3 text-xl font-bold">Synapse Pharm</h3>
+            <Eyebrow className="mb-1" style={{ color: 'var(--brand-teal)' }}>
+              Pharmacies
+            </Eyebrow>
+            <SectionHeading as="h3" level={3} className="mb-3">
+              Synapse Pharm
+            </SectionHeading>
             <p className="mb-5 flex-1 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               Inventory, FEFO batching, POS, supplier orders, and patient refill requests. Hosted at{' '}
               <span className="font-mono text-xs">pharm.synapseos.tech</span> or a custom domain.
@@ -260,10 +267,12 @@ export default function HomePage() {
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(232,184,75,0.12)' }}>
               <span className="text-lg font-bold" style={{ color: 'var(--brand-gold)' }}>A</span>
             </div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--brand-gold)' }}>
+            <Eyebrow className="mb-1" style={{ color: 'var(--brand-gold)' }}>
               Patients
-            </p>
-            <h3 className="font-display mb-3 text-xl font-bold">Synapse App</h3>
+            </Eyebrow>
+            <SectionHeading as="h3" level={3} className="mb-3">
+              Synapse App
+            </SectionHeading>
             <p className="mb-5 flex-1 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               Android app for appointments, lab results, telemedicine intake, and health bulletins when connected
               to a Synapse-network facility.
@@ -299,7 +308,7 @@ export default function HomePage() {
                 </span>
               )}
               <p className="font-bold">{plan.name}</p>
-              <p className="font-display my-1 text-xl font-bold">
+              <p className="font-display my-1 text-heading-2 tabular-nums tracking-tight">
                 {plan.price}
                 <span className="ml-1 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>
                   {plan.period}
@@ -375,11 +384,11 @@ export default function HomePage() {
 
       <SectionShell label="Reporting" title="National and donor reporting" variant="surface" tight>
         <div className="grid items-start gap-10 lg:grid-cols-2">
-          <p className="landing-lead">
+          <LeadText>
             Encounters, outcomes, and programme indicators can be mapped to SDG goals and exported for DHIS2.
             Facilities configure which indicators apply; exports run on a schedule with anonymisation rules, not
             sample dashboard percentages.
-          </p>
+          </LeadText>
           <ul className="space-y-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
             {[
               'Nightly DHIS2-compatible export pipeline (tenant-configured)',
@@ -429,7 +438,7 @@ export default function HomePage() {
                 </span>
               )}
               <p className="font-bold">{tier.name}</p>
-              <p className="font-display my-1 text-xl font-bold">
+              <p className="font-display my-1 text-heading-2 tabular-nums tracking-tight">
                 {tier.price}
                 <span className="ml-1 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>
                   {tier.period}
@@ -458,21 +467,21 @@ export default function HomePage() {
       </SectionShell>
 
       <SectionShell id="demo" label="Demo" title="Try the diagnosis assistant" variant="surface">
-        <p className="landing-lead mb-8 max-w-2xl">
+        <LeadText className="mb-8 max-w-2xl">
           Enter symptoms below. This demo calls the same API used in development; results are for illustration
           and not a substitute for clinical judgement.
-        </p>
+        </LeadText>
         <div className="max-w-3xl">
           <DemoWidget />
         </div>
       </SectionShell>
 
       <SectionShell id="pilot" label="Pilot programme" title="What hospitals evaluate in a pilot" tight>
-        <p className="landing-lead mb-8 max-w-2xl">
+        <LeadText className="mb-8 max-w-2xl">
           We do not publish anonymous quotes or unaudited performance percentages on this page. During pilot,
           facilities measure outcomes that matter to them, typically documentation time, claim turnaround, stock
           accuracy, and staff adoption.
-        </p>
+        </LeadText>
         <div className="grid gap-4 text-sm md:grid-cols-3">
           {[
             'Workflow fit per department (OPD, ward, lab, pharmacy)',
@@ -613,7 +622,9 @@ export default function HomePage() {
                 <span className="text-xl font-bold" style={{ color: 'var(--brand-orange)' }}>H</span>
               </div>
             </div>
-            <h3 className="font-display mb-3 text-xl font-bold">Hospital or clinic</h3>
+            <SectionHeading as="h3" level={3} className="mb-3">
+              Hospital or clinic
+            </SectionHeading>
             <p className="mb-6 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               Request pilot access. We respond with scope, timeline, and pricing for your facility.
             </p>
@@ -633,7 +644,9 @@ export default function HomePage() {
                 <span className="text-xl font-bold" style={{ color: 'var(--brand-gold)' }}>A</span>
               </div>
             </div>
-            <h3 className="font-display mb-3 text-xl font-bold">Patient app</h3>
+            <SectionHeading as="h3" level={3} className="mb-3">
+              Patient app
+            </SectionHeading>
             <p className="mb-6 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               Android APK and waitlist for facilities not yet on the network.
             </p>
@@ -646,9 +659,13 @@ export default function HomePage() {
 
       <section className="landing-section">
         <Reveal className="landing-container max-w-md text-center">
-          <p className="section-label mx-auto">Updates</p>
-          <h2 className="landing-heading mb-2">Product updates</h2>
-          <p className="landing-lead mb-6">Release notes and pilot openings. Unsubscribe any time.</p>
+          <Eyebrow variant="section" className="mx-auto">
+            Updates
+          </Eyebrow>
+          <SectionHeading level={2} className="mb-2">
+            Product updates
+          </SectionHeading>
+          <LeadText className="mb-6">Release notes and pilot openings. Unsubscribe any time.</LeadText>
           <NewsletterForm />
         </Reveal>
       </section>

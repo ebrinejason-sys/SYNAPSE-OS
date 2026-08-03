@@ -3,6 +3,7 @@ import { isPharmacyAdmin, hasPermission } from "@/lib/auth"
 import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { ensureDefaultPharmacyStore } from "@/lib/ensure-default-store"
+import { listRecentLedgerSales, sumCompletedRevenue } from "@/lib/pos/sale-ledger"
 
 export async function GET(request: NextRequest) {
   try {
@@ -45,8 +46,8 @@ export async function GET(request: NextRequest) {
 
       const [
         totalProductsResult,
-        totalRevenueResult,
-        todaySalesResult,
+        totalRevenue,
+        todaySales,
         lowStockResult,
         expiringResult,
         recentActivityResult,
@@ -58,19 +59,8 @@ export async function GET(request: NextRequest) {
           .select("id", { count: "exact", head: true })
           .eq("tenant_id", tenantId)
           .eq("is_active", true),
-        // Total revenue
-        (supabaseAdmin as any)
-          .from("pharmacy_transactions")
-          .select("net_amount")
-          .eq("tenant_id", tenantId)
-          .eq("status", "COMPLETED"),
-        // Today's sales
-        (supabaseAdmin as any)
-          .from("pharmacy_transactions")
-          .select("net_amount")
-          .eq("tenant_id", tenantId)
-          .eq("status", "COMPLETED")
-          .gte("created_at", todayStartISO),
+        sumCompletedRevenue({ tenantId }),
+        sumCompletedRevenue({ tenantId, fromIso: todayStartISO }),
         // Low stock count
         (supabaseAdmin as any)
           .from("pharmacy_products")
@@ -102,14 +92,8 @@ export async function GET(request: NextRequest) {
           .eq("is_active", true),
       ])
 
-      const totalRevenue = (totalRevenueResult.data ?? []).reduce(
-        (sum: number, tx: { net_amount: number | null }) => sum + (tx.net_amount ?? 0),
-        0
-      )
-      const todaySales = (todaySalesResult.data ?? []).reduce(
-        (sum: number, tx: { net_amount: number | null }) => sum + (tx.net_amount ?? 0),
-        0
-      )
+      const totalRevenueAmount = totalRevenue.amount
+      const todaySalesAmount = todaySales.amount
 
       // Resolve profiles for activity logs and staff
       const activityLogs: any[] = recentActivityResult.data ?? []
@@ -145,26 +129,18 @@ export async function GET(request: NextRequest) {
 
       const userStats = await Promise.all(
         staffSettings.map(async (pu) => {
-          const { data: txs } = await (supabaseAdmin as any)
-            .from("pharmacy_transactions")
-            .select("net_amount")
-            .eq("tenant_id", tenantId)
-            .eq("cashier_id", pu.profile_id)
-            .eq("status", "COMPLETED")
-            .gte("created_at", todayStartISO)
-
-          const todayUserSales = (txs ?? []).reduce(
-            (sum: number, tx: { net_amount: number | null }) =>
-              sum + (tx.net_amount ?? 0),
-            0
-          )
+          const today = await sumCompletedRevenue({
+            tenantId,
+            cashierId: pu.profile_id,
+            fromIso: todayStartISO,
+          })
 
           return {
             userId: pu.profile_id,
             userName: resolveName(pu.profile_id),
             userRole: pu.pharmacy_role,
-            todaySales: todayUserSales,
-            todayTransactions: txs?.length ?? 0,
+            todaySales: today.amount,
+            todayTransactions: today.count,
           }
         })
       )
@@ -174,8 +150,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         totalUsers: staffSettings.length,
         totalProducts: totalProductsResult.count ?? 0,
-        totalRevenue,
-        todaySales,
+        totalRevenue: totalRevenueAmount,
+        todaySales: todaySalesAmount,
         lowStockCount: lowStockResult.count ?? 0,
         pendingOrders: 0,
         expiringProducts: expiringResult.data ?? [],
@@ -217,46 +193,28 @@ export async function GET(request: NextRequest) {
     }
 
     if (hasPOSAccess) {
-      const [myTodayTxs, myAllTxs] = await Promise.all([
-        (supabaseAdmin as any)
-          .from("pharmacy_transactions")
-          .select("net_amount")
-          .eq("tenant_id", tenantId)
-          .eq("cashier_id", session.user.id)
-          .eq("status", "COMPLETED")
-          .gte("created_at", todayStartISO),
-        (supabaseAdmin as any)
-          .from("pharmacy_transactions")
-          .select("net_amount")
-          .eq("tenant_id", tenantId)
-          .eq("cashier_id", session.user.id)
-          .eq("status", "COMPLETED"),
+      const [myToday, myAll] = await Promise.all([
+        sumCompletedRevenue({
+          tenantId,
+          cashierId: session.user.id,
+          fromIso: todayStartISO,
+        }),
+        sumCompletedRevenue({ tenantId, cashierId: session.user.id }),
       ])
 
-      dashboardData.myTodaySales = (myTodayTxs.data ?? []).reduce(
-        (sum: number, tx: { net_amount: number | null }) =>
-          sum + (tx.net_amount ?? 0),
-        0
-      )
-      dashboardData.myTodayTransactions = myTodayTxs.data?.length ?? 0
-      dashboardData.myTotalSales = (myAllTxs.data ?? []).reduce(
-        (sum: number, tx: { net_amount: number | null }) =>
-          sum + (tx.net_amount ?? 0),
-        0
-      )
-      dashboardData.myTotalTransactions = myAllTxs.data?.length ?? 0
+      dashboardData.myTodaySales = myToday.amount
+      dashboardData.myTodayTransactions = myToday.count
+      dashboardData.myTotalSales = myAll.amount
+      dashboardData.myTotalTransactions = myAll.count
       dashboardData.pendingOrders = 0
     }
 
     if (hasTransactionAccess) {
-      const { data: recentTransactions } = await (supabaseAdmin as any)
-        .from("pharmacy_transactions")
-        .select("id, transaction_no, net_amount, created_at")
-        .eq("tenant_id", tenantId)
-        .eq("cashier_id", session.user.id)
-        .order("created_at", { ascending: false })
-        .limit(5)
-      dashboardData.recentTransactions = recentTransactions ?? []
+      dashboardData.recentTransactions = await listRecentLedgerSales({
+        tenantId,
+        cashierId: session.user.id,
+        limit: 5,
+      })
     }
 
     return NextResponse.json(dashboardData)

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePharmacyTenant } from "@/lib/api-auth"
+import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requirePharmacyTenant()
+    const auth = await requirePharmacyPermission("inventory.adjust")
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     // Fetch product (scoped to tenant)
     const { data: product } = await (supabaseAdmin as any)
       .from("pharmacy_products")
-      .select("id, name, quantity, batch_number, expiry_date")
+      .select("id, name, quantity, batch_number, expiry_date, reorder_level")
       .eq("tenant_id", tenantId)
       .eq("id", productId)
       .maybeSingle()
@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     const previousQty: number = product.quantity ?? 0
+    const reorderLevel = Number(product.reorder_level ?? 0)
     let newQty: number
 
     if (type === "INCREASE") {
@@ -95,6 +96,17 @@ export async function POST(request: NextRequest) {
       entity_id: productId,
       details: `Stock ${type}: ${product.name} - Previous: ${previousQty}, Added: ${quantity}, New: ${newQty}`,
     })
+
+    // Crossing below reorder → mobile push to pharmacy staff
+    if (reorderLevel > 0 && previousQty > reorderLevel && newQty <= reorderLevel) {
+      const { notifyPharmacyStock } = await import("@synapse/auth/mobile-push")
+      notifyPharmacyStock({
+        tenantId,
+        productName: product.name,
+        reason: "reorder",
+        detail: `${product.name} is at ${newQty} (reorder ${reorderLevel}).`,
+      })
+    }
 
     return NextResponse.json({
       product: updatedProduct,

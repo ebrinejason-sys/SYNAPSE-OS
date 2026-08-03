@@ -1,6 +1,8 @@
-# Synapse OS
+# SYNAPSE Health Ecosystem
 
-Multi-tenant AI health operating system for Uganda — hospital OS, pharmacy POS, and mobile client.
+Three-product health-platform monorepo in development: Synapse OS for facility care delivery, Synapse Pharm for medicines and supply operations, and Synapse App for patients, caregivers, communities, and mobile workforces, joined through a shared Core/Grid.
+
+> **Current maturity:** this repository is not yet three production-grade offline-first systems. Treat capability, safety, interoperability, and rollout status according to the authoritative operating model and technical evidence linked below.
 
 ## Monorepo layout
 
@@ -52,10 +54,12 @@ See `docs/deploy.md` for Vercel project mapping and deploy gates.
 
 ## Documentation
 
+- `docs/SYNAPSE_ECOSYSTEM_OPERATING_MODEL_2026.md` — authoritative three-product ecosystem, outcomes, ownership, architecture, and roadmap
+- `docs/SYNAPSE_MASTER_BLUEPRINT_2026.md` — technical sweep, risk register, capability universe, and implementation annex
 - `SETUP_GUIDE.md` — local env and first-run
 - `docs/deploy.md` — Vercel / CI
 - `docs/FLUTTERWAVE_SETUP.md` — subscription billing
-- `SYNAPSEOS_MRD.md` — product direction
+- `SYNAPSEOS_MRD.md` — superseded historical product direction
 - `apps/app/GUIDE.md` — mobile architecture
 
 ## Production URLs

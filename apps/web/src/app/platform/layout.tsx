@@ -8,6 +8,7 @@ import {
   BarChart3,
   Bell,
   Building2,
+  ClipboardCheck,
   ClipboardList,
   CreditCard,
   DatabaseZap,
@@ -61,6 +62,7 @@ const SIDEBAR_SECTIONS: NavSection[] = [
     caption: "Growth",
     items: [
       { href: "/platform/applications", label: "Applications", icon: Kanban },
+      { href: "/platform/approvals", label: "Approvals", icon: ClipboardCheck },
       { href: "/platform/sales", label: "Sales Pipeline", icon: TrendingUp },
       { href: "/platform/hospitals", label: "Facilities", icon: Building2 },
       { href: "/platform/users", label: "Users & Professionals", icon: Users },
@@ -300,14 +302,13 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
               </span>
               <kbd className="rounded border border-subtle px-1.5 py-0.5 text-[10px] text-muted-color">⌘K</kbd>
             </button>
-            <button
-              type="button"
-              aria-label="Notifications"
-              className="relative rounded-xl border border-subtle bg-surface p-2 text-secondary-color"
+            <Link
+              href="/platform#attention"
+              aria-label="Needs attention"
+              className="relative rounded-xl border border-subtle bg-surface p-2 text-secondary-color transition hover:border-[#F97316]/40"
             >
               <Bell className="h-4 w-4" />
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#F97316]" />
-            </button>
+            </Link>
             <ThemeToggle />
             <button
               type="button"

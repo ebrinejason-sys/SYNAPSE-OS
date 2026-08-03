@@ -1,9 +1,16 @@
-import { createServiceClient } from "../../../../lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@synapse/db/types";
+import {
+  DEFAULT_SIGNATURE_SRC,
+  DEFAULT_SIGNER_NAME,
+  DEFAULT_SIGNER_TITLE,
+} from "./document-branding";
 
-/** Bundled CEO signature — used when DB has no custom upload yet. */
-export const DEFAULT_SIGNATURE_SRC = "/assets/signatures/authorized-signature.png";
-export const DEFAULT_SIGNER_NAME = "Ebrine Tushabe";
-export const DEFAULT_SIGNER_TITLE = "CEO, Synapse OS";
+export {
+  DEFAULT_SIGNATURE_SRC,
+  DEFAULT_SIGNER_NAME,
+  DEFAULT_SIGNER_TITLE,
+} from "./document-branding";
 
 export type PlatformDocumentSettings = {
   id: string;
@@ -15,9 +22,16 @@ export type PlatformDocumentSettings = {
   updatedAt: string | null;
 };
 
+function serviceDb() {
+  return createSupabaseClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  ) as any;
+}
+
 export async function getDocumentSettings(): Promise<PlatformDocumentSettings> {
   try {
-    const db = createServiceClient() as any;
+    const db = serviceDb();
     const { data, error } = await db
       .from("platform_document_settings")
       .select("id, signature_data_url, signer_name, signer_title, updated_at")

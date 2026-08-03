@@ -1,6 +1,6 @@
 /** Stylized POS mock — not a product screenshot. */
-const SANS = "var(--font-dm-sans), DM Sans, system-ui, sans-serif"
-const MONO = "var(--font-ibm-plex-mono), IBM Plex Mono, ui-monospace, monospace"
+const SANS = "var(--font-sans), IBM Plex Sans, system-ui, sans-serif"
+const MONO = "var(--font-mono), IBM Plex Mono, ui-monospace, monospace"
 
 export function PosMock() {
   return (

@@ -1,8 +1,10 @@
 import { createServiceClient } from "../../../../lib/supabase/server";
 import { listSubscriptionInvoices, type SubscriptionInvoiceRow } from "@synapse/auth/billing";
 import { kampalaDateYMD } from "@synapse/auth/billing";
+import { formatMoneyUGX as formatMoneyUGXShared, parseAmountUgx as parseAmountUgxShared } from "./money";
 
 export type PlatformDocKind = "receipt" | "invoice" | "payment" | "trial";
+export { formatMoneyUGXShared as formatMoneyUGX, parseAmountUgxShared as parseAmountUgx };
 
 export type PlatformBillingDocument = {
   id: string;
@@ -29,34 +31,16 @@ function db() {
   return createServiceClient() as any;
 }
 
-/** Parse UGX amounts from form input — accepts decimals, commas, spaces. */
-export function parseAmountUgx(raw: unknown): number | null {
-  if (raw == null) return null;
-  let cleaned = String(raw)
-    .trim()
-    .replace(/ugx/gi, "")
-    .replace(/\s+/g, "");
-  if (!cleaned) return null;
-
-  if (cleaned.includes(",") && cleaned.includes(".")) {
-    cleaned = cleaned.replace(/,/g, "");
-  } else if (cleaned.includes(",")) {
-    if (/^-?\d+,\d{1,2}$/.test(cleaned)) cleaned = cleaned.replace(",", ".");
-    else cleaned = cleaned.replace(/,/g, "");
-  }
-
-  const n = Number(cleaned);
-  if (!Number.isFinite(n) || n < 0) return null;
-  return Math.round(n * 100) / 100;
-}
-
-export function formatMoneyUGX(value: number): string {
-  const abs = Math.abs(value);
-  const hasCents = Math.round(abs * 100) % 100 !== 0;
-  return `UGX ${value.toLocaleString("en-UG", {
-    minimumFractionDigits: hasCents ? 2 : 0,
-    maximumFractionDigits: 2,
-  })}`;
+function isMissingRelationError(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  const code = error.code ?? "";
+  const msg = error.message ?? "";
+  return (
+    code === "42P01" ||
+    code === "PGRST205" ||
+    code === "PGRST204" ||
+    /does not exist|schema cache|Could not find the table|relation .* does not exist/i.test(msg)
+  );
 }
 
 const EXTERNAL_TENANT_SLUG = "synapse-billing-external";
@@ -77,44 +61,67 @@ export async function resolveBillingTenantId(preferred: string | null | undefine
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  const { error } = await db().from("tenants").insert({
-    id,
-    slug: EXTERNAL_TENANT_SLUG,
-    name: "External / Walk-in billing",
-    facility_type: "pharmacy",
-    status: "active",
-    is_active: true,
-    plan: "enterprise",
-    onboarding_completed: true,
-    onboarding_step: 5,
-    country_code: "UG",
-    country: "Uganda",
-    modules_enabled: [],
-    created_at: now,
-    updated_at: now,
-  });
 
-  if (error) {
-    // Race: another request may have created it
-    const { data: again } = await db()
+  // Try a few plan values — live CHECK constraints vary by migration era.
+  for (const plan of ["trial", "starter", "enterprise"] as const) {
+    const { error } = await db().from("tenants").insert({
+      id,
+      slug: EXTERNAL_TENANT_SLUG,
+      name: "External / Walk-in billing",
+      facility_type: "pharmacy",
+      status: "active",
+      is_active: true,
+      plan,
+      onboarding_completed: true,
+      onboarding_step: 5,
+      country_code: "UG",
+      country: "Uganda",
+      modules_enabled: [],
+      created_at: now,
+      updated_at: now,
+    });
+
+    if (!error) return id;
+
+    const { data: raced } = await db()
       .from("tenants")
       .select("id")
       .eq("slug", EXTERNAL_TENANT_SLUG)
       .maybeSingle();
-    if (again?.id) return again.id as string;
-    throw new Error(`Unable to resolve billing tenant: ${error.message}`);
+    if (raced?.id) return raced.id as string;
+
+    // Plan check failed — try next plan value
+    if (/plan|check|constraint/i.test(error.message ?? "")) continue;
+
+    console.error("[receipts] create external tenant failed:", error.message);
+    break;
   }
 
-  return id;
+  // Last resort: any existing tenant so NOT NULL tenant_id inserts can proceed
+  const { data: anyTenant } = await db().from("tenants").select("id").limit(1).maybeSingle();
+  if (anyTenant?.id) {
+    console.warn("[receipts] using fallback existing tenant for external billing doc");
+    return anyTenant.id as string;
+  }
+
+  throw new Error("Unable to resolve a billing tenant for this document.");
 }
 
-async function nextNo(table: "platform_billing_documents" | "subscription_invoices", column: string, prefix: string) {
+async function nextNo(
+  table: "platform_billing_documents" | "subscription_invoices",
+  column: string,
+  prefix: string,
+): Promise<string> {
   const ymd = kampalaDateYMD();
   const like = `${prefix}-${ymd}-%`;
-  const { count } = await db()
+  const { count, error } = await db()
     .from(table)
     .select("id", { count: "exact", head: true })
     .like(column, like);
+  if (error) {
+    if (isMissingRelationError(error)) throw new Error(error.message);
+    // Non-fatal — still produce a number
+  }
   return `${prefix}-${ymd}-${String((count ?? 0) + 1).padStart(4, "0")}`;
 }
 
@@ -191,6 +198,8 @@ export type CreatePlatformDocumentInput = {
   method?: string | null;
   notes?: string | null;
   dueDate?: string | null;
+  paymentRef?: string | null;
+  paymentInstructions?: string | null;
   createdBy: string;
   createdByEmail?: string | null;
   signerName: string;
@@ -205,13 +214,14 @@ export async function createPlatformBillingDocument(
   const prefix = input.kind === "invoice" ? "INV" : "RCT";
   const now = new Date();
   const periodEnd = input.dueDate ? new Date(`${input.dueDate}T12:00:00+03:00`) : null;
-  const tenantId = await resolveBillingTenantId(input.tenantId).catch((err) => {
-    console.error("[receipts] resolveBillingTenantId failed:", err);
-    return null;
-  });
 
-  if (!tenantId) {
-    return { error: "Could not resolve a facility tenant for this document." };
+  let tenantId: string;
+  try {
+    tenantId = await resolveBillingTenantId(input.tenantId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "tenant_resolve_failed";
+    console.error("[receipts] resolveBillingTenantId failed:", message);
+    return { error: message };
   }
 
   const metadata = {
@@ -225,6 +235,8 @@ export async function createPlatformBillingDocument(
     method: input.method ?? null,
     notes: input.notes ?? null,
     due_date: input.dueDate ?? null,
+    payment_ref: input.paymentRef ?? null,
+    payment_instructions: input.paymentInstructions ?? null,
     created_by: input.createdBy,
     created_by_email: input.createdByEmail ?? null,
     signer_name: input.signerName,
@@ -234,7 +246,7 @@ export async function createPlatformBillingDocument(
     signed_at: now.toISOString(),
   };
 
-  // 1) Prefer dedicated platform_billing_documents (numeric amounts, nullable tenant OK)
+  // 1) Prefer dedicated platform_billing_documents when the table exists
   {
     let documentNo = await nextNo("platform_billing_documents", "document_no", prefix).catch(
       () => `${prefix}-${kampalaDateYMD()}-0001`,
@@ -277,21 +289,19 @@ export async function createPlatformBillingDocument(
         continue;
       }
 
-      // Table missing on this project — fall through to subscription_invoices
-      const missing =
-        error?.code === "42P01" ||
-        /does not exist|schema cache|Could not find the table/i.test(error?.message ?? "");
-      if (missing) {
+      // Table missing / not in schema cache — fall through to subscription_invoices
+      if (isMissingRelationError(error)) {
         console.warn("[receipts] platform_billing_documents unavailable, falling back:", error?.message);
         break;
       }
 
-      console.error("[receipts] platform insert failed:", error?.message, error?.code);
-      return { error: error?.message ?? "insert_failed" };
+      // Any other failure on the preferred table: still try the legacy ledger
+      console.warn("[receipts] platform insert failed, trying subscription_invoices:", error?.message, error?.code);
+      break;
     }
   }
 
-  // 2) Fallback: subscription_invoices (production currently has this table)
+  // 2) Fallback: subscription_invoices (live production ledger)
   {
     let documentNo = await nextNo("subscription_invoices", "invoice_no", prefix).catch(
       () => `${prefix}-${kampalaDateYMD()}-0001`,
@@ -327,12 +337,154 @@ export async function createPlatformBillingDocument(
         continue;
       }
 
-      console.error("[receipts] subscription_invoices insert failed:", error?.message, error?.code, error?.details);
+      console.error(
+        "[receipts] subscription_invoices insert failed:",
+        error?.message,
+        error?.code,
+        error?.details,
+      );
       return { error: error?.message ?? "insert_failed" };
     }
   }
 
   return { error: "unique_exhausted" };
+}
+
+export type UpdatePlatformDocumentInput = {
+  id: string;
+  source: "platform" | "subscription";
+  kind: PlatformDocKind;
+  tenantId?: string | null;
+  facilityName: string;
+  customerName: string;
+  customerEmail?: string | null;
+  description?: string | null;
+  amountUgx: number;
+  method?: string | null;
+  notes?: string | null;
+  dueDate?: string | null;
+  paymentRef?: string | null;
+  paymentInstructions?: string | null;
+  updatedBy: string;
+  updatedByEmail?: string | null;
+  existingMetadata?: Record<string, unknown>;
+};
+
+export async function updatePlatformBillingDocument(
+  input: UpdatePlatformDocumentInput,
+): Promise<{ id: string; documentNo: string } | { error: string }> {
+  const now = new Date();
+  const periodEnd = input.dueDate ? new Date(`${input.dueDate}T12:00:00+03:00`) : null;
+
+  let tenantId: string | null = input.tenantId ?? null;
+  if (tenantId === "") tenantId = null;
+  try {
+    if (!tenantId) tenantId = await resolveBillingTenantId(null);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "tenant_resolve_failed";
+    return { error: message };
+  }
+
+  const prev = input.existingMetadata ?? {};
+  const metadata = {
+    ...prev,
+    type:
+      input.kind === "invoice"
+        ? "manual_invoice"
+        : input.kind === "receipt"
+          ? "manual_receipt"
+          : (prev.type as string | undefined) ?? input.kind,
+    document_kind: input.kind,
+    facility_name: input.facilityName,
+    customer_name: input.customerName,
+    customer_email: input.customerEmail ?? null,
+    plan_name: input.description || (input.kind === "invoice" ? "Invoice" : "Receipt"),
+    description: input.description ?? null,
+    method: input.method ?? null,
+    notes: input.notes ?? null,
+    due_date: input.dueDate ?? null,
+    payment_ref: input.paymentRef ?? null,
+    payment_instructions: input.paymentInstructions ?? null,
+    updated_by: input.updatedBy,
+    updated_by_email: input.updatedByEmail ?? null,
+    updated_at: now.toISOString(),
+  };
+
+  if (input.source === "platform") {
+    const { data, error } = await db()
+      .from("platform_billing_documents")
+      .update({
+        tenant_id: tenantId,
+        facility_name: input.facilityName,
+        customer_name: input.customerName,
+        customer_email: input.customerEmail || null,
+        description: input.description || null,
+        amount_ugx: input.amountUgx,
+        method: input.method || null,
+        notes: input.notes || null,
+        due_date: input.dueDate || null,
+        period_end: periodEnd && !Number.isNaN(periodEnd.getTime()) ? periodEnd.toISOString() : null,
+        metadata,
+      })
+      .eq("id", input.id)
+      .select("id, document_no")
+      .single();
+
+    if (!error && data?.id) {
+      return { id: data.id as string, documentNo: data.document_no as string };
+    }
+
+    if (!isMissingRelationError(error)) {
+      console.error("[receipts] platform update failed:", error?.message, error?.code);
+      return { error: error?.message ?? "update_failed" };
+    }
+    // Fall through to subscription table if platform table missing
+  }
+
+  const { data, error } = await db()
+    .from("subscription_invoices")
+    .update({
+      tenant_id: tenantId,
+      amount_ugx: input.amountUgx,
+      period_end: periodEnd && !Number.isNaN(periodEnd.getTime()) ? periodEnd.toISOString() : null,
+      metadata,
+    })
+    .eq("id", input.id)
+    .select("id, invoice_no")
+    .single();
+
+  if (!error && data?.id) {
+    return { id: data.id as string, documentNo: (data.invoice_no as string) ?? input.id };
+  }
+
+  console.error("[receipts] subscription update failed:", error?.message, error?.code);
+  return { error: error?.message ?? "update_failed" };
+}
+
+export async function deletePlatformBillingDocument(
+  id: string,
+  sourceHint?: "platform" | "subscription" | null,
+): Promise<{ ok: true; documentNo: string } | { error: string }> {
+  const existing = await getPlatformBillingDocument(id);
+  if (!existing) return { error: "Document not found" };
+
+  const source = sourceHint || existing.source;
+  const documentNo = existing.document_no;
+
+  if (source === "platform") {
+    const { error } = await db().from("platform_billing_documents").delete().eq("id", id);
+    if (!error) return { ok: true, documentNo };
+    if (!isMissingRelationError(error)) {
+      // Try subscription fallback in case the row lived there
+      console.warn("[receipts] platform delete failed, trying subscription:", error.message);
+    }
+  }
+
+  const { error } = await db().from("subscription_invoices").delete().eq("id", id);
+  if (!error) return { ok: true, documentNo };
+
+  console.error("[receipts] delete failed:", error?.message, error?.code);
+  return { error: error?.message ?? "delete_failed" };
 }
 
 export async function getPlatformBillingDocument(

@@ -196,12 +196,13 @@ export async function GET(req: NextRequest) {
         })),
       }
     }
-    const pharmacyPortalUrl = (process.env.NEXT_PUBLIC_PHARMACY_APP_URL ?? 'https://pharm.synapseos.tech').replace(/\/$/, '')
+    // Phase C polish: tools hub + ops; billing on profile.
     quickActions = [
-      { key: 'pos', label: 'New Sale (POS)', target: `web:/os/${tenantSlug}/pharmacy/pos` },
-      { key: 'inventory', label: 'Inventory', target: `web:/os/${tenantSlug}/pharmacy/inventory` },
-      { key: 'orders', label: 'Online Orders', target: `web:/os/${tenantSlug}/pharmacy/orders` },
-      { key: 'billing', label: 'Billing & Renewal', target: `${pharmacyPortalUrl}/portal/billing` },
+      { key: 'pos', label: 'New Sale (POS)', target: 'app:/pos' },
+      { key: 'tools', label: 'Calculators & safety', target: 'app:/tools' },
+      { key: 'orders', label: 'Orders', target: 'app:/(main)/orders' },
+      { key: 'inventory', label: 'Inventory', target: 'app:/(main)/stock' },
+      { key: 'sales', label: 'Sales history', target: 'app:/(main)/sales' },
     ]
   } else if (kind === 'clinician') {
     const [openEnc, signedToday, totalToday, queue] = await Promise.all([

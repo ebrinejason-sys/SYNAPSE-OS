@@ -91,13 +91,14 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* Synapse type system — Bricolage display, DM Sans body, IBM Plex Mono data. */
+  /* Synapse type system — IBM Plex Sans (UI + display) · IBM Plex Mono (data). */
   h1, h2, h3, h4, h5, h6, .font-display {
-    font-family: var(--font-bricolage), "Bricolage Grotesque", "DM Sans", sans-serif;
+    font-family: var(--font-display), "IBM Plex Sans", system-ui, sans-serif;
+    font-weight: 600;
   }
 
   code, pre, .mono, .font-mono {
-    font-family: var(--font-ibm-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+    font-family: var(--font-mono), "IBM Plex Mono", ui-monospace, monospace;
   }
 
   ::-webkit-scrollbar       { width: 6px; height: 6px; }
@@ -352,3 +353,5 @@
     transform: none;
   }
 }
+
+/* Semantic typography: packages/config/typography.css (imported in layout) */

@@ -15,6 +15,7 @@ import {
   requirePharmacyApiSession,
   requirePharmacyTenant,
   requirePharmacyAdmin,
+  requirePharmacyPermission,
   requirePlatformAdmin,
   assertResourceTenant,
   getTrustedRequestTenantId,
@@ -36,6 +37,8 @@ function session(partial: Partial<PharmacySession> & Pick<PharmacySession, "role
     tenantStatus: "active",
     modulesEnabled: [],
     mustChangePassword: false,
+    permissions: [],
+    pharmacyRole: partial.pharmacyRole ?? partial.role,
     isImpersonation: false,
     impersonatorId: null,
     profile: {
@@ -102,6 +105,63 @@ describe("requirePharmacyAdmin", () => {
   it("allows pharmacy_admin", async () => {
     getSession.mockResolvedValue(session({ role: "pharmacy_admin", tenantId: "t1" }))
     const result = await requirePharmacyAdmin()
+    expect(result.ok).toBe(true)
+  })
+})
+
+describe("requirePharmacyPermission", () => {
+  it("allows cashiers to sell", async () => {
+    getSession.mockResolvedValue(
+      session({ role: "pharmacy_cashier", tenantId: "t1", isAdmin: false, pharmacyRole: "pharmacy_cashier" }),
+    )
+    const result = await requirePharmacyPermission("pos.sell")
+    expect(result.ok).toBe(true)
+  })
+
+  it("forbids cashiers from adjusting inventory", async () => {
+    getSession.mockResolvedValue(
+      session({ role: "pharmacy_cashier", tenantId: "t1", isAdmin: false, pharmacyRole: "pharmacy_cashier" }),
+    )
+    const result = await requirePharmacyPermission("inventory.adjust")
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.response.status).toBe(403)
+  })
+
+  it("allows inventory officers to adjust stock", async () => {
+    getSession.mockResolvedValue(
+      session({
+        role: "inventory_officer",
+        tenantId: "t1",
+        isAdmin: false,
+        pharmacyRole: "inventory_officer",
+      }),
+    )
+    const result = await requirePharmacyPermission("inventory.adjust")
+    expect(result.ok).toBe(true)
+  })
+
+  it("accepts legacy MANAGE_POS grant", async () => {
+    getSession.mockResolvedValue(
+      session({
+        role: "pharmacy_staff",
+        tenantId: "t1",
+        isAdmin: false,
+        pharmacyRole: "pharmacy_staff",
+        permissions: ["MANAGE_POS"],
+      }),
+    )
+    // pharmacy_staff aliases to cashier which already has pos.sell; use a role with no defaults
+    getSession.mockResolvedValue(
+      session({
+        role: "custom",
+        tenantId: "t1",
+        isAdmin: false,
+        pharmacyRole: "custom",
+        permissions: ["MANAGE_POS"],
+      }),
+    )
+    const result = await requirePharmacyPermission("pos.sell")
     expect(result.ok).toBe(true)
   })
 })

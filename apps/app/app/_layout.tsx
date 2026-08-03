@@ -9,12 +9,14 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { LockScreen } from '@/components/LockScreen'
 import { AuthProvider, useAuth } from '@/lib/auth'
+import { usePushDeepLinks } from '@/lib/push-deeplinks'
 import { colors } from '@/lib/theme'
 
 SplashScreen.preventAutoHideAsync().catch(() => {})
 
 function RootNavigator() {
-  const { isLocked } = useAuth()
+  const { isLocked, token } = useAuth()
+  usePushDeepLinks(Boolean(token) && !isLocked)
 
   if (isLocked) return <LockScreen />
 

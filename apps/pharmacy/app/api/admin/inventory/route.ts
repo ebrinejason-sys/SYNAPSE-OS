@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePharmacyTenant } from "@/lib/api-auth"
+import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requirePharmacyTenant()
+    const auth = await requirePharmacyPermission(["inventory.read", "pos.sell"])
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requirePharmacyTenant()
+    const auth = await requirePharmacyPermission("inventory.write")
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const auth = await requirePharmacyTenant()
+    const auth = await requirePharmacyPermission("inventory.write")
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 
@@ -355,7 +355,7 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await requirePharmacyTenant()
+    const auth = await requirePharmacyPermission("inventory.write")
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 

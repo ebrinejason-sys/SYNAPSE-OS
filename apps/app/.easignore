@@ -1,12 +1,54 @@
-# Keep the EAS archive focused on the mobile app (avoid monorepo root node_modules).
-../web/**
-../pharmacy/**
-../../packages/**
-../../node_modules/**
-../../src/**
-../../public/**
-../../docs/**
-../../supabase/**
-../../.turbo/**
-../../dist/**
-../../.vercel/**
+# Paths are matched against the monorepo (git) root that EAS packs.
+# Goal: upload only the Expo app + workspace install metadata.
+
+.git/
+.github/
+.cursor/
+.vscode/
+.turbo/
+.vercel/
+.supabase/
+.worktrees/
+.eas-inspect/
+apps/app/.eas-inspect/
+apps/app/.expo/
+
+# Sibling apps / marketing assets (huge PNGs)
+apps/web/
+apps/pharmacy/
+apps/demo/
+public/
+docs/
+legacy/
+/scripts/
+supabase/
+test-results/
+packages/
+
+# Root noise
+GODMODE_REPORT.md
+SETUP_GUIDE.md
+SYNAPSEOS_ECOSYSTEM_FLOW.md
+SYNAPSEOS_MRD.md
+SYNAPSE_DASHBOARD_BUILD_PROMPT.md
+vercel.json
+turbo.json
+
+# Also cover relative-from-apps/app forms (some EAS versions)
+../web/
+../pharmacy/
+../demo/
+../../public/
+../../docs/
+../../legacy/
+../../supabase/
+../../test-results/
+../../packages/
+../../node_modules/
+node_modules/
+**/node_modules/
+**/.next/
+**/.expo/
+**/*.log
+!scripts/
+!scripts/**

@@ -37,6 +37,9 @@ async function getStandingAudit() {
     staleOtps,
     staleResetTokens,
     sweepRun,
+    mobileSessionsActive,
+    pushTokens,
+    pharmacyTenants,
   ] = await Promise.all([
     safeCount("pharmacy_pos_sales"),
     countWhere("pharmacy_pos_sales", (q) => q.gte("created_at", thirtyDaysAgo)),
@@ -51,6 +54,11 @@ async function getStandingAudit() {
       .maybeSingle()
       .then((res: { data: { value?: Record<string, unknown>; updated_at?: string } | null }) => res.data)
       .catch(() => null),
+    countWhere("synapse_sessions", (q) =>
+      q.eq("app", "mobile").is("revoked_at", null).gt("expires_at", new Date().toISOString()),
+    ),
+    safeCount("mobile_push_tokens"),
+    countWhere("tenants", (q) => q.eq("facility_type", "pharmacy")),
   ]);
 
   return {
@@ -62,6 +70,9 @@ async function getStandingAudit() {
     staleResetTokens,
     sweepLastRun: sweepRun?.updated_at ?? null,
     sweepSummary: sweepRun?.value ?? null,
+    mobileSessionsActive,
+    pushTokens,
+    pharmacyTenants,
   };
 }
 
@@ -71,9 +82,24 @@ export default async function PlatformHealthPage() {
 
   const cards: Array<{ label: string; value: string; detail: string; alert?: boolean }> = [
     {
+      label: "Pharmacy tenants",
+      value: audit.pharmacyTenants.toLocaleString(),
+      detail: "facility_type = pharmacy",
+    },
+    {
       label: "POS sales (all time)",
       value: audit.posSalesTotal.toLocaleString(),
       detail: `${audit.posSales30d.toLocaleString()} in last 30 days`,
+    },
+    {
+      label: "Mobile sessions (active)",
+      value: audit.mobileSessionsActive.toLocaleString(),
+      detail: "synapse_sessions app=mobile, unrevoked, unexpired",
+    },
+    {
+      label: "Push tokens registered",
+      value: audit.pushTokens.toLocaleString(),
+      detail: "mobile_push_tokens rows",
     },
     {
       label: "Profiles signed in",
@@ -109,7 +135,7 @@ export default async function PlatformHealthPage() {
         description="Standing audit of live product signals, plus runtime health and performance observability across Synapse apps."
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
           <article
             key={card.label}

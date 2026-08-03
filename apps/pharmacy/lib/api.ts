@@ -1,57 +1,35 @@
-import { queueMutation } from "./offlineStorage";
-
+/**
+ * Network helper for portal pages.
+ * Mutations never fake success when offline — that previously cleared carts / wrote stock UI as if persisted.
+ */
 export async function resilientFetch(url: string, options: RequestInit = {}) {
-  const method = options.method || 'GET';
-  const isMutation = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method.toUpperCase());
+  const method = (options.method || "GET").toUpperCase()
+  const isMutation = ["POST", "PATCH", "PUT", "DELETE"].includes(method)
 
-  // Use navigator.onLine as a fast check, but also handle actual fetch failure
-  if (!navigator.onLine && isMutation) {
-    console.log(`[Offline] Queueing mutation: ${method} ${url}`);
-    let body = options.body;
-    if (typeof body === 'string') {
-      try {
-        body = JSON.parse(body);
-      } catch (e) {
-        // keep as string
-      }
-    }
-
-    await queueMutation(url, method, body, (options.headers as any) || {});
-
-    // Return a fake successful response
-    return new Response(JSON.stringify({
-      success: true,
-      offline: true,
-      message: 'Action queued for sync'
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+  if (typeof navigator !== "undefined" && !navigator.onLine && isMutation) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        offline: true,
+        error: "You are offline. Changes were not saved. Reconnect and retry.",
+      }),
+      { status: 503, headers: { "Content-Type": "application/json" } },
+    )
   }
 
   try {
-    const response = await fetch(url, options);
-    return response;
+    return await fetch(url, options)
   } catch (err) {
-    // If fetch failed and it's a mutation, queue it
     if (isMutation) {
-      console.log(`[Offline] Fetch failed, queueing mutation: ${method} ${url}`);
-      let body = options.body;
-      if (typeof body === 'string') {
-        try {
-          body = JSON.parse(body);
-        } catch (e) { /* ignore */ }
-      }
-      await queueMutation(url, method, body, (options.headers as any) || {});
-      return new Response(JSON.stringify({
-        success: true,
-        offline: true,
-        message: 'Action queued for sync'
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return new Response(
+        JSON.stringify({
+          success: false,
+          offline: true,
+          error: "Network error. Changes were not saved. Retry when connected.",
+        }),
+        { status: 503, headers: { "Content-Type": "application/json" } },
+      )
     }
-    throw err;
+    throw err
   }
 }

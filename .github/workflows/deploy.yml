@@ -49,6 +49,10 @@ jobs:
           SYNAPSE_JWT_SECRET: ${{ secrets.SYNAPSE_JWT_SECRET }}
           NEXT_PUBLIC_PHARMACY_APP_URL: https://pharm.synapseos.tech
 
+      - name: Type-check Expo app (Release 0 equal citizen)
+        run: npm run type-check --workspace @synapse/app
+        continue-on-error: true
+
       - name: Lint web app
         run: npm run lint --workspace @synapse/web -- --max-warnings 0
 

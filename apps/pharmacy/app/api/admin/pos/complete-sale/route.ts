@@ -1,31 +1,32 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPharmacySession, isPharmacyAdmin } from "@/lib/auth"
+import { isPharmacyAdmin } from "@/lib/auth"
+import { requirePharmacyPermission } from "@/lib/api-auth"
 import { gateFeature } from "@synapse/auth/features"
 import { supabaseAdmin } from "@/lib/supabase/admin"
-
-type SaleItemIn = {
-  productId: string
-  quantity: number
-  /** Catalog / locked unit price at sale time */
-  listPrice: number
-  /** Sold unit price after discount (per base unit) */
-  unitPrice: number
-  discountAmount?: number
-  discountReason?: string | null
-  discountApprovedBy?: string | null
-  batchId?: string | null
-}
+import {
+  findSaleIdempotency,
+  readIdempotencyKey,
+  storeSaleIdempotency,
+} from "@/lib/pos/idempotency"
+import {
+  extractSaleErrorCode,
+  friendlySaleError,
+  saleErrorHttpStatus,
+  validateSaleLine,
+  type SaleLineInput,
+} from "@/lib/pos/sale-validation"
 
 /**
  * Complete a POS sale via live `complete_pharmacy_sale` RPC.
  * Server recomputes list prices from catalog; cashiers cannot invent prices.
+ * Cashier identity is always the authenticated session user.
  * Nonzero discount_amount requires discount_reason (DB constraint).
+ * Optional Idempotency-Key prevents duplicate sales on retry.
  */
 export async function POST(request: NextRequest) {
-  const session = await getPharmacySession()
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const tenantId = session.tenantId || session.profile.tenant_id
-  if (!tenantId) return NextResponse.json({ error: "No tenant" }, { status: 403 })
+  const auth = await requirePharmacyPermission("pos.sell")
+  if (!auth.ok) return auth.response
+  const { session, tenantId } = auth
 
   const gate = await gateFeature(tenantId, "pos.sell")
   if (gate) return gate
@@ -35,7 +36,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const itemsIn = Array.isArray(body.items) ? (body.items as SaleItemIn[]) : []
+  const idempotencyKey = readIdempotencyKey(request, body as Record<string, unknown>)
+  if (idempotencyKey) {
+    const prior = await findSaleIdempotency(tenantId, idempotencyKey)
+    if (prior) {
+      return NextResponse.json(
+        { ok: true, sale: prior.response, idempotentReplay: true },
+        { status: 200, headers: { "X-Idempotent-Replay": "true" } },
+      )
+    }
+  }
+
+  const itemsIn = Array.isArray(body.items) ? (body.items as SaleLineInput[]) : []
   if (itemsIn.length === 0) {
     return NextResponse.json({ error: "Cart is empty" }, { status: 400 })
   }
@@ -45,10 +57,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "paymentMethod is required" }, { status: 400 })
   }
 
-  const cashierId =
-    typeof body.staffId === "string" && body.staffId
-      ? body.staffId
-      : session.userId
+  // Authenticated user is always the cashier. Client-supplied staffId is ignored.
+  const cashierId = session.userId
 
   const db = supabaseAdmin as any
 
@@ -68,11 +78,6 @@ export async function POST(request: NextRequest) {
 
   for (const raw of itemsIn) {
     const productId = String(raw.productId ?? "")
-    const quantity = Number(raw.quantity)
-    if (!productId || !Number.isFinite(quantity) || quantity <= 0) {
-      return NextResponse.json({ error: "Invalid cart item" }, { status: 400 })
-    }
-
     const { data: product } = await db
       .from("pharmacy_products")
       .select("id, price, name, is_active")
@@ -80,65 +85,29 @@ export async function POST(request: NextRequest) {
       .eq("tenant_id", tenantId)
       .maybeSingle()
 
-    if (!product || product.is_active === false) {
-      return NextResponse.json({ error: `Product not found: ${productId}` }, { status: 404 })
-    }
+    const validated = validateSaleLine({
+      raw,
+      product: product
+        ? { id: product.id, price: Number(product.price ?? 0), is_active: product.is_active }
+        : null,
+      thresholdPct: threshold,
+      isAdmin: isPharmacyAdmin(session),
+      actorUserId: session.userId,
+      approvedBy,
+    })
 
-    const listPrice = Number(product.price ?? 0)
-    const requestedUnit = Number(raw.unitPrice)
-    const discountAmount = Math.max(0, Number(raw.discountAmount ?? 0))
-    const discountReason =
-      typeof raw.discountReason === "string" && raw.discountReason.trim()
-        ? raw.discountReason.trim()
-        : null
-
-    // Cashiers: sold price must equal list unless discount fields explain the gap.
-    const soldPrice = Number.isFinite(requestedUnit) ? requestedUnit : listPrice
-    const impliedDiscount = Math.max(0, (listPrice - soldPrice) * quantity)
-    const lineDiscount = discountAmount > 0 ? discountAmount : impliedDiscount
-    const effectiveSold =
-      lineDiscount > 0 && quantity > 0
-        ? Math.max(0, listPrice - lineDiscount / quantity)
-        : listPrice
-
-    if (!isPharmacyAdmin(session) && Math.abs(soldPrice - listPrice) > 0.0001 && lineDiscount <= 0) {
-      return NextResponse.json(
-        { error: "Cashiers cannot change unit price — use discount control" },
-        { status: 403 },
-      )
-    }
-
-    if (lineDiscount > 0 && !discountReason) {
-      return NextResponse.json(
-        { error: "discount_reason is required when discount_amount is nonzero" },
-        { status: 400 },
-      )
-    }
-
-    const discountPct =
-      listPrice > 0 && quantity > 0 ? (lineDiscount / (listPrice * quantity)) * 100 : 0
-
-    if (discountPct > threshold && !approvedBy && !isPharmacyAdmin(session)) {
+    if (!validated.ok) {
       return NextResponse.json(
         {
-          error: `Discount ${discountPct.toFixed(1)}% exceeds threshold ${threshold}% — supervisor approval required`,
-          code: "DISCOUNT_APPROVAL_REQUIRED",
-          threshold,
+          error: validated.error,
+          ...(validated.code ? { code: validated.code } : {}),
+          ...(validated.threshold != null ? { threshold: validated.threshold } : {}),
         },
-        { status: 403 },
+        { status: validated.status },
       )
     }
 
-    rpcItems.push({
-      product_id: productId,
-      quantity,
-      unit_price: effectiveSold,
-      list_price: listPrice,
-      discount_amount: lineDiscount,
-      discount_reason: discountReason,
-      discount_approved_by: approvedBy || (isPharmacyAdmin(session) ? session.userId : null),
-      batch_id: raw.batchId ?? null,
-    })
+    rpcItems.push(validated.rpcItem)
   }
 
   const discountTotal = rpcItems.reduce(
@@ -158,42 +127,68 @@ export async function POST(request: NextRequest) {
     p_tax_amount: Number(body.taxAmount ?? 0),
     p_patient_id: body.patientId ?? null,
     p_confirmed_by: session.userId,
+    ...(idempotencyKey ? { p_idempotency_key: idempotencyKey } : {}),
   })
 
   if (error) {
     const msg = error.message ?? "Sale failed"
-    const status =
-      msg.includes("EXPIRED_BATCH_BLOCKED") || msg.includes("INSUFFICIENT_STOCK")
-        ? 409
-        : msg.includes("APPEND_ONLY")
-          ? 409
-          : 500
     return NextResponse.json(
       {
         error: friendlySaleError(msg),
-        code: extractCode(msg),
+        code: extractSaleErrorCode(msg),
       },
-      { status },
+      { status: saleErrorHttpStatus(msg) },
     )
   }
 
-  return NextResponse.json({ ok: true, sale: data })
-}
+  const responseBody = { ok: true as const, sale: data }
+  if (idempotencyKey) {
+    const saleId =
+      data && typeof data === "object"
+        ? String(
+            (data as { sale_id?: unknown; id?: unknown }).sale_id ??
+              (data as { id?: unknown }).id ??
+              "",
+          ) || null
+        : null
+    await storeSaleIdempotency({
+      tenantId,
+      key: idempotencyKey,
+      userId: session.userId,
+      saleId,
+      response: data,
+    })
+  }
 
-function extractCode(message: string): string | null {
-  const m = message.match(/^([A-Z_]+):/)
-  return m?.[1] ?? null
-}
+  // After sale, push if any sold product crossed below reorder
+  void (async () => {
+    try {
+      const productIds = [...new Set(rpcItems.map((i) => String(i.product_id)))]
+      if (productIds.length === 0) return
+      const { data: products } = await db
+        .from("pharmacy_products")
+        .select("id, name, quantity, reorder_level")
+        .eq("tenant_id", tenantId)
+        .in("id", productIds)
+      const low = (products ?? []).filter(
+        (p: { quantity?: number; reorder_level?: number }) =>
+          Number(p.reorder_level ?? 0) > 0 &&
+          Number(p.quantity ?? 0) <= Number(p.reorder_level ?? 0),
+      )
+      if (low.length === 0) return
+      const { notifyPharmacyStock } = await import("@synapse/auth/mobile-push")
+      for (const p of low.slice(0, 5)) {
+        notifyPharmacyStock({
+          tenantId,
+          productName: p.name,
+          reason: "reorder",
+          detail: `${p.name} is at ${p.quantity} (reorder ${p.reorder_level}).`,
+        })
+      }
+    } catch (err) {
+      console.error("[pos] reorder push failed:", err)
+    }
+  })()
 
-function friendlySaleError(message: string): string {
-  if (message.includes("EXPIRED_BATCH_BLOCKED")) {
-    return "That batch is expired and cannot be sold. Remove it from the cart and pick another batch."
-  }
-  if (message.includes("INSUFFICIENT_STOCK")) {
-    return "Not enough stock on active (non-expired) batches for this sale."
-  }
-  if (message.includes("APPEND_ONLY")) {
-    return "Completed sales cannot be edited."
-  }
-  return message
+  return NextResponse.json(responseBody)
 }

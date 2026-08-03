@@ -1,0 +1,51 @@
+import { describe, expect, it } from "vitest"
+import {
+  roleHasCapability,
+  capabilitiesForRole,
+  sessionHasCapability,
+  resolveCapability,
+} from "./capabilities"
+
+describe("pharmacy capabilities", () => {
+  it("lets cashiers sell but not adjust inventory", () => {
+    expect(roleHasCapability("pharmacy_cashier", "pos.sell")).toBe(true)
+    expect(roleHasCapability("pharmacy_cashier", "inventory.adjust")).toBe(false)
+  })
+
+  it("lets pharmacists verify prescriptions", () => {
+    expect(roleHasCapability("pharmacist", "rx.verify")).toBe(true)
+    expect(roleHasCapability("pharmacist", "settings.manage")).toBe(false)
+  })
+
+  it("grants owners all capabilities", () => {
+    expect(roleHasCapability("pharmacy_admin", "settings.manage")).toBe(true)
+    expect(capabilitiesForRole("pharmacy_admin").length).toBeGreaterThan(10)
+  })
+
+  it("maps legacy MANAGE_POS to pos.sell", () => {
+    expect(resolveCapability("MANAGE_POS")).toBe("pos.sell")
+    expect(
+      sessionHasCapability(
+        { pharmacyRole: "pharmacy_cashier", permissions: ["MANAGE_POS"], isAdmin: false },
+        "pos.sell",
+      ),
+    ).toBe(true)
+  })
+
+  it("honors explicit capability grants on a weak role", () => {
+    expect(
+      sessionHasCapability(
+        {
+          pharmacyRole: "pharmacy_cashier",
+          permissions: ["inventory.adjust"],
+          isAdmin: false,
+        },
+        "inventory.adjust",
+      ),
+    ).toBe(true)
+  })
+
+  it("aliases cashier → pharmacy_cashier", () => {
+    expect(roleHasCapability("cashier", "pos.sell")).toBe(true)
+  })
+})

@@ -37,6 +37,10 @@ export default function ProfileScreen() {
   }
 
   const openWebPortal = () => {
+    if (kind === 'pharmacy') {
+      Linking.openURL('https://pharm.synapseos.tech/portal/billing').catch(() => {})
+      return
+    }
     const path =
       kind === 'patient'
         ? '/health/dashboard'
@@ -80,7 +84,7 @@ export default function ProfileScreen() {
 
       <View style={styles.actions}>
         <Button
-          label="Open web portal"
+          label={kind === 'pharmacy' ? 'Billing & renewal' : 'Open web portal'}
           onPress={openWebPortal}
           variant="ghost"
         />

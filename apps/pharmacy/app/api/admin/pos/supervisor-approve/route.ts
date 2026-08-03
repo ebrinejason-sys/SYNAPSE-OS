@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPharmacySession } from "@/lib/auth"
+import { roleHasCapability } from "@/lib/capabilities"
 import { verifyPassword } from "@synapse/auth/password"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
-const SUPERVISOR_ROLES = new Set(["pharmacy_admin", "pharmacy_ceo", "pharmacy_owner"])
-
 /**
  * Verify a supervisor password for over-threshold POS discounts.
- * Never trusts a client "approved" flag alone — sale completion must
- * re-check or receive this endpoint's supervisor profile id.
+ * Approver must have pos.discount_override (store manager / admin / finance).
  */
 export async function POST(request: NextRequest) {
   const session = await getPharmacySession()
@@ -52,7 +50,7 @@ export async function POST(request: NextRequest) {
   }
 
   const elevated =
-    SUPERVISOR_ROLES.has(role) ||
+    roleHasCapability(role, "pos.discount_override") ||
     profile.is_admin === true ||
     profile.role === "pharmacy_admin"
 

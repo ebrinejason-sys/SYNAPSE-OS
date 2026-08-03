@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { Eyebrow, SectionHeading } from '../typography'
 
 const TABS = [
   {
@@ -11,7 +12,7 @@ const TABS = [
     stats: [
       { val: 'UCG', label: 'Uganda Clinical Guidelines in AI context' },
       { val: '150+', label: 'Built-in scoring tools (NEWS2, SOFA, GCS…)' },
-      { val: 'ICD-11', label: 'Coded output with FHIR R4 resources' },
+      { val: 'ICD-11', label: 'Coded clinical output (FHIR resources on roadmap)' },
       { val: 'Audit', label: 'Every AI suggestion logged with encounter' },
     ],
     features: [
@@ -36,12 +37,12 @@ const TABS = [
       { val: '8–12%', label: 'Success fee on recovered claims above baseline' },
       { val: 'Live', label: 'Coverage check per order line placed' },
       { val: 'Auto', label: 'Claim submission on encounter signature' },
-      { val: 'FHIR', label: 'Claim format for all major Ugandan insurers' },
+      { val: 'Claim', label: 'Structured claim draft for Ugandan insurers' },
     ],
     features: [
       'Live coverage badges (covered / partial / not covered) per order line',
       'Pre-authorisation workflow with status tracking',
-      'FHIR Claim auto-generation on encounter sign',
+      'Claim draft generation on encounter sign (interop roadmap)',
       'AI appeal drafting with Uganda Clinical Guidelines citations',
       'Insurer performance analytics covering approval rate, turnaround, and denial patterns',
       'Patient insurance wallet supporting multiple policies',
@@ -161,12 +162,9 @@ export function FeatureTabs() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
           {/* Left: heading + description + stats grid */}
           <div>
-            <h3
-              className="font-display font-bold mb-4"
-              style={{ fontSize: 'clamp(1.4rem, 2.5vw, 1.875rem)', lineHeight: 1.2 }}
-            >
+            <SectionHeading as="h3" level={1} className="mb-4">
               {tab.heading}
-            </h3>
+            </SectionHeading>
             <p className="mb-8 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               {tab.description}
             </p>
@@ -182,7 +180,7 @@ export function FeatureTabs() {
                   }}
                 >
                   <p
-                    className="font-display font-bold text-2xl mb-0.5"
+                    className="font-display mb-0.5 text-heading-2 tabular-nums tracking-tight"
                     style={{ color: tab.color }}
                   >
                     {s.val}
@@ -200,12 +198,9 @@ export function FeatureTabs() {
             className="p-6 rounded-2xl"
             style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)' }}
           >
-            <p
-              className="text-xs font-bold uppercase tracking-widest mb-5"
-              style={{ color: 'var(--text-muted)' }}
-            >
+            <Eyebrow variant="section" className="mb-5" style={{ color: 'var(--text-muted)' }}>
               Key Capabilities
-            </p>
+            </Eyebrow>
             <ul className="space-y-3">
               {tab.features.map(f => (
                 <li

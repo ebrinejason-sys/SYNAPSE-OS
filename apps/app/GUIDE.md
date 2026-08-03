@@ -1,15 +1,18 @@
 # Synapse Mobile App — Developer Guide
 
-> **Package:** `@synapse/app` · **Stack:** Expo SDK 52, React Native 0.76, expo-router  
-> **Canonical reference:** `/docs/blueprint/` (or `C:\Users\ebrin\Downloads\synapse_blueprint\synapse_blueprint\`)
+> **Package:** `@synapse/app` · **Stack:** Expo SDK 52, React Native 0.76, expo-router
+>
+> **Ecosystem authority:** [`docs/SYNAPSE_ECOSYSTEM_OPERATING_MODEL_2026.md`](../../docs/SYNAPSE_ECOSYSTEM_OPERATING_MODEL_2026.md)
+>
+> **Technical evidence:** [`docs/SYNAPSE_MASTER_BLUEPRINT_2026.md`](../../docs/SYNAPSE_MASTER_BLUEPRINT_2026.md)
 
-This guide is the single source of truth for building, running, and shipping the Synapse mobile client.
+This guide describes the current mobile code and build flow. It is not the source of truth for product maturity, offline guarantees, clinical scope, or ecosystem ownership.
 
 ---
 
 ## 1. What this app is
 
-Synapse is a multi-tenant health ecosystem (SynapseOS hospital OS, Synapse Pharm POS, consumer health). The **mobile app** is an ecosystem citizen — not a standalone shell:
+Synapse is a three-product health ecosystem: Synapse OS for facility care, Synapse Pharm for medicines and supply operations, and Synapse App for patients, caregivers, communities, and mobile workforces. The **mobile app** is an ecosystem citizen—not a standalone shell:
 
 | Audience | Mobile role |
 |---|---|
@@ -18,7 +21,7 @@ Synapse is a multi-tenant health ecosystem (SynapseOS hospital OS, Synapse Pharm
 | **Pharmacy staff** (`pharmacy_admin`, `pharmacist`) | Sales/inventory overview, stock alerts, POS via web |
 | **Platform admin** | Platform-wide metrics, facility list |
 
-One login (password + email OTP per auth doctrine). The **active workspace** is determined by `profiles.role` + `tenant_id`. Future: `facility_memberships` workspace switcher (blueprint §3.5).
+One login (password + email OTP per the current auth doctrine). Today, the **active workspace** is determined by `profiles.role` + `tenant_id`; this is a known limitation. The target is an account/person/membership/workspace model described in the [ecosystem identity contract](../../docs/SYNAPSE_ECOSYSTEM_OPERATING_MODEL_2026.md#7-identity-organizations-tenancy-and-consent).
 
 **API host:** `https://www.synapseos.tech` — always use **www**, never apex. Android drops POST bodies on apex→www redirects.
 
@@ -303,13 +306,57 @@ Fix TypeScript errors before EAS build. Common issues: missing screen files refe
 - Pharmacy needs products in `pharmacy_products` for stock tab.
 - Patient records need `patient_profiles` row linked to profile id.
 
+### Push notifications not arriving
+
+- Must be a **physical device** (Expo push tokens are not issued on most emulators).
+- Grant notification permission on first login after install.
+- Confirm `mobile_push_tokens` has a row for your user after login.
+- Server triggers: bulletin publish, new encounter/queue, stock below reorder, nightly `/api/cron/mobile-alerts` (appt +7d expiry).
+- Cron requires `CRON_SECRET` on Vercel.
+
 ### Metro monorepo conflicts
 
 If wrong Expo/Metro version resolves, verify `metro.config.js` has `disableHierarchicalLookup: true` and app-local `node_modules`.
 
 ---
 
-## 10. Adding a new role or screen
+## 10. APK smoke-test checklist
+
+Use a preview APK (`eas build --profile preview`) on a real Android device.
+
+### Setup
+- [ ] Install APK; open Synapse; grant notifications when prompted
+- [ ] Confirm API host is `https://www.synapseos.tech` (see login errors if apex)
+- [ ] Login with password + email OTP for each role you care about
+
+### Patient
+- [ ] Home dashboard loads (or empty state)
+- [ ] Records / Visits / Meds tabs visible; tap → detail screens open
+- [ ] Background app >5 min → Lock screen → biometric/passcode unlock
+- [ ] Publish a platform bulletin → push arrives → tap opens Home
+
+### Clinician / nurse / reception
+- [ ] Queue + Patients tabs visible
+- [ ] Create OPD triage / encounter on web → push “New patient in queue” → tap opens Queue
+- [ ] Queue row → encounter detail; “Open full chart” deep-links to web OS if shown
+
+### Pharmacy
+- [ ] Stock tab visible; item detail opens
+- [ ] Lower qty below reorder (portal stock adjust or POS sale) → push → tap opens Stock
+- [ ] Product with expiry ≤7 days → after cron `mobile-alerts` (or manual GET with `CRON_SECRET`) → expiry push
+
+### Lab / billing roles
+- [ ] Lab tab lists orders (or empty); Claims tab for billing roles
+- [ ] `POST /api/lab/notify` with linked patient profile → patient gets “Lab result ready”
+
+### Regression
+- [ ] Sign out clears session; relaunch shows login
+- [ ] Wrong password / wrong OTP handled without crash
+- [ ] Airplane mode → cached home (if previously loaded) or clear error, no white screen
+
+---
+
+## 11. Adding a new role or screen
 
 1. Add role → kind mapping in `lib/roles.ts`.
 2. Add tab list in `lib/navigation.ts` → `TABS_BY_KIND`.
@@ -320,7 +367,7 @@ If wrong Expo/Metro version resolves, verify `metro.config.js` has `disableHiera
 
 ---
 
-## 11. Related docs
+## 12. Related docs
 
 | Doc | Topic |
 |---|---|
@@ -329,6 +376,7 @@ If wrong Expo/Metro version resolves, verify `metro.config.js` has `disableHiera
 | `03_DESIGN_SYSTEM.md` | Tokens, components, mobile tab spec §10.4 |
 | `06_ECOSYSTEM_REFERENCE.md` | Module inventory, what exists in DB |
 | `07_JOURNEY_AND_ROADMAP.md` | Patient/pharmacy/hospital journeys, gaps |
+| `docs/superpowers/specs/2026-06-22-mobile-app-improvements-design.md` | Mobile improvement plan + status |
 
 ---
 

@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   FlatList,
-  Linking,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
-import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingBlock } from '@/components/ui/LoadingBlock'
@@ -30,10 +28,6 @@ interface InventorySummary {
   lowStock: number
   expiringSoon: number
 }
-
-const WEB_APP_URL = (
-  (Constants.expoConfig?.extra?.webAppUrl as string | undefined) ?? 'https://www.synapseos.tech'
-).replace(/\/$/, '')
 
 const STATUS_COLORS: Record<InventoryItem['status'], string> = {
   ok: TONE_COLORS.green,
@@ -106,17 +100,9 @@ export default function StockScreen() {
           ListEmptyComponent={
             <EmptyState
               title="No inventory yet"
-              body="Import products during pharmacy onboarding or add them in the web portal."
+              body="Products appear here after pharmacy onboarding. Open an item to adjust stock."
               icon="cube"
             />
-          }
-          ListFooterComponent={
-            <Pressable
-              style={styles.cta}
-              onPress={() => Linking.openURL(`${WEB_APP_URL}/portal/dashboard`).catch(() => {})}
-            >
-              <Text style={styles.ctaText}>Manage inventory on web</Text>
-            </Pressable>
           }
           renderItem={({ item }) => (
             <Pressable
@@ -236,15 +222,5 @@ const styles = StyleSheet.create({
     color: colors.warning,
     fontFamily: 'DMSans_400Regular',
     marginTop: spacing.xs,
-  },
-  cta: {
-    marginTop: spacing.lg,
-    alignItems: 'center',
-    padding: spacing.lg,
-  },
-  ctaText: {
-    ...typography.bodyMedium,
-    color: colors.primary,
-    fontFamily: 'DMSans_500Medium',
   },
 })

@@ -12,6 +12,7 @@ const NAV = [
   ['#pharm', 'Pharmacy'],
   ['#features', 'Features'],
   ['#pricing', 'Pricing'],
+  ['/download/android', 'Get the app'],
   ['#demo', 'Demo'],
   ['/docs', 'Docs'],
 ] as const

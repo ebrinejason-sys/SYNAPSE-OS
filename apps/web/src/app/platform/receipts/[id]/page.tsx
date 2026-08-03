@@ -10,6 +10,8 @@ import {
   getDocumentSettings,
 } from "../_lib/document-settings";
 import { formatMoneyUGX, getPlatformBillingDocument } from "../_lib/documents";
+import { amountInWordsUGX } from "../_lib/money";
+import { DeleteDocumentButton } from "./delete-button";
 import { PrintReceiptButton } from "./print-button";
 
 function kampalaLabel(iso: string | null | undefined) {
@@ -19,11 +21,14 @@ function kampalaLabel(iso: string | null | undefined) {
 
 export default async function PlatformReceiptDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
   await requirePlatformAdmin();
   const { id } = await params;
+  const query = await searchParams;
   const [doc, settings] = await Promise.all([
     getPlatformBillingDocument(id),
     getDocumentSettings(),
@@ -36,6 +41,9 @@ export default async function PlatformReceiptDetailPage({
   const signatureSrc = metaSig || settings.signatureSrc || DEFAULT_SIGNATURE_SRC;
   const signerName = (doc.metadata?.signer_name as string | undefined) ?? settings.signerName;
   const signerTitle = (doc.metadata?.signer_title as string | undefined) ?? settings.signerTitle;
+  const paymentRef = (doc.metadata?.payment_ref as string | undefined) ?? null;
+  const paymentInstructions =
+    (doc.metadata?.payment_instructions as string | undefined) ?? null;
 
   const periodLabel =
     doc.period_start && doc.period_end
@@ -46,11 +54,27 @@ export default async function PlatformReceiptDetailPage({
     kind === "trial"
       ? "Free trial registration"
       : kind === "invoice"
-        ? "Pay by MTN MoMo, Airtel Money, bank transfer, or card"
+        ? doc.method || "Pay by MTN MoMo, Airtel Money, bank transfer, or card"
         : doc.method ?? "Flutterwave / Mobile money";
+
+  const amountNum = Number(doc.amount_ugx ?? 0);
+  const amountLabel =
+    kind === "trial" ? "UGX 0 (free trial)" : formatMoneyUGX(amountNum);
+
+  const duplicateKind = kind === "invoice" ? "invoice" : "receipt";
 
   return (
     <div className="space-y-6">
+      {query.ok === "updated" ? (
+        <p className="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-300 print:hidden">
+          Document updated. Print or save PDF when you are ready.
+        </p>
+      ) : null}
+      {query.error === "delete" ? (
+        <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300 print:hidden">
+          Could not delete this document. Try again.
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div>
           <Link href="/platform/receipts" className="text-xs font-semibold text-slate-400 hover:text-slate-200">
@@ -63,7 +87,22 @@ export default async function PlatformReceiptDetailPage({
             Printable official document — signed by {signerName}, {signerTitle}.
           </p>
         </div>
-        <PrintReceiptButton />
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={`/platform/receipts/${id}/edit`}
+            className="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 hover:border-slate-500"
+          >
+            Edit
+          </Link>
+          <Link
+            href={`/platform/receipts/new?kind=${duplicateKind}`}
+            className="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:border-slate-500"
+          >
+            New {duplicateKind}
+          </Link>
+          <PrintReceiptButton />
+          <DeleteDocumentButton id={doc.id} source={doc.source} documentNo={doc.document_no} />
+        </div>
       </div>
 
       <PlatformReceiptDocument
@@ -72,12 +111,18 @@ export default async function PlatformReceiptDetailPage({
           kind,
           facilityName: doc.facility_name,
           planName: doc.description ?? (kind === "invoice" ? "Invoice" : "Receipt"),
-          amountLabel:
-            kind === "trial" ? "UGX 0 (free trial)" : formatMoneyUGX(Number(doc.amount_ugx ?? 0)),
+          amountLabel,
+          amountWords: kind === "trial" ? null : amountInWordsUGX(amountNum),
           customerName: doc.customer_name,
           customerEmail: doc.customer_email,
           periodLabel,
           methodLabel,
+          paymentRef,
+          paymentInstructions:
+            kind === "invoice"
+              ? paymentInstructions ||
+                "Pay via MTN MoMo, Airtel Money, bank transfer, or card. Include the invoice number as the payment reference."
+              : null,
           notes: doc.notes,
           issuedAtLabel,
           dueDateLabel: doc.due_date ? formatDate(doc.due_date) : kampalaLabel(doc.period_end),

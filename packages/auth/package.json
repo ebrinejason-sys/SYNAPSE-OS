@@ -14,7 +14,8 @@
     "./mfa":        "./src/mfa.ts",
     "./password":   "./src/password.ts",
     "./redirects":  "./src/redirects.ts",
-    "./tenant-guard": "./src/tenant-guard.server.ts"
+    "./tenant-guard": "./src/tenant-guard.server.ts",
+    "./mobile-push": "./src/mobile-push.ts"
   },
   "dependencies": {
     "@synapse/config": "*",

@@ -46,6 +46,7 @@ type AttentionItem = {
   count: number;
   href: string;
   detail: string;
+  actionLabel: string;
 };
 
 type ApplicationPreview = {
@@ -60,6 +61,7 @@ export type OverviewCommandCenterData = {
   health: HealthItem[];
   activity: ActivityItem[];
   attentionItems: AttentionItem[];
+  attentionTotal: number;
   topApplications: ApplicationPreview[];
   openTickets: Array<{ id: string; subject: string; createdAt: string }>;
   subscriptions: {
@@ -74,6 +76,7 @@ export type OverviewCommandCenterData = {
     hospitalTenants: number;
     districts: number;
   };
+  quickActions: Array<{ label: string; href: string; tone?: "primary" | "secondary" }>;
 };
 
 const SUB_STAGES = [
@@ -105,6 +108,12 @@ export function OverviewCommandCenter({ data }: { data: OverviewCommandCenterDat
         actions={
           <>
             <Link
+              href="/platform/receipts/new?kind=receipt"
+              className="inline-flex items-center gap-2 rounded-xl border border-[#E8B84B]/30 bg-[#E8B84B]/10 px-4 py-2.5 text-sm font-semibold text-[#E8B84B]"
+            >
+              Issue receipt
+            </Link>
+            <Link
               href="/platform/hospitals/new"
               className="inline-flex items-center gap-2 rounded-xl bg-[#F97316] px-4 py-2.5 text-sm font-semibold text-[#07070A] transition hover:opacity-90"
             >
@@ -113,7 +122,7 @@ export function OverviewCommandCenter({ data }: { data: OverviewCommandCenterDat
             </Link>
             <Link
               href="/platform/broadcasts"
-              className="inline-flex items-center gap-2 rounded-xl border border-[#E8B84B]/30 bg-[#E8B84B]/10 px-4 py-2.5 text-sm font-semibold text-[#E8B84B]"
+              className="inline-flex items-center gap-2 rounded-xl border border-subtle px-4 py-2.5 text-sm font-semibold text-secondary-color"
             >
               <Mail className="h-4 w-4" />
               Publish bulletin
@@ -121,6 +130,56 @@ export function OverviewCommandCenter({ data }: { data: OverviewCommandCenterDat
           </>
         }
       />
+
+      {data.attentionTotal > 0 ? (
+        <section
+          id="attention"
+          className="scroll-mt-4 rounded-xl border border-[#F97316]/25 bg-[#F97316]/5 px-4 py-3"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#F97316]">
+                Today&apos;s priorities
+              </p>
+              <p className="mt-1 text-sm text-secondary-color">
+                {data.attentionTotal} item{data.attentionTotal === 1 ? "" : "s"} need your attention
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {data.attentionItems.slice(0, 3).map((item) => (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#F97316]/30 bg-[#07070A]/40 px-3 py-1.5 text-xs font-semibold text-[#F97316] transition hover:bg-[#F97316]/10"
+                >
+                  {item.actionLabel}
+                  <span className="rounded-full bg-[#F97316]/20 px-1.5 py-0.5 tabular-nums">
+                    {item.count}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section id="attention" className="scroll-mt-4" aria-hidden />
+      )}
+
+      <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {data.quickActions.map((action) => (
+          <Link
+            key={action.href + action.label}
+            href={action.href}
+            className={`rounded-xl border px-4 py-3 text-sm font-semibold transition ${
+              action.tone === "primary"
+                ? "border-[#F97316]/40 bg-[#F97316]/10 text-[#F97316] hover:bg-[#F97316]/15"
+                : "border-subtle bg-surface text-secondary-color hover:border-[#E8B84B]/30 hover:text-primary-color"
+            }`}
+          >
+            {action.label}
+          </Link>
+        ))}
+      </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {data.metrics.map((metric) => (
@@ -209,19 +268,26 @@ export function OverviewCommandCenter({ data }: { data: OverviewCommandCenterDat
                 </p>
               ) : (
                 data.attentionItems.map((item) => (
-                  <Link
+                  <div
                     key={item.id}
-                    href={item.href}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-subtle bg-base px-3 py-2.5 transition hover:border-[#F97316]/30"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-subtle bg-base px-3 py-2.5"
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-primary-color">{item.label}</p>
                       <p className="text-xs text-muted-color">{item.detail}</p>
                     </div>
-                    <span className="rounded-full bg-[#F97316]/15 px-2.5 py-0.5 text-xs font-bold tabular-nums text-[#F97316]">
-                      {item.count}
-                    </span>
-                  </Link>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="rounded-full bg-[#F97316]/15 px-2.5 py-0.5 text-xs font-bold tabular-nums text-[#F97316]">
+                        {item.count}
+                      </span>
+                      <Link
+                        href={item.href}
+                        className="rounded-lg border border-[#F97316]/30 px-2.5 py-1 text-[11px] font-semibold text-[#F97316] hover:bg-[#F97316]/10"
+                      >
+                        {item.actionLabel}
+                      </Link>
+                    </div>
+                  </div>
                 ))
               )}
             </div>
@@ -243,6 +309,12 @@ export function OverviewCommandCenter({ data }: { data: OverviewCommandCenterDat
                     </Link>
                   ))}
                 </div>
+                <Link
+                  href="/platform/applications"
+                  className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#F97316]"
+                >
+                  Review applications <ArrowRight className="h-3 w-3" />
+                </Link>
               </div>
             ) : null}
           </section>

@@ -1,17 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { GoogleGenAI } from '@google/genai'
+import { verifyToken, validateSession } from '@synapse/auth'
+import { SESSION_COOKIE } from '@synapse/config/constants'
 import { createServiceClient } from '../../../../lib/supabase/server'
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, userId } = await req.json() as { message: string; userId: string }
-    if (!message?.trim() || !userId) {
-      return NextResponse.json({ error: 'message and userId required' }, { status: 400 })
+    const cookieStore = await cookies()
+    const token = cookieStore.get(SESSION_COOKIE)?.value ?? null
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const payload = await verifyToken(token).catch(() => null)
+    if (!payload?.sub) {
+      return NextResponse.json({ error: 'Invalid session' }, { status: 401 })
+    }
+
+    const { valid } = await validateSession(token)
+    if (!valid) {
+      return NextResponse.json({ error: 'Session expired' }, { status: 401 })
+    }
+
+    // Never trust caller-supplied userId — session subject only.
+    const userId = payload.sub as string
+    const { message } = (await req.json()) as { message?: string }
+    if (!message?.trim()) {
+      return NextResponse.json({ error: 'message required' }, { status: 400 })
     }
 
     const supabase = createServiceClient()
 
-    // Fetch recent context: last 10 chat messages
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: history } = await (supabase as any)
       .from('ai_health_chats')
@@ -35,9 +55,9 @@ Always remind users that your advice does not replace a qualified doctor. For se
 
 East African context: Common health challenges include malaria, typhoid, HIV, TB, hypertension, diabetes, and malnutrition. Consider local foods like matooke, posho, groundnuts, fish, and sukuma wiki when giving nutrition advice.`
 
-    const conversationParts = recentHistory.map(m =>
-      `${m.role === 'user' ? 'Patient' : 'Health Coach'}: ${m.content}`
-    ).join('\n')
+    const conversationParts = recentHistory
+      .map((m) => `${m.role === 'user' ? 'Patient' : 'Health Coach'}: ${m.content}`)
+      .join('\n')
 
     const fullPrompt = conversationParts
       ? `${systemPrompt}\n\nConversation so far:\n${conversationParts}\n\nPatient: ${message}\nHealth Coach:`
@@ -51,7 +71,6 @@ East African context: Common health challenges include malaria, typhoid, HIV, TB
 
     const reply = result.text?.trim() ?? 'I had trouble generating a response. Please try again.'
 
-    // Persist both messages
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from('ai_health_chats').insert([
       { user_id: userId, role: 'user', content: message },

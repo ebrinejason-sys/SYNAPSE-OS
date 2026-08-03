@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Reveal } from './Reveal'
+import { Eyebrow, LeadText, SectionHeading } from '../typography'
 
 type SectionShellProps = {
   id?: string
@@ -39,10 +40,12 @@ export function SectionShell({
     >
       <div className="landing-container">
         <Reveal>
-          {label && <p className="section-label">{label}</p>}
-          <h2 className="landing-heading mb-3">{title}</h2>
+          {label && <Eyebrow variant="section">{label}</Eyebrow>}
+          <SectionHeading level={2} className="mb-3">
+            {title}
+          </SectionHeading>
           {description && (
-            <p className="landing-lead mb-10 max-w-2xl">{description}</p>
+            <LeadText className="mb-10">{description}</LeadText>
           )}
         </Reveal>
         <Reveal delay={0.08}>{children}</Reveal>

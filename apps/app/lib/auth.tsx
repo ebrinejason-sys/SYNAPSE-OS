@@ -5,6 +5,7 @@ import * as LocalAuthentication from 'expo-local-authentication'
 import * as Notifications from 'expo-notifications'
 import * as Device from 'expo-device'
 import { apiRequest } from './api'
+import { clearAllCache } from './cache'
 
 const TOKEN_KEY = 'synapse_mobile_token'
 const BIOMETRIC_LAST_KEY = 'synapse_biometric_last_auth'
@@ -143,8 +144,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const currentToken = state.token
     setState({ user: null, token: null, isLoading: false, isLocked: false })
     await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {})
+    // Release 0: never leave private dashboard cache across sessions.
+    await clearAllCache().catch(() => {})
     if (currentToken) {
-      // Deregister push token
       deregisterPushToken(currentToken).catch(() => {})
       await apiRequest('/api/auth/mobile/logout', {
         method: 'POST',
@@ -158,14 +160,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const hasBiometrics = await LocalAuthentication.hasHardwareAsync()
       const isEnrolled = await LocalAuthentication.isEnrolledAsync()
 
+      // Fail closed: without device credentials, require sign-out (no auto-unlock).
       if (!hasBiometrics || !isEnrolled) {
-        // No biometrics available — auto-unlock (user must re-login for true security)
-        setState((prev) => ({ ...prev, isLocked: false }))
-        return true
+        await logout()
+        return false
       }
 
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Confirm it\'s you',
+        promptMessage: "Confirm it's you",
         fallbackLabel: 'Use passcode',
         cancelLabel: 'Sign out',
         disableDeviceFallback: false,
@@ -176,14 +178,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return true
       }
 
-      // User pressed cancel — force logout
       if (result.error === 'user_cancel' || result.error === 'system_cancel') {
-        logout()
+        await logout()
       }
       return false
     } catch {
-      setState((prev) => ({ ...prev, isLocked: false }))
-      return true
+      // Fail closed on unexpected errors — do not unlock.
+      return false
     }
   }, [logout])
 

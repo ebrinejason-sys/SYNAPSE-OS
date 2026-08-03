@@ -1,24 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { isPharmacyAdmin, hasPermission } from "@/lib/auth"
-import { requirePharmacyAdmin } from "@/lib/api-auth"
+import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requirePharmacyAdmin()
+    const auth = await requirePharmacyPermission(["reports.operational", "reports.financial"])
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
-
-    const adminUser = isPharmacyAdmin(session)
-    const canViewReports =
-      adminUser || hasPermission(session, "VIEW_REPORTS")
-
-    if (!canViewReports) {
-      return NextResponse.json(
-        { error: "Insufficient permissions" },
-        { status: 403 }
-      )
-    }
 
     const { searchParams } = new URL(request.url)
     const reportType = searchParams.get("type") || "sales"
@@ -64,8 +52,7 @@ export async function GET(request: NextRequest) {
 
     // ── SALES REPORT ─────────────────────────────────────────────────────────
     if (reportType === "sales") {
-      const [txResult, itemsResult] = await Promise.all([
-        // All completed transactions in range
+      const [txResult, itemsResult, posResult, posItemsResult] = await Promise.all([
         (supabaseAdmin as any)
           .from("pharmacy_transactions")
           .select(
@@ -76,7 +63,6 @@ export async function GET(request: NextRequest) {
           .gte("created_at", dateFromISO)
           .lte("created_at", dateToISO)
           .order("created_at", { ascending: false }),
-        // All transaction items in range (for category + top products)
         (supabaseAdmin as any)
           .from("pharmacy_transaction_items")
           .select(
@@ -86,10 +72,32 @@ export async function GET(request: NextRequest) {
           .eq("pharmacy_transactions.status", "COMPLETED")
           .gte("pharmacy_transactions.created_at", dateFromISO)
           .lte("pharmacy_transactions.created_at", dateToISO),
+        (supabaseAdmin as any)
+          .from("pharmacy_pos_sales")
+          .select(
+            "id, receipt_number, total_amount, discount_total, tax_amount, payment_method, cashier_id, created_at"
+          )
+          .eq("tenant_id", tenantId)
+          .eq("status", "completed")
+          .gte("created_at", dateFromISO)
+          .lte("created_at", dateToISO)
+          .order("created_at", { ascending: false }),
+        (supabaseAdmin as any)
+          .from("pharmacy_pos_sale_items")
+          .select(
+            "product_id, quantity, unit_price, discount_amount, line_total, pharmacy_pos_sales!inner(status, created_at), pharmacy_products(name, sku, category)"
+          )
+          .eq("tenant_id", tenantId)
+          .eq("pharmacy_pos_sales.status", "completed")
+          .gte("pharmacy_pos_sales.created_at", dateFromISO)
+          .lte("pharmacy_pos_sales.created_at", dateToISO),
       ])
 
       if (txResult.error) throw txResult.error
       if (itemsResult.error) throw itemsResult.error
+      // POS queries may fail on older schemas — treat as empty
+      if (posResult.error) console.warn("[reports] pos sales:", posResult.error.message)
+      if (posItemsResult.error) console.warn("[reports] pos items:", posItemsResult.error.message)
 
       type TxRow = {
         id: string
@@ -121,8 +129,54 @@ export async function GET(request: NextRequest) {
         } | null
       }
 
-      const transactions = (txResult.data ?? []) as unknown as TxRow[]
-      const items = (itemsResult.data ?? []) as unknown as ItemRow[]
+      const orderTxs = (txResult.data ?? []) as unknown as TxRow[]
+      const posTxs = ((posResult.data ?? []) as Array<{
+        id: string
+        receipt_number: string
+        total_amount: number
+        discount_total: number
+        tax_amount: number
+        payment_method: string | null
+        cashier_id: string | null
+        created_at: string
+      }>).map((s) => ({
+        id: s.id,
+        transaction_no: s.receipt_number,
+        net_amount: Number(s.total_amount ?? 0),
+        discount: Number(s.discount_total ?? 0),
+        tax: Number(s.tax_amount ?? 0),
+        payment_method: s.payment_method,
+        client_name: null,
+        cashier_id: s.cashier_id,
+        created_at: s.created_at,
+        profiles: null,
+      })) as TxRow[]
+
+      const transactions = [...posTxs, ...orderTxs].sort(
+        (a, b) => Date.parse(b.created_at) - Date.parse(a.created_at),
+      )
+
+      const orderItems = (itemsResult.data ?? []) as unknown as ItemRow[]
+      const posItems = ((posItemsResult.data ?? []) as Array<{
+        product_id: string | null
+        quantity: number | null
+        unit_price: number | null
+        discount_amount: number | null
+        line_total: number | null
+        pharmacy_products: ItemRow["pharmacy_products"]
+      }>).map((i) => ({
+        product_id: i.product_id,
+        quantity: i.quantity,
+        total_price:
+          i.line_total != null
+            ? Number(i.line_total)
+            : Number(i.quantity ?? 0) * Number(i.unit_price ?? 0) - Number(i.discount_amount ?? 0),
+        unit_price: i.unit_price,
+        pharmacy_transactions: null,
+        pharmacy_products: i.pharmacy_products,
+      })) as ItemRow[]
+
+      const items = [...posItems, ...orderItems]
 
       // Aggregate totals
       let totalSalesAmt = 0
@@ -438,34 +492,15 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // ── PROFIT REPORT ─────────────────────────────────────────────────────────
+    // ── PROFIT REPORT (POS ledger + legacy order txs) ─────────────────────────
     if (reportType === "profit") {
-      const { data: txItems, error: txItemsError } = await (supabaseAdmin as any)
-        .from("pharmacy_transaction_items")
-        .select(
-          "product_id, quantity, total_price, cost_price, pharmacy_transactions!inner(id, status, created_at), pharmacy_products(name, category, cost_price)"
-        )
-        .eq("tenant_id", tenantId)
-        .eq("pharmacy_transactions.status", "COMPLETED")
-        .gte("pharmacy_transactions.created_at", dateFromISO)
-        .lte("pharmacy_transactions.created_at", dateToISO)
-
-      if (txItemsError) throw txItemsError
-
-      type ProfitItemRow = {
-        product_id: string | null
-        quantity: number | null
-        total_price: number | null
-        cost_price: number | null
-        pharmacy_transactions: { id: string; status: string; created_at: string } | null
-        pharmacy_products: {
-          name: string | null
-          category: string | null
-          cost_price: number | null
-        } | null
-      }
-
-      const items = (txItems ?? []) as unknown as ProfitItemRow[]
+      const { listLedgerSalesForHistory } = await import("@/lib/pos/sale-ledger")
+      const ledgerRows = await listLedgerSalesForHistory({
+        tenantId,
+        limit: 5000,
+        fromIso: dateFromISO,
+        toIso: dateToISO,
+      })
 
       let totalRevenue = 0
       let totalCost = 0
@@ -486,63 +521,60 @@ export async function GET(request: NextRequest) {
         { category: string; revenue: number; cost: number; profit: number }
       > = {}
 
-      for (const item of items) {
-        // Priority: 1. Item-specific cost_price (historical), 2. Current product cost_price, 3. Zero
-        const unitCost =
-          item.cost_price !== null
-            ? (item.cost_price ?? 0)
-            : (item.pharmacy_products?.cost_price ?? 0)
-        const cost = unitCost * (item.quantity ?? 0)
-        const revenue = item.total_price ?? 0
+      const txSet = new Set<string>()
 
-        totalRevenue += revenue
-        totalCost += cost
+      for (const sale of ledgerRows) {
+        if (sale.status !== "COMPLETED") continue
+        txSet.add(sale.id)
+        for (const item of sale.items) {
+          const unitCost =
+            item.costPrice != null
+              ? item.costPrice
+              : item.product?.cost_price != null
+                ? Number(item.product.cost_price)
+                : 0
+          const cost = unitCost * item.quantity
+          const revenue = item.totalPrice
 
-        const productId = item.product_id ?? "unknown"
-        if (!profitByProduct[productId]) {
-          profitByProduct[productId] = {
-            name: item.pharmacy_products?.name ?? "Unknown",
-            revenue: 0,
-            cost: 0,
-            profit: 0,
-            quantity: 0,
+          totalRevenue += revenue
+          totalCost += cost
+
+          const productId = item.product?.id ?? "unknown"
+          if (!profitByProduct[productId]) {
+            profitByProduct[productId] = {
+              name: item.product?.name ?? "Unknown",
+              revenue: 0,
+              cost: 0,
+              profit: 0,
+              quantity: 0,
+            }
           }
-        }
-        profitByProduct[productId].revenue += revenue
-        profitByProduct[productId].cost += cost
-        profitByProduct[productId].profit += revenue - cost
-        profitByProduct[productId].quantity += item.quantity ?? 0
+          profitByProduct[productId].revenue += revenue
+          profitByProduct[productId].cost += cost
+          profitByProduct[productId].profit += revenue - cost
+          profitByProduct[productId].quantity += item.quantity
 
-        const category =
-          item.pharmacy_products?.category ?? "Uncategorized"
-        if (!profitByCategory[category]) {
-          profitByCategory[category] = {
-            category,
-            revenue: 0,
-            cost: 0,
-            profit: 0,
+          const category = "Uncategorized"
+          if (!profitByCategory[category]) {
+            profitByCategory[category] = {
+              category,
+              revenue: 0,
+              cost: 0,
+              profit: 0,
+            }
           }
+          profitByCategory[category].revenue += revenue
+          profitByCategory[category].cost += cost
+          profitByCategory[category].profit += revenue - cost
         }
-        profitByCategory[category].revenue += revenue
-        profitByCategory[category].cost += cost
-        profitByCategory[category].profit += revenue - cost
       }
 
       const profitByProductArray = Object.values(profitByProduct).sort(
-        (a, b) => b.profit - a.profit
+        (a, b) => b.profit - a.profit,
       )
-
       const profitByCategoryArray = Object.values(profitByCategory).sort(
-        (a, b) => b.profit - a.profit
+        (a, b) => b.profit - a.profit,
       )
-
-      // Count distinct transactions for summary
-      const txSet = new Set<string>()
-      for (const item of items) {
-        if (item.pharmacy_transactions) {
-          txSet.add(item.pharmacy_transactions.id)
-        }
-      }
 
       return NextResponse.json({
         type: "profit",

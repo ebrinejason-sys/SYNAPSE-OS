@@ -112,6 +112,28 @@ export default function MainLayout() {
         }}
       />
       <Tabs.Screen
+        name="orders"
+        options={{
+          title: 'Orders',
+          headerTitle: 'Orders',
+          href: tabHref(role, 'orders'),
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'bag-handle' : 'bag-handle-outline'} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="sales"
+        options={{
+          title: 'Sales',
+          headerTitle: 'Sales history',
+          href: tabHref(role, 'sales'),
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={focused ? 'cash' : 'cash-outline'} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="lab"
         options={{
           title: 'Lab',

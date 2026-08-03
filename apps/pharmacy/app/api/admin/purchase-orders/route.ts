@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { isPharmacyAdmin } from "@/lib/auth"
-import { requirePharmacyAdmin } from "@/lib/api-auth"
+import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail } from "@/lib/email"
 
@@ -13,7 +13,7 @@ function generatePurchaseOrderNo(): string {
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requirePharmacyAdmin()
+    const auth = await requirePharmacyPermission("purchasing.manage")
   if (!auth.ok) return auth.response
   const { session, tenantId } = auth
 
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requirePharmacyAdmin()
+    const auth = await requirePharmacyPermission("purchasing.manage")
   if (!auth.ok) return auth.response
   const { session, tenantId } = auth
 
@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const auth = await requirePharmacyAdmin()
+    const auth = await requirePharmacyPermission("purchasing.manage")
   if (!auth.ok) return auth.response
   const { session, tenantId } = auth
 
@@ -392,7 +392,7 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await requirePharmacyAdmin()
+    const auth = await requirePharmacyPermission("purchasing.manage")
   if (!auth.ok) return auth.response
   const { session, tenantId } = auth
 

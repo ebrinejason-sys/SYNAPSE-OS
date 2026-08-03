@@ -233,7 +233,7 @@ export async function resendPharmacySetupInvite(formData: FormData) {
 
   let adminEmail = tenant.email as string | null;
   let adminName = "Pharmacy Admin";
-  let adminProfileId: string | null = adminSettings?.profile_id ?? null;
+  const adminProfileId: string | null = adminSettings?.profile_id ?? null;
 
   if (adminProfileId) {
     const { data: profileRow } = await (supabaseAdmin as any).from("profiles")

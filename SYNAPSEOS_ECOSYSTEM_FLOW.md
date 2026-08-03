@@ -1,6 +1,8 @@
 # Synapse Ecosystem — User & Data Flow
 ## How every user moves through the system
 
+> **Superseded journey draft.** This document describes a historical two-product target and must not be read as evidence that every route, FHIR exchange, sandbox, referral, public-health, or offline flow is functional. The authoritative three-product journeys and acceptance criteria are in [docs/SYNAPSE_ECOSYSTEM_OPERATING_MODEL_2026.md](./docs/SYNAPSE_ECOSYSTEM_OPERATING_MODEL_2026.md); current implementation evidence is in [docs/SYNAPSE_MASTER_BLUEPRINT_2026.md](./docs/SYNAPSE_MASTER_BLUEPRINT_2026.md).
+
 ### 1. The Two Products
 
 **Synapse OS** is the web‑based dashboard for healthcare facilities. Each facility gets a subdomain (e.g., `mengo.synapseos.tech`) or a custom domain. Staff log in and are routed to their role‑specific workspace.

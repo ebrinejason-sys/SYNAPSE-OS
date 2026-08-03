@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { SynapseMark } from "@/components/brand/synapse-mark"
 import { PosMock } from "@/components/landing/pos-mock"
+import { PharmParticleField } from "@/components/landing/pharm-particle-field"
 import {
   effectiveMonthlyUgx,
   formatUgx,
@@ -66,16 +67,16 @@ function CustomDomainPortal({
         <div className="mb-8 flex items-center gap-3">
           <SynapseMark className="h-12 w-12" />
           <div>
-            <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[#E8B84B]">
+            <p className="type-overline text-[#E8B84B]">
               Synapse Pharm
             </p>
-            <h1 className="font-display text-3xl font-bold tracking-tight">{name}</h1>
+            <h1 className="font-display text-heading-1 tracking-tight">{name}</h1>
           </div>
         </div>
         <div className="rounded-2xl border border-[#2A2A36] bg-[#111117] p-6 shadow-xl">
-          <p className="font-mono text-xs uppercase tracking-[0.18em] text-zinc-500">Custom domain</p>
-          <h2 className="mt-3 font-display text-2xl font-bold">Your pharmacy portal is connected</h2>
-          <p className="mt-3 text-sm leading-6 text-zinc-400">
+          <p className="type-overline text-zinc-500">Custom domain</p>
+          <h2 className="mt-3 font-display text-heading-2 tracking-tight">Your pharmacy portal is connected</h2>
+          <p className="mt-3 text-lead text-zinc-400">
             Sign in to manage dispensing, inventory, staff access, and receipts.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
@@ -119,7 +120,8 @@ export default async function Page() {
   const monthlyPrice = Number(monthlyPlan?.price_ugx ?? 20000)
 
   return (
-    <div className="min-h-screen bg-[#07070A] text-[#F5F5F7]">
+    <div className="relative min-h-screen bg-[#07070A] text-[#F5F5F7]">
+      <PharmParticleField />
       {/* Atmosphere */}
       <div
         aria-hidden
@@ -130,14 +132,20 @@ export default async function Page() {
         }}
       />
 
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
+      <header className="relative z-[1] mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
         <Link href="/" className="flex items-center gap-3">
           <SynapseMark className="h-9 w-9" />
-          <span className="font-display text-lg font-bold tracking-tight">
+          <span className="font-display text-lg font-semibold tracking-tight">
             Synapse <span className="text-[#1FA6A6]">Pharm</span>
           </span>
         </Link>
         <nav className="flex items-center gap-3 sm:gap-4">
+          <a
+            href="/download/android"
+            className="hidden font-mono text-xs uppercase tracking-wider text-zinc-400 hover:text-white sm:inline"
+          >
+            Android APK
+          </a>
           <Link
             href="/login"
             className="font-mono text-xs uppercase tracking-wider text-zinc-400 hover:text-white"
@@ -154,17 +162,18 @@ export default async function Page() {
       </header>
 
       {/* Hero — one composition */}
-      <section className="mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-8 sm:px-6 lg:grid-cols-2 lg:items-center lg:pb-24 lg:pt-12">
+      <section className="relative z-[1] mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-8 sm:px-6 lg:grid-cols-2 lg:items-center lg:pb-24 lg:pt-12">
         <div className="reveal">
-          <p className="font-mono text-xs uppercase tracking-[0.22em] text-[#E8B84B]">
+          <p className="type-overline text-[#E8B84B]">
             Synapse Pharm
           </p>
-          <h1 className="mt-4 font-display text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-[3.25rem]">
+          <h1 className="mt-4 font-display text-display-l max-w-display text-balance tracking-tight lg:max-w-none lg:text-display-xl">
             POS + FEFO inventory built for Ugandan pharmacies
           </h1>
-          <p className="mt-5 max-w-xl text-base leading-7 text-zinc-400 sm:text-lg">
+          <p className="mt-5 max-w-prose-narrow text-lead text-zinc-400">
             Sell with printed receipts, expire stock before it walks out the door, and keep cashiers
-            moving — priced in UGX, timed for Africa/Kampala.
+            moving — priced in UGX, timed for Africa/Kampala. Run the counter on Android with the
+            Synapse app.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
@@ -173,6 +182,12 @@ export default async function Page() {
             >
               Start free trial
             </Link>
+            <a
+              href="/download/android"
+              className="rounded-lg border border-[#1FA6A6]/50 bg-[#1FA6A6]/10 px-5 py-3 text-sm font-semibold text-[#1FA6A6] hover:border-[#1FA6A6]"
+            >
+              Download Android APK
+            </a>
             <Link
               href="/login"
               className="rounded-lg border border-[#2A2A36] px-5 py-3 text-sm font-semibold text-zinc-200 hover:border-[#E8B84B]/50"
@@ -181,7 +196,7 @@ export default async function Page() {
             </Link>
           </div>
           <p className="mt-4 font-mono text-xs text-zinc-500">
-            7-day trial · No card required · MTN MoMo & Airtel Money when you pay
+            7-day trial · No card required · Preview APK for cashiers &amp; stock on Android
           </p>
         </div>
         <div className="reveal reveal-delay-1 rounded-2xl border border-[#2A2A36] bg-[#111117]/80 p-3 shadow-2xl">
@@ -192,12 +207,12 @@ export default async function Page() {
       {/* Product */}
       <section className="border-t border-[#1C1C24] px-4 py-16 sm:px-6">
         <div className="mx-auto max-w-6xl">
-          <div className="reveal max-w-2xl">
-            <p className="font-mono text-xs uppercase tracking-[0.2em] text-[#1FA6A6]">Product</p>
-            <h2 className="mt-3 font-display text-3xl font-bold tracking-tight">
+          <div className="reveal max-w-prose-narrow">
+            <p className="type-overline text-[#1FA6A6]">Product</p>
+            <h2 className="mt-3 font-display text-heading-1 text-balance tracking-tight">
               What counters actually need
             </h2>
-            <p className="mt-3 text-zinc-400">
+            <p className="mt-3 text-lead text-zinc-400">
               Honest tools for dispensing days — not a hospital HMIS bolted onto a drugstore.
             </p>
           </div>
@@ -228,10 +243,10 @@ export default async function Page() {
                 key={f.label}
                 className="reveal border-t border-[#E8B84B]/35 pt-5"
               >
-                <p className="font-mono text-[11px] uppercase tracking-wider text-[#E8B84B]">
+                <p className="type-overline text-[#E8B84B]">
                   {f.label}
                 </p>
-                <h3 className="mt-2 font-display text-xl font-semibold">{f.title}</h3>
+                <h3 className="mt-2 font-display text-heading-3 tracking-tight">{f.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-zinc-400">{f.body}</p>
               </article>
             ))}
@@ -243,11 +258,11 @@ export default async function Page() {
       <section id="pricing" className="border-t border-[#1C1C24] px-4 py-16 sm:px-6">
         <div className="mx-auto max-w-6xl">
           <div className="reveal max-w-2xl">
-            <p className="font-mono text-xs uppercase tracking-[0.2em] text-[#F97316]">Pricing</p>
-            <h2 className="mt-3 font-display text-3xl font-bold tracking-tight">
+            <p className="type-overline text-[#F97316]">Pricing</p>
+            <h2 className="mt-3 font-display text-heading-1 text-balance tracking-tight">
               Simple UGX plans
             </h2>
-            <p className="mt-3 text-zinc-400">
+            <p className="mt-3 text-lead text-zinc-400">
               7-day free trial on every tier. No card required to start.
             </p>
           </div>
@@ -272,7 +287,7 @@ export default async function Page() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="font-display text-xl font-bold">{plan.name}</h3>
+                        <h3 className="font-display text-heading-3 tracking-tight">{plan.name}</h3>
                         <p className="mt-1 font-mono text-xs uppercase tracking-wider text-zinc-500">
                           {plan.billing_cycle}
                         </p>
@@ -283,7 +298,7 @@ export default async function Page() {
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-6 font-display text-3xl font-bold text-white">
+                    <p className="mt-6 font-display text-heading-1 tabular-nums tracking-tight text-white">
                       {formatUgx(price)}
                     </p>
                     {!isMonthly ? (
@@ -319,11 +334,11 @@ export default async function Page() {
       {/* How onboarding works */}
       <section className="border-t border-[#1C1C24] px-4 py-16 sm:px-6">
         <div className="mx-auto max-w-6xl">
-          <div className="reveal max-w-2xl">
-            <p className="font-mono text-xs uppercase tracking-[0.2em] text-[#E8B84B]">
+          <div className="reveal max-w-prose-narrow">
+            <p className="type-overline text-[#E8B84B]">
               How it works
             </p>
-            <h2 className="mt-3 font-display text-3xl font-bold tracking-tight">
+            <h2 className="mt-3 font-display text-heading-1 text-balance tracking-tight">
               Three steps to your first sale
             </h2>
           </div>
@@ -334,8 +349,8 @@ export default async function Page() {
               { n: "3", t: "Sell", d: "Open a cashier session and complete a FEFO-aware sale." },
             ].map((s) => (
               <li key={s.n} className="reveal">
-                <span className="font-mono text-3xl font-bold text-[#1FA6A6]">{s.n}</span>
-                <h3 className="mt-3 font-display text-xl font-semibold">{s.t}</h3>
+                <span className="font-display text-heading-1 tabular-nums text-[#1FA6A6]">{s.n}</span>
+                <h3 className="mt-3 font-display text-heading-3 tracking-tight">{s.t}</h3>
                 <p className="mt-2 text-sm leading-6 text-zinc-400">{s.d}</p>
               </li>
             ))}
@@ -346,8 +361,8 @@ export default async function Page() {
       {/* Compliance */}
       <section className="border-t border-[#1C1C24] px-4 py-12 sm:px-6">
         <div className="reveal mx-auto max-w-6xl rounded-2xl border border-[#2A2A36] bg-[#0C0C10] px-6 py-8 sm:px-8">
-          <p className="font-mono text-xs uppercase tracking-[0.2em] text-zinc-500">Compliance</p>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-300">
+          <p className="type-overline text-zinc-500">Compliance</p>
+          <p className="mt-3 max-w-prose-narrow text-sm leading-7 text-zinc-300">
             Personal data is handled under Uganda&apos;s Data Protection and Privacy Act (PDPO).
             At registration we capture your NDA / Pharmacy Board licence number and require an
             explicit consent checkbox before any account is created.

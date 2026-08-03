@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { GoogleGenAI } from '@google/genai'
+import { verifyToken, validateSession } from '@synapse/auth'
+import { SESSION_COOKIE } from '@synapse/config/constants'
 import { createServiceClient } from '../../../../lib/supabase/server'
 
 interface IntakeMessage {
@@ -28,18 +31,38 @@ TRIAGE_RESULT:{"urgency":"low|medium|high|emergency","recommendation":"your reco
 DO NOT provide the TRIAGE_RESULT until you have asked at least 4 questions and have sufficient clinical information.
 Common East African conditions to consider: malaria, typhoid, HIV, TB, hypertension, diabetes, respiratory infections.`
 
+async function requireSessionUserId(): Promise<string | null> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(SESSION_COOKIE)?.value ?? null
+  if (!token) return null
+  const payload = await verifyToken(token).catch(() => null)
+  if (!payload?.sub) return null
+  const { valid } = await validateSession(token)
+  if (!valid) return null
+  return payload.sub as string
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { messages, userId, caseId } = await req.json() as {
+    const sessionUserId = await requireSessionUserId()
+    const body = (await req.json()) as {
       messages: IntakeMessage[]
       userId?: string
       caseId?: string
+    }
+    const { messages, caseId } = body
+
+    // Persist only for authenticated users; never trust body userId.
+    const userId = sessionUserId
+
+    if (!messages?.length) {
+      return NextResponse.json({ error: 'messages required' }, { status: 400 })
     }
 
     const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
     const conversation = messages
-      .map(m => `${m.role === 'user' ? 'Patient' : 'Triage AI'}: ${m.content}`)
+      .map((m) => `${m.role === 'user' ? 'Patient' : 'Triage AI'}: ${m.content}`)
       .join('\n')
 
     const prompt = `${SYSTEM}\n\nConversation:\n${conversation}\n\nTriage AI:`
@@ -62,7 +85,9 @@ export async function POST(req: NextRequest) {
       try {
         triage = JSON.parse((parts[1] ?? '').trim().split('\n')[0]!)
         done = true
-      } catch { /* malformed triage, continue */ }
+      } catch {
+        /* malformed triage, continue */
+      }
     }
 
     if (userId) {
@@ -71,8 +96,8 @@ export async function POST(req: NextRequest) {
       const sb = supabase as any
 
       if (!activeCaseId) {
-        const userMessages = messages.filter(m => m.role === 'user')
-        const { data: newCase } = await sb
+        const userMessages = messages.filter((m) => m.role === 'user')
+        const { data: newCase } = (await sb
           .from('telemedicine_intake_cases')
           .insert({
             user_id: userId,
@@ -81,7 +106,7 @@ export async function POST(req: NextRequest) {
             symptoms: userMessages[0]?.content ?? null,
           })
           .select('id')
-          .single() as { data: { id: string } | null }
+          .single()) as { data: { id: string } | null }
         activeCaseId = newCase?.id ?? undefined
       }
 
@@ -93,12 +118,15 @@ export async function POST(req: NextRequest) {
         ])
 
         if (done && triage) {
-          await sb.from('telemedicine_intake_cases').update({
-            status: 'triaged',
-            urgency: triage.urgency,
-            triage_summary: triage,
-            recommendation: { text: triage.recommendation, action: triage.action },
-          }).eq('id', activeCaseId)
+          await sb
+            .from('telemedicine_intake_cases')
+            .update({
+              status: 'triaged',
+              urgency: triage.urgency,
+              triage_summary: triage,
+              recommendation: { text: triage.recommendation, action: triage.action },
+            })
+            .eq('id', activeCaseId)
         }
       }
     }

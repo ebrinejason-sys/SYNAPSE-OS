@@ -1,0 +1,85 @@
+/**
+ * Shared Synapse typography — import from both web and pharmacy globals.css.
+ * Fonts must be loaded via next/font as --font-sans, --font-display, --font-mono.
+ */
+
+:root {
+  /* Display shares the same Plex Sans file; hierarchy comes from size/weight */
+  --font-display: var(--font-sans);
+  /* Compat aliases for older class / inline references */
+  --font-dm-sans: var(--font-sans);
+  --font-bricolage: var(--font-display);
+  --font-ibm-plex-mono: var(--font-mono);
+}
+
+.type-overline,
+.section-label {
+  font-family: var(--font-sans), "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+
+.landing-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-sans), "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted, #71717a);
+  padding: 0.375rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-edge, rgba(255, 255, 255, 0.12));
+  background: var(--bg-surface, rgba(255, 255, 255, 0.04));
+}
+
+.landing-hero-title {
+  font-family: var(--font-display), "IBM Plex Sans", system-ui, sans-serif;
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  font-size: clamp(2.125rem, 4.2vw + 0.75rem, 3.75rem);
+  color: var(--text-primary, inherit);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  max-width: 20ch;
+}
+
+@media (min-width: 480px) {
+  .landing-hero-title {
+    overflow-wrap: break-word;
+    line-height: 1.1;
+    max-width: 24ch;
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-hero-title {
+    max-width: none;
+  }
+}
+
+.landing-heading {
+  font-family: var(--font-display), "IBM Plex Sans", system-ui, sans-serif;
+  font-size: clamp(1.375rem, 1.4vw + 0.75rem, 1.625rem);
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  line-height: 1.25;
+  color: var(--text-primary, inherit);
+  text-wrap: balance;
+}
+
+.landing-lead {
+  font-family: var(--font-sans), "IBM Plex Sans", system-ui, sans-serif;
+  font-size: clamp(1.0625rem, 0.4vw + 1rem, 1.1875rem);
+  line-height: 1.6;
+  font-weight: 400;
+  color: var(--text-secondary, inherit);
+  overflow-wrap: break-word;
+  max-width: 42rem;
+}

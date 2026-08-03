@@ -1,6 +1,8 @@
 # Synapse Ecosystem — Master Requirements Document
 ## Version 2.0 · Pre‑Seed · YC‑Ready
 
+> **Superseded product definition.** This document predates Synapse Pharm as an equal product and contains desired behaviour that is not current implementation truth. The authoritative three-product model is [docs/SYNAPSE_ECOSYSTEM_OPERATING_MODEL_2026.md](./docs/SYNAPSE_ECOSYSTEM_OPERATING_MODEL_2026.md); the evidence-based technical audit is [docs/SYNAPSE_MASTER_BLUEPRINT_2026.md](./docs/SYNAPSE_MASTER_BLUEPRINT_2026.md). Retain this file as historical product input.
+
 ### 1. Vision
 Synapse is the sovereign AI health operating system for Africa. Two integrated products — **Synapse OS** (facility platform) and **Synapse App** (consumer application) — connected via real‑time FHIR APIs, grounded in national clinical guidelines, and operating offline‑first.
 

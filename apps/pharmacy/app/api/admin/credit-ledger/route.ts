@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePharmacyAdmin } from "@/lib/api-auth"
+import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET() {
   try {
-    const auth = await requirePharmacyAdmin()
+    const auth = await requirePharmacyPermission("customers.credit")
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 
@@ -52,7 +52,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requirePharmacyAdmin()
+    const auth = await requirePharmacyPermission("customers.credit")
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 

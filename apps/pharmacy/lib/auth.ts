@@ -1,5 +1,6 @@
 import { getContext, getContextSafe, type SynapseContext } from '@synapse/auth/context'
 import { supabaseAdmin } from '@synapse/db/admin'
+import { sessionHasCapability } from '@/lib/capabilities'
 
 export type PharmacySession = {
   userId: string
@@ -94,9 +95,7 @@ export async function requirePharmacySession(): Promise<PharmacySession> {
 }
 
 export function hasPharmacyPermission(session: PharmacySession, permission: string): boolean {
-  if (session.isAdmin) return true
-  if (session.pharmacyRole === 'pharmacy_admin' || session.pharmacyRole === 'pharmacy_ceo') return true
-  return session.permissions.includes(permission)
+  return sessionHasCapability(session, permission)
 }
 
 export const isPharmacyAdmin = (session: PharmacySession): boolean =>

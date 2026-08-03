@@ -187,6 +187,7 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
           count: pastDueCount,
           href: "/platform/billing",
           detail: "Within grace — collect payment before suspension",
+          actionLabel: "Collect",
         }
       : null,
     suspendedCount > 0
@@ -196,6 +197,7 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
           count: suspendedCount,
           href: "/platform/billing",
           detail: "Tenants locked out — reactivate after payment",
+          actionLabel: "Review billing",
         }
       : null,
     pendingApplications > 0
@@ -205,6 +207,7 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
           count: pendingApplications,
           href: "/platform/applications",
           detail: "Review and qualify new facility interest",
+          actionLabel: "Review apps",
         }
       : null,
     pendingKyc > 0
@@ -214,6 +217,7 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
           count: pendingKyc,
           href: "/platform/approvals",
           detail: "Documents awaiting review",
+          actionLabel: "Review KYC",
         }
       : null,
     openTickets > 0
@@ -223,6 +227,7 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
           count: openTickets,
           href: "/platform/support",
           detail: "Customer issues need response",
+          actionLabel: "Open tickets",
         }
       : null,
     onboardingInProgress > 0
@@ -232,9 +237,12 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
           count: onboardingInProgress,
           href: "/platform/pharmacy-network",
           detail: "Tenants mid-setup — nudge to complete",
+          actionLabel: "Nudge setup",
         }
       : null,
   ].filter(Boolean) as OverviewCommandCenterData["attentionItems"];
+
+  const attentionTotal = attentionItems.reduce((sum, item) => sum + item.count, 0);
 
   const topApplications = applications
     .filter((row) => (row.status ?? "new") === "new")
@@ -318,6 +326,7 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
     ],
     activity,
     attentionItems,
+    attentionTotal,
     topApplications,
     openTickets: openTicketRows.map((row) => ({
       id: row.id ?? "",
@@ -336,6 +345,20 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
       hospitalTenants: tenants.filter((t) => t.facility_type !== "pharmacy" && t.status !== "deleted").length,
       districts: new Set(tenants.map((t) => t.district).filter(Boolean)).size,
     },
+    quickActions: [
+      { label: "Issue receipt", href: "/platform/receipts/new?kind=receipt", tone: "primary" },
+      { label: "Create invoice", href: "/platform/receipts/new?kind=invoice" },
+      {
+        label: pendingKyc > 0 ? `Review KYC (${pendingKyc})` : "Approvals",
+        href: "/platform/approvals",
+        tone: pendingKyc > 0 ? "primary" : "secondary",
+      },
+      {
+        label: pastDueCount > 0 ? `Past due (${pastDueCount})` : "Revenue & billing",
+        href: "/platform/billing",
+        tone: pastDueCount > 0 ? "primary" : "secondary",
+      },
+    ],
   };
 }
 

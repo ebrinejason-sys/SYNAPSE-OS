@@ -63,7 +63,7 @@ export default function OnboardingCompletePage() {
         </Link>
 
         <div className="mt-4 flex items-center justify-center gap-4">
-          {['DPPA 2019', 'Encrypted', 'FHIR R4'].map(t => (
+          {['DPPA 2019', 'Encrypted', 'Audit-ready'].map(t => (
             <span key={t} className="text-xs" style={{ color: 'var(--text-muted)' }}>✓ {t}</span>
           ))}
         </div>

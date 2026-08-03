@@ -5,6 +5,7 @@ import {
   isPharmacyAdmin,
   type PharmacySession,
 } from "@/lib/auth"
+import { sessionHasAnyCapability, sessionHasCapability } from "@/lib/capabilities"
 
 export type PharmacyApiAuthFailure = {
   ok: false
@@ -70,14 +71,29 @@ export async function requirePharmacyAdmin(): Promise<
 }
 
 /**
- * Permission check. Today pharmacy permissions collapse to admin
- * (matches legacy hasPermission). Kept as an explicit API so routes
- * do not re-implement ad-hoc role checks.
+ * Capability check against role defaults + explicit/legacy grants.
+ * Pass one capability or a list (OR — any match allows).
  */
 export async function requirePharmacyPermission(
-  _permission: string | string[],
+  permission: string | string[],
 ): Promise<PharmacyApiTenantAuth | PharmacyApiAuthFailure> {
-  return requirePharmacyAdmin()
+  const auth = await requirePharmacyTenant()
+  if (!auth.ok) return auth
+
+  const needed = Array.isArray(permission) ? permission : [permission]
+  const allowed = Array.isArray(permission)
+    ? sessionHasAnyCapability(auth.session, needed)
+    : sessionHasCapability(auth.session, needed[0]!)
+
+  if (!allowed) {
+    return {
+      ok: false,
+      response: forbiddenResponse(
+        `Missing capability: ${needed.join(" | ")}`,
+      ),
+    }
+  }
+  return auth
 }
 
 /** Platform / superadmin only (cross-tenant tools). */
