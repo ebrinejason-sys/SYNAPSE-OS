@@ -111,8 +111,8 @@ export async function POST(req: NextRequest) {
     rpcItems.push(validated.rpcItem)
   }
 
-  const discountTotal = rpcItems.reduce((s, i) => s + Number(i.discount_amount ?? 0), 0)
-
+  // Line discounts are already on each rpc item. Passing the same sum as
+  // p_discount_total double-counts inside complete_pharmacy_sale.
   const { data, error } = await db().rpc('complete_pharmacy_sale', {
     p_tenant_id: auth.tenantId,
     p_cashier_id: auth.userId,
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
     p_session_id: body.sessionId ?? null,
     p_cart_id: body.cartId ?? null,
     p_payment_ref: body.paymentRef ?? null,
-    p_discount_total: discountTotal,
+    p_discount_total: 0,
     p_tax_amount: Number(body.taxAmount ?? 0),
     p_patient_id: body.patientId ?? null,
     p_confirmed_by: auth.userId,

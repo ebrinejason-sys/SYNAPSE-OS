@@ -3,6 +3,7 @@ import { verifyToken, validateSession } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import {
   isMobileAuth,
+  isMobilePharmacyAdmin,
   requireMobilePharmacyAuth,
 } from '../../../../../lib/mobile-pharmacy-auth'
 
@@ -44,7 +45,9 @@ export async function GET(
 
   const { data: product } = await db()
     .from('pharmacy_products')
-    .select('id, name, sku, category, quantity, reorder_level, expiry_date, batch_number, cost_price, unit_of_measure')
+    .select(
+      'id, name, sku, barcode, category, quantity, reorder_level, expiry_date, batch_number, cost_price, price, unit_of_measure, requires_prescription',
+    )
     .eq('id', id)
     .eq('tenant_id', tenantId)
     .eq('is_active', true)
@@ -55,21 +58,45 @@ export async function GET(
   const quantity = Number(product.quantity) || 0
   const reorderLevel = Number(product.reorder_level) || 0
 
+  const { data: batches } = await db()
+    .from('pharmacy_product_batches')
+    .select('id, batch_number, quantity, expiry_date, is_active')
+    .eq('tenant_id', tenantId)
+    .eq('product_id', id)
+    .eq('is_active', true)
+    .order('expiry_date', { ascending: true })
+
   return NextResponse.json({
     item: {
       id: product.id,
       name: product.name,
       sku: product.sku ?? null,
+      barcode: product.barcode ?? null,
       category: product.category ?? null,
       quantity,
       unit: product.unit_of_measure ?? null,
       reorderLevel,
+      price: Number(product.price ?? 0),
       expiryDate: product.expiry_date ?? null,
       status: classifyProduct(quantity, reorderLevel, product.expiry_date ?? null),
       batchNumber: product.batch_number ?? null,
       shelfLocation: null,
       unitCost: product.cost_price != null ? Number(product.cost_price) : null,
       currency: 'UGX',
+      requiresPrescription: Boolean(product.requires_prescription),
+      batches: (batches ?? []).map(
+        (b: {
+          id: string
+          batch_number: string
+          quantity: number
+          expiry_date: string
+        }) => ({
+          id: b.id,
+          batchNumber: b.batch_number,
+          quantity: Number(b.quantity ?? 0),
+          expiryDate: b.expiry_date,
+        }),
+      ),
     },
   })
 }
@@ -87,6 +114,15 @@ export async function PATCH(
     quantity?: number
     reorderLevel?: number
     reason?: string
+    name?: string
+    sku?: string
+    category?: string
+    unit?: string
+    price?: number
+    costPrice?: number
+    barcode?: string | null
+    batchNumber?: string | null
+    expiryDate?: string | null
   }
 
   const { data: product } = await db()
@@ -101,6 +137,8 @@ export async function PATCH(
 
   const previousQty = Number(product.quantity ?? 0)
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  const canEditCatalog = isMobilePharmacyAdmin(auth) ||
+    ['pharmacy_store_manager', 'pharmacist'].includes(auth.role)
 
   if (typeof body.quantity === 'number' && Number.isFinite(body.quantity)) {
     if (body.quantity < 0) {
@@ -114,6 +152,37 @@ export async function PATCH(
       return NextResponse.json({ error: 'reorderLevel must be ≥ 0' }, { status: 400 })
     }
     updates.reorder_level = Math.floor(body.reorderLevel)
+  }
+
+  if (canEditCatalog) {
+    if (typeof body.name === 'string' && body.name.trim()) updates.name = body.name.trim()
+    if (typeof body.sku === 'string' && body.sku.trim()) updates.sku = body.sku.trim()
+    if (typeof body.category === 'string') updates.category = body.category.trim() || 'General'
+    if (typeof body.unit === 'string' && body.unit.trim()) {
+      updates.unit_of_measure = body.unit.trim()
+    }
+    if (typeof body.price === 'number' && Number.isFinite(body.price) && body.price >= 0) {
+      updates.price = body.price
+    }
+    if (typeof body.costPrice === 'number' && Number.isFinite(body.costPrice) && body.costPrice >= 0) {
+      updates.cost_price = body.costPrice
+    }
+    if (body.barcode !== undefined) {
+      updates.barcode =
+        typeof body.barcode === 'string' && body.barcode.trim() ? body.barcode.trim() : null
+    }
+    if (body.batchNumber !== undefined) {
+      updates.batch_number =
+        typeof body.batchNumber === 'string' && body.batchNumber.trim()
+          ? body.batchNumber.trim()
+          : null
+    }
+    if (body.expiryDate !== undefined) {
+      updates.expiry_date =
+        typeof body.expiryDate === 'string' && body.expiryDate.trim()
+          ? body.expiryDate.trim()
+          : null
+    }
   }
 
   if (Object.keys(updates).length <= 1) {

@@ -47,11 +47,16 @@ type PosProduct = {
 }
 
 type CartLine = {
+  key: string
   productId: string
   name: string
   unitPrice: number
   quantity: number
   batchId: string | null
+  batchLabel: string | null
+  packageLabel: string | null
+  discountAmount: number
+  unitsPerPackage: number
 }
 
 type SaleResult = {
@@ -90,6 +95,8 @@ export default function PosScreen() {
   const [loading, setLoading] = useState(true)
   const [cart, setCart] = useState<CartLine[]>([])
   const [payment, setPayment] = useState<(typeof PAYMENTS)[number]['key']>('CASH')
+  const [cartDiscount, setCartDiscount] = useState('')
+  const [discountReason, setDiscountReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [lastSale, setLastSale] = useState<SaleResult | null>(null)
   const [lowStock, setLowStock] = useState<LowStockItem[]>([])
@@ -128,44 +135,91 @@ export default function PosScreen() {
     () => cart.reduce((s, line) => s + line.unitPrice * line.quantity, 0),
     [cart],
   )
+  const discountN = Math.max(0, Number(cartDiscount) || 0)
+  const total = Math.max(0, subtotal - discountN)
+
+  const pushLine = (line: Omit<CartLine, 'key' | 'discountAmount'>) => {
+    setLastSale(null)
+    setCart((prev) => [
+      ...prev,
+      {
+        ...line,
+        key: `${line.productId}-${line.batchId ?? 'nb'}-${line.packageLabel ?? 'u'}-${Date.now()}`,
+        discountAmount: 0,
+      },
+    ])
+  }
+
+  const chooseBatchThenAdd = (
+    p: PosProduct,
+    opts: { units: number; unitPrice: number; packageLabel: string | null },
+  ) => {
+    const batches = p.batches
+    const finish = (batchId: string | null, batchLabel: string | null) => {
+      pushLine({
+        productId: p.id,
+        name: p.name,
+        unitPrice: opts.unitPrice,
+        quantity: opts.units,
+        batchId,
+        batchLabel,
+        packageLabel: opts.packageLabel,
+        unitsPerPackage: opts.packageLabel ? opts.units : 1,
+      })
+    }
+    if (batches.length <= 1) {
+      finish(batches[0]?.id ?? null, batches[0] ? `${batches[0].batchNumber}` : null)
+      return
+    }
+    Alert.alert(
+      'Pick FEFO batch',
+      'Batches are sorted earliest expiry first.',
+      [
+        ...batches.slice(0, 5).map((b) => ({
+          text: `${b.batchNumber} · ${b.quantity} · exp ${String(b.expiryDate).slice(0, 10)}`,
+          onPress: () => finish(b.id, b.batchNumber),
+        })),
+        { text: 'Cancel', style: 'cancel' as const },
+      ],
+    )
+  }
 
   const addProduct = (p: PosProduct) => {
     if (p.quantity <= 0) {
       Alert.alert('Out of stock', `${p.name} has no sellable quantity.`)
       return
     }
-    setLastSale(null)
-    setCart((prev) => {
-      const existing = prev.find((l) => l.productId === p.id)
-      if (existing) {
-        if (existing.quantity >= p.quantity) {
-          Alert.alert('Stock limit', `Only ${p.quantity} available.`)
-          return prev
-        }
-        return prev.map((l) =>
-          l.productId === p.id ? { ...l, quantity: l.quantity + 1 } : l,
-        )
-      }
-      const batchId = p.batches[0]?.id ?? null
-      return [
-        ...prev,
-        {
-          productId: p.id,
-          name: p.name,
-          unitPrice: p.price,
-          quantity: 1,
-          batchId,
-        },
-      ]
-    })
+    const pkgs = p.packages.filter((x) => x.unitsPerPackage > 0 && x.price >= 0)
+    if (pkgs.length === 0) {
+      chooseBatchThenAdd(p, { units: 1, unitPrice: p.price, packageLabel: null })
+      return
+    }
+    Alert.alert('Sell as', p.name, [
+      {
+        text: `Unit · UGX ${p.price.toLocaleString()}`,
+        onPress: () =>
+          chooseBatchThenAdd(p, { units: 1, unitPrice: p.price, packageLabel: null }),
+      },
+      ...pkgs.slice(0, 4).map((pkg) => ({
+        text: `${pkg.name} (${pkg.unitsPerPackage}) · UGX ${pkg.price.toLocaleString()}`,
+        onPress: () =>
+          chooseBatchThenAdd(p, {
+            units: pkg.unitsPerPackage,
+            unitPrice: pkg.price / pkg.unitsPerPackage,
+            packageLabel: pkg.name,
+          }),
+      })),
+      { text: 'Cancel', style: 'cancel' as const },
+    ])
   }
 
-  const bumpQty = (productId: string, delta: number) => {
+  const bumpQty = (key: string, delta: number) => {
     setCart((prev) =>
       prev
         .map((l) => {
-          if (l.productId !== productId) return l
-          return { ...l, quantity: l.quantity + delta }
+          if (l.key !== key) return l
+          const step = l.packageLabel ? l.unitsPerPackage : 1
+          return { ...l, quantity: l.quantity + delta * step }
         })
         .filter((l) => l.quantity > 0),
     )
@@ -173,13 +227,28 @@ export default function PosScreen() {
 
   const clearCart = () => {
     setCart([])
+    setCartDiscount('')
+    setDiscountReason('')
     idempotencyRef.current = newIdempotencyKey()
   }
 
   const completeSale = async () => {
     if (!token || cart.length === 0) return
+    if (discountN > 0 && !discountReason.trim()) {
+      Alert.alert('Discount reason', 'Enter a reason when applying a cart discount.')
+      return
+    }
     setSubmitting(true)
     try {
+      // Apply cart discount to the first line so RPC sees a single line discount (no double-count).
+      const items = cart.map((l, idx) => ({
+        productId: l.productId,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        discountAmount: idx === 0 ? discountN : 0,
+        discountReason: idx === 0 && discountN > 0 ? discountReason.trim() : undefined,
+        batchId: l.batchId,
+      }))
       const data = await apiRequest<{
         ok: boolean
         sale: SaleResult
@@ -192,18 +261,14 @@ export default function PosScreen() {
           idempotencyKey: idempotencyRef.current,
           paymentMethod: payment,
           taxAmount: 0,
-          items: cart.map((l) => ({
-            productId: l.productId,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            discountAmount: 0,
-            batchId: l.batchId,
-          })),
+          items,
         },
       })
       setLastSale(data.sale)
       setLowStock(data.lowStock ?? [])
       setCart([])
+      setCartDiscount('')
+      setDiscountReason('')
       idempotencyRef.current = newIdempotencyKey()
       load()
       if ((data.lowStock ?? []).length > 0) {
@@ -230,7 +295,9 @@ export default function PosScreen() {
     if (cart.length === 0) return
     Alert.alert(
       'Complete sale?',
-      `UGX ${subtotal.toLocaleString()} · ${PAYMENTS.find((p) => p.key === payment)?.label}`,
+      `UGX ${total.toLocaleString()} · ${PAYMENTS.find((p) => p.key === payment)?.label}${
+        discountN > 0 ? ` · discount ${discountN.toLocaleString()}` : ''
+      }`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Complete', onPress: () => void completeSale() },
@@ -361,33 +428,47 @@ export default function PosScreen() {
               keyboardShouldPersistTaps="handled"
             >
               {cart.map((line) => (
-                <View key={line.productId} style={styles.cartLine}>
+                <View key={line.key} style={styles.cartLine}>
                   <View style={styles.cartCopy}>
                     <Text style={styles.cartName} numberOfLines={1}>
                       {line.name}
                     </Text>
                     <Text style={styles.cartMeta}>
-                      UGX {line.unitPrice.toLocaleString()} each
+                      UGX {line.unitPrice.toLocaleString()} × {line.quantity}
+                      {line.packageLabel ? ` · ${line.packageLabel}` : ''}
+                      {line.batchLabel ? ` · ${line.batchLabel}` : ''}
                     </Text>
                   </View>
                   <View style={styles.qtyControls}>
-                    <Pressable
-                      onPress={() => bumpQty(line.productId, -1)}
-                      style={styles.qtyBtn}
-                    >
+                    <Pressable onPress={() => bumpQty(line.key, -1)} style={styles.qtyBtn}>
                       <Ionicons name="remove" size={16} color={colors.text} />
                     </Pressable>
                     <Text style={styles.qtyValue}>{line.quantity}</Text>
-                    <Pressable
-                      onPress={() => bumpQty(line.productId, 1)}
-                      style={styles.qtyBtn}
-                    >
+                    <Pressable onPress={() => bumpQty(line.key, 1)} style={styles.qtyBtn}>
                       <Ionicons name="add" size={16} color={colors.text} />
                     </Pressable>
                   </View>
                 </View>
               ))}
             </ScrollView>
+
+            <View style={styles.discountRow}>
+              <TextInput
+                style={styles.discountInput}
+                placeholder="Discount UGX"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="number-pad"
+                value={cartDiscount}
+                onChangeText={setCartDiscount}
+              />
+              <TextInput
+                style={[styles.discountInput, styles.discountReason]}
+                placeholder="Reason (if discount)"
+                placeholderTextColor={colors.textMuted}
+                value={discountReason}
+                onChangeText={setDiscountReason}
+              />
+            </View>
 
             <View style={styles.payRow}>
               {PAYMENTS.map((p) => (
@@ -407,8 +488,10 @@ export default function PosScreen() {
             </View>
 
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>UGX {subtotal.toLocaleString()}</Text>
+              <Text style={styles.totalLabel}>
+                {discountN > 0 ? `Total (−${discountN.toLocaleString()})` : 'Total'}
+              </Text>
+              <Text style={styles.totalValue}>UGX {total.toLocaleString()}</Text>
             </View>
 
             <Button
@@ -566,6 +649,23 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: 'DMSans_400Regular',
   },
+  discountRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  discountInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: colors.text,
+    ...typography.bodySm,
+    backgroundColor: colors.bgElevated,
+  },
+  discountReason: { flex: 1.4 },
   qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   qtyBtn: {
     width: 32,

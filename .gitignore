@@ -24,3 +24,7 @@ scripts/_tmp_*
 
 # Claude Code local config
 .claude/
+
+# Foglamp scan lock (editToken is a secret)
+.foglamp/
+

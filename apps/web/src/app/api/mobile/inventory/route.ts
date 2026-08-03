@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken, validateSession } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
+import {
+  isMobileAuth,
+  isMobilePharmacyAdmin,
+  requireMobilePharmacyAuth,
+} from '../../../../lib/mobile-pharmacy-auth'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = () => supabaseAdmin as any
+
+const PRODUCT_WRITE_ROLES = new Set([
+  'pharmacy_admin',
+  'pharmacy_ceo',
+  'pharmacist',
+  'pharmacy_store_manager',
+])
 
 type ItemStatus = 'ok' | 'low' | 'expiring' | 'expired'
 
@@ -83,4 +95,113 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ items, summary })
+}
+
+/** Create a sellable product (pharmacy managers / pharmacists). */
+export async function POST(req: NextRequest) {
+  const auth = await requireMobilePharmacyAuth(req)
+  if (!isMobileAuth(auth)) return auth
+
+  if (!PRODUCT_WRITE_ROLES.has(auth.role) && !isMobilePharmacyAdmin(auth)) {
+    return NextResponse.json({ error: 'Inventory write requires a manager role' }, { status: 403 })
+  }
+
+  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const name = String(body.name ?? '').trim()
+  if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 })
+
+  const price = Number(body.price)
+  if (!Number.isFinite(price) || price < 0) {
+    return NextResponse.json({ error: 'price must be ≥ 0' }, { status: 400 })
+  }
+
+  const quantity = Math.max(0, Math.floor(Number(body.quantity ?? 0) || 0))
+  const reorderLevel = Math.max(0, Math.floor(Number(body.reorderLevel ?? 10) || 10))
+  const costPrice = Number(body.costPrice)
+  const skuRaw = String(body.sku ?? '').trim()
+  const sku =
+    skuRaw ||
+    `${name
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w.slice(0, 3).toUpperCase())
+      .join('')}-${Date.now().toString(36).slice(-4)}`
+
+  const { data: existing } = await db()
+    .from('pharmacy_products')
+    .select('id')
+    .eq('tenant_id', auth.tenantId)
+    .eq('sku', sku)
+    .maybeSingle()
+
+  if (existing) {
+    return NextResponse.json({ error: 'Product with this SKU already exists' }, { status: 400 })
+  }
+
+  const batchNumber =
+    typeof body.batchNumber === 'string' && body.batchNumber.trim()
+      ? body.batchNumber.trim()
+      : null
+  const expiryDate =
+    typeof body.expiryDate === 'string' && body.expiryDate.trim()
+      ? body.expiryDate.trim()
+      : null
+
+  const { data: product, error } = await db()
+    .from('pharmacy_products')
+    .insert({
+      tenant_id: auth.tenantId,
+      name,
+      sku,
+      barcode: typeof body.barcode === 'string' && body.barcode.trim() ? body.barcode.trim() : null,
+      category:
+        typeof body.category === 'string' && body.category.trim()
+          ? body.category.trim()
+          : 'General',
+      price,
+      cost_price: Number.isFinite(costPrice) && costPrice >= 0 ? costPrice : 0,
+      quantity,
+      reorder_level: reorderLevel,
+      unit_of_measure:
+        typeof body.unit === 'string' && body.unit.trim() ? body.unit.trim() : 'Tablet',
+      batch_number: batchNumber,
+      expiry_date: expiryDate,
+      requires_prescription: Boolean(body.requiresPrescription),
+      is_active: true,
+    })
+    .select('id, name, sku, quantity, price')
+    .single()
+
+  if (error || !product) {
+    console.error('[mobile/inventory POST]', error?.message)
+    return NextResponse.json({ error: error?.message ?? 'Failed to create' }, { status: 500 })
+  }
+
+  if (batchNumber && quantity > 0 && expiryDate) {
+    await db().from('pharmacy_product_batches').insert({
+      tenant_id: auth.tenantId,
+      product_id: product.id,
+      batch_number: batchNumber,
+      quantity,
+      initial_quantity: quantity,
+      expiry_date: expiryDate,
+      cost_price: Number.isFinite(costPrice) && costPrice >= 0 ? costPrice : 0,
+      is_active: true,
+    })
+  }
+
+  await db().from('pharmacy_audit_logs').insert({
+    tenant_id: auth.tenantId,
+    profile_id: auth.userId,
+    action: 'CREATE_PRODUCT',
+    entity: 'PRODUCT',
+    entity_id: product.id,
+    details: `Mobile created product: ${product.name} (${product.sku})`,
+  })
+
+  return NextResponse.json({ ok: true, product }, { status: 201 })
 }

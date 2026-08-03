@@ -15,6 +15,8 @@ const WEB_APP_URL = (
   (Constants.expoConfig?.extra?.webAppUrl as string | undefined) ?? 'https://www.synapseos.tech'
 ).replace(/\/$/, '')
 
+const PHARM_PORTAL = 'https://pharm.synapseos.tech/portal'
+
 export default function ProfileScreen() {
   const { user, logout } = useAuth()
   const router = useRouter()
@@ -36,9 +38,13 @@ export default function ProfileScreen() {
     ])
   }
 
+  const openUrl = (url: string) => {
+    Linking.openURL(url).catch(() => {})
+  }
+
   const openWebPortal = () => {
     if (kind === 'pharmacy') {
-      Linking.openURL('https://pharm.synapseos.tech/portal/billing').catch(() => {})
+      openUrl(`${PHARM_PORTAL}/dashboard`)
       return
     }
     const path =
@@ -47,7 +53,7 @@ export default function ProfileScreen() {
         : user?.role === 'platform_admin'
           ? '/platform'
           : '/login'
-    Linking.openURL(`${WEB_APP_URL}${path}`).catch(() => {})
+    openUrl(`${WEB_APP_URL}${path}`)
   }
 
   return (
@@ -82,13 +88,40 @@ export default function ProfileScreen() {
         />
       </Card>
 
-      <View style={styles.actions}>
-        <Button
-          label={kind === 'pharmacy' ? 'Billing & renewal' : 'Open web portal'}
-          onPress={openWebPortal}
-          variant="ghost"
-        />
-      </View>
+      {kind === 'pharmacy' ? (
+        <View style={styles.actions}>
+          <Button label="Open pharmacy portal" onPress={openWebPortal} variant="ghost" />
+          <Button
+            label="Portal · Inventory & Excel import"
+            onPress={() => openUrl(`${PHARM_PORTAL}/inventory`)}
+            variant="ghost"
+          />
+          <Button
+            label="Portal · Refunds"
+            onPress={() => openUrl(`${PHARM_PORTAL}/refunds`)}
+            variant="ghost"
+          />
+          <Button
+            label="Portal · Reports"
+            onPress={() => openUrl(`${PHARM_PORTAL}/reports`)}
+            variant="ghost"
+          />
+          <Button
+            label="Portal · Users & settings"
+            onPress={() => openUrl(`${PHARM_PORTAL}/users`)}
+            variant="ghost"
+          />
+          <Button
+            label="Billing & renewal"
+            onPress={() => openUrl(`${PHARM_PORTAL}/billing`)}
+            variant="ghost"
+          />
+        </View>
+      ) : (
+        <View style={styles.actions}>
+          <Button label="Open web portal" onPress={openWebPortal} variant="ghost" />
+        </View>
+      )}
 
       <Button label="Sign out" onPress={handleLogout} variant="danger" style={styles.logoutBtn} />
 

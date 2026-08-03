@@ -110,11 +110,7 @@ export async function POST(request: NextRequest) {
     rpcItems.push(validated.rpcItem)
   }
 
-  const discountTotal = rpcItems.reduce(
-    (s, i) => s + Number(i.discount_amount ?? 0),
-    0,
-  )
-
+  // Line discounts live on rpc items; p_discount_total must stay 0 or RPC double-counts.
   const { data, error } = await db.rpc("complete_pharmacy_sale", {
     p_tenant_id: tenantId,
     p_cashier_id: cashierId,
@@ -123,7 +119,7 @@ export async function POST(request: NextRequest) {
     p_session_id: body.sessionId ?? null,
     p_cart_id: body.cartId ?? null,
     p_payment_ref: body.paymentRef ?? null,
-    p_discount_total: discountTotal,
+    p_discount_total: 0,
     p_tax_amount: Number(body.taxAmount ?? 0),
     p_patient_id: body.patientId ?? null,
     p_confirmed_by: session.userId,

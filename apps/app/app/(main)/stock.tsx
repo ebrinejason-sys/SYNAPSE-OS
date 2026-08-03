@@ -83,6 +83,21 @@ export default function StockScreen() {
         </View>
       ) : null}
 
+      <View style={styles.toolbar}>
+        <Pressable
+          style={({ pressed }) => [styles.toolBtn, pressed && styles.cardPressed]}
+          onPress={() => router.push('/stock-new' as never)}
+        >
+          <Text style={styles.toolBtnText}>+ Add product</Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.toolBtnGhost, pressed && styles.cardPressed]}
+          onPress={() => router.push('/stock-import' as never)}
+        >
+          <Text style={styles.toolBtnGhostText}>Bulk import</Text>
+        </Pressable>
+      </View>
+
       {loading ? (
         <LoadingBlock message="Loading inventory…" />
       ) : (
@@ -100,7 +115,7 @@ export default function StockScreen() {
           ListEmptyComponent={
             <EmptyState
               title="No inventory yet"
-              body="Products appear here after pharmacy onboarding. Open an item to adjust stock."
+              body="Add a product or import a CSV from Bulk import. Open an item to edit stock and prices."
               icon="cube"
             />
           }
@@ -154,6 +169,38 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.lg,
     paddingBottom: spacing.sm,
+  },
+  toolbar: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+  },
+  toolBtn: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
+  toolBtnText: {
+    ...typography.bodyMedium,
+    color: '#fff',
+    fontFamily: 'DMSans_700Bold',
+  },
+  toolBtnGhost: {
+    flex: 1,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+  },
+  toolBtnGhostText: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontFamily: 'DMSans_500Medium',
   },
   pill: {
     flex: 1,
