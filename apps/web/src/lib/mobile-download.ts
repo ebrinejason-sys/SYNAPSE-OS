@@ -4,7 +4,7 @@
  * Fallback is the latest finished EAS preview artifact we know about.
  */
 export const ANDROID_APK_FALLBACK_URL =
-  'https://expo.dev/artifacts/eas/f8XcgQHdtt77d6vBvZTrJRAJ3lvCsFlv1t80tnkKZQ0.apk'
+  'https://expo.dev/artifacts/eas/mW7WeJ9BmeIvRLEGjeXFKSLURcIGi07lHwolp-g-HlA.apk'
 
 export const ANDROID_BUILDS_URL =
   'https://expo.dev/accounts/ebrinejason/projects/synapse-app/builds'
