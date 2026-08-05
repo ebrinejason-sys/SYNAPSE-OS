@@ -15,6 +15,7 @@ import {
   validateSaleLine,
   type SaleLineInput,
 } from "@/lib/pos/sale-validation"
+import { buildStockError, type StructuredStockError } from "@synapse/db/inventory"
 
 /**
  * Complete a POS sale via live `complete_pharmacy_sale` RPC.
@@ -128,10 +129,16 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     const msg = error.message ?? "Sale failed"
+    const code = extractSaleErrorCode(msg)
+    let stockError: StructuredStockError | null = null
+    if (code === "INSUFFICIENT_STOCK" || code === "EXPIRED_BATCH_BLOCKED") {
+      stockError = await buildPortalStockError(tenantId, rpcItems)
+    }
     return NextResponse.json(
       {
         error: friendlySaleError(msg),
-        code: extractSaleErrorCode(msg),
+        code,
+        ...(stockError ? { stockError } : {}),
       },
       { status: saleErrorHttpStatus(msg) },
     )
@@ -187,4 +194,46 @@ export async function POST(request: NextRequest) {
   })()
 
   return NextResponse.json(responseBody)
+}
+
+/**
+ * Recompute batch-derived stock for the requested lines and return the first line that
+ * cannot be fully satisfied as a structured POS error. Best-effort (returns null on read failure).
+ */
+async function buildPortalStockError(
+  tenantId: string,
+  rpcItems: Record<string, unknown>[],
+): Promise<StructuredStockError | null> {
+  try {
+    const db = supabaseAdmin as any
+    const productIds = [...new Set(rpcItems.map((i) => String(i.product_id)))]
+    if (productIds.length === 0) return null
+    const { data: products } = await db
+      .from("pharmacy_products")
+      .select(
+        `id, name, quantity, is_active,
+         pharmacy_product_batches(id, batch_number, quantity, expiry_date, is_active, manufacturer)`,
+      )
+      .eq("tenant_id", tenantId)
+      .in("id", productIds)
+
+    const byId = new Map<string, any>()
+    for (const p of products ?? []) byId.set(String(p.id), p)
+
+    for (const item of rpcItems) {
+      const pid = String(item.product_id)
+      const product = byId.get(pid)
+      const err = buildStockError({
+        product: product
+          ? { id: pid, name: String(product.name ?? ""), quantity: product.quantity, is_active: product.is_active }
+          : { id: pid, name: "Unknown product", quantity: 0 },
+        batches: product?.pharmacy_product_batches ?? [],
+        requestedQuantity: Number(item.quantity ?? 0),
+      })
+      if (err) return err
+    }
+    return null
+  } catch {
+    return null
+  }
 }

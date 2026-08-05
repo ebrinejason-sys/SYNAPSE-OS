@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { summarizeInventory, kampalaToday, normaliseBatch, isSellableBatch } from "@synapse/db/inventory"
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,8 +22,18 @@ export async function GET(request: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+    const today = kampalaToday()
     // Normalize to camelCase so the POS client interface matches
-    const result = (products ?? []).map((product: any) => ({
+    const result = (products ?? []).map((product: any) => {
+      const rawBatches = product.pharmacy_product_batches ?? []
+      // Authoritative batch-derived quantities. `quantity` is retained for
+      // compatibility, but POS must validate against `sellableQuantity`.
+      const summary = summarizeInventory(
+        { id: product.id, name: product.name, quantity: product.quantity, is_active: product.is_active },
+        rawBatches,
+        today,
+      )
+      return {
       id:                   product.id,
       name:                 product.name,
       sku:                  product.sku,
@@ -30,6 +41,11 @@ export async function GET(request: NextRequest) {
       price:                Number(product.price ?? 0),
       costPrice:            product.cost_price != null ? Number(product.cost_price) : null,
       quantity:             product.quantity ?? 0,
+      sellableQuantity:     summary.sellableQuantity,
+      physicalQuantity:     summary.physicalQuantity,
+      expiredQuantity:      summary.expiredQuantity,
+      unbatchedQuantity:    summary.unbatchedQuantity,
+      hasPhantomStock:      summary.hasPhantomStock,
       unitOfMeasure:        product.unit_of_measure ?? "unit",
       strength:             product.strength ?? null,
       dosageForm:           product.dosage_form ?? null,
@@ -52,8 +68,8 @@ export async function GET(request: NextRequest) {
           price:           Number(pkg.price ?? 0),
           isDefault:       pkg.is_default ?? false,
         })),
-      batches: (product.pharmacy_product_batches ?? [])
-        .filter((b: any) => b.is_active && b.quantity > 0)
+      batches: rawBatches
+        .filter((b: any) => isSellableBatch(normaliseBatch(b, today), today))
         .sort((a: any, b: any) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime())
         .map((batch: any) => ({
           id:          batch.id,
@@ -63,7 +79,8 @@ export async function GET(request: NextRequest) {
           costPrice:   batch.cost_price != null ? Number(batch.cost_price) : null,
           manufacturer: batch.manufacturer ?? null,
         })),
-    }))
+      }
+    })
 
     return NextResponse.json(result)
   } catch (error) {

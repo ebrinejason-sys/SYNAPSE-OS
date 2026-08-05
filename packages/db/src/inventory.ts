@@ -421,7 +421,7 @@ export function parseRpcStockError(
       : null;
   return {
     reasonCode,
-    shortBy: shortMatch ? Number(shortMatch[1]) : null,
-    productName: nameMatch ? nameMatch[1] : null,
+    shortBy: shortMatch?.[1] != null ? Number(shortMatch[1]) : null,
+    productName: nameMatch?.[1] ?? null,
   };
 }
