@@ -2,7 +2,6 @@ import { useState } from 'react'
 import {
   Alert,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -14,6 +13,9 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import * as DocumentPicker from 'expo-document-picker'
+import * as FileSystem from 'expo-file-system'
+import * as XLSX from 'xlsx'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/lib/auth'
 import { apiRequest, ApiError } from '@/lib/api'
@@ -23,7 +25,19 @@ const SAMPLE = `name,sku,price,quantity,cost_price,category,unit,batch,expiry
 Amoxicillin 500mg,AMX-500,2500,100,1800,Antibiotics,Tablet,B1,2027-06-30
 ORS Sachet,ORS-1,500,200,300,OTC,Sachet,,`
 
-const PORTAL_IMPORT = 'https://pharm.synapseos.tech/portal/inventory'
+/** Read a picked CSV/XLSX file from the phone and return CSV text for bulk-upload. */
+async function fileToCsv(uri: string, name: string): Promise<string> {
+  const lower = name.toLowerCase()
+  if (lower.endsWith('.csv') || lower.endsWith('.txt')) {
+    return FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.UTF8 })
+  }
+  // XLSX / XLS: read as base64 and convert the first sheet to CSV on-device.
+  const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 })
+  const wb = XLSX.read(b64, { type: 'base64' })
+  const first = wb.SheetNames[0]
+  if (!first) throw new Error('The spreadsheet has no sheets.')
+  return XLSX.utils.sheet_to_csv(wb.Sheets[first])
+}
 
 export default function StockImportScreen() {
   const { token } = useAuth()
@@ -31,6 +45,38 @@ export default function StockImportScreen() {
   const insets = useSafeAreaInsets()
   const [csv, setCsv] = useState(SAMPLE)
   const [saving, setSaving] = useState(false)
+  const [picking, setPicking] = useState(false)
+  const [pickedName, setPickedName] = useState<string | null>(null)
+
+  const pickFile = async () => {
+    setPicking(true)
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: [
+          'text/csv',
+          'text/comma-separated-values',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'text/plain',
+        ],
+        copyToCacheDirectory: true,
+        multiple: false,
+      })
+      if (res.canceled || !res.assets?.length) return
+      const file = res.assets[0]
+      const text = await fileToCsv(file.uri, file.name ?? 'import.csv')
+      if (!text.trim()) {
+        Alert.alert('Empty file', 'That file has no rows.')
+        return
+      }
+      setCsv(text)
+      setPickedName(file.name ?? 'file')
+    } catch (err) {
+      Alert.alert('Could not read file', err instanceof Error ? err.message : 'Try another file.')
+    } finally {
+      setPicking(false)
+    }
+  }
 
   const runImport = async () => {
     if (!token) return
@@ -89,9 +135,17 @@ export default function StockImportScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.help}>
-          Paste a CSV with a header row. Flexible columns: name, sku, price, quantity,
-          cost_price, category, unit, batch, expiry. For Excel (.xlsx), use the pharmacy portal.
+          Choose a CSV or Excel (.xlsx) file from your phone, or paste rows below. Header row with
+          flexible columns: name, sku, price, quantity, cost_price, category, unit, batch, expiry.
+          Rows need a genuine batch and future expiry to become sellable stock.
         </Text>
+
+        <Button
+          label={pickedName ? `Selected: ${pickedName} — choose another` : 'Choose CSV / Excel file'}
+          onPress={pickFile}
+          loading={picking}
+          variant="ghost"
+        />
 
         <TextInput
           style={styles.area}
@@ -104,13 +158,7 @@ export default function StockImportScreen() {
           placeholderTextColor={colors.textMuted}
         />
 
-        <Button label="Import CSV" onPress={runImport} loading={saving} />
-        <Button
-          label="Open portal inventory (Excel)"
-          onPress={() => Linking.openURL(PORTAL_IMPORT).catch(() => {})}
-          variant="ghost"
-          style={styles.portalBtn}
-        />
+        <Button label="Import" onPress={runImport} loading={saving} />
       </ScrollView>
     </KeyboardAvoidingView>
   )
@@ -149,5 +197,4 @@ const styles = StyleSheet.create({
     fontFamily: 'IBMPlexMono_400Regular',
     fontSize: 12,
   },
-  portalBtn: { marginTop: spacing.sm },
 })
