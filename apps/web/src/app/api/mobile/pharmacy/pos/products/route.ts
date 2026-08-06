@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { gateFeature } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
+import { summarizeInventory, kampalaToday, normaliseBatch, isSellableBatch } from '@synapse/db/inventory'
 import {
   isMobileAuth,
   requireMobilePharmacyAuth,
@@ -52,10 +53,23 @@ export async function GET(req: NextRequest) {
     }).slice(0, limit)
   }
 
+  const today = kampalaToday()
   return NextResponse.json({
     products: rows.map((product: Record<string, unknown>) => {
       const packages = (product.pharmacy_product_packages as Array<Record<string, unknown>> | null) ?? []
       const batches = (product.pharmacy_product_batches as Array<Record<string, unknown>> | null) ?? []
+      // Authoritative, batch-derived quantities. `quantity` (product-level) is kept for
+      // backwards compatibility but POS must validate against `sellableQuantity`.
+      const summary = summarizeInventory(
+        {
+          id: String(product.id),
+          name: String(product.name ?? ''),
+          quantity: product.quantity as number,
+          is_active: product.is_active as boolean,
+        },
+        batches,
+        today,
+      )
       return {
         id: product.id,
         name: product.name,
@@ -64,6 +78,11 @@ export async function GET(req: NextRequest) {
         price: Number(product.price ?? 0),
         costPrice: product.cost_price != null ? Number(product.cost_price) : null,
         quantity: Number(product.quantity ?? 0),
+        sellableQuantity: summary.sellableQuantity,
+        physicalQuantity: summary.physicalQuantity,
+        expiredQuantity: summary.expiredQuantity,
+        unbatchedQuantity: summary.unbatchedQuantity,
+        hasPhantomStock: summary.hasPhantomStock,
         unit: product.unit_of_measure ?? 'unit',
         requiresPrescription: Boolean(product.requires_prescription),
         packages: packages
@@ -79,7 +98,7 @@ export async function GET(req: NextRequest) {
             isDefault: Boolean(pkg.is_default),
           })),
         batches: batches
-          .filter((b) => b.is_active && Number(b.quantity ?? 0) > 0)
+          .filter((b) => isSellableBatch(normaliseBatch(b, today), today))
           .sort(
             (a, b) =>
               new Date(String(a.expiry_date)).getTime() -

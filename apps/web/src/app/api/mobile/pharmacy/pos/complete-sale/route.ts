@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { gateFeature } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
+import { buildStockError, type StructuredStockError } from '@synapse/db/inventory'
 import {
   isMobileAuth,
   isMobilePharmacyAdmin,
@@ -130,10 +131,18 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     const msg = error.message ?? 'Sale failed'
+    const code = extractSaleErrorCode(msg)
+    // Enrich stock failures with the structured POS error contract so the app
+    // can guide the cashier (productId, sellableQuantity, reasonCode, action).
+    let stockError: StructuredStockError | null = null
+    if (code === 'INSUFFICIENT_STOCK' || code === 'EXPIRED_BATCH_BLOCKED') {
+      stockError = await buildStructuredStockError(auth.tenantId, rpcItems)
+    }
     return NextResponse.json(
       {
         error: friendlySaleError(msg),
-        code: extractSaleErrorCode(msg),
+        code,
+        ...(stockError ? { stockError } : {}),
       },
       { status: saleErrorHttpStatus(msg) },
     )
@@ -220,4 +229,47 @@ export async function POST(req: NextRequest) {
   })()
 
   return NextResponse.json(responseBody)
+}
+
+/**
+ * Recompute the authoritative batch-derived stock picture for the requested lines and
+ * return the first line that cannot be fully satisfied as a structured POS error.
+ * Best-effort: returns null if the catalogue cannot be re-read.
+ */
+async function buildStructuredStockError(
+  tenantId: string,
+  rpcItems: Record<string, unknown>[],
+): Promise<StructuredStockError | null> {
+  try {
+    const productIds = [...new Set(rpcItems.map((i) => String(i.product_id)))]
+    if (productIds.length === 0) return null
+    const { data: products } = await db()
+      .from('pharmacy_products')
+      .select(
+        `id, name, quantity, is_active,
+         pharmacy_product_batches(id, batch_number, quantity, expiry_date, is_active, manufacturer)`,
+      )
+      .eq('tenant_id', tenantId)
+      .in('id', productIds)
+
+    const byId = new Map<string, Record<string, unknown>>()
+    for (const p of products ?? []) byId.set(String(p.id), p)
+
+    for (const item of rpcItems) {
+      const pid = String(item.product_id)
+      const requested = Number(item.quantity ?? 0)
+      const product = byId.get(pid)
+      const err = buildStockError({
+        product: product
+          ? { id: pid, name: String(product.name ?? ''), quantity: product.quantity as number, is_active: product.is_active as boolean }
+          : { id: pid, name: 'Unknown product', quantity: 0 },
+        batches: (product?.pharmacy_product_batches as Array<Record<string, unknown>>) ?? [],
+        requestedQuantity: requested,
+      })
+      if (err) return err
+    }
+    return null
+  } catch {
+    return null
+  }
 }

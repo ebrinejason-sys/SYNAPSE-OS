@@ -18,6 +18,11 @@ function resolveApiBaseUrl(): string {
 
 const BASE_URL = resolveApiBaseUrl()
 
+/** Absolute API base URL (e.g. for building document/print URLs). */
+export function apiBaseUrl(): string {
+  return BASE_URL
+}
+
 const DEFAULT_TIMEOUT_MS = 45_000
 
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
@@ -101,4 +106,31 @@ export async function apiRequest<T>(
   }
 
   return data as T
+}
+
+/** Fetch a non-JSON (e.g. text/html) endpoint with auth. Used for print-ready receipt HTML. */
+export async function apiFetchText(
+  path: string,
+  { token, timeoutMs = DEFAULT_TIMEOUT_MS }: { token?: string | null; timeoutMs?: number } = {},
+): Promise<string> {
+  const headers: Record<string, string> = { Accept: 'text/html', 'X-App': 'mobile' }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  let res: Response
+  try {
+    res = await fetch(`${BASE_URL}${path}`, { method: 'GET', headers, signal: controller.signal })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('Request timed out. Check your connection and try again.')
+    }
+    throw new Error('Network error. Check your connection and try again.')
+  } finally {
+    clearTimeout(timer)
+  }
+  if (!res.ok) {
+    throw new ApiError(`Request failed (${res.status})`, res.status)
+  }
+  return res.text()
 }
