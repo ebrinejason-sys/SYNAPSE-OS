@@ -91,15 +91,13 @@ export default function ProfileScreen() {
       {kind === 'pharmacy' ? (
         <View style={styles.actions}>
           <Button label="Reports" onPress={() => router.push('/reports' as never)} variant="ghost" />
+          <Button label="Receive stock (GRN)" onPress={() => router.push('/receive-stock' as never)} variant="ghost" />
           <Button label="Stock import (CSV / Excel)" onPress={() => router.push('/stock-import' as never)} variant="ghost" />
+          <Button label="Suppliers" onPress={() => router.push('/suppliers' as never)} variant="ghost" />
+          <Button label="Refunds" onPress={() => router.push('/refunds' as never)} variant="ghost" />
           <Button label="Staff & users" onPress={() => router.push('/users' as never)} variant="ghost" />
           <Button label="Pharmacy settings" onPress={() => router.push('/settings' as never)} variant="ghost" />
           <Button label="Billing & subscription" onPress={() => router.push('/billing' as never)} variant="ghost" />
-          <Button
-            label="Refunds (web portal)"
-            onPress={() => openUrl(`${PHARM_PORTAL}/refunds`)}
-            variant="ghost"
-          />
         </View>
       ) : (
         <View style={styles.actions}>
