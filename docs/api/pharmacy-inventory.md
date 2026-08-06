@@ -40,6 +40,24 @@ failure the JSON now includes `stockError` (the `StructuredStockError` above) al
     "recommendedAction": "Reduce the quantity to 3 or receive more stock." } }
 ```
 
+## Receipts (Phase 3)
+
+### Shared domain: `@synapse/db/receipt`
+- `buildReceiptSnapshot({ pharmacy, sale, isReprint? }) → ReceiptSnapshot` — **deep-frozen immutable**
+  snapshot of sale-time data (persist it; never re-derive from mutable catalogue rows).
+- `isFiscalReceipt(efris)` — true **only** when EFRIS `status === 'accepted'` and a fiscal document
+  number exists; otherwise the document is labelled `POS RECEIPT (NON-FISCAL)`.
+- `renderReceiptText(snapshot, width?)` — thermal-printer text; `renderReceiptHtml(snapshot)` —
+  self-contained print HTML (used by `expo-print` on device to produce the PDF). Reprints/voids/
+  refunds carry a watermark.
+
+### HTTP (tenant + pharmacy-role scoped; 404 on cross-tenant sale)
+- `GET /api/mobile/pharmacy/sales/:saleId` → `{ sale: ReceiptSnapshot }`
+- `GET /api/mobile/pharmacy/sales/:saleId/receipt` → `{ receipt: ReceiptSnapshot }`
+- `GET /api/mobile/pharmacy/sales/:saleId/receipt.pdf[?reprint=1]` → `text/html` (device converts to PDF)
+- `POST /api/mobile/pharmacy/sales/:saleId/share-log` `{ channel }` → audit a share/print
+- `POST /api/mobile/pharmacy/sales/:saleId/reprint` → `{ receipt }` (marked reprint) + audit
+
 ## SQL (migration `20260805130000_pharmacy_inventory_authority.sql`)
 - View `pharmacy_inventory_summary(product_id, tenant_id, name, product_quantity, physical_quantity,
   sellable_quantity, expired_quantity, quarantined_quantity, damaged_quantity, unbatched_quantity)`.

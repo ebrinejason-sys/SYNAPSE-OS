@@ -22,8 +22,8 @@ are specified not executed), and (b) the **repo-wide `eslint` gate is pre-existi
 |-------|-------|--------|
 | 0 | Audit & baseline | ✅ `docs/current-state/2026-08-synapse-integrated-audit.md` |
 | 1 | Pharmacy data correctness | ✅ shared domain + wiring + tests + additive migration |
-| 2 | Fully-native pharmacy app | 📐 `docs/architecture/pharmacy-native-mobile.md` |
-| 3 | Receipt engine | 📐 same doc |
+| 2 | Fully-native pharmacy app | 🟡 native receipts + native CSV/XLSX import done; reports/refunds/suppliers/users/settings/billing + `profile.tsx` redirects pending |
+| 3 | Receipt engine | ✅ shared immutable receipt domain + 5 mobile APIs + native screen |
 | 4 | Platform sandbox + monitoring | 📐 `docs/architecture/platform-control-plane.md` |
 | 5 | ICD-11 clinical foundation | 📐 `docs/architecture/clinical-ai-safety.md` |
 | 6 | Trajectory AI + gateway | 📐 same doc |
@@ -46,24 +46,48 @@ are specified not executed), and (b) the **repo-wide `eslint` gate is pre-existi
   `report_unbatched_positive_stock`, `receive_pharmacy_stock`, status-aware `complete_pharmacy_sale`.
 - ✅ 24 new unit tests (all required Phase-1 scenarios) + existing suites green.
 
+## Completed since (Phase 2/3)
+- ✅ `@synapse/db/receipt` — immutable receipt snapshot, EFRIS-only fiscal labelling, thermal-text +
+  print-HTML renderers (8 tests).
+- ✅ Mobile receipt APIs (tenant+role scoped): `GET /sales/:id`, `GET /sales/:id/receipt`,
+  `GET /sales/:id/receipt.pdf` (print HTML), `POST /sales/:id/share-log`, `POST /sales/:id/reprint`.
+- ✅ Native Expo receipt screen (`app/receipt/[saleId].tsx`) — preview + Print + Share + Email +
+  Reprint (via expo-print/sharing/mail-composer/file-system); sales list & POS success tap-through.
+- ✅ Native CSV/XLSX import via `expo-document-picker` + on-device SheetJS parse; the
+  `pharm.synapseos.tech` Excel redirect in `stock-import.tsx` is removed.
+
 ## Partial / not-started (honest)
-- 🟡 Native pharmacy screens for reports/refunds/suppliers/users/settings/receipts and removal of the
-  7 `pharm.synapseos.tech` redirects — designed, not built.
+- 🟡 Remaining native pharmacy screens (reports/refunds/suppliers/users/settings/billing) and the
+  6 `profile.tsx` + `billing-locked.tsx` portal redirects — **kept until their native modules exist**
+  so staff do not lose access (rules 9/10); designed in `docs/architecture/pharmacy-native-mobile.md`.
+- 🟡 POS depth (held carts, cashier sessions, offline drafts, barcode scan) — designed, not built.
 - 🟡 Transactional facility provisioning, sandbox test-hospital, real monitoring, safe support sessions.
 - ⛔ ICD-11 concept model, trajectory AI + gateway + eval harness, 14-state referrals, wards/inpatient,
   surveillance signal engine, family graph, research/lab portal, wearables.
 - 🚫 Live DB apply of the Phase-1 migration and DB-integration tests (no DB access here).
 
 ## Exact files changed in this branch
+Phase 1:
 - `packages/db/src/inventory.ts` (new), `packages/db/src/import-validation.ts` (new),
   `packages/db/src/index.ts`, `packages/db/package.json`
-- `apps/web/src/app/api/mobile/pharmacy/pos/products/route.ts`
-- `apps/web/src/app/api/mobile/pharmacy/pos/complete-sale/route.ts`
-- `apps/pharmacy/app/api/admin/inventory/route.ts`
-- `apps/pharmacy/app/api/admin/pos/complete-sale/route.ts`
+- `apps/web/src/app/api/mobile/pharmacy/pos/products/route.ts`,
+  `apps/web/src/app/api/mobile/pharmacy/pos/complete-sale/route.ts`
+- `apps/pharmacy/app/api/admin/inventory/route.ts`,
+  `apps/pharmacy/app/api/admin/pos/complete-sale/route.ts`
 - `apps/pharmacy/lib/pos/inventory-authority.test.ts` (new)
 - `supabase/migrations/20260805130000_pharmacy_inventory_authority.sql` (new)
-- `docs/**` (audit, architecture ×5, security, testing, release, api)
+
+Phase 3 (receipts):
+- `packages/db/src/receipt.ts` (new), `apps/pharmacy/lib/pos/receipt-domain.test.ts` (new)
+- `apps/web/src/lib/pharmacy-receipt.ts` (new)
+- `apps/web/src/app/api/mobile/pharmacy/sales/[saleId]/{route,receipt/route,receipt.pdf/route,share-log/route,reprint/route}.ts` (new)
+
+Phase 2 (native app):
+- `apps/app/app/receipt/[saleId].tsx` (new), `apps/app/lib/api.ts`,
+  `apps/app/app/(main)/sales.tsx`, `apps/app/app/pos.tsx`, `apps/app/app/stock-import.tsx`,
+  `apps/app/package.json` (expo-print/sharing/file-system/document-picker/mail-composer, xlsx)
+
+Docs: audit, architecture ×5, security, testing, release, api.
 
 ## Exact files expected to change next (by phase)
 - **P2/P3:** `apps/app/app/(main)/profile.tsx`, `apps/app/app/stock-import.tsx`,
