@@ -85,7 +85,12 @@ export default function SalesScreen() {
           renderItem={({ item }) => {
             const voided = item.status === 'VOIDED'
             return (
-              <View style={styles.card}>
+              <Pressable
+                style={styles.card}
+                onPress={() => router.push(`/receipt/${item.id}` as never)}
+                accessibilityRole="button"
+                accessibilityHint="Open receipt"
+              >
                 <View style={styles.cardTop}>
                   <Text style={styles.receipt}>{item.receiptNumber}</Text>
                   <Text style={[styles.status, { color: voided ? TONE_COLORS.red : TONE_COLORS.green }]}>
@@ -109,7 +114,8 @@ export default function SalesScreen() {
                     })}
                   </Text>
                 </View>
-              </View>
+                <Text style={styles.viewReceipt}>View receipt ›</Text>
+              </Pressable>
             )
           }}
         />
@@ -178,5 +184,11 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: 'DMSans_400Regular',
     flexShrink: 1,
+  },
+  viewReceipt: {
+    ...typography.caption,
+    color: colors.primary,
+    fontFamily: 'DMSans_500Medium',
+    marginTop: spacing.sm,
   },
 })

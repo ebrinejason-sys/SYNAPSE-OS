@@ -339,6 +339,14 @@ export default function PosScreen() {
             </Text>
           ) : null}
           <View style={styles.receiptActions}>
+            {lastSale.sale_id ? (
+              <Pressable
+                style={styles.receiptAction}
+                onPress={() => router.push(`/receipt/${lastSale.sale_id}` as never)}
+              >
+                <Text style={styles.receiptActionText}>View receipt</Text>
+              </Pressable>
+            ) : null}
             <Pressable style={styles.receiptAction} onPress={() => setLastSale(null)}>
               <Text style={styles.receiptActionText}>New sale</Text>
             </Pressable>
