@@ -22,7 +22,7 @@ are specified not executed), and (b) the **repo-wide `eslint` gate is pre-existi
 |-------|-------|--------|
 | 0 | Audit & baseline | ✅ `docs/current-state/2026-08-synapse-integrated-audit.md` |
 | 1 | Pharmacy data correctness | ✅ shared domain + wiring + tests + additive migration |
-| 2 | Fully-native pharmacy app | 🟡 native receipts + native CSV/XLSX import done; reports/refunds/suppliers/users/settings/billing + `profile.tsx` redirects pending |
+| 2 | Fully-native pharmacy app | 🟡 onboarding, change-password, settings, reports, users, billing, suppliers, receiving (GRN), refunds now native; all `profile.tsx`/`billing-locked`/`stock-import` portal redirects removed. Remaining: full PO lifecycle UI + POS depth (held carts, sessions, offline, barcode) |
 | 3 | Receipt engine | ✅ shared immutable receipt domain + 5 mobile APIs + native screen |
 | 4 | Platform sandbox + monitoring | 📐 `docs/architecture/platform-control-plane.md` |
 | 5 | ICD-11 clinical foundation | 📐 `docs/architecture/clinical-ai-safety.md` |
@@ -56,11 +56,27 @@ are specified not executed), and (b) the **repo-wide `eslint` gate is pre-existi
 - ✅ Native CSV/XLSX import via `expo-document-picker` + on-device SheetJS parse; the
   `pharm.synapseos.tech` Excel redirect in `stock-import.tsx` is removed.
 
+## Completed since (Phase 2 native pharmacy + onboarding)
+- ✅ In-app onboarding (5-step wizard) + change-password + launch gating (BFF `GET/POST /onboarding`,
+  `POST /auth/mobile/change-password`).
+- ✅ Native Settings (identity: TIN, NDA licence, supervising pharmacist + reg no., receipt header/footer,
+  VAT, thresholds) + BFF + additive `pharmacy_settings` identity migration (powers compliant receipts).
+- ✅ Native Reports (sales/profit/payment-mix/top-products/low-stock/expiry) with on-device CSV export/share.
+- ✅ Native Staff & users (list/invite/disable/reactivate/reset-password) + BFF.
+- ✅ Native Billing (subscription state, payments, plans) + BFF; `billing-locked` now routes native.
+- ✅ Native Suppliers (list/add/edit) + BFF.
+- ✅ Native Receiving / GRN — new stock enters ONLY via a real batch through `receive_pharmacy_stock`
+  (Phase-1 rule): batch number + positive qty + future expiry required.
+- ✅ Native Refunds/void (restores batch + product qty, audited) + history + receipt-screen action.
+- ✅ **All ordinary `pharm.synapseos.tech` redirects removed** from the app (profile, stock-import Excel,
+  billing-locked).
+
 ## Partial / not-started (honest)
-- 🟡 Remaining native pharmacy screens (reports/refunds/suppliers/users/settings/billing) and the
-  6 `profile.tsx` + `billing-locked.tsx` portal redirects — **kept until their native modules exist**
-  so staff do not lose access (rules 9/10); designed in `docs/architecture/pharmacy-native-mobile.md`.
+- 🟡 Full purchase-order lifecycle UI (create PO, approve, partial receive against a PO) — suppliers +
+  batch receiving are native; PO documents themselves are next.
 - 🟡 POS depth (held carts, cashier sessions, offline drafts, barcode scan) — designed, not built.
+- 🟡 Inventory management depth (stock transfer, count, quarantine/recall management screens) — the
+  data model + receiving exist; dedicated screens pending.
 - 🟡 Transactional facility provisioning, sandbox test-hospital, real monitoring, safe support sessions.
 - ⛔ ICD-11 concept model, trajectory AI + gateway + eval harness, 14-state referrals, wards/inpatient,
   surveillance signal engine, family graph, research/lab portal, wearables.
