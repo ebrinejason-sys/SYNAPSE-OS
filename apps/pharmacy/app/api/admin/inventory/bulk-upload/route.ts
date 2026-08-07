@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyTenant } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { kampalaToday, daysUntilExpiry } from "@synapse/db/inventory"
+import { normaliseExpiry } from "@synapse/db/import-validation"
 import Papa from "papaparse"
 import * as XLSX from "xlsx"
+
+interface BatchSpec {
+  sku: string
+  batchNumber: string
+  quantity: number
+  expiryDate: string
+  costPrice: number
+}
 
 // Helper function to find value from multiple possible column names
 function getFieldValue(
@@ -121,8 +131,11 @@ export async function POST(request: NextRequest) {
     )
 
     const productsToCreate: ProductRow[] = []
+    const batchSpecs: BatchSpec[] = []
+    const warnings: string[] = []
     const errors: string[] = []
     const skippedDuplicates: string[] = []
+    const today = kampalaToday()
 
     for (const [index, data] of parsedData.entries()) {
       const name = getFieldValue(
@@ -264,6 +277,27 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Imports never create phantom sellable stock: products enter with quantity 0 and
+      // become sellable only via a real batch. A row with a positive quantity must carry a
+      // genuine batch number + future expiry to be received as a batch below.
+      if (quantity > 0) {
+        const normExpiry = normaliseExpiry(expiryDateStr)
+        const days = normExpiry ? daysUntilExpiry(normExpiry, today) : null
+        if (batchNumber && normExpiry && days != null && days >= 0) {
+          batchSpecs.push({
+            sku,
+            batchNumber,
+            quantity,
+            expiryDate: normExpiry,
+            costPrice: costPrice > 0 ? costPrice : price * 0.7,
+          })
+        } else {
+          warnings.push(
+            `Row ${index + 2}: "${name}" imported as non-sellable (quantity 0) — needs a batch number and a future expiry date. Receive it to make it sellable.`,
+          )
+        }
+      }
+
       productsToCreate.push({
         tenant_id: tenantId,
         name,
@@ -272,7 +306,7 @@ export async function POST(request: NextRequest) {
         category,
         price: price > 0 ? price : costPrice * 1.3,
         cost_price: costPrice > 0 ? costPrice : price * 0.7,
-        quantity,
+        quantity: 0,
         reorder_level: reorderLevel,
         unit_of_measure: unitOfMeasure,
         description,
@@ -309,6 +343,34 @@ export async function POST(request: NextRequest) {
 
     const count = upsertResult?.length ?? productsToCreate.length
 
+    // Receive opening stock as real batches (batch-authoritative). Products created above have
+    // quantity 0; receive_pharmacy_stock creates the batch and syncs the product quantity.
+    let batchesReceived = 0
+    if (batchSpecs.length > 0) {
+      const skuToId = new Map<string, string>(
+        (upsertResult ?? []).map((p: { sku: string; id: string }) => [p.sku, p.id]),
+      )
+      for (const spec of batchSpecs) {
+        const productId = skuToId.get(spec.sku)
+        if (!productId) continue
+        const { error: rcvError } = await (supabaseAdmin as any).rpc("receive_pharmacy_stock", {
+          p_tenant_id: tenantId,
+          p_product_id: productId,
+          p_batch_number: spec.batchNumber,
+          p_quantity: spec.quantity,
+          p_expiry_date: spec.expiryDate,
+          p_cost_price: spec.costPrice,
+          p_received_by: session.user.id,
+          p_supplier_ref: "bulk import",
+        })
+        if (rcvError) {
+          warnings.push(`Batch for SKU ${spec.sku} not received: ${rcvError.message}`)
+        } else {
+          batchesReceived += 1
+        }
+      }
+    }
+
     // Audit log
     await supabaseAdmin.from("pharmacy_audit_logs").insert({
       tenant_id: tenantId,
@@ -316,13 +378,15 @@ export async function POST(request: NextRequest) {
       action: "BULK_UPLOAD_PRODUCTS",
       entity: "PRODUCT",
       entity_id: null,
-      details: `Bulk uploaded ${count} products`,
+      details: `Bulk uploaded ${count} products; received ${batchesReceived} opening batches`,
     })
 
     return NextResponse.json({
       success: true,
       count,
+      batchesReceived,
       errors: errors.length > 0 ? errors : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined,
       skipped: skippedDuplicates.length > 0 ? skippedDuplicates : undefined,
     })
   } catch (error) {
