@@ -21,7 +21,7 @@ are specified not executed), and (b) the **repo-wide `eslint` gate is pre-existi
 | Phase | Scope | Status |
 |-------|-------|--------|
 | 0 | Audit & baseline | ✅ `docs/current-state/2026-08-synapse-integrated-audit.md` |
-| 1 | Pharmacy data correctness | ✅ shared domain + wiring + tests + additive migration |
+| 1 | Pharmacy data correctness | 🟡 domain/tests/migration built; live apply + all stock-write-path convergence still required |
 | 2 | Fully-native pharmacy app | 🟡 native receipts + native CSV/XLSX import done; reports/refunds/suppliers/users/settings/billing + `profile.tsx` redirects pending |
 | 3 | Receipt engine | ✅ shared immutable receipt domain + 5 mobile APIs + native screen |
 | 4 | Platform sandbox + monitoring | 📐 `docs/architecture/platform-control-plane.md` |
@@ -33,6 +33,28 @@ are specified not executed), and (b) the **repo-wide `eslint` gate is pre-existi
 | 10 | Family health graph | 📐 architecture/threat-model |
 | 11 | Research / reference lab | 📐 architecture |
 | 12 | Citizen / wearables | 📐 architecture |
+
+## Operational recheck — 2026-08-07
+
+A live read-only recheck of the connected `SYNAPSE_OS` Supabase project changes the pilot verdict
+without invalidating the code delivered on this branch:
+
+- `20260805130000_pharmacy_inventory_authority.sql` is **not present in live migration history**.
+- Live DB currently has no batch `status` column, no `pharmacy_inventory_summary` view, and no
+  `receive_pharmacy_stock` function.
+- 29 products currently show positive product-level quantity; 2 of them have no sellable batch
+  backing that positive quantity. These legacy quantities must be reconciled from genuine batch
+  data; SYNAPSE must not fabricate a batch to make them sellable.
+- Current `main` still contains direct product-quantity write paths in portal stock adjustment,
+  PO `RECEIVED`, portal bulk import, and mobile stock correction. These must converge on
+  batch-aware receiving/adjustment semantics before the pharmacy pilot gate is green.
+- Supabase's security advisor also flags the live `SECURITY DEFINER` `complete_pharmacy_sale`
+  overloads as executable by the `authenticated` role. Current web/mobile sale routes call the
+  RPC through server-side admin clients, so pilot hardening should remove unnecessary direct
+  client execution and verify grants before the inventory-authority migration is applied.
+
+**Pilot verdict:** Phase 1 remains 🟡 until live schema apply, write-path convergence, legacy stock
+reconciliation and a real receive → FEFO sale → receipt → reversal → audit smoke test pass.
 
 ## Completed features (this branch)
 - ✅ Integrated audit of code + migrations + domains, incl. the `admin.synapseos.tech` determination.
@@ -64,7 +86,7 @@ are specified not executed), and (b) the **repo-wide `eslint` gate is pre-existi
 - 🟡 Transactional facility provisioning, sandbox test-hospital, real monitoring, safe support sessions.
 - ⛔ ICD-11 concept model, trajectory AI + gateway + eval harness, 14-state referrals, wards/inpatient,
   surveillance signal engine, family graph, research/lab portal, wearables.
-- 🚫 Live DB apply of the Phase-1 migration and DB-integration tests (no DB access here).
+- 🟡 Live DB apply of the Phase-1 migration is pending safety hardening + verification; live read-only access is now available and confirmed the migration is absent.
 
 ## Exact files changed in this branch
 Phase 1:
@@ -90,7 +112,7 @@ Phase 2 (native app):
 Docs: audit, architecture ×5, security, testing, release, api.
 
 ## Exact files expected to change next (by phase)
-- **P2/P3:** `apps/app/app/(main)/profile.tsx`, `apps/app/app/stock-import.tsx`,
+- **P1 operational hardening:** `supabase/migrations/20260805130000_pharmacy_inventory_authority.sql`, `apps/pharmacy/app/api/admin/inventory/{route.ts,stock/route.ts,bulk-upload/route.ts}`, `apps/pharmacy/app/api/admin/purchase-orders/route.ts`, `apps/web/src/app/api/mobile/inventory/[id]/route.ts`, `apps/web/src/app/api/mobile/pharmacy/inventory/bulk-upload/route.ts`; converge all sellable-stock writes on batch authority and harden RPC/view grants before live apply.\n- **P2/P3:** `apps/app/app/(main)/profile.tsx`, `apps/app/app/stock-import.tsx`,
   `apps/app/app/billing-locked.tsx`, `apps/app/app/pos.tsx`, `apps/app/app/(main)/sales.tsx`,
   new `apps/app/app/{reports,refunds,suppliers,users,settings,receipt}/*`,
   `apps/app/package.json` (expo-print/sharing/file-system/document-picker/mail-composer/camera),
