@@ -11,6 +11,7 @@ every phase must respect. It is a **design reference**; see
 - **Synapse Pharm** — pharmacy web portal (`apps/pharmacy`) **and** a fully-native Expo app
   (`apps/app`) that must perform all ordinary pharmacy work without opening the web portal.
 - **Citizen / health-worker app** — Expo (`apps/app`).
+- **Community Access Point (CAP)** — a locked-down assisted-access mode for VHT/community devices; target architecture in `docs/architecture/community-access-point.md`. A patient number/QR identifies but never authenticates a record session.
 - **Shared spine** — `@synapse/auth` (custom JWT sessions, capabilities, feature gating),
   `@synapse/db` (Supabase clients, generated types, audit, and the new pure inventory domain),
   `@synapse/config`, `@synapse/email`, `@synapse/ui`.
@@ -65,3 +66,11 @@ into a baseline migration** so the repo can be rebuilt reproducibly.
   for operational toggles — keep the two namespaces distinct and documented.
 - **Offline:** the Expo app needs an outbox + conflict handling for POS/inventory writes
   (currently read-through cache only).
+- **Assisted access:** CAP reuses Synapse ID, capability policy, consent/delegation and audit. VHT access is scoped; LC1/non-clinical hosts receive no ambient clinical browse permission. Short-lived patient sessions require patient/guardian verification beyond the Synapse ID.
+
+## 6. Current execution priority
+Synapse Pharm is the active operational priority. CAP is documented now so identity and audit
+choices remain compatible, but CAP tables/screens are deferred until the pharmacy pilot-critical
+journey is reliable: onboarding → staff → batched receiving → inventory/expiry → POS/dispense →
+payment/receipt → stock decrement → refund/reversal → reporting/audit. See
+`docs/architecture/community-access-point.md` for the later assisted-access gate.
