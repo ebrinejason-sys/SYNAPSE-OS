@@ -137,14 +137,43 @@ export async function PATCH(
 
   const previousQty = Number(product.quantity ?? 0)
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  let adjusted = false
   const canEditCatalog = isMobilePharmacyAdmin(auth) ||
     ['pharmacy_store_manager', 'pharmacist'].includes(auth.role)
 
+  // Stock quantity is batch-authoritative: route corrections through adjust_pharmacy_stock
+  // (never set pharmacy_products.quantity directly here). Increases must use receiving.
   if (typeof body.quantity === 'number' && Number.isFinite(body.quantity)) {
-    if (body.quantity < 0) {
-      return NextResponse.json({ error: 'quantity must be ≥ 0' }, { status: 400 })
+    const target = Math.floor(body.quantity)
+    if (target < 0) return NextResponse.json({ error: 'quantity must be ≥ 0' }, { status: 400 })
+    const delta = target - previousQty
+    if (delta > 0) {
+      return NextResponse.json(
+        { error: 'Increasing stock requires receiving a batch (batch number + expiry). Use Receive stock.' },
+        { status: 400 },
+      )
     }
-    updates.quantity = Math.floor(body.quantity)
+    if (delta < 0) {
+      if (!body.reason?.trim()) {
+        return NextResponse.json({ error: 'A reason is required to reduce stock' }, { status: 400 })
+      }
+      const { data, error } = await db().rpc('adjust_pharmacy_stock', {
+        p_tenant_id: auth.tenantId,
+        p_product_id: id,
+        p_delta: delta,
+        p_reason: body.reason.trim(),
+        p_actor: auth.userId,
+        p_batch_id: null,
+        p_set_status: null,
+      })
+      if (error) {
+        const status = error.message?.includes('INSUFFICIENT_STOCK') ? 409 : 500
+        return NextResponse.json({ error: error.message }, { status })
+      }
+      // Adjustment applied via RPC (batch-authoritative + audited). Continue so any
+      // catalog/reorder edits in the same request are still applied.
+      adjusted = true
+    }
   }
 
   if (typeof body.reorderLevel === 'number' && Number.isFinite(body.reorderLevel)) {
@@ -185,35 +214,32 @@ export async function PATCH(
     }
   }
 
-  if (Object.keys(updates).length <= 1) {
+  const hasCatalogChanges = Object.keys(updates).length > 1
+  if (!hasCatalogChanges && !adjusted) {
     return NextResponse.json({ error: 'No changes' }, { status: 400 })
   }
 
-  const { error } = await db()
+  if (hasCatalogChanges) {
+    const { error } = await db()
+      .from('pharmacy_products')
+      .update(updates)
+      .eq('id', id)
+      .eq('tenant_id', auth.tenantId)
+    if (error) return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
+  }
+
+  // Re-read the authoritative (batch-derived) quantity after any adjustment.
+  const { data: fresh } = await db()
     .from('pharmacy_products')
-    .update(updates)
+    .select('quantity, reorder_level')
     .eq('id', id)
     .eq('tenant_id', auth.tenantId)
-
-  if (error) return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
-
-  if (typeof updates.quantity === 'number' && updates.quantity !== previousQty) {
-    const delta = Number(updates.quantity) - previousQty
-    await db().from('pharmacy_stock_adjustments').insert({
-      tenant_id: auth.tenantId,
-      product_id: id,
-      quantity: delta,
-      type: 'CORRECTION',
-      reason: body.reason?.trim() || 'Mobile stock correction',
-      previous_qty: previousQty,
-      new_qty: updates.quantity,
-      created_by: auth.userId,
-    })
-  }
+    .maybeSingle()
 
   return NextResponse.json({
     ok: true,
-    quantity: updates.quantity ?? previousQty,
-    reorderLevel: updates.reorder_level ?? Number(product.reorder_level ?? 0),
+    adjusted,
+    quantity: Number(fresh?.quantity ?? previousQty),
+    reorderLevel: Number(fresh?.reorder_level ?? product.reorder_level ?? 0),
   })
 }

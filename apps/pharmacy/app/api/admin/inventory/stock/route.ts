@@ -2,13 +2,23 @@ import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabaseAdmin as any
+
+/**
+ * Stock adjustment — routes through the authoritative batch RPCs so Web never mutates
+ * pharmacy_products.quantity directly:
+ *   INCREASE  -> receive_pharmacy_stock (creates/tops up a real batch; requires batch + expiry)
+ *   DECREASE  -> adjust_pharmacy_stock (FEFO deduction or a specific batch)
+ *   CORRECTION-> compute delta vs current; decreases FEFO-deduct, increases require receiving
+ */
 export async function POST(request: NextRequest) {
   try {
     const auth = await requirePharmacyPermission("inventory.adjust")
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 
-    const { productId, quantity, type, reason, batchNumber, expiryDate } =
+    const { productId, quantity, type, reason, batchNumber, expiryDate, batchId, costPrice } =
       (await request.json()) as {
         productId: string
         quantity: number
@@ -16,107 +26,83 @@ export async function POST(request: NextRequest) {
         reason?: string
         batchNumber?: string
         expiryDate?: string
+        batchId?: string
+        costPrice?: number
       }
 
     if (!productId || !quantity || !type) {
       return NextResponse.json(
         { error: "Product ID, quantity, and type are required" },
-        { status: 400 }
+        { status: 400 },
       )
     }
+    if (!reason || !reason.trim()) {
+      return NextResponse.json({ error: "A reason is required for stock adjustments" }, { status: 400 })
+    }
 
-    // Fetch product (scoped to tenant)
-    const { data: product } = await (supabaseAdmin as any)
+    const { data: product } = await db
       .from("pharmacy_products")
-      .select("id, name, quantity, batch_number, expiry_date, reorder_level")
+      .select("id, name, quantity")
       .eq("tenant_id", tenantId)
       .eq("id", productId)
       .maybeSingle()
+    if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 })
 
-    if (!product) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 })
-    }
-
-    const previousQty: number = product.quantity ?? 0
-    const reorderLevel = Number(product.reorder_level ?? 0)
-    let newQty: number
+    const current = Number(product.quantity ?? 0)
 
     if (type === "INCREASE") {
-      newQty = previousQty + quantity
-    } else if (type === "DECREASE") {
-      newQty = Math.max(0, previousQty - quantity)
+      if (!batchNumber || !expiryDate) {
+        return NextResponse.json(
+          { error: "Increasing stock requires a batch number and expiry date (goods receiving)." },
+          { status: 400 },
+        )
+      }
+      const { data, error } = await db.rpc("receive_pharmacy_stock", {
+        p_tenant_id: tenantId,
+        p_product_id: productId,
+        p_batch_number: batchNumber,
+        p_quantity: Math.trunc(Number(quantity)),
+        p_expiry_date: expiryDate,
+        p_cost_price: costPrice ?? null,
+        p_received_by: session.user.id,
+        p_supplier_ref: reason,
+      })
+      if (error) return NextResponse.json({ error: error.message }, { status: 409 })
+      return NextResponse.json({ ok: true, received: data })
+    }
+
+    // DECREASE / CORRECTION → delta then adjust_pharmacy_stock.
+    let delta: number
+    if (type === "DECREASE") {
+      delta = -Math.abs(Math.trunc(Number(quantity)))
     } else if (type === "CORRECTION") {
-      newQty = quantity
+      const target = Math.max(0, Math.trunc(Number(quantity)))
+      delta = target - current
+      if (delta > 0) {
+        return NextResponse.json(
+          { error: "Correcting stock upward requires receiving a batch (batch number + expiry)." },
+          { status: 400 },
+        )
+      }
+      if (delta === 0) return NextResponse.json({ ok: true, unchanged: true })
     } else {
       return NextResponse.json({ error: "Invalid adjustment type" }, { status: 400 })
     }
 
-    // Build product update payload
-    const productUpdateData: Record<string, unknown> = { quantity: newQty }
-    if (batchNumber !== undefined) {
-      productUpdateData.batch_number = batchNumber || null
-    }
-    if (expiryDate !== undefined) {
-      productUpdateData.expiry_date = expiryDate || null
-    }
-
-    // Update product quantity (and optionally batch/expiry)
-    const { data: updatedProduct, error: updateError } = await supabaseAdmin
-      .from("pharmacy_products")
-      .update(productUpdateData)
-      .eq("id", productId)
-      .eq("tenant_id", tenantId)
-      .select()
-      .single()
-
-    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
-
-    // Create stock adjustment record
-    const { error: adjustmentError } = await supabaseAdmin
-      .from("pharmacy_stock_adjustments")
-      .insert({
-        tenant_id: tenantId,
-        product_id: productId,
-        quantity,
-        type,
-        reason: reason || `Stock ${type.toLowerCase()}`,
-        previous_qty: previousQty,
-        new_qty: newQty,
-        created_by: session.user.id,
-      })
-
-    if (adjustmentError) return NextResponse.json({ error: adjustmentError.message }, { status: 500 })
-
-    // Audit log
-    await supabaseAdmin.from("pharmacy_audit_logs").insert({
-      tenant_id: tenantId,
-      profile_id: session.user.id,
-      action: "STOCK_ADJUSTMENT",
-      entity: "PRODUCT",
-      entity_id: productId,
-      details: `Stock ${type}: ${product.name} - Previous: ${previousQty}, Added: ${quantity}, New: ${newQty}`,
+    const { data, error } = await db.rpc("adjust_pharmacy_stock", {
+      p_tenant_id: tenantId,
+      p_product_id: productId,
+      p_delta: delta,
+      p_reason: reason,
+      p_actor: session.user.id,
+      p_batch_id: batchId ?? null,
+      p_set_status: null,
     })
-
-    // Crossing below reorder → mobile push to pharmacy staff
-    if (reorderLevel > 0 && previousQty > reorderLevel && newQty <= reorderLevel) {
-      const { notifyPharmacyStock } = await import("@synapse/auth/mobile-push")
-      notifyPharmacyStock({
-        tenantId,
-        productName: product.name,
-        reason: "reorder",
-        detail: `${product.name} is at ${newQty} (reorder ${reorderLevel}).`,
-      })
+    if (error) {
+      const status = error.message?.includes("INSUFFICIENT_STOCK") ? 409 : 500
+      return NextResponse.json({ error: error.message }, { status })
     }
-
-    return NextResponse.json({
-      product: updatedProduct,
-      adjustment: {
-        previousQty,
-        quantity,
-        newQty,
-        type,
-      },
-    })
+    return NextResponse.json({ ok: true, adjustment: data })
   } catch (error) {
     console.error("Stock update error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
