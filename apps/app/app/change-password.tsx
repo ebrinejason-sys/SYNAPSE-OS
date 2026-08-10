@@ -14,12 +14,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/lib/auth'
 import { apiRequest, ApiError } from '@/lib/api'
-import { colors, radii, spacing, typography } from '@/lib/theme'
+import { radii, spacing, typography, useTheme } from '@/lib/theme'
 
 export default function ChangePasswordScreen() {
-  const { token, refreshUser, logout } = useAuth()
+  const { token, user, refreshUser, logout } = useAuth()
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const { colors } = useTheme()
+  const forced = Boolean(user?.mustChangePassword)
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -43,8 +45,8 @@ export default function ChangePasswordScreen() {
         body: { currentPassword: current, newPassword: next },
       })
       await refreshUser()
-      // Back to the entry gate, which now routes to onboarding or home.
-      router.replace('/' as never)
+      Alert.alert('Password updated', 'Your password has been changed.')
+      router.replace(forced ? ('/' as never) : ('/(main)/profile' as never))
     } catch (err) {
       Alert.alert('Could not change password', err instanceof ApiError ? err.message : 'Try again.')
     } finally {
@@ -54,45 +56,75 @@ export default function ChangePasswordScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { paddingTop: insets.top }]}
+      style={[styles.root, { paddingTop: insets.top, backgroundColor: colors.bg }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
-        <Text style={styles.title}>Set a new password</Text>
-        <Text style={styles.help}>
-          For your security you must change the temporary password before continuing.
+        <Text style={[styles.title, { color: colors.text }]}>
+          {forced ? 'Set a new password' : 'Change password'}
+        </Text>
+        <Text style={[styles.help, { color: colors.textSecondary }]}>
+          {forced
+            ? 'For your security you must change the temporary password before continuing.'
+            : 'Choose a strong password you have not used elsewhere.'}
         </Text>
 
-        <Text style={styles.label}>Current password</Text>
-        <TextInput style={styles.input} value={current} onChangeText={setCurrent} secureTextEntry autoCapitalize="none" placeholder="Current password" placeholderTextColor={colors.textMuted} />
+        <Text style={[styles.label, { color: colors.textSecondary }]}>Current password</Text>
+        <TextInput
+          style={[styles.input, { backgroundColor: colors.bgElevated, borderColor: colors.border, color: colors.text }]}
+          value={current}
+          onChangeText={setCurrent}
+          secureTextEntry
+          autoCapitalize="none"
+          placeholder="Current password"
+          placeholderTextColor={colors.textMuted}
+        />
 
-        <Text style={styles.label}>New password</Text>
-        <TextInput style={styles.input} value={next} onChangeText={setNext} secureTextEntry autoCapitalize="none" placeholder="New password" placeholderTextColor={colors.textMuted} />
+        <Text style={[styles.label, { color: colors.textSecondary }]}>New password</Text>
+        <TextInput
+          style={[styles.input, { backgroundColor: colors.bgElevated, borderColor: colors.border, color: colors.text }]}
+          value={next}
+          onChangeText={setNext}
+          secureTextEntry
+          autoCapitalize="none"
+          placeholder="New password"
+          placeholderTextColor={colors.textMuted}
+        />
 
-        <Text style={styles.label}>Confirm new password</Text>
-        <TextInput style={styles.input} value={confirm} onChangeText={setConfirm} secureTextEntry autoCapitalize="none" placeholder="Confirm new password" placeholderTextColor={colors.textMuted} />
+        <Text style={[styles.label, { color: colors.textSecondary }]}>Confirm new password</Text>
+        <TextInput
+          style={[styles.input, { backgroundColor: colors.bgElevated, borderColor: colors.border, color: colors.text }]}
+          value={confirm}
+          onChangeText={setConfirm}
+          secureTextEntry
+          autoCapitalize="none"
+          placeholder="Confirm password"
+          placeholderTextColor={colors.textMuted}
+        />
 
         <Button label="Update password" onPress={submit} loading={saving} />
-        <Button label="Sign out" onPress={() => logout()} variant="ghost" style={styles.signOut} />
+        {forced ? (
+          <Button label="Sign out" onPress={() => logout()} variant="ghost" style={styles.signOut} />
+        ) : (
+          <Button label="Cancel" onPress={() => router.back()} variant="ghost" style={styles.signOut} />
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   )
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1 },
   content: { padding: spacing.xl, gap: spacing.sm },
-  title: { ...typography.h2, color: colors.text, fontFamily: 'BricolageGrotesque_700Bold' },
-  help: { ...typography.bodySm, color: colors.textSecondary, fontFamily: 'DMSans_400Regular', marginBottom: spacing.md },
-  label: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.sm, fontFamily: 'DMSans_500Medium' },
+  title: { ...typography.h2, fontFamily: 'DMSans_700Bold', marginBottom: spacing.sm },
+  help: { ...typography.bodySm, fontFamily: 'DMSans_400Regular', marginBottom: spacing.lg },
+  label: { ...typography.caption, fontFamily: 'DMSans_500Medium', marginTop: spacing.sm },
   input: {
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radii.md,
     padding: spacing.md,
-    color: colors.text,
-    backgroundColor: colors.bgElevated,
     fontFamily: 'DMSans_400Regular',
+    marginBottom: spacing.sm,
   },
-  signOut: { marginTop: spacing.sm },
+  signOut: { marginTop: spacing.md },
 })

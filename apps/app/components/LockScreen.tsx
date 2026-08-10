@@ -3,10 +3,11 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { SynapseLogo } from '@/components/SynapseLogo'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/lib/auth'
-import { colors, spacing, typography } from '@/lib/theme'
+import { spacing, typography, useTheme } from '@/lib/theme'
 
 export function LockScreen() {
   const { unlock } = useAuth()
+  const { colors } = useTheme()
   const [attempting, setAttempting] = useState(true)
   const triedOnMount = useRef(false)
 
@@ -22,10 +23,10 @@ export function LockScreen() {
   }
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <SynapseLogo size="lg" />
-      <Text style={styles.title}>Locked</Text>
-      <Text style={styles.body}>Confirm it&apos;s you to continue.</Text>
+      <Text style={[styles.title, { color: colors.text }]}>Locked</Text>
+      <Text style={[styles.body, { color: colors.textSecondary }]}>Confirm it&apos;s you to continue.</Text>
       {attempting ? (
         <ActivityIndicator color={colors.primary} style={styles.spinner} />
       ) : (
@@ -40,18 +41,15 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.bg,
     gap: spacing.lg,
     padding: spacing.xxl,
   },
   title: {
     ...typography.title,
-    color: colors.text,
     marginTop: spacing.md,
   },
   body: {
     ...typography.body,
-    color: colors.textSecondary,
     fontFamily: 'DMSans_400Regular',
     textAlign: 'center',
   },

@@ -108,6 +108,13 @@ export default function LoginScreen() {
                     autoComplete="password"
                     editable={!isLoading}
                   />
+                  <Pressable
+                    onPress={() => router.push('/(auth)/forgot-password' as never)}
+                    style={styles.forgotBtn}
+                    disabled={isLoading}
+                  >
+                    <Text style={styles.forgotText}>Forgot password?</Text>
+                  </Pressable>
                 </>
               ) : (
                 <View>
@@ -167,6 +174,12 @@ const styles = StyleSheet.create({
   },
   formCard: { marginTop: spacing.sm },
   formInner: { padding: spacing.xxl },
+  forgotBtn: { alignSelf: 'flex-end', marginTop: -spacing.sm, marginBottom: spacing.md },
+  forgotText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontFamily: 'DMSans_500Medium',
+  },
   otpLabel: {
     ...typography.label,
     color: colors.textSecondary,

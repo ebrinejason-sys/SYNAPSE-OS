@@ -18,7 +18,7 @@ without Supabase service-role secrets.
 |------|--------|
 | Web production build | ✅ verified |
 | Android Expo export | ✅ verified |
-| Android installable APK (EAS preview) | 🟡 building — Expo `6bfef252…` (v1.2.0 / versionCode **4**, includes report/receipt/printer fixes) |
+| Android installable APK (EAS preview) | ✅ finished — v1.2.0 / versionCode **4** · [download APK](https://expo.dev/artifacts/eas/ZETtpvyJGb5s22SJ1-0k0_-JGo6US_vdW3KD6qkDbDU.apk) |
 | Live inventory-authority migrations | ❌ not applied (confirmed live) |
 | Live receive → FEFO sale → receipt → refund smoke | ❌ blocked (no service-role / migrations) |
 | Shared inventory/sales/receipt authority in code | ✅ |
@@ -41,7 +41,7 @@ without Supabase service-role secrets.
 - API base: `https://www.synapseos.tech` (no localhost in config)
 - Reports crash fixed (API shape + null-safe UI); receipt HTML uses IBM Plex Mono/Sans with paper width + font scale
 - Pharmacy-admin printer prefs: paper width / font scale / auto-print (portal + native settings)
-- EAS preview APK (with this revision): https://expo.dev/accounts/ebrinejason/projects/synapse-app/builds/6bfef252-409b-4834-9a98-74bc89053432
+- EAS preview APK ✅ (v1.2.0 / versionCode 4): [APK download](https://expo.dev/artifacts/eas/ZETtpvyJGb5s22SJ1-0k0_-JGo6US_vdW3KD6qkDbDU.apk) · [build logs](https://expo.dev/accounts/ebrinejason/projects/synapse-app/builds/6bfef252-409b-4834-9a98-74bc89053432)
 
 ## 4. Database status (live, read-only probe 2026-08-10)
 Using Expo anon key against `qfqakzmjatszisuqjwon.supabase.co`:

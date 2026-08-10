@@ -23,7 +23,7 @@ import { useAuth } from '@/lib/auth'
 import { getCachedWithTtl, setCached } from '@/lib/cache'
 import { fetchDashboard, type DashboardResponse, type DashboardQuickAction } from '@/lib/dashboard'
 import { dashboardKindForRole, formatRole, type DashboardKind } from '@/lib/roles'
-import { colors, radii, spacing, tabBarHeight, typography, TONE_COLORS } from '@/lib/theme'
+import { colors, radii, spacing, tabBarHeight, typography, TONE_COLORS, useTheme } from '@/lib/theme'
 
 const DASHBOARD_CACHE_KEY = '/api/mobile/dashboard'
 const DASHBOARD_TTL_MS = 5 * 60 * 1000
@@ -132,13 +132,14 @@ export default function DashboardScreen() {
   const listSection = data?.summary.list ?? null
   const quickActions = data?.quickActions ?? []
   const bottomPad = insets.bottom + tabBarHeight + spacing.lg
+  const { colors: themeColors } = useTheme()
 
   return (
     <ScrollView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: themeColors.bg }]}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.lg, paddingBottom: bottomPad }]}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={themeColors.primary} />
       }
       showsVerticalScrollIndicator={false}
     >
