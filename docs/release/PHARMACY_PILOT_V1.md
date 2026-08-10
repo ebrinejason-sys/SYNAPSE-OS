@@ -113,12 +113,30 @@ All 18 steps: **⬜ not executed** (migrations absent + no service role). Domain
 |-------|-------|
 | name | Synapse |
 | package | `tech.synapseos.app` |
-| version | 1.1.0 |
-| versionCode | 2 |
+| version | **1.2.0** |
+| versionCode | **3** |
 | EAS projectId | `547aa81a-9d93-447e-afc3-16f10eee6cb9` |
 | preview profile | APK, internal distribution |
 | Camera permission | present (barcode) |
 | Installable APK this run | **not produced** |
+
+### Why Expo still shows builds from ~6 days ago
+This cloud agent is **not logged into EAS** (`eas whoami` → Not logged in; no `EXPO_TOKEN` in the environment).
+`npx eas-cli build --profile preview` fails with: *An Expo user account is required*.
+
+**To publish the pilot APK now** (from a machine already signed into Expo as `ebrinejason`):
+
+```bash
+git fetch origin && git checkout cursor/pharmacy-pilot-v1-9386
+cd apps/app
+npx eas-cli build --platform android --profile preview --non-interactive
+```
+
+Or add GitHub secret `EXPO_TOKEN` and run workflow **EAS Android preview APK**
+(`.github/workflows/eas-android-preview.yml`).
+
+Until that runs, expo.dev will correctly keep showing the last successful builds (~6–7 days ago).
+
 
 ## 14. Web deployment readiness
 - Production build succeeds; routes under `/portal/*` present

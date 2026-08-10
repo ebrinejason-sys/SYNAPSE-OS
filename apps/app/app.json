@@ -2,7 +2,7 @@
   "expo": {
     "name": "Synapse",
     "slug": "synapse-app",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "synapse",
@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "tech.synapseos.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#07070A"

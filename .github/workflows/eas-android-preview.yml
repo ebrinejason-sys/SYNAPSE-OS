@@ -1,0 +1,59 @@
+# Build Synapse Android preview APK via EAS.
+# Requires repo secret EXPO_TOKEN (https://expo.dev/settings/access-tokens)
+# and EAS project access for owner ebrinejason / synapse-app.
+#
+# Trigger: Actions → "EAS Android preview APK" → Run workflow
+# Or: gh workflow run eas-android-preview.yml -f ref=cursor/pharmacy-pilot-v1-9386
+
+name: EAS Android preview APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS build profile
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - production
+      ref_note:
+        description: Optional note (ignored by build; for humans)
+        required: false
+        default: pilot
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install workspace deps
+        working-directory: .
+        run: npm ci
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build Android APK (non-interactive)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "Missing EXPO_TOKEN secret. Create an access token at https://expo.dev/settings/access-tokens"
+            echo "and add it as a GitHub Actions secret named EXPO_TOKEN."
+            exit 1
+          fi
+          npx eas-cli build --platform android --profile "${{ inputs.profile }}" --non-interactive --wait
