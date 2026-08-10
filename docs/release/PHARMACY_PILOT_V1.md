@@ -18,7 +18,7 @@ without Supabase service-role secrets.
 |------|--------|
 | Web production build | ✅ verified |
 | Android Expo export | ✅ verified |
-| Android installable APK (EAS preview) | 🟡 in progress — Expo build `dcbfe724…` (v1.2.0 / versionCode 3); rebuild after report/receipt/printer fixes |
+| Android installable APK (EAS preview) | 🟡 building — Expo `6bfef252…` (v1.2.0 / versionCode **4**, includes report/receipt/printer fixes) |
 | Live inventory-authority migrations | ❌ not applied (confirmed live) |
 | Live receive → FEFO sale → receipt → refund smoke | ❌ blocked (no service-role / migrations) |
 | Shared inventory/sales/receipt authority in code | ✅ |
