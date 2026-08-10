@@ -115,6 +115,10 @@ interface Settings {
   mandatoryReceiptPrint?: boolean
   vatEnabled?: boolean
   vatRate?: number
+  printerType?: string
+  receiptPaperWidth?: "58" | "80" | "a4"
+  receiptFontScale?: number
+  autoPrintReceipt?: boolean
 }
 
 interface StaffMember {
@@ -710,7 +714,21 @@ export default function POSPage() {
           setPendingTransaction(printTxn)
           setReceiptStaffNamePending(receiptStaffName)
           setPendingReceiptMeta({ paymentMethod, amountPaid, change })
-          setShowPrintPrompt(true)
+          if (settings?.autoPrintReceipt) {
+            setPrintReceiptData({
+              transaction: printTxn,
+              staffName: receiptStaffName,
+              meta: { paymentMethod, amountPaid, change },
+              settings,
+            })
+            setIsPrintingReceipt(true)
+            triggerReliablePrint()
+            setPendingTransaction(null)
+            setReceiptStaffNamePending("")
+            setPendingReceiptMeta(null)
+          } else {
+            setShowPrintPrompt(true)
+          }
 
           setCart([])
           localStorage.removeItem('pos-cart')
@@ -1312,10 +1330,27 @@ export default function POSPage() {
         <div>
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <ShoppingCart className="h-5 w-5 mr-2" />
-                Cart ({cart.length})
-              </CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center">
+                  <ShoppingCart className="h-5 w-5 mr-2" />
+                  Cart ({cart.length})
+                </CardTitle>
+                {cart.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => {
+                      if (!confirm("Clear the held cart? This only removes items saved on this device.")) return
+                      setCart([])
+                      localStorage.removeItem("pos-cart")
+                      toast({ title: "Held cart cleared" })
+                    }}
+                  >
+                    Clear held cart
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4 max-h-[400px] overflow-y-auto">
@@ -2047,6 +2082,8 @@ function TransactionReceipt({
   const contact    = settings?.contact     || ""
   const email      = settings?.email       || ""
   const footer     = settings?.footerText  || "Thank you for your purchase!"
+  const paperWidth = (settings?.receiptPaperWidth || "80").toLowerCase()
+  const fontScale  = settings?.receiptFontScale && settings.receiptFontScale > 0 ? settings.receiptFontScale : 1
 
   const receiptDate = transaction?.createdAt ? new Date(transaction.createdAt) : new Date()
   const items       = Array.isArray(transaction?.items) ? transaction.items : []
@@ -2065,10 +2102,13 @@ function TransactionReceipt({
   const hasClient = transaction?.clientName || transaction?.clientPhone || transaction?.clientAddress
 
   return (
-    <div className="thermal-receipt">
+    <div
+      className={`thermal-receipt paper-${paperWidth === "58" || paperWidth === "a4" ? paperWidth : "80"}`}
+      style={{ ["--receipt-font-scale" as string]: String(fontScale) }}
+    >
 
       {/* ── Header ── */}
-      <p className="tr-center tr-bold tr-lg">{pharmName}</p>
+      <p className="tr-center tr-bold tr-lg tr-brand">{pharmName}</p>
       {location && <p className="tr-center tr-sm">{location}</p>}
       {(contact || email) && (
         <p className="tr-center tr-sm">

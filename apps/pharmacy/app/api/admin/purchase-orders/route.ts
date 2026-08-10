@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { isPharmacyAdmin } from "@/lib/auth"
 import { requirePharmacyPermission } from "@/lib/api-auth"
+import { mapPurchaseOrder } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail } from "@/lib/email"
+import { receivePharmacyStock } from "@synapse/db/inventory-rpc"
 
 function generatePurchaseOrderNo(): string {
   const prefix = "PO"
@@ -27,7 +29,7 @@ export async function GET(request: NextRequest) {
       .select(
         `
         *,
-        supplier:pharmacy_suppliers(name, email, phone),
+        supplier:pharmacy_suppliers(id, name, email, phone),
         items:pharmacy_purchase_order_items(
           id, product_id, product_name, quantity, unit_price, total_price
         )
@@ -47,7 +49,38 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
     }
 
-    return NextResponse.json(purchaseOrders ?? [])
+    const creatorIds = new Set<string>()
+    for (const po of purchaseOrders ?? []) {
+      if (po.created_by) creatorIds.add(po.created_by)
+    }
+
+    const nameMap = new Map<string, string>()
+    if (creatorIds.size > 0) {
+      const { data: profiles } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, first_name, last_name")
+        .in("id", Array.from(creatorIds))
+
+      for (const p of profiles ?? []) {
+        nameMap.set(
+          p.id,
+          p.full_name ??
+            `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() ??
+            p.id,
+        )
+      }
+    }
+
+    return NextResponse.json(
+      (purchaseOrders ?? []).map((row: Record<string, unknown>) =>
+        mapPurchaseOrder(
+          row,
+          row.created_by
+            ? nameMap.get(String(row.created_by)) ?? "Unknown"
+            : "Unknown",
+        ),
+      ),
+    )
   } catch (error) {
     console.error("Get purchase orders error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -207,7 +240,26 @@ export async function POST(request: NextRequest) {
       details: `Created PO ${orderNo} for ${supplier.name}${sendEmailToSupplier ? " (email sent)" : ""}`,
     })
 
-    return NextResponse.json({ success: true, purchaseOrder })
+    return NextResponse.json({
+      success: true,
+      purchaseOrder: mapPurchaseOrder(
+        {
+          ...(purchaseOrder as Record<string, unknown>),
+          supplier: {
+            id: supplier.id,
+            name: supplier.name,
+            email: supplier.email,
+            phone: null,
+          },
+          items: [],
+          expected_date: expectedDate ? new Date(expectedDate).toISOString() : null,
+          notes: notes ?? null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        session.fullName || session.email || "Unknown",
+      ),
+    })
   } catch (error) {
     console.error("Create purchase order error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -222,7 +274,24 @@ export async function PATCH(request: NextRequest) {
 
     if (!tenantId) return NextResponse.json({ error: "Tenant not found" }, { status: 400 })
 
-    const { id, status, sendEmail: shouldSendEmail } = await request.json()
+    const body = await request.json()
+    const {
+      id,
+      status,
+      sendEmail: shouldSendEmail,
+      receiptItems,
+    } = body as {
+      id?: string
+      status?: string
+      sendEmail?: boolean
+      receiptItems?: Array<{
+        productId: string
+        batchNumber: string
+        expiryDate: string
+        quantity?: number
+        costPrice?: number
+      }>
+    }
 
     if (!id) {
       return NextResponse.json({ error: "Purchase order ID required" }, { status: 400 })
@@ -232,7 +301,7 @@ export async function PATCH(request: NextRequest) {
       .from("pharmacy_purchase_orders")
       .select(
         `
-        id, order_no, total_amount, email_sent, status,
+        id, order_no, total_amount, email_sent, status, supplier_id,
         supplier:pharmacy_suppliers(name, email, contact_person),
         items:pharmacy_purchase_order_items(id, product_id, product_name, quantity, unit_price, total_price)
       `
@@ -252,9 +321,14 @@ export async function PATCH(request: NextRequest) {
     if (status) updateData.status = status
 
     const supplier = purchaseOrder.supplier as unknown as { name: string; email: string | null; contact_person: string | null } | null
+    let receivedSummary: Array<{ productId: string; batchId: string; quantity: number }> = []
 
-    // If receiving, update inventory and create stock adjustments
+    // Receiving MUST go through receive_pharmacy_stock — never bump product.quantity alone.
     if (status === "RECEIVED") {
+      if (purchaseOrder.status === "RECEIVED") {
+        return NextResponse.json({ error: "Purchase order already received" }, { status: 409 })
+      }
+
       const poItems = purchaseOrder.items as Array<{
         id: string
         product_id: string | null
@@ -264,37 +338,71 @@ export async function PATCH(request: NextRequest) {
         total_price: number
       }>
 
-      for (const item of poItems) {
-        if (!item.product_id) continue
+      const linkedItems = poItems.filter((i) => i.product_id)
+      if (linkedItems.length === 0) {
+        return NextResponse.json(
+          { error: "No product-linked lines to receive. Link products on the PO first." },
+          { status: 400 },
+        )
+      }
 
-        // Get current quantity before incrementing
-        const { data: currentProduct } = await (supabaseAdmin as any)
-          .from("pharmacy_products")
-          .select("quantity")
-          .eq("tenant_id", tenantId)
-          .eq("id", item.product_id)
-          .single()
+      if (!receiptItems || receiptItems.length === 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Receiving a purchase order requires per-line batch numbers and expiry dates. Status RECEIVED cannot bypass authoritative receiving.",
+            code: "REQUIRES_BATCH",
+            required: linkedItems.map((i) => ({
+              productId: i.product_id,
+              productName: i.product_name,
+              quantity: i.quantity,
+            })),
+          },
+          { status: 400 },
+        )
+      }
 
-        const previousQty = currentProduct?.quantity ?? 0
-        const newQty = previousQty + item.quantity
-
-        await supabaseAdmin
-          .from("pharmacy_products")
-          .update({ quantity: newQty, updated_at: new Date().toISOString() })
-          .eq("id", item.product_id)
-          .eq("tenant_id", tenantId)
-
-        await supabaseAdmin.from("pharmacy_stock_adjustments").insert({
-          tenant_id: tenantId,
-          product_id: item.product_id,
-          quantity: item.quantity,
-          type: "INCREASE",
+      const received: Array<{ productId: string; batchId: string; quantity: number }> = []
+      for (const line of linkedItems) {
+        const receipt = receiptItems.find((r) => r.productId === line.product_id)
+        if (!receipt?.batchNumber?.trim() || !receipt.expiryDate) {
+          return NextResponse.json(
+            {
+              error: `Missing batch/expiry for ${line.product_name}`,
+              code: "REQUIRES_BATCH",
+              productId: line.product_id,
+            },
+            { status: 400 },
+          )
+        }
+        const qty = Math.trunc(Number(receipt.quantity ?? line.quantity))
+        const { data, error } = await receivePharmacyStock(supabaseAdmin as any, {
+          tenantId,
+          productId: line.product_id as string,
+          batchNumber: receipt.batchNumber,
+          quantity: qty,
+          expiryDate: receipt.expiryDate,
+          costPrice: receipt.costPrice ?? line.unit_price,
+          receivedBy: session.user.id,
+          supplierId: purchaseOrder.supplier_id ?? null,
+          supplierRef: purchaseOrder.order_no,
+          purchaseOrderId: purchaseOrder.id,
           reason: `Received from PO ${purchaseOrder.order_no}`,
-          previous_qty: previousQty,
-          new_qty: newQty,
-          created_by: session.user.id,
+        })
+        if (error) {
+          return NextResponse.json(
+            { error: error.humanMessage, code: error.code, productId: line.product_id },
+            { status: 400 },
+          )
+        }
+        received.push({
+          productId: line.product_id as string,
+          batchId: data?.batchId ?? "",
+          quantity: qty,
         })
       }
+
+      receivedSummary = received
     }
 
     // Send email to supplier if requested and not already sent
@@ -383,7 +491,11 @@ export async function PATCH(request: NextRequest) {
       details: `Updated PO ${purchaseOrder.order_no} status to ${(updateData.status as string) ?? status}`,
     })
 
-    return NextResponse.json({ success: true, purchaseOrder: updated })
+    return NextResponse.json({
+      success: true,
+      purchaseOrder: updated,
+      received: receivedSummary.length > 0 ? receivedSummary : undefined,
+    })
   } catch (error) {
     console.error("Update purchase order error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

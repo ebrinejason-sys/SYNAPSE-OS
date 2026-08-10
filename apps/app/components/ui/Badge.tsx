@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native'
-import { colors, radii } from '@/lib/theme'
+import { radii, useTheme } from '@/lib/theme'
 
 interface BadgeProps {
   label: string
@@ -7,12 +7,20 @@ interface BadgeProps {
 }
 
 export function Badge({ label, tone = 'gold' }: BadgeProps) {
+  const { colors } = useTheme()
   const toneStyle =
-    tone === 'primary' ? styles.primary : tone === 'teal' ? styles.teal : styles.gold
+    tone === 'primary'
+      ? { backgroundColor: colors.primarySoft, borderColor: 'rgba(249, 115, 22, 0.35)' }
+      : tone === 'teal'
+        ? { backgroundColor: colors.tealSoft, borderColor: 'rgba(20, 184, 166, 0.35)' }
+        : { backgroundColor: colors.goldSoft, borderColor: 'rgba(232, 184, 75, 0.35)' }
 
   return (
     <View style={[styles.badge, toneStyle]}>
-      <Text style={[styles.text, tone === 'gold' && styles.goldText]} numberOfLines={1}>
+      <Text
+        style={[styles.text, { color: tone === 'gold' ? colors.gold : colors.text }]}
+        numberOfLines={1}
+      >
         {label}
       </Text>
     </View>
@@ -27,23 +35,9 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     maxWidth: '46%',
   },
-  gold: {
-    backgroundColor: colors.goldSoft,
-    borderColor: 'rgba(232, 184, 75, 0.35)',
-  },
-  primary: {
-    backgroundColor: colors.primarySoft,
-    borderColor: 'rgba(249, 115, 22, 0.35)',
-  },
-  teal: {
-    backgroundColor: colors.tealSoft,
-    borderColor: 'rgba(20, 184, 166, 0.35)',
-  },
   text: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.text,
     textAlign: 'right',
   },
-  goldText: { color: colors.gold },
 })

@@ -196,13 +196,15 @@ export async function GET(req: NextRequest) {
         })),
       }
     }
-    // Phase C polish: tools hub + ops; billing on profile.
+    // Pharmacy ops — mirror portal priorities, phone-friendly order
     quickActions = [
-      { key: 'pos', label: 'New Sale (POS)', target: 'app:/pos' },
-      { key: 'tools', label: 'Calculators & safety', target: 'app:/tools' },
-      { key: 'orders', label: 'Orders', target: 'app:/(main)/orders' },
+      { key: 'pos', label: 'New sale (POS)', target: 'app:/pos' },
       { key: 'inventory', label: 'Inventory', target: 'app:/(main)/stock' },
+      { key: 'orders', label: 'Orders', target: 'app:/(main)/orders' },
+      { key: 'receive', label: 'Receive stock', target: 'app:/receive-stock' },
       { key: 'sales', label: 'Sales history', target: 'app:/(main)/sales' },
+      { key: 'reports', label: 'Reports', target: 'app:/reports' },
+      { key: 'more', label: 'More tools', target: 'app:/(main)/profile' },
     ]
   } else if (kind === 'clinician') {
     const [openEnc, signedToday, totalToday, queue] = await Promise.all([

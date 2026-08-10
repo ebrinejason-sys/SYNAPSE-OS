@@ -1,34 +1,57 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import {
+  adjustPharmacyBatchStock,
+  receivePharmacyStock,
+  type PharmacyRpcError,
+} from "@synapse/db/inventory-rpc"
 
+const db = () => supabaseAdmin as any
+
+function rpcFail(err: PharmacyRpcError, status = 400) {
+  return NextResponse.json(
+    { error: err.humanMessage, code: err.code, detail: err.message },
+    { status },
+  )
+}
+
+/**
+ * Authoritative stock adjustment.
+ * INCREASE requires genuine batchNumber + expiryDate (receive_pharmacy_stock).
+ * DECREASE removes from a batch (or FEFO across sellable batches).
+ * CORRECTION requires batchId and sets that batch's absolute quantity.
+ * DAMAGE / QUARANTINE / RECALL require batchId and update batch status only.
+ */
 export async function POST(request: NextRequest) {
   try {
     const auth = await requirePharmacyPermission("inventory.adjust")
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 
-    const { productId, quantity, type, reason, batchNumber, expiryDate } =
-      (await request.json()) as {
-        productId: string
-        quantity: number
-        type: string
-        reason?: string
-        batchNumber?: string
-        expiryDate?: string
-      }
+    const body = (await request.json()) as {
+      productId: string
+      quantity: number
+      type: string
+      reason?: string
+      batchId?: string
+      batchNumber?: string
+      expiryDate?: string
+      costPrice?: number
+    }
 
-    if (!productId || !quantity || !type) {
+    const { productId, quantity, type, reason, batchId, batchNumber, expiryDate, costPrice } = body
+
+    if (!productId || quantity == null || !type) {
       return NextResponse.json(
         { error: "Product ID, quantity, and type are required" },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
-    // Fetch product (scoped to tenant)
-    const { data: product } = await (supabaseAdmin as any)
+    const { data: product } = await db()
       .from("pharmacy_products")
-      .select("id, name, quantity, batch_number, expiry_date, reorder_level")
+      .select("id, name, quantity, reorder_level")
       .eq("tenant_id", tenantId)
       .eq("id", productId)
       .maybeSingle()
@@ -39,65 +62,74 @@ export async function POST(request: NextRequest) {
 
     const previousQty: number = product.quantity ?? 0
     const reorderLevel = Number(product.reorder_level ?? 0)
-    let newQty: number
+    const adjType = String(type).toUpperCase()
+    const adjReason = reason?.trim() || `Stock ${adjType.toLowerCase()}`
 
-    if (type === "INCREASE") {
-      newQty = previousQty + quantity
-    } else if (type === "DECREASE") {
-      newQty = Math.max(0, previousQty - quantity)
-    } else if (type === "CORRECTION") {
-      newQty = quantity
-    } else {
-      return NextResponse.json({ error: "Invalid adjustment type" }, { status: 400 })
-    }
-
-    // Build product update payload
-    const productUpdateData: Record<string, unknown> = { quantity: newQty }
-    if (batchNumber !== undefined) {
-      productUpdateData.batch_number = batchNumber || null
-    }
-    if (expiryDate !== undefined) {
-      productUpdateData.expiry_date = expiryDate || null
-    }
-
-    // Update product quantity (and optionally batch/expiry)
-    const { data: updatedProduct, error: updateError } = await supabaseAdmin
-      .from("pharmacy_products")
-      .update(productUpdateData)
-      .eq("id", productId)
-      .eq("tenant_id", tenantId)
-      .select()
-      .single()
-
-    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
-
-    // Create stock adjustment record
-    const { error: adjustmentError } = await supabaseAdmin
-      .from("pharmacy_stock_adjustments")
-      .insert({
-        tenant_id: tenantId,
-        product_id: productId,
-        quantity,
-        type,
-        reason: reason || `Stock ${type.toLowerCase()}`,
-        previous_qty: previousQty,
-        new_qty: newQty,
-        created_by: session.user.id,
+    if (adjType === "INCREASE") {
+      if (!batchNumber?.trim() || !expiryDate) {
+        return NextResponse.json(
+          {
+            error:
+              "Stock increases require a genuine batch number and future expiry date. This prevents phantom sellable stock.",
+            code: "REQUIRES_BATCH",
+          },
+          { status: 400 },
+        )
+      }
+      const { data, error } = await receivePharmacyStock(db(), {
+        tenantId,
+        productId,
+        batchNumber,
+        quantity: Number(quantity),
+        expiryDate,
+        costPrice: costPrice ?? null,
+        receivedBy: session.user.id,
+        reason: adjReason,
       })
+      if (error) return rpcFail(error)
 
-    if (adjustmentError) return NextResponse.json({ error: adjustmentError.message }, { status: 500 })
+      const newQty = previousQty + Number(quantity)
+      if (reorderLevel > 0 && previousQty > reorderLevel && newQty <= reorderLevel) {
+        const { notifyPharmacyStock } = await import("@synapse/auth/mobile-push")
+        notifyPharmacyStock({
+          tenantId,
+          productName: product.name,
+          reason: "reorder",
+          detail: `${product.name} is at ${newQty} (reorder ${reorderLevel}).`,
+        })
+      }
 
-    // Audit log
-    await supabaseAdmin.from("pharmacy_audit_logs").insert({
-      tenant_id: tenantId,
-      profile_id: session.user.id,
-      action: "STOCK_ADJUSTMENT",
-      entity: "PRODUCT",
-      entity_id: productId,
-      details: `Stock ${type}: ${product.name} - Previous: ${previousQty}, Added: ${quantity}, New: ${newQty}`,
+      return NextResponse.json({
+        product: { id: productId, quantity: newQty },
+        adjustment: {
+          previousQty,
+          quantity: Number(quantity),
+          newQty,
+          type: adjType,
+          batchId: data?.batchId,
+        },
+      })
+    }
+
+    const { data, error } = await adjustPharmacyBatchStock(db(), {
+      tenantId,
+      productId,
+      quantity: Number(quantity),
+      type: adjType as "DECREASE" | "CORRECTION" | "DAMAGE" | "QUARANTINE" | "RECALL",
+      reason: adjReason,
+      actorId: session.user.id,
+      batchId: batchId ?? null,
+      batchNumber: batchNumber ?? null,
+      expiryDate: expiryDate ?? null,
+      costPrice: costPrice ?? null,
     })
 
-    // Crossing below reorder → mobile push to pharmacy staff
+    if (error) {
+      const status = error.code === "INSUFFICIENT_STOCK" || error.code === "INSUFFICIENT_BATCH" ? 409 : 400
+      return rpcFail(error, status)
+    }
+
+    const newQty = Number((data as any)?.new_qty ?? previousQty)
     if (reorderLevel > 0 && previousQty > reorderLevel && newQty <= reorderLevel) {
       const { notifyPharmacyStock } = await import("@synapse/auth/mobile-push")
       notifyPharmacyStock({
@@ -109,12 +141,13 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      product: updatedProduct,
+      product: { id: productId, quantity: newQty },
       adjustment: {
         previousQty,
-        quantity,
+        quantity: Number(quantity),
         newQty,
-        type,
+        type: adjType,
+        result: data,
       },
     })
   } catch (error) {

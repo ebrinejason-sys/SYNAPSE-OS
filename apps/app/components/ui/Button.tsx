@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, ViewStyle, StyleProp } from 'react-native'
-import { colors, radii, spacing, typography } from '@/lib/theme'
+import { radii, spacing, typography, useTheme } from '@/lib/theme'
 
 interface ButtonProps {
   label: string
@@ -18,6 +18,7 @@ export function Button({
   variant = 'primary',
   style,
 }: ButtonProps) {
+  const { colors } = useTheme()
   const isDisabled = disabled || loading
 
   return (
@@ -26,9 +27,13 @@ export function Button({
       disabled={isDisabled}
       style={({ pressed }) => [
         styles.base,
-        variant === 'primary' && styles.primary,
-        variant === 'ghost' && styles.ghost,
-        variant === 'danger' && styles.danger,
+        variant === 'primary' && { backgroundColor: colors.primary },
+        variant === 'ghost' && { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
+        variant === 'danger' && {
+          backgroundColor: colors.errorBg,
+          borderWidth: 1,
+          borderColor: colors.errorBorder,
+        },
         pressed && !isDisabled && styles.pressed,
         isDisabled && styles.disabled,
         style,
@@ -42,9 +47,9 @@ export function Button({
         <Text
           style={[
             styles.label,
-            variant === 'primary' && styles.primaryLabel,
-            variant === 'ghost' && styles.ghostLabel,
-            variant === 'danger' && styles.dangerLabel,
+            variant === 'primary' && { color: colors.primaryForeground, fontWeight: '600' },
+            variant === 'ghost' && { color: colors.primary },
+            variant === 'danger' && { color: colors.error, fontWeight: '700' },
           ]}
         >
           {label}
@@ -62,29 +67,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
   },
-  primary: {
-    backgroundColor: colors.primary,
-  },
-  ghost: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  danger: {
-    backgroundColor: colors.errorBg,
-    borderWidth: 1,
-    borderColor: colors.errorBorder,
-  },
   pressed: { opacity: 0.88, transform: [{ scale: 0.985 }] },
   disabled: { opacity: 0.55 },
   label: {
     ...typography.bodyMedium,
     fontFamily: 'DMSans_500Medium',
   },
-  primaryLabel: {
-    color: colors.primaryForeground,
-    fontWeight: '600',
-  },
-  ghostLabel: { color: colors.primary },
-  dangerLabel: { color: colors.error, fontWeight: '700' },
 })

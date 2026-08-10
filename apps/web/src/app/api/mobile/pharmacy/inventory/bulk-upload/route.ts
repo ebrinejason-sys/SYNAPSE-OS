@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
+import { validateImportRow } from '@synapse/db/import-validation'
+import { receivePharmacyStock } from '@synapse/db/inventory-rpc'
 import {
   isMobileAuth,
   isMobilePharmacyAdmin,
@@ -81,6 +83,7 @@ function num(value: string): number {
 /**
  * Paste-friendly CSV bulk create for mobile.
  * Expected headers (flexible): name, sku, price, quantity, cost_price, category, unit, batch, expiry
+ * Products are created at quantity 0; sellable stock only via receivePharmacyStock with genuine batches.
  */
 export async function POST(req: NextRequest) {
   const auth = await requireMobilePharmacyAuth(req)
@@ -100,10 +103,13 @@ export async function POST(req: NextRequest) {
   }
 
   let created = 0
+  let receivedBatches = 0
   const errors: string[] = []
+  const warnings: string[] = []
   const skipped: string[] = []
 
   for (const [index, row] of rows.entries()) {
+    const rowNumber = index + 2
     const name = pick(row, 'name', 'product name', 'item', 'medicine')
     if (!name) continue
 
@@ -124,13 +130,13 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (existing) {
-      skipped.push(`${sku} (row ${index + 2})`)
+      skipped.push(`${sku} (row ${rowNumber})`)
       continue
     }
 
     const price = num(pick(row, 'price', 'mrp', 'selling price', 'rate'))
     const cost = num(pick(row, 'cost_price', 'cost', 'purchase price'))
-    const quantity = Math.max(0, Math.floor(num(pick(row, 'quantity', 'qty', 'stock'))))
+    const quantityStr = pick(row, 'quantity', 'qty', 'stock')
     const reorder = Math.max(
       0,
       Math.floor(num(pick(row, 'reorder_level', 'reorder')) || 10),
@@ -139,6 +145,24 @@ export async function POST(req: NextRequest) {
     const unit = pick(row, 'unit', 'uom', 'unit_of_measure') || 'Unit'
     const batchNumber = pick(row, 'batch', 'batch_number', 'lot') || null
     const expiryDate = pick(row, 'expiry', 'expiry_date', 'exp') || null
+
+    const validation = validateImportRow(
+      {
+        name,
+        sku,
+        price,
+        costPrice: cost,
+        quantity: quantityStr,
+        batchNumber,
+        expiryDate,
+      },
+      rowNumber,
+    )
+
+    errors.push(...validation.errors)
+    warnings.push(...validation.warnings)
+
+    if (!validation.productOk) continue
 
     const { data: product, error } = await db()
       .from('pharmacy_products')
@@ -149,35 +173,43 @@ export async function POST(req: NextRequest) {
         category,
         price,
         cost_price: cost,
-        quantity,
+        quantity: 0,
         reorder_level: reorder,
         unit_of_measure: unit,
-        batch_number: batchNumber,
-        expiry_date: expiryDate,
+        batch_number: validation.batch?.batchNumber ?? null,
+        expiry_date: validation.batch?.expiryDate ?? null,
         is_active: true,
       })
       .select('id')
       .single()
 
     if (error || !product) {
-      errors.push(`Row ${index + 2}: ${error?.message ?? 'insert failed'}`)
+      errors.push(`Row ${rowNumber}: ${error?.message ?? 'insert failed'}`)
       continue
     }
 
-    if (batchNumber && quantity > 0 && expiryDate) {
-      await db().from('pharmacy_product_batches').insert({
-        tenant_id: auth.tenantId,
-        product_id: product.id,
-        batch_number: batchNumber,
-        quantity,
-        initial_quantity: quantity,
-        expiry_date: expiryDate,
-        cost_price: cost,
-        is_active: true,
-      })
-    }
-
     created += 1
+
+    if (validation.batch) {
+      const { error: receiveError } = await receivePharmacyStock(db(), {
+        tenantId: auth.tenantId,
+        productId: product.id,
+        batchNumber: validation.batch.batchNumber,
+        quantity: validation.batch.quantity,
+        expiryDate: validation.batch.expiryDate,
+        costPrice: cost,
+        sellingPrice: price,
+        receivedBy: auth.userId,
+        reason: 'Mobile bulk import receive',
+      })
+      if (receiveError) {
+        warnings.push(
+          `Row ${rowNumber}: product created but stock not received — ${receiveError.humanMessage}`,
+        )
+      } else {
+        receivedBatches += 1
+      }
+    }
   }
 
   await db().from('pharmacy_audit_logs').insert({
@@ -186,13 +218,15 @@ export async function POST(req: NextRequest) {
     action: 'BULK_UPLOAD',
     entity: 'PRODUCT',
     entity_id: null,
-    details: `Mobile CSV import: created ${created}, skipped ${skipped.length}, errors ${errors.length}`,
+    details: `Mobile CSV import: created ${created}, received ${receivedBatches}, skipped ${skipped.length}, errors ${errors.length}`,
   })
 
   return NextResponse.json({
     ok: true,
     created,
+    receivedBatches,
     skipped: skipped.slice(0, 20),
-    errors: errors.slice(0, 20),
+    errors: errors.slice(0, 40),
+    warnings: warnings.slice(0, 40),
   })
 }

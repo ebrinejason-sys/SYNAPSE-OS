@@ -85,6 +85,18 @@ export default function InventoryPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [showLowStockAlert, setShowLowStockAlert] = useState(true)
   const [lowStockExpanded, setLowStockExpanded] = useState(false)
+  const [showUnbatchedPanel, setShowUnbatchedPanel] = useState(false)
+  const [unbatchedItems, setUnbatchedItems] = useState<
+    Array<{
+      productId: string
+      name: string
+      productQuantity: number
+      physicalQuantity: number
+      unbatchedQuantity: number
+    }>
+  >([])
+  const [unbatchedNote, setUnbatchedNote] = useState("")
+  const [unbatchedLoading, setUnbatchedLoading] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [rowsPerPage, setRowsPerPage] = useState(20)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -184,6 +196,36 @@ export default function InventoryPage() {
 
   const lowStockProducts = products.filter((p) => p.quantity > 0 && isLowStock(p))
 
+  const fetchUnbatchedStock = async () => {
+    setUnbatchedLoading(true)
+    try {
+      const res = await resilientFetch("/api/admin/inventory/reconciliation")
+      const data = await res.json()
+      if (!res.ok) {
+        toast({
+          variant: "destructive",
+          title: "Could not load unbatched stock",
+          description: data.error || "Reconciliation report failed",
+        })
+        return
+      }
+      setUnbatchedItems(Array.isArray(data.items) ? data.items : [])
+      setUnbatchedNote(
+        data.note ||
+          "These quantities are not sellable until received with genuine batch data. Do not fabricate batches.",
+      )
+      setShowUnbatchedPanel(true)
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch unbatched stock report",
+      })
+    } finally {
+      setUnbatchedLoading(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -192,6 +234,16 @@ export default function InventoryPage() {
           <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">Manage your pharmacy stock and products</p>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <Button
+            variant="outline"
+            onClick={fetchUnbatchedStock}
+            disabled={unbatchedLoading}
+            className="flex-1 sm:flex-none text-xs sm:text-sm px-2 sm:px-4"
+          >
+            <AlertTriangle className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">{unbatchedLoading ? "Loading…" : "Unbatched stock"}</span>
+            <span className="sm:hidden">Unbatched</span>
+          </Button>
           <Button variant="outline" onClick={() => setShowUpdateStock(true)} className="flex-1 sm:flex-none text-xs sm:text-sm px-2 sm:px-4">
             <PackagePlus className="h-4 w-4 sm:mr-2" />
             <span className="hidden sm:inline">Update Stock</span>
@@ -209,6 +261,64 @@ export default function InventoryPage() {
           </Button>
         </div>
       </div>
+
+      {showUnbatchedPanel && (
+        <Card className="mb-6 border-amber-300 bg-amber-50">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center text-amber-900 text-base sm:text-lg">
+                <AlertTriangle className="h-5 w-5 mr-2 shrink-0" />
+                Unbatched stock — {unbatchedItems.length} product(s)
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowUnbatchedPanel(false)}
+                className="text-amber-800 hover:text-amber-950"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-2 space-y-3">
+            <p className="text-sm text-amber-900">
+              {unbatchedNote ||
+                "These quantities are not sellable until received with genuine batch number, quantity, and expiry. Do not fabricate batches."}
+            </p>
+            {unbatchedItems.length === 0 ? (
+              <p className="text-sm text-amber-800">No unbatched positive stock found.</p>
+            ) : (
+              <div className="max-h-64 overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-amber-900">Product</TableHead>
+                      <TableHead className="text-amber-900">Book qty</TableHead>
+                      <TableHead className="text-amber-900">Batched</TableHead>
+                      <TableHead className="text-amber-900">Unbatched</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {unbatchedItems.map((item) => (
+                      <TableRow key={item.productId}>
+                        <TableCell className="font-medium text-amber-950">{item.name}</TableCell>
+                        <TableCell>{item.productQuantity}</TableCell>
+                        <TableCell>{item.physicalQuantity}</TableCell>
+                        <TableCell className="font-semibold text-amber-950">
+                          {item.unbatchedQuantity}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            <p className="text-xs text-amber-800">
+              Fix by receiving via Purchase Orders or Update Stock with the real supplier batch and expiry — there is no fabricate action.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {lowStockProducts.length > 0 && showLowStockAlert && (
         <Card className="mb-6 border-orange-200 bg-orange-50">
@@ -1627,34 +1737,49 @@ function UpdateStockDialog({ products, onClose, onSuccess }: UpdateStockDialogPr
       return
     }
 
+    if (!batchNumber.trim() || !expiryDate) {
+      toast({
+        variant: "destructive",
+        title: "Batch data required",
+        description:
+          "Stock increases need a genuine batch number and expiry date from the supplier pack. This prevents phantom sellable stock.",
+      })
+      return
+    }
+
     setIsLoading(true)
 
     try {
       const response = await resilientFetch("/api/admin/inventory/stock", {
-        method: "PATCH",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productId: selectedProduct.id,
           quantity: addQuantity,
           type: "INCREASE",
           reason: "Stock replenishment",
-          batchNumber: batchNumber || null,
-          expiryDate: expiryDate || null,
+          batchNumber: batchNumber.trim(),
+          expiryDate,
         }),
       })
 
       if (response.ok) {
         toast({
           title: "Success",
-          description: `Added ${addQuantity} units to ${selectedProduct.name}. New stock: ${selectedProduct.quantity + addQuantity}`,
+          description: `Received ${addQuantity} units of ${selectedProduct.name} into batch ${batchNumber.trim()}.`,
         })
         onSuccess()
       } else {
         const data = await response.json()
+        const requiresBatch = data.code === "REQUIRES_BATCH"
         toast({
           variant: "destructive",
-          title: "Error",
-          description: data.error || "Failed to update stock",
+          title: requiresBatch ? "Batch data required" : "Error",
+          description:
+            data.error ||
+            (requiresBatch
+              ? "Stock increases require a genuine batch number and future expiry date."
+              : "Failed to update stock"),
         })
       }
     } catch (error) {
@@ -1766,24 +1891,29 @@ function UpdateStockDialog({ products, onClose, onSuccess }: UpdateStockDialogPr
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="batch-number">Batch Number</Label>
+                  <Label htmlFor="batch-number">Batch Number *</Label>
                   <Input
                     id="batch-number"
                     value={batchNumber}
                     onChange={(e) => setBatchNumber(e.target.value)}
                     placeholder="e.g., BATCH-2026-001"
+                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="expiry-date">Expiry Date</Label>
+                  <Label htmlFor="expiry-date">Expiry Date *</Label>
                   <Input
                     id="expiry-date"
                     type="date"
                     value={expiryDate}
                     onChange={(e) => setExpiryDate(e.target.value)}
+                    required
                   />
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Use the batch and expiry printed on the pack. Increases without batch data are blocked.
+              </p>
 
               {unitsToAdd && parseInt(unitsToAdd) > 0 && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3">
@@ -1814,9 +1944,15 @@ function UpdateStockDialog({ products, onClose, onSuccess }: UpdateStockDialogPr
             </Button>
             <Button
               onClick={handleUpdateStock}
-              disabled={isLoading || !selectedProduct || !unitsToAdd}
+              disabled={
+                isLoading ||
+                !selectedProduct ||
+                !unitsToAdd ||
+                !batchNumber.trim() ||
+                !expiryDate
+              }
             >
-              {isLoading ? "Updating..." : "Update Stock"}
+              {isLoading ? "Receiving..." : "Receive stock"}
             </Button>
           </div>
         </CardContent>

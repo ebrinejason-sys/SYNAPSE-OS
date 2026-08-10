@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native'
 import { SynapseLogo } from '@/components/SynapseLogo'
-import { colors, typography } from '@/lib/theme'
+import { typography, useTheme } from '@/lib/theme'
 
 interface BrandWordmarkProps {
   subtitle?: string
@@ -8,13 +8,16 @@ interface BrandWordmarkProps {
 }
 
 export function BrandWordmark({ subtitle, logoSize = 'lg' }: BrandWordmarkProps) {
+  const { colors } = useTheme()
   return (
     <View style={styles.wrap}>
       <SynapseLogo size={logoSize} />
-      <Text style={styles.title}>
-        Synapse <Text style={styles.accent}>Health</Text>
+      <Text style={[styles.title, { color: colors.text }]}>
+        Synapse <Text style={{ color: colors.gold }}>Health</Text>
       </Text>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      {subtitle ? (
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+      ) : null}
     </View>
   )
 }
@@ -23,13 +26,10 @@ const styles = StyleSheet.create({
   wrap: { alignItems: 'center', gap: 16 },
   title: {
     ...typography.title,
-    color: colors.text,
     marginTop: 4,
   },
-  accent: { color: colors.gold },
   subtitle: {
     ...typography.caption,
-    color: colors.textSecondary,
     fontFamily: 'DMSans_400Regular',
     textAlign: 'center',
   },

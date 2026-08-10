@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient'
 import { ReactNode } from 'react'
 import { StyleSheet, View, ViewStyle, StyleProp } from 'react-native'
-import { colors } from '@/lib/theme'
+import { useTheme } from '@/lib/theme'
 
 interface ScreenProps {
   children: ReactNode
@@ -10,11 +10,12 @@ interface ScreenProps {
 }
 
 export function Screen({ children, style, glow = false }: ScreenProps) {
+  const { colors } = useTheme()
   return (
-    <View style={[styles.root, style]}>
+    <View style={[styles.root, { backgroundColor: colors.bg }, style]}>
       {glow ? (
         <LinearGradient
-          colors={['rgba(31, 166, 166, 0.10)', 'rgba(249, 115, 22, 0.04)', 'transparent']}
+          colors={[colors.glowTeal, colors.glowOrange, 'transparent']}
           style={styles.glow}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 0.45 }}
@@ -26,10 +27,7 @@ export function Screen({ children, style, glow = false }: ScreenProps) {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
+  root: { flex: 1 },
   glow: {
     position: 'absolute',
     top: 0,

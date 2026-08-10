@@ -2,12 +2,14 @@ import { Tabs } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { Platform, StyleSheet } from 'react-native'
 import { useAuth } from '@/lib/auth'
+import { dashboardKindForRole } from '@/lib/roles'
 import { isTabVisible } from '@/lib/navigation'
-import { colors, tabBarHeight } from '@/lib/theme'
+import { tabBarHeight, useTheme } from '@/lib/theme'
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name']
 
 function TabIcon({ name, focused }: { name: IoniconsName; focused: boolean }) {
+  const { colors } = useTheme()
   return (
     <Ionicons name={name} size={22} color={focused ? colors.primary : colors.textMuted} />
   )
@@ -19,17 +21,36 @@ function tabHref(role: string | undefined, tab: Parameters<typeof isTabVisible>[
 
 export default function MainLayout() {
   const { user } = useAuth()
+  const { colors } = useTheme()
   const role = user?.role
+  const isPharmacy = dashboardKindForRole(role) === 'pharmacy'
 
   return (
     <Tabs
       screenOptions={{
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: {
+          backgroundColor: colors.bgSubtle,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+          height: tabBarHeight,
+          paddingBottom: Platform.OS === 'ios' ? 8 : 6,
+          paddingTop: 6,
+          elevation: 0,
+        },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: styles.tabLabel,
-        headerStyle: styles.header,
-        headerTitleStyle: styles.headerTitle,
+        headerStyle: {
+          backgroundColor: colors.bg,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.borderSubtle,
+        },
+        headerTitleStyle: {
+          color: colors.text,
+          fontWeight: '600',
+          fontSize: 17,
+          fontFamily: 'DMSans_700Bold',
+        },
         headerShadowVisible: false,
         headerTintColor: colors.text,
       }}
@@ -158,43 +179,41 @@ export default function MainLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
-          headerTitle: 'Profile',
+          title: isPharmacy ? 'More' : 'Profile',
+          headerTitle: isPharmacy ? 'More' : 'Profile',
           href: tabHref(role, 'profile'),
           tabBarIcon: ({ focused }) => (
-            <TabIcon name={focused ? 'person-circle' : 'person-circle-outline'} focused={focused} />
+            <TabIcon
+              name={focused ? (isPharmacy ? 'grid' : 'person-circle') : isPharmacy ? 'grid-outline' : 'person-circle-outline'}
+              focused={focused}
+            />
           ),
         }}
       />
       <Tabs.Screen name="settings" options={{ href: null }} />
+      <Tabs.Screen name="suppliers" options={{ href: null, title: 'Suppliers', headerTitle: 'Suppliers' }} />
+      <Tabs.Screen
+        name="purchase-orders"
+        options={{ href: null, title: 'Purchase orders', headerTitle: 'Purchase orders' }}
+      />
+      <Tabs.Screen name="reports" options={{ href: null, title: 'Reports', headerTitle: 'Reports' }} />
+      <Tabs.Screen name="refunds" options={{ href: null, title: 'Refunds', headerTitle: 'Refunds' }} />
+      <Tabs.Screen
+        name="pharmacy-settings"
+        options={{ href: null, title: 'Pharmacy settings', headerTitle: 'Pharmacy settings' }}
+      />
+      <Tabs.Screen
+        name="pharmacy-users"
+        options={{ href: null, title: 'Staff', headerTitle: 'Pharmacy staff' }}
+      />
     </Tabs>
   )
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: colors.bgSubtle,
-    borderTopColor: colors.border,
-    borderTopWidth: 1,
-    height: tabBarHeight,
-    paddingBottom: Platform.OS === 'ios' ? 8 : 6,
-    paddingTop: 6,
-    elevation: 0,
-  },
   tabLabel: {
     fontSize: 11,
     fontWeight: '600',
     fontFamily: 'DMSans_500Medium',
-  },
-  header: {
-    backgroundColor: colors.bg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
-  },
-  headerTitle: {
-    color: colors.text,
-    fontWeight: '600',
-    fontSize: 17,
-    fontFamily: 'DMSans_700Bold',
   },
 })

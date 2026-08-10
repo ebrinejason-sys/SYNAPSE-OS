@@ -316,7 +316,15 @@ export default function StockItemDetailScreen() {
           </View>
         </View>
       ) : (
-        <Button label="Edit product / stock" onPress={() => setEditing(true)} style={styles.ctaBtn} />
+        <>
+          <Button
+            label="Receive stock (batch)"
+            onPress={() => router.push('/stock-receive' as never)}
+            variant="ghost"
+            style={styles.ctaBtn}
+          />
+          <Button label="Edit product / stock" onPress={() => setEditing(true)} style={styles.ctaBtn} />
+        </>
       )}
     </ScrollView>
   )

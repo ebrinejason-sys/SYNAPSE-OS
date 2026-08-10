@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyTenant } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { receivePharmacyStock, adjustPharmacyBatchStock } from "@synapse/db/inventory-rpc"
 
-// GET batches for a product (ordered by expiry date for FIFO)
+const db = () => supabaseAdmin as any
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requirePharmacyTenant()
     if (!auth.ok) return auth.response
-    const { session, tenantId } = auth
+    const { tenantId } = auth
 
     const { searchParams } = new URL(request.url)
     const productId = searchParams.get("productId")
@@ -16,10 +18,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Product ID is required" }, { status: 400 })
     }
 
-    const { data: batches, error } = await (supabaseAdmin as any)
+    const { data: batches, error } = await db()
       .from("pharmacy_product_batches")
       .select("*")
       .eq("product_id", productId)
+      .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .order("expiry_date", { ascending: true })
 
@@ -32,7 +35,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create a new batch
+/** Create/top-up a batch via authoritative receive_pharmacy_stock. */
 export async function POST(request: NextRequest) {
   try {
     const auth = await requirePharmacyTenant()
@@ -44,27 +47,11 @@ export async function POST(request: NextRequest) {
     if (!data.productId || !data.batchNumber || !data.quantity || !data.expiryDate) {
       return NextResponse.json(
         { error: "Product ID, batch number, quantity, and expiry date are required" },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
-    // Check if batch with same number already exists for this product
-    const { data: existing } = await (supabaseAdmin as any)
-      .from("pharmacy_product_batches")
-      .select("id")
-      .eq("product_id", data.productId as string)
-      .eq("batch_number", data.batchNumber as string)
-      .maybeSingle()
-
-    if (existing) {
-      return NextResponse.json(
-        { error: "A batch with this number already exists for this product" },
-        { status: 400 }
-      )
-    }
-
-    // Get product to use its cost price if not provided
-    const { data: product } = await (supabaseAdmin as any)
+    const { data: product } = await db()
       .from("pharmacy_products")
       .select("id, cost_price, quantity")
       .eq("tenant_id", tenantId)
@@ -75,52 +62,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
-    // Create the batch
-    const { data: batch, error: batchError } = await supabaseAdmin
-      .from("pharmacy_product_batches")
-      .insert({
-        tenant_id: tenantId,
-        product_id: data.productId as string,
-        batch_number: data.batchNumber as string,
-        quantity: data.quantity as number,
-        initial_quantity: data.quantity as number,
-        expiry_date: data.expiryDate as string,
-        cost_price: (data.costPrice as number) || product.cost_price,
-        notes: (data.notes as string) || null,
-      })
-      .select()
-      .single()
-
-    if (batchError) return NextResponse.json({ error: batchError.message }, { status: 500 })
-
-    // Update product total quantity
-    const newProductQty = (product.quantity ?? 0) + (data.quantity as number)
-    const { error: updateError } = await supabaseAdmin
-      .from("pharmacy_products")
-      .update({ quantity: newProductQty })
-      .eq("id", data.productId as string)
-      .eq("tenant_id", tenantId)
-
-    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
-
-    // Audit log
-    await supabaseAdmin.from("pharmacy_audit_logs").insert({
-      tenant_id: tenantId,
-      profile_id: session.user.id,
-      action: "CREATE_BATCH",
-      entity: "PRODUCT_BATCH",
-      entity_id: batch.id,
-      details: `Created batch "${data.batchNumber}" with ${data.quantity} units, expires ${new Date(data.expiryDate as string).toLocaleDateString()}`,
+    const { data: received, error } = await receivePharmacyStock(db(), {
+      tenantId,
+      productId: data.productId as string,
+      batchNumber: String(data.batchNumber),
+      quantity: Number(data.quantity),
+      expiryDate: String(data.expiryDate),
+      costPrice: (data.costPrice as number) || product.cost_price,
+      receivedBy: session.user.id,
+      reason: (data.notes as string) || "Batch created",
     })
 
-    return NextResponse.json(batch)
+    if (error) {
+      return NextResponse.json({ error: error.humanMessage, code: error.code }, { status: 400 })
+    }
+
+    const { data: batch } = await db()
+      .from("pharmacy_product_batches")
+      .select("*")
+      .eq("id", received?.batchId)
+      .maybeSingle()
+
+    return NextResponse.json(batch ?? received)
   } catch (error) {
     console.error("Create batch error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-// PATCH - Update a batch
 export async function PATCH(request: NextRequest) {
   try {
     const auth = await requirePharmacyTenant()
@@ -133,8 +102,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Batch ID is required" }, { status: 400 })
     }
 
-    // Fetch existing batch (scoped to tenant)
-    const { data: existingBatch } = await (supabaseAdmin as any)
+    const { data: existingBatch } = await db()
       .from("pharmacy_product_batches")
       .select("id, product_id, batch_number, quantity")
       .eq("tenant_id", tenantId)
@@ -145,57 +113,53 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Batch not found" }, { status: 404 })
     }
 
-    // Calculate quantity difference for product update
-    const quantityDiff =
-      data.quantity !== undefined
-        ? (data.quantity as number) - existingBatch.quantity
-        : 0
+    if (data.quantity !== undefined) {
+      const { error } = await adjustPharmacyBatchStock(db(), {
+        tenantId,
+        productId: existingBatch.product_id,
+        quantity: Number(data.quantity),
+        type: "CORRECTION",
+        reason: `Batch correction for ${existingBatch.batch_number}`,
+        actorId: session.user.id,
+        batchId: existingBatch.id,
+        expiryDate: (data.expiryDate as string) || null,
+        costPrice: (data.costPrice as number) ?? null,
+      })
+      if (error) {
+        return NextResponse.json({ error: error.humanMessage, code: error.code }, { status: 400 })
+      }
+    } else {
+      const updateFields: Record<string, unknown> = {}
+      if (data.expiryDate !== undefined) updateFields.expiry_date = data.expiryDate || null
+      if (data.costPrice !== undefined) updateFields.cost_price = data.costPrice
+      if (data.notes !== undefined) updateFields.notes = data.notes
+      if (data.isActive !== undefined) updateFields.is_active = data.isActive
+      if (data.status !== undefined) updateFields.status = data.status
 
-    // Build update fields
-    const updateFields: Record<string, unknown> = {}
-    if (data.quantity !== undefined) updateFields.quantity = data.quantity
-    if (data.expiryDate !== undefined) updateFields.expiry_date = data.expiryDate || null
-    if (data.costPrice !== undefined) updateFields.cost_price = data.costPrice
-    if (data.notes !== undefined) updateFields.notes = data.notes
-    if (data.isActive !== undefined) updateFields.is_active = data.isActive
-
-    const { data: batch, error: batchError } = await supabaseAdmin
-      .from("pharmacy_product_batches")
-      .update(updateFields)
-      .eq("id", data.id as string)
-      .eq("tenant_id", tenantId)
-      .select()
-      .single()
-
-    if (batchError) return NextResponse.json({ error: batchError.message }, { status: 500 })
-
-    // Update product total quantity if quantity changed
-    if (quantityDiff !== 0) {
-      // Fetch current product quantity
-      const { data: product } = await (supabaseAdmin as any)
-        .from("pharmacy_products")
-        .select("quantity")
-        .eq("tenant_id", tenantId)
-        .eq("id", existingBatch.product_id)
-        .maybeSingle()
-
-      const newProductQty = (product?.quantity ?? 0) + quantityDiff
-      const { error: updateError } = await supabaseAdmin
-        .from("pharmacy_products")
-        .update({ quantity: newProductQty })
-        .eq("id", existingBatch.product_id)
-        .eq("tenant_id", tenantId)
-      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+      if (Object.keys(updateFields).length > 0) {
+        const { error: batchError } = await db()
+          .from("pharmacy_product_batches")
+          .update(updateFields)
+          .eq("id", data.id as string)
+          .eq("tenant_id", tenantId)
+        if (batchError) return NextResponse.json({ error: batchError.message }, { status: 500 })
+      }
     }
 
-    // Audit log
-    await supabaseAdmin.from("pharmacy_audit_logs").insert({
+    const { data: batch } = await db()
+      .from("pharmacy_product_batches")
+      .select("*")
+      .eq("id", data.id as string)
+      .eq("tenant_id", tenantId)
+      .single()
+
+    await db().from("pharmacy_audit_logs").insert({
       tenant_id: tenantId,
       profile_id: session.user.id,
       action: "UPDATE_BATCH",
       entity: "PRODUCT_BATCH",
-      entity_id: batch.id,
-      details: `Updated batch "${batch.batch_number}"`,
+      entity_id: data.id,
+      details: `Updated batch "${existingBatch.batch_number}"`,
     })
 
     return NextResponse.json(batch)
@@ -205,7 +169,6 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-// DELETE - Deactivate a batch (soft delete)
 export async function DELETE(request: NextRequest) {
   try {
     const auth = await requirePharmacyTenant()
@@ -219,8 +182,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Batch ID is required" }, { status: 400 })
     }
 
-    // Fetch batch to get product_id and remaining quantity (scoped to tenant)
-    const { data: existingBatch } = await (supabaseAdmin as any)
+    const { data: existingBatch } = await db()
       .from("pharmacy_product_batches")
       .select("id, product_id, batch_number, quantity")
       .eq("tenant_id", tenantId)
@@ -231,35 +193,32 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Batch not found" }, { status: 404 })
     }
 
-    // Soft-delete the batch
-    const { error: batchError } = await supabaseAdmin
-      .from("pharmacy_product_batches")
-      .update({ is_active: false })
-      .eq("id", id)
-      .eq("tenant_id", tenantId)
-
-    if (batchError) return NextResponse.json({ error: batchError.message }, { status: 500 })
-
-    // Subtract remaining quantity from product total
-    if (existingBatch.quantity > 0) {
-      const { data: product } = await (supabaseAdmin as any)
-        .from("pharmacy_products")
-        .select("quantity")
-        .eq("tenant_id", tenantId)
-        .eq("id", existingBatch.product_id)
-        .maybeSingle()
-
-      const newProductQty = Math.max(0, (product?.quantity ?? 0) - existingBatch.quantity)
-      const { error: updateError } = await supabaseAdmin
-        .from("pharmacy_products")
-        .update({ quantity: newProductQty })
-        .eq("id", existingBatch.product_id)
-        .eq("tenant_id", tenantId)
-      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+    const { error } = await adjustPharmacyBatchStock(db(), {
+      tenantId,
+      productId: existingBatch.product_id,
+      quantity: 0,
+      type: "QUARANTINE",
+      reason: `Batch deactivated: ${existingBatch.batch_number}`,
+      actorId: session.user.id,
+      batchId: id,
+    })
+    if (error) {
+      return NextResponse.json({ error: error.humanMessage, code: error.code }, { status: 400 })
     }
 
-    // Audit log
-    await supabaseAdmin.from("pharmacy_audit_logs").insert({
+    if (existingBatch.quantity > 0) {
+      await adjustPharmacyBatchStock(db(), {
+        tenantId,
+        productId: existingBatch.product_id,
+        quantity: existingBatch.quantity,
+        type: "DECREASE",
+        reason: `Removed remaining qty on deactivated batch ${existingBatch.batch_number}`,
+        actorId: session.user.id,
+        batchId: id,
+      })
+    }
+
+    await db().from("pharmacy_audit_logs").insert({
       tenant_id: tenantId,
       profile_id: session.user.id,
       action: "DELETE_BATCH",

@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { StyleSheet, Text, TextStyle, View, ViewStyle, StyleProp } from 'react-native'
-import { colors, radii, spacing, typography } from '@/lib/theme'
+import { radii, spacing, typography, useTheme } from '@/lib/theme'
 
 interface CardProps {
   children: ReactNode
@@ -9,27 +9,35 @@ interface CardProps {
 }
 
 export function Card({ children, style, padded = true }: CardProps) {
+  const { colors } = useTheme()
   return (
-    <View style={[styles.card, padded && styles.padded, style]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+        padded && styles.padded,
+        style,
+      ]}
+    >
       {children}
     </View>
   )
 }
 
 export function SectionHeader({ title, style }: { title: string; style?: StyleProp<TextStyle> }) {
-  return <Text style={[styles.section, style]}>{title}</Text>
+  const { colors } = useTheme()
+  return <Text style={[styles.section, { color: colors.textSecondary }, style]}>{title}</Text>
 }
 
 export function Divider() {
-  return <View style={styles.divider} />
+  const { colors } = useTheme()
+  return <View style={[styles.divider, { backgroundColor: colors.borderSubtle }]} />
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
     borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
   },
   padded: {
@@ -37,12 +45,10 @@ const styles = StyleSheet.create({
   },
   section: {
     ...typography.label,
-    color: colors.textSecondary,
     marginBottom: spacing.md,
   },
   divider: {
     height: 1,
-    backgroundColor: colors.borderSubtle,
     marginHorizontal: spacing.lg,
   },
 })

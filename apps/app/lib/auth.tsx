@@ -36,6 +36,7 @@ interface AuthContextValue extends AuthState {
   verifyLoginOtp: (email: string, otp: string) => Promise<void>
   logout: () => Promise<void>
   unlock: () => Promise<boolean>
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -155,6 +156,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.token])
 
+  const refreshUser = useCallback(async (): Promise<void> => {
+    const currentToken = state.token
+    if (!currentToken) return
+    try {
+      const user = await apiRequest<MobileUser>('/api/auth/mobile/me', { token: currentToken, timeoutMs: 20_000 })
+      setState((prev) => ({
+        ...prev,
+        user: { ...user, synapseId: user.synapseId ?? null, dashboardKind: user.dashboardKind ?? 'generic' },
+      }))
+    } catch {
+      /* keep existing state on failure */
+    }
+  }, [state.token])
+
   const unlock = useCallback(async (): Promise<boolean> => {
     try {
       const hasBiometrics = await LocalAuthentication.hasHardwareAsync()
@@ -189,7 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [logout])
 
   return (
-    <AuthContext.Provider value={{ ...state, login, verifyLoginOtp, logout, unlock }}>
+    <AuthContext.Provider value={{ ...state, login, verifyLoginOtp, logout, unlock, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

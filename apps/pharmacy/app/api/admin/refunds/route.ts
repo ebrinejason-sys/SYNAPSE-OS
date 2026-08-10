@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
+import { mapRefund } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { reversePharmacySale } from "@synapse/db/inventory-rpc"
 
 const db = () => supabaseAdmin as any
 
@@ -19,7 +21,7 @@ export async function GET(_request: NextRequest) {
           id, receipt_number, total_amount, payment_method, cashier_id, status,
           voided_reason, voided_at, updated_at, created_at,
           items:pharmacy_pos_sale_items (
-            id, quantity, unit_price, product:pharmacy_products ( name, sku )
+            id, quantity, unit_price, product_id, product:pharmacy_products ( name, sku )
           )
         `,
         )
@@ -32,6 +34,7 @@ export async function GET(_request: NextRequest) {
           `
           *,
           cashier:profiles!pharmacy_transactions_cashier_id_fkey ( full_name ),
+          customer:pharmacy_customers ( name ),
           items:pharmacy_transaction_items (
             *,
             product:pharmacy_products ( name, sku )
@@ -48,20 +51,44 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch refunds" }, { status: 500 })
     }
 
-    const mappedPos = (posVoids ?? []).map((s: any) => ({
-      id: s.id,
-      transaction_no: s.receipt_number,
-      net_amount: s.total_amount,
-      payment_method: s.payment_method,
-      status: "REFUNDED",
-      notes: s.voided_reason,
-      updated_at: s.voided_at ?? s.updated_at,
-      created_at: s.created_at,
-      source: "pos",
-      items: s.items ?? [],
-    }))
+    const cashierIds = new Set<string>()
+    for (const s of posVoids ?? []) {
+      if (s.cashier_id) cashierIds.add(s.cashier_id)
+    }
+    const cashierNames = new Map<string, string>()
+    if (cashierIds.size > 0) {
+      const { data: profiles } = await db()
+        .from("profiles")
+        .select("id, full_name, first_name, last_name")
+        .in("id", Array.from(cashierIds))
+      for (const p of profiles ?? []) {
+        cashierNames.set(
+          p.id,
+          p.full_name ||
+            [p.first_name, p.last_name].filter(Boolean).join(" ") ||
+            "Unknown",
+        )
+      }
+    }
 
-    return NextResponse.json([...mappedPos, ...(orderRefunds ?? [])])
+    const mappedPos = (posVoids ?? []).map((s: Record<string, unknown>) =>
+      mapRefund({
+        ...s,
+        transaction_no: s.receipt_number,
+        net_amount: s.total_amount,
+        notes: s.voided_reason,
+        created_at: s.voided_at ?? s.updated_at ?? s.created_at,
+        status: "REFUNDED",
+        source: "pos",
+        user: { name: cashierNames.get(String(s.cashier_id)) ?? "Unknown" },
+      }),
+    )
+
+    const mappedOrders = (orderRefunds ?? []).map((row: Record<string, unknown>) =>
+      mapRefund({ ...row, source: "order" }),
+    )
+
+    return NextResponse.json([...mappedPos, ...mappedOrders])
   } catch (error) {
     console.error("Get refunds error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -72,131 +99,31 @@ async function refundPosSale(params: {
   tenantId: string
   userId: string
   saleId: string
-  reason: string | null
-  items?: Array<{ id: string; quantity: number }> | null
+  reason: string
+  restoreAs?: "active" | "quarantined"
 }) {
-  const { data: sale, error } = await db()
-    .from("pharmacy_pos_sales")
-    .select(
-      `
-      *,
-      items:pharmacy_pos_sale_items (
-        id, product_id, batch_id, quantity, unit_price,
-        product:pharmacy_products ( id, name, quantity )
-      )
-    `,
-    )
-    .eq("tenant_id", params.tenantId)
-    .eq("id", params.saleId)
-    .maybeSingle()
-
-  if (error || !sale) return { notFound: true as const }
-  if (sale.status === "voided") {
-    return { already: true as const }
-  }
-  if (sale.status !== "completed") {
-    return { badStatus: sale.status as string }
-  }
-
-  const saleItems = (sale.items ?? []) as Array<{
-    id: string
-    product_id: string
-    batch_id: string | null
-    quantity: number
-    unit_price: number
-    product: { id: string; name: string; quantity: number } | null
-  }>
-
-  const itemsToRefund =
-    params.items && params.items.length > 0
-      ? params.items
-      : saleItems.map((i) => ({ id: i.id, quantity: i.quantity }))
-
-  let refundAmount = 0
-
-  for (const refundItem of itemsToRefund) {
-    const original = saleItems.find((i) => i.id === refundItem.id)
-    if (!original) continue
-    const refundQty = Math.min(refundItem.quantity, original.quantity)
-    refundAmount += Number(original.unit_price) * refundQty
-
-    if (original.batch_id) {
-      const { data: batch } = await db()
-        .from("pharmacy_product_batches")
-        .select("quantity")
-        .eq("id", original.batch_id)
-        .eq("tenant_id", params.tenantId)
-        .maybeSingle()
-      if (batch) {
-        await db()
-          .from("pharmacy_product_batches")
-          .update({
-            quantity: Number(batch.quantity ?? 0) + refundQty,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", original.batch_id)
-          .eq("tenant_id", params.tenantId)
-      }
-    }
-
-    if (original.product_id) {
-      const { data: product } = await db()
-        .from("pharmacy_products")
-        .select("quantity")
-        .eq("id", original.product_id)
-        .eq("tenant_id", params.tenantId)
-        .maybeSingle()
-      if (product) {
-        const previousQty = Number(product.quantity ?? 0)
-        const newQty = previousQty + refundQty
-        await db()
-          .from("pharmacy_products")
-          .update({ quantity: newQty, updated_at: new Date().toISOString() })
-          .eq("id", original.product_id)
-          .eq("tenant_id", params.tenantId)
-
-        await db().from("pharmacy_stock_adjustments").insert({
-          tenant_id: params.tenantId,
-          product_id: original.product_id,
-          quantity: refundQty,
-          type: "INCREASE",
-          reason: `Refund from POS sale ${sale.receipt_number}: ${params.reason ?? "No reason provided"}`,
-          previous_qty: previousQty,
-          new_qty: newQty,
-          created_by: params.userId,
-        })
-      }
-    }
-  }
-
-  const { data: updated, error: updateError } = await db()
-    .from("pharmacy_pos_sales")
-    .update({
-      status: "voided",
-      voided_reason: params.reason ?? "Refund",
-      voided_by: params.userId,
-      voided_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", params.saleId)
-    .eq("tenant_id", params.tenantId)
-    .select("*")
-    .single()
-
-  if (updateError || !updated) {
-    return { updateFailed: updateError?.message ?? "update failed" }
-  }
-
-  await db().from("pharmacy_audit_logs").insert({
-    tenant_id: params.tenantId,
-    profile_id: params.userId,
-    action: "REFUND_POS_SALE",
-    entity: "POS_SALE",
-    entity_id: params.saleId,
-    details: `Voided POS sale ${sale.receipt_number}. Amount: ${refundAmount}. Reason: ${params.reason ?? "Not specified"}`,
+  const { data, error } = await reversePharmacySale(db(), {
+    tenantId: params.tenantId,
+    saleId: params.saleId,
+    actorId: params.userId,
+    reason: params.reason,
+    restoreAs: params.restoreAs ?? "quarantined",
   })
 
-  return { ok: true as const, refundAmount, sale: updated }
+  if (error) {
+    if (error.code === "ALREADY_REFUNDED") return { already: true as const, error }
+    if (error.code === "PRODUCT_NOT_FOUND") return { notFound: true as const, error }
+    if (error.code === "SALE_NOT_REFUNDABLE") {
+      return { badStatus: true as const, error }
+    }
+    return { rpcFailed: true as const, error }
+  }
+
+  return {
+    ok: true as const,
+    refundAmount: Number((data as any)?.refund_amount ?? 0),
+    sale: data,
+  }
 }
 
 // POST - Process a refund (POS void preferred; order tx fallback)
@@ -210,31 +137,59 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No tenant" }, { status: 403 })
     }
 
-    const { transactionId, reason, items } = await request.json()
+    const body = await request.json()
+    const { transactionId, saleId, reason, restoreAs, items } = body as {
+      transactionId?: string
+      saleId?: string
+      reason?: string
+      restoreAs?: "active" | "quarantined"
+      items?: Array<{ id: string; quantity: number }>
+    }
 
-    if (!transactionId) {
+    const id = transactionId ?? saleId
+    if (!id) {
       return NextResponse.json({ error: "Transaction ID is required" }, { status: 400 })
+    }
+
+    const refundReason = typeof reason === "string" && reason.trim() ? reason.trim() : ""
+    if (!refundReason) {
+      return NextResponse.json({ error: "Refund reason is required" }, { status: 400 })
     }
 
     const posResult = await refundPosSale({
       tenantId,
       userId: session.user.id,
-      saleId: transactionId,
-      reason: reason ?? null,
-      items: items ?? null,
+      saleId: id,
+      reason: refundReason,
+      restoreAs: restoreAs === "active" ? "active" : "quarantined",
     })
 
     if ("already" in posResult && posResult.already) {
-      return NextResponse.json({ error: "Transaction already refunded" }, { status: 400 })
-    }
-    if ("badStatus" in posResult) {
       return NextResponse.json(
-        { error: `Cannot refund sale in status ${posResult.badStatus}` },
+        {
+          error: posResult.error?.humanMessage ?? "Transaction already refunded",
+          code: "ALREADY_REFUNDED",
+        },
+        { status: 409 },
+      )
+    }
+    if ("badStatus" in posResult && posResult.badStatus) {
+      return NextResponse.json(
+        {
+          error: posResult.error?.humanMessage ?? "Sale is not refundable",
+          code: "SALE_NOT_REFUNDABLE",
+        },
         { status: 400 },
       )
     }
-    if ("updateFailed" in posResult) {
-      return NextResponse.json({ error: "Failed to void POS sale" }, { status: 500 })
+    if ("rpcFailed" in posResult && posResult.rpcFailed) {
+      return NextResponse.json(
+        {
+          error: posResult.error?.humanMessage ?? "Failed to void POS sale",
+          code: posResult.error?.code,
+        },
+        { status: 400 },
+      )
     }
     if ("ok" in posResult && posResult.ok) {
       return NextResponse.json({
@@ -244,8 +199,9 @@ export async function POST(request: NextRequest) {
         source: "pos",
       })
     }
+    // notFound → try legacy pharmacy_transactions path below
 
-    // Legacy / order path
+    // Legacy / order path — restore product qty only; never invent batches
     const { data: transaction, error: fetchError } = await db()
       .from("pharmacy_transactions")
       .select(
@@ -258,7 +214,7 @@ export async function POST(request: NextRequest) {
       `,
       )
       .eq("tenant_id", tenantId)
-      .eq("id", transactionId)
+      .eq("id", id)
       .single()
 
     if (fetchError || !transaction) {
@@ -266,7 +222,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (transaction.status === "REFUNDED") {
-      return NextResponse.json({ error: "Transaction already refunded" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Transaction already refunded", code: "ALREADY_REFUNDED" },
+        { status: 409 },
+      )
     }
 
     interface RefundItemInput {
@@ -303,6 +262,8 @@ export async function POST(request: NextRequest) {
 
       if (!originalItem.product_id) continue
 
+      // Legacy path: bump denormalised product qty only — do NOT fabricate batch rows.
+      // Restored units remain unbatched / non-sellable until received with genuine batch data.
       const { data: currentProduct } = await supabaseAdmin
         .from("pharmacy_products")
         .select("quantity")
@@ -328,7 +289,7 @@ export async function POST(request: NextRequest) {
           product_id: originalItem.product_id,
           quantity: refundQty,
           type: "INCREASE",
-          reason: `Refund from transaction ${transaction.transaction_no}: ${reason ?? "No reason provided"}`,
+          reason: `Refund from transaction ${transaction.transaction_no}: ${refundReason}`,
           previous_qty: previousQty,
           new_qty: newQty,
           created_by: session.user.id,
@@ -341,10 +302,10 @@ export async function POST(request: NextRequest) {
       .from("pharmacy_transactions")
       .update({
         status: "REFUNDED",
-        notes: `${existingNotes}\n[REFUNDED] ${new Date().toISOString()}: ${reason ?? "No reason provided"} - Amount: ${refundAmount}`.trim(),
+        notes: `${existingNotes}\n[REFUNDED] ${new Date().toISOString()}: ${refundReason} - Amount: ${refundAmount}`.trim(),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", transactionId)
+      .eq("id", id)
       .eq("tenant_id", tenantId)
       .select(
         `
@@ -365,8 +326,8 @@ export async function POST(request: NextRequest) {
       profile_id: session.user.id,
       action: "REFUND_TRANSACTION",
       entity: "TRANSACTION",
-      entity_id: transactionId,
-      details: `Refunded transaction ${transaction.transaction_no}. Amount: ${refundAmount}. Reason: ${reason ?? "Not specified"}`,
+      entity_id: id,
+      details: `Refunded transaction ${transaction.transaction_no}. Amount: ${refundAmount}. Reason: ${refundReason}`,
     })
 
     return NextResponse.json({
@@ -374,6 +335,8 @@ export async function POST(request: NextRequest) {
       refundAmount,
       transaction: updatedTransaction,
       source: "order",
+      warning:
+        "Legacy order refund restored product quantity only. Units are not sellable until received onto a genuine batch.",
     })
   } catch (error) {
     console.error("Process refund error:", error)

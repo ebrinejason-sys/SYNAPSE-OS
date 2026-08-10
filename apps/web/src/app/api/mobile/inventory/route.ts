@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken, validateSession } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
+import { receivePharmacyStock } from '@synapse/db/inventory-rpc'
+import { normaliseExpiry } from '@synapse/db/import-validation'
 import {
   isMobileAuth,
   isMobilePharmacyAdmin,
@@ -97,7 +99,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ items, summary })
 }
 
-/** Create a sellable product (pharmacy managers / pharmacists). */
+/** Create a catalogue product (qty 0); receive sellable stock via RPC when batch provided. */
 export async function POST(req: NextRequest) {
   const auth = await requireMobilePharmacyAuth(req)
   if (!isMobileAuth(auth)) return auth
@@ -119,7 +121,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'price must be ≥ 0' }, { status: 400 })
   }
 
-  const quantity = Math.max(0, Math.floor(Number(body.quantity ?? 0) || 0))
+  const requestedQty = Math.max(0, Math.floor(Number(body.quantity ?? 0) || 0))
   const reorderLevel = Math.max(0, Math.floor(Number(body.reorderLevel ?? 10) || 10))
   const costPrice = Number(body.costPrice)
   const skuRaw = String(body.sku ?? '').trim()
@@ -146,10 +148,22 @@ export async function POST(req: NextRequest) {
     typeof body.batchNumber === 'string' && body.batchNumber.trim()
       ? body.batchNumber.trim()
       : null
-  const expiryDate =
+  const expiryRaw =
     typeof body.expiryDate === 'string' && body.expiryDate.trim()
       ? body.expiryDate.trim()
       : null
+  const expiryDate = normaliseExpiry(expiryRaw)
+
+  if (requestedQty > 0 && (!batchNumber || !expiryDate)) {
+    return NextResponse.json(
+      {
+        error:
+          'Opening stock requires a genuine batch number and future expiry date. Create the product with quantity 0, then receive stock with batch details.',
+        code: 'REQUIRES_BATCH',
+      },
+      { status: 400 },
+    )
+  }
 
   const { data: product, error } = await db()
     .from('pharmacy_products')
@@ -164,7 +178,7 @@ export async function POST(req: NextRequest) {
           : 'General',
       price,
       cost_price: Number.isFinite(costPrice) && costPrice >= 0 ? costPrice : 0,
-      quantity,
+      quantity: 0,
       reorder_level: reorderLevel,
       unit_of_measure:
         typeof body.unit === 'string' && body.unit.trim() ? body.unit.trim() : 'Tablet',
@@ -181,17 +195,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error?.message ?? 'Failed to create' }, { status: 500 })
   }
 
-  if (batchNumber && quantity > 0 && expiryDate) {
-    await db().from('pharmacy_product_batches').insert({
-      tenant_id: auth.tenantId,
-      product_id: product.id,
-      batch_number: batchNumber,
-      quantity,
-      initial_quantity: quantity,
-      expiry_date: expiryDate,
-      cost_price: Number.isFinite(costPrice) && costPrice >= 0 ? costPrice : 0,
-      is_active: true,
+  let receiveWarning: string | undefined
+  if (batchNumber && expiryDate && requestedQty > 0) {
+    const { data: received, error: receiveError } = await receivePharmacyStock(db(), {
+      tenantId: auth.tenantId,
+      productId: product.id,
+      batchNumber,
+      quantity: requestedQty,
+      expiryDate,
+      costPrice: Number.isFinite(costPrice) && costPrice >= 0 ? costPrice : 0,
+      sellingPrice: price,
+      receivedBy: auth.userId,
+      reason: 'Mobile product create receive',
     })
+    if (receiveError) {
+      receiveWarning = receiveError.humanMessage
+    } else if (received) {
+      product.quantity = received.received
+    }
   }
 
   await db().from('pharmacy_audit_logs').insert({
@@ -203,5 +224,8 @@ export async function POST(req: NextRequest) {
     details: `Mobile created product: ${product.name} (${product.sku})`,
   })
 
-  return NextResponse.json({ ok: true, product }, { status: 201 })
+  return NextResponse.json(
+    { ok: true, product, warning: receiveWarning },
+    { status: 201 },
+  )
 }

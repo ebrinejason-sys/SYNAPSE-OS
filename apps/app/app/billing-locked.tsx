@@ -1,11 +1,9 @@
-import { Linking, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/lib/auth'
 import { colors, radii, spacing, typography } from '@/lib/theme'
-
-const PHARMACY_BILLING_URL = 'https://pharm.synapseos.tech/portal/billing'
 
 /**
  * Shown when the server answers HTTP 402 (subscription suspended / lapsed).
@@ -32,10 +30,8 @@ export default function BillingLockedScreen() {
 
       <View style={styles.actions}>
         <Button
-          label="Open billing page"
-          onPress={() => {
-            Linking.openURL(PHARMACY_BILLING_URL).catch(() => {})
-          }}
+          label="View billing & renew"
+          onPress={() => router.push('/billing' as never)}
         />
         <Button
           label="Check again"

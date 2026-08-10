@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { Badge } from '@/components/ui/Badge'
 import { SynapseLogo } from '@/components/SynapseLogo'
 import { formatRole } from '@/lib/roles'
-import { colors, spacing, typography } from '@/lib/theme'
+import { spacing, typography, useTheme } from '@/lib/theme'
 import type { MobileUser } from '@/lib/auth'
 
 interface WorkspaceHeaderProps {
@@ -12,8 +12,9 @@ interface WorkspaceHeaderProps {
   showLogo?: boolean
 }
 
-/** Top-of-screen workspace context — facility + role badge per blueprint §3.5 */
+/** Top-of-screen workspace context — facility + role badge */
 export function WorkspaceHeader({ user, subtitle, showLogo = false }: WorkspaceHeaderProps) {
+  const { colors } = useTheme()
   const workspaceLabel = user?.tenantName
     ? user.tenantName
     : user?.role === 'platform_admin'
@@ -33,11 +34,15 @@ export function WorkspaceHeader({ user, subtitle, showLogo = false }: WorkspaceH
         <View style={styles.copy}>
           <View style={styles.workspaceRow}>
             <Ionicons name="layers-outline" size={14} color={colors.teal} />
-            <Text style={styles.workspace} numberOfLines={1}>{workspaceLabel}</Text>
+            <Text style={[styles.workspace, { color: colors.text }]} numberOfLines={1}>
+              {workspaceLabel}
+            </Text>
           </View>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          {subtitle ? (
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+          ) : null}
           {user?.synapseId ? (
-            <Text style={styles.synapseId}>ID {user.synapseId}</Text>
+            <Text style={[styles.synapseId, { color: colors.textMuted }]}>ID {user.synapseId}</Text>
           ) : null}
         </View>
         {user?.role ? <Badge label={formatRole(user.role)} tone="gold" /> : null}
@@ -63,19 +68,16 @@ const styles = StyleSheet.create({
   },
   workspace: {
     ...typography.bodySm,
-    color: colors.text,
     fontFamily: 'DMSans_500Medium',
     flex: 1,
   },
   subtitle: {
     ...typography.caption,
-    color: colors.textSecondary,
     fontFamily: 'DMSans_400Regular',
     marginTop: spacing.xs,
   },
   synapseId: {
     ...typography.mono,
-    color: colors.textMuted,
     fontSize: 11,
     marginTop: spacing.xs,
   },
