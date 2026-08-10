@@ -199,6 +199,7 @@ export async function GET(req: NextRequest) {
     // Phase C polish: tools hub + ops; billing on profile.
     quickActions = [
       { key: 'pos', label: 'New Sale (POS)', target: 'app:/pos' },
+      { key: 'receive', label: 'Receive stock', target: 'app:/stock-receive' },
       { key: 'tools', label: 'Calculators & safety', target: 'app:/tools' },
       { key: 'orders', label: 'Orders', target: 'app:/(main)/orders' },
       { key: 'inventory', label: 'Inventory', target: 'app:/(main)/stock' },

@@ -167,6 +167,21 @@ export default function MainLayout() {
         }}
       />
       <Tabs.Screen name="settings" options={{ href: null }} />
+      <Tabs.Screen name="suppliers" options={{ href: null, title: 'Suppliers', headerTitle: 'Suppliers' }} />
+      <Tabs.Screen
+        name="purchase-orders"
+        options={{ href: null, title: 'Purchase orders', headerTitle: 'Purchase orders' }}
+      />
+      <Tabs.Screen name="reports" options={{ href: null, title: 'Reports', headerTitle: 'Reports' }} />
+      <Tabs.Screen name="refunds" options={{ href: null, title: 'Refunds', headerTitle: 'Refunds' }} />
+      <Tabs.Screen
+        name="pharmacy-settings"
+        options={{ href: null, title: 'Pharmacy settings', headerTitle: 'Pharmacy settings' }}
+      />
+      <Tabs.Screen
+        name="pharmacy-users"
+        options={{ href: null, title: 'Staff', headerTitle: 'Pharmacy staff' }}
+      />
     </Tabs>
   )
 }

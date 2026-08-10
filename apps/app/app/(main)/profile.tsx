@@ -90,29 +90,52 @@ export default function ProfileScreen() {
 
       {kind === 'pharmacy' ? (
         <View style={styles.actions}>
-          <Button label="Open pharmacy portal" onPress={openWebPortal} variant="ghost" />
           <Button
-            label="Portal · Inventory & Excel import"
-            onPress={() => openUrl(`${PHARM_PORTAL}/inventory`)}
+            label="Receive stock"
+            onPress={() => router.push('/stock-receive' as never)}
+          />
+          <Button
+            label="Suppliers"
+            onPress={() => router.push('/(main)/suppliers' as never)}
             variant="ghost"
           />
           <Button
-            label="Portal · Refunds"
-            onPress={() => openUrl(`${PHARM_PORTAL}/refunds`)}
+            label="Purchase orders"
+            onPress={() => router.push('/(main)/purchase-orders' as never)}
             variant="ghost"
           />
           <Button
-            label="Portal · Reports"
-            onPress={() => openUrl(`${PHARM_PORTAL}/reports`)}
+            label="Barcode lookup"
+            onPress={() => router.push('/barcode-scan' as never)}
             variant="ghost"
           />
           <Button
-            label="Portal · Users & settings"
-            onPress={() => openUrl(`${PHARM_PORTAL}/users`)}
+            label="Refunds"
+            onPress={() => router.push('/(main)/refunds' as never)}
             variant="ghost"
           />
           <Button
-            label="Billing & renewal"
+            label="Reports"
+            onPress={() => router.push('/(main)/reports' as never)}
+            variant="ghost"
+          />
+          <Button
+            label="Staff"
+            onPress={() => router.push('/(main)/pharmacy-users' as never)}
+            variant="ghost"
+          />
+          <Button
+            label="Pharmacy settings"
+            onPress={() => router.push('/(main)/pharmacy-settings' as never)}
+            variant="ghost"
+          />
+          <Button
+            label="Open pharmacy portal (advanced)"
+            onPress={openWebPortal}
+            variant="ghost"
+          />
+          <Button
+            label="Billing & renewal (portal)"
             onPress={() => openUrl(`${PHARM_PORTAL}/billing`)}
             variant="ghost"
           />

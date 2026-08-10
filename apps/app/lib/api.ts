@@ -134,3 +134,224 @@ export async function apiFetchText(
   }
   return res.text()
 }
+
+// ── Pharmacy mobile BFF helpers ──────────────────────────────────────────────
+
+export type PharmacySupplier = {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  address: string | null
+  contactPerson: string | null
+  notes: string | null
+  isActive: boolean
+  purchaseOrderCount?: number
+}
+
+export type PharmacyPurchaseOrder = {
+  id: string
+  orderNumber: string
+  status: string
+  totalAmount: number
+  notes: string | null
+  expectedDate: string | null
+  createdAt: string | null
+  supplier: { id: string; name: string; email: string | null; phone: string | null }
+  items: Array<{
+    id: string
+    productId: string | null
+    productName: string
+    quantity: number
+    unitPrice: number
+    totalPrice: number
+  }>
+  createdByName?: string
+}
+
+export type PharmacySettings = {
+  pharmacyName: string
+  receiptHeader: string
+  receiptFooter: string
+  currency?: string
+  lowStockThreshold?: number
+  location?: string
+  contact?: string
+  email?: string
+}
+
+export type PharmacyStaffUser = {
+  id: string
+  name: string
+  email: string
+  username: string | null
+  role: string | null
+  isActive: boolean
+  createdAt: string | null
+}
+
+export function fetchPharmacySuppliers(token: string) {
+  return apiRequest<{ suppliers: PharmacySupplier[] }>('/api/mobile/pharmacy/suppliers', {
+    token,
+  })
+}
+
+export function createPharmacySupplier(
+  token: string,
+  body: {
+    name: string
+    email: string
+    phone?: string
+    address?: string
+    contactPerson?: string
+    notes?: string
+  },
+) {
+  return apiRequest<{ ok: boolean; supplier: PharmacySupplier }>(
+    '/api/mobile/pharmacy/suppliers',
+    { method: 'POST', token, body },
+  )
+}
+
+export function fetchPharmacyPurchaseOrders(token: string, supplierId?: string) {
+  const q = supplierId ? `?supplierId=${encodeURIComponent(supplierId)}` : ''
+  return apiRequest<{ purchaseOrders: PharmacyPurchaseOrder[] }>(
+    `/api/mobile/pharmacy/purchase-orders${q}`,
+    { token },
+  )
+}
+
+export function createPharmacyPurchaseOrder(
+  token: string,
+  body: {
+    supplierId: string
+    items: Array<{ productId?: string; productName: string; quantity: number; unitPrice: number }>
+    notes?: string
+    expectedDate?: string
+  },
+) {
+  return apiRequest<{ ok: boolean; purchaseOrder: PharmacyPurchaseOrder }>(
+    '/api/mobile/pharmacy/purchase-orders',
+    { method: 'POST', token, body },
+  )
+}
+
+export function updatePharmacyPurchaseOrderStatus(
+  token: string,
+  body: {
+    id: string
+    status: string
+    receiptItems?: Array<{
+      productId: string
+      batchNumber: string
+      expiryDate: string
+      quantity?: number
+      costPrice?: number
+    }>
+  },
+) {
+  return apiRequest<{
+    ok: boolean
+    purchaseOrder: PharmacyPurchaseOrder | null
+    received?: Array<{ productId: string; batchId: string; quantity: number }>
+  }>('/api/mobile/pharmacy/purchase-orders', { method: 'PATCH', token, body })
+}
+
+export function fetchPharmacyReport(
+  token: string,
+  type: 'sales' | 'inventory' | 'low-stock' | 'expiry' | 'refunds',
+  from?: string,
+  to?: string,
+) {
+  const params = new URLSearchParams({ type })
+  if (from) params.set('from', from)
+  if (to) params.set('to', to)
+  return apiRequest<Record<string, unknown>>(`/api/mobile/pharmacy/reports?${params}`, {
+    token,
+  })
+}
+
+export function fetchPharmacySettings(token: string) {
+  return apiRequest<{ settings: PharmacySettings }>('/api/mobile/pharmacy/settings', { token })
+}
+
+export function patchPharmacySettings(
+  token: string,
+  body: { pharmacyName?: string; receiptHeader?: string; receiptFooter?: string },
+) {
+  return apiRequest<{ ok: boolean; settings: PharmacySettings }>(
+    '/api/mobile/pharmacy/settings',
+    { method: 'PATCH', token, body },
+  )
+}
+
+export function fetchPharmacyUsers(token: string) {
+  return apiRequest<{ users: PharmacyStaffUser[] }>('/api/mobile/pharmacy/users', { token })
+}
+
+export function receivePharmacyStockMobile(
+  token: string,
+  body: {
+    productId: string
+    batchNumber: string
+    quantity: number
+    expiryDate: string
+    costPrice?: number
+    sellingPrice?: number
+    supplierId?: string
+    reason?: string
+  },
+) {
+  return apiRequest<{
+    ok: boolean
+    productId: string
+    batchId: string | null
+    received: number
+    productName?: string
+  }>('/api/mobile/pharmacy/receiving', { method: 'POST', token, body })
+}
+
+export function fetchPharmacyRefunds(token: string) {
+  return apiRequest<{
+    refunds: Array<{
+      id: string
+      receiptNumber: string
+      totalAmount: number
+      paymentMethod: string | null
+      status: string
+      reason: string | null
+      voidedAt: string | null
+      createdAt: string
+    }>
+  }>('/api/mobile/pharmacy/refunds', { token })
+}
+
+export function postPharmacyRefund(
+  token: string,
+  body: { saleId: string; reason: string; restoreAs?: 'active' | 'quarantined' },
+) {
+  return apiRequest<{
+    ok: boolean
+    saleId: string
+    receiptNumber?: string
+    refundAmount: number
+    restoreAs: string
+    status: string
+  }>('/api/mobile/pharmacy/refunds', { method: 'POST', token, body })
+}
+
+export function searchPosProducts(token: string, q: string) {
+  const params = new URLSearchParams({ q, limit: '40' })
+  return apiRequest<{
+    products: Array<{
+      id: string
+      name: string
+      sku: string | null
+      barcode: string | null
+      price: number
+      costPrice: number | null
+      quantity: number
+      sellableQuantity?: number
+    }>
+  }>(`/api/mobile/pharmacy/pos/products?${params}`, { token })
+}

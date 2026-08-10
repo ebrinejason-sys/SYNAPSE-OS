@@ -92,6 +92,18 @@ export default function StockScreen() {
         </Pressable>
         <Pressable
           style={({ pressed }) => [styles.toolBtnGhost, pressed && styles.cardPressed]}
+          onPress={() => router.push('/stock-receive' as never)}
+        >
+          <Text style={styles.toolBtnGhostText}>Receive</Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.toolBtnGhost, pressed && styles.cardPressed]}
+          onPress={() => router.push('/barcode-scan' as never)}
+        >
+          <Text style={styles.toolBtnGhostText}>Barcode</Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.toolBtnGhost, pressed && styles.cardPressed]}
           onPress={() => router.push('/stock-import' as never)}
         >
           <Text style={styles.toolBtnGhostText}>Bulk import</Text>
@@ -172,12 +184,14 @@ const styles = StyleSheet.create({
   },
   toolbar: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
   },
   toolBtn: {
-    flex: 1,
+    minWidth: '30%',
+    flexGrow: 1,
     backgroundColor: colors.primary,
     borderRadius: radii.md,
     paddingVertical: spacing.md,
@@ -189,7 +203,8 @@ const styles = StyleSheet.create({
     fontFamily: 'DMSans_700Bold',
   },
   toolBtnGhost: {
-    flex: 1,
+    minWidth: '30%',
+    flexGrow: 1,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
