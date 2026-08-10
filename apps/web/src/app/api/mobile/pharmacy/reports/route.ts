@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
+import { summarizeInventory, daysUntilExpiry, kampalaToday } from '@synapse/db/inventory'
 import {
   isMobileAuth,
   requireMobilePharmacyAuth,
@@ -10,287 +11,145 @@ export const dynamic = 'force-dynamic'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = () => supabaseAdmin as any
 
-const REPORT_TYPES = new Set(['sales', 'inventory', 'low-stock', 'expiry', 'refunds'])
+function rangeFor(period: string, start?: string, end?: string): { from: string; to: string } {
+  const now = new Date()
+  const to = end ? new Date(end) : now
+  let from: Date
+  switch (period) {
+    case 'today':
+      from = new Date(now); from.setUTCHours(0, 0, 0, 0); break
+    case 'week':
+      from = new Date(now.getTime() - 7 * 86_400_000); break
+    case 'month':
+      from = new Date(now.getTime() - 30 * 86_400_000); break
+    case 'year':
+      from = new Date(now.getTime() - 365 * 86_400_000); break
+    case 'custom':
+      from = start ? new Date(start) : new Date(now.getTime() - 30 * 86_400_000); break
+    default:
+      from = new Date(now); from.setUTCHours(0, 0, 0, 0)
+  }
+  return { from: from.toISOString(), to: to.toISOString() }
+}
 
-/**
- * GET — mobile-friendly pharmacy reports.
- * Query: type=sales|inventory|low-stock|expiry|refunds, from=, to=
- */
+/** Pharmacy operational + financial report (tenant-scoped), computed from POS + inventory. */
 export async function GET(req: NextRequest) {
   const auth = await requireMobilePharmacyAuth(req)
   if (!isMobileAuth(auth)) return auth
 
-  const params = new URL(req.url).searchParams
-  const reportType = params.get('type') || 'sales'
-  if (!REPORT_TYPES.has(reportType)) {
-    return NextResponse.json(
-      { error: 'Invalid type. Use sales|inventory|low-stock|expiry|refunds' },
-      { status: 400 },
-    )
+  const url = new URL(req.url)
+  const period = url.searchParams.get('period') ?? 'today'
+  const { from, to } = rangeFor(period, url.searchParams.get('start') ?? undefined, url.searchParams.get('end') ?? undefined)
+
+  // Completed sales in range.
+  const { data: sales } = await db()
+    .from('pharmacy_pos_sales')
+    .select('id, total_amount, discount_total, tax_amount, payment_method, status, created_at')
+    .eq('tenant_id', auth.tenantId)
+    .eq('status', 'completed')
+    .gte('created_at', from)
+    .lte('created_at', to)
+
+  const saleRows = sales ?? []
+  const saleIds = saleRows.map((s: any) => s.id)
+
+  let totalSales = 0
+  let totalDiscount = 0
+  let totalTax = 0
+  const payment = new Map<string, { total: number; count: number }>()
+  for (const s of saleRows) {
+    totalSales += Number(s.total_amount ?? 0)
+    totalDiscount += Number(s.discount_total ?? 0)
+    totalTax += Number(s.tax_amount ?? 0)
+    const m = String(s.payment_method ?? 'UNKNOWN')
+    const p = payment.get(m) ?? { total: 0, count: 0 }
+    p.total += Number(s.total_amount ?? 0)
+    p.count += 1
+    payment.set(m, p)
+  }
+  const transactionCount = saleRows.length
+  const averageTransaction = transactionCount ? Math.round(totalSales / transactionCount) : 0
+
+  // Line items for those sales → top products + gross profit.
+  const topProducts = new Map<string, { name: string; quantity: number; revenue: number; cost: number }>()
+  let revenue = 0
+  let cost = 0
+  if (saleIds.length) {
+    const { data: items } = await db()
+      .from('pharmacy_pos_sale_items')
+      .select('sale_id, product_id, batch_id, quantity, unit_price, discount_amount')
+      .in('sale_id', saleIds)
+    const rows = items ?? []
+    const productIds = [...new Set(rows.map((r: any) => r.product_id).filter(Boolean))] as string[]
+    const batchIds = [...new Set(rows.map((r: any) => r.batch_id).filter(Boolean))] as string[]
+    const products = new Map<string, any>()
+    if (productIds.length) {
+      const { data } = await db().from('pharmacy_products').select('id, name, cost_price').in('id', productIds)
+      for (const p of data ?? []) products.set(String(p.id), p)
+    }
+    const batchCost = new Map<string, number>()
+    if (batchIds.length) {
+      const { data } = await db().from('pharmacy_product_batches').select('id, cost_price').in('id', batchIds)
+      for (const b of data ?? []) batchCost.set(String(b.id), Number(b.cost_price ?? 0))
+    }
+    for (const r of rows) {
+      const qty = Number(r.quantity ?? 0)
+      const lineRev = qty * Number(r.unit_price ?? 0) - Number(r.discount_amount ?? 0)
+      const unitCost = r.batch_id && batchCost.has(String(r.batch_id))
+        ? batchCost.get(String(r.batch_id))!
+        : Number(products.get(String(r.product_id))?.cost_price ?? 0)
+      revenue += lineRev
+      cost += qty * unitCost
+      const name = products.get(String(r.product_id))?.name ?? 'Unknown'
+      const tp = topProducts.get(String(r.product_id)) ?? { name, quantity: 0, revenue: 0, cost: 0 }
+      tp.quantity += qty
+      tp.revenue += lineRev
+      tp.cost += qty * unitCost
+      topProducts.set(String(r.product_id), tp)
+    }
   }
 
-  const fromParam = params.get('from')
-  const toParam = params.get('to')
-  const dateFrom = fromParam
-    ? new Date(fromParam)
-    : new Date(new Date().setHours(0, 0, 0, 0))
-  const dateTo = toParam ? new Date(toParam) : new Date()
-  // Include full end day when date-only
-  if (toParam && toParam.length <= 10) {
-    dateTo.setHours(23, 59, 59, 999)
+  // Inventory snapshot: low stock + expiring.
+  const today = kampalaToday()
+  const { data: catalog } = await db()
+    .from('pharmacy_products')
+    .select('id, name, quantity, reorder_level, is_active, pharmacy_product_batches(quantity, expiry_date, is_active)')
+    .eq('tenant_id', auth.tenantId)
+    .eq('is_active', true)
+
+  const lowStock: Array<{ name: string; sellable: number; reorderLevel: number }> = []
+  const expiring: Array<{ name: string; expiryDate: string; days: number }> = []
+  for (const p of catalog ?? []) {
+    const summary = summarizeInventory({ id: p.id, name: p.name, quantity: p.quantity }, p.pharmacy_product_batches ?? [], today)
+    const reorder = Number(p.reorder_level ?? 0)
+    if (reorder > 0 && summary.sellableQuantity <= reorder) {
+      lowStock.push({ name: p.name, sellable: summary.sellableQuantity, reorderLevel: reorder })
+    }
+    for (const b of p.pharmacy_product_batches ?? []) {
+      const d = daysUntilExpiry(b.expiry_date, today)
+      if (d != null && d >= 0 && d <= 90 && Number(b.quantity ?? 0) > 0) {
+        expiring.push({ name: p.name, expiryDate: String(b.expiry_date), days: d })
+      }
+    }
   }
+  expiring.sort((a, b) => a.days - b.days)
 
-  const dateFromISO = dateFrom.toISOString()
-  const dateToISO = dateTo.toISOString()
-  const tenantId = auth.tenantId
-
-  try {
-    if (reportType === 'sales') {
-      const [posResult, posItemsResult] = await Promise.all([
-        db()
-          .from('pharmacy_pos_sales')
-          .select(
-            'id, receipt_number, total_amount, discount_total, tax_amount, payment_method, cashier_id, created_at',
-          )
-          .eq('tenant_id', tenantId)
-          .eq('status', 'completed')
-          .gte('created_at', dateFromISO)
-          .lte('created_at', dateToISO)
-          .order('created_at', { ascending: false })
-          .limit(200),
-        db()
-          .from('pharmacy_pos_sale_items')
-          .select(
-            'product_id, quantity, unit_price, discount_amount, line_total, pharmacy_pos_sales!inner(status, created_at), pharmacy_products(name, sku, category)',
-          )
-          .eq('tenant_id', tenantId)
-          .eq('pharmacy_pos_sales.status', 'completed')
-          .gte('pharmacy_pos_sales.created_at', dateFromISO)
-          .lte('pharmacy_pos_sales.created_at', dateToISO),
-      ])
-
-      if (posResult.error) {
-        console.error('[mobile/pharmacy/reports sales]', posResult.error.message)
-        return NextResponse.json({ error: 'Failed to load sales report' }, { status: 500 })
-      }
-
-      const transactions = (posResult.data ?? []).map((s: Record<string, unknown>) => ({
-        id: s.id,
-        receiptNumber: s.receipt_number,
-        totalAmount: Number(s.total_amount ?? 0),
-        discount: Number(s.discount_total ?? 0),
-        tax: Number(s.tax_amount ?? 0),
-        paymentMethod: s.payment_method,
-        createdAt: s.created_at,
-      }))
-
-      let totalSales = 0
-      let totalDiscount = 0
-      const byPayment = new Map<string, { method: string; total: number; count: number }>()
-      for (const tx of transactions) {
-        totalSales += tx.totalAmount
-        totalDiscount += tx.discount
-        const method = String(tx.paymentMethod ?? 'UNKNOWN')
-        const existing = byPayment.get(method) ?? { method, total: 0, count: 0 }
-        existing.total += tx.totalAmount
-        existing.count += 1
-        byPayment.set(method, existing)
-      }
-
-      const topProductsMap = new Map<
-        string,
-        { productId: string; name: string; quantity: number; total: number }
-      >()
-      for (const item of posItemsResult.data ?? []) {
-        const pid = String(item.product_id ?? 'unknown')
-        const product = item.pharmacy_products as { name?: string } | null
-        const lineTotal =
-          item.line_total != null
-            ? Number(item.line_total)
-            : Number(item.quantity ?? 0) * Number(item.unit_price ?? 0) -
-              Number(item.discount_amount ?? 0)
-        const existing = topProductsMap.get(pid) ?? {
-          productId: pid,
-          name: product?.name ?? 'Unknown',
-          quantity: 0,
-          total: 0,
-        }
-        existing.quantity += Number(item.quantity ?? 0)
-        existing.total += lineTotal
-        topProductsMap.set(pid, existing)
-      }
-
-      return NextResponse.json({
-        type: 'sales',
-        from: dateFromISO,
-        to: dateToISO,
-        summary: {
-          totalSales,
-          totalDiscount,
-          transactionCount: transactions.length,
-          averageTransaction:
-            transactions.length > 0 ? totalSales / transactions.length : 0,
-        },
-        salesByPaymentMethod: Array.from(byPayment.values()),
-        topProducts: Array.from(topProductsMap.values())
-          .sort((a, b) => b.total - a.total)
-          .slice(0, 15),
-        transactions: transactions.slice(0, 100),
-      })
-    }
-
-    if (reportType === 'inventory' || reportType === 'low-stock' || reportType === 'expiry') {
-      const { data: settingsRow } = await db()
-        .from('pharmacy_settings')
-        .select('low_stock_threshold')
-        .eq('tenant_id', tenantId)
-        .maybeSingle()
-      const lowStockThreshold = settingsRow?.low_stock_threshold ?? 10
-      const nowISO = new Date().toISOString()
-      const thirtyDays = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-
-      const { data: allProducts, error } = await db()
-        .from('pharmacy_products')
-        .select(
-          'id, name, sku, category, quantity, cost_price, price, reorder_level, expiry_date, is_active',
-        )
-        .eq('tenant_id', tenantId)
-        .eq('is_active', true)
-
-      if (error) {
-        console.error('[mobile/pharmacy/reports inventory]', error.message)
-        return NextResponse.json({ error: 'Failed to load inventory report' }, { status: 500 })
-      }
-
-      const products = (allProducts ?? []) as Array<Record<string, unknown>>
-      const lowStock = products.filter(
-        (p) => Number(p.quantity ?? 0) > 0 && Number(p.quantity ?? 0) <= lowStockThreshold,
-      )
-      const outOfStock = products.filter((p) => Number(p.quantity ?? 0) <= 0)
-      const expiring = products.filter((p) => {
-        const exp = p.expiry_date as string | null
-        return exp && exp >= nowISO && exp <= thirtyDays
-      })
-      const expired = products.filter((p) => {
-        const exp = p.expiry_date as string | null
-        return exp && exp < nowISO
-      })
-
-      const mapProduct = (p: Record<string, unknown>) => ({
-        id: p.id,
-        name: p.name,
-        sku: p.sku,
-        category: p.category,
-        quantity: Number(p.quantity ?? 0),
-        costPrice: Number(p.cost_price ?? 0),
-        price: Number(p.price ?? 0),
-        reorderLevel: Number(p.reorder_level ?? 0),
-        expiryDate: p.expiry_date ?? null,
-      })
-
-      if (reportType === 'low-stock') {
-        return NextResponse.json({
-          type: 'low-stock',
-          from: dateFromISO,
-          to: dateToISO,
-          summary: {
-            lowStockCount: lowStock.length,
-            outOfStockCount: outOfStock.length,
-            threshold: lowStockThreshold,
-          },
-          lowStockProducts: lowStock.map(mapProduct),
-          outOfStockProducts: outOfStock.map(mapProduct),
-        })
-      }
-
-      if (reportType === 'expiry') {
-        return NextResponse.json({
-          type: 'expiry',
-          from: dateFromISO,
-          to: dateToISO,
-          summary: {
-            expiringCount: expiring.length,
-            expiredCount: expired.length,
-          },
-          expiringProducts: expiring.map(mapProduct),
-          expiredProducts: expired.map(mapProduct),
-        })
-      }
-
-      const totalUnits = products.reduce((s, p) => s + Number(p.quantity ?? 0), 0)
-      const inventoryValueAtCost = products.reduce(
-        (s, p) => s + Number(p.quantity ?? 0) * Number(p.cost_price ?? 0),
-        0,
-      )
-      const inventoryValueAtRetail = products.reduce(
-        (s, p) => s + Number(p.quantity ?? 0) * Number(p.price ?? 0),
-        0,
-      )
-
-      return NextResponse.json({
-        type: 'inventory',
-        from: dateFromISO,
-        to: dateToISO,
-        summary: {
-          totalProducts: products.length,
-          totalUnits,
-          inventoryValueAtCost,
-          inventoryValueAtRetail,
-          potentialProfit: inventoryValueAtRetail - inventoryValueAtCost,
-          lowStockCount: lowStock.length,
-          outOfStockCount: outOfStock.length,
-          expiringCount: expiring.length,
-          expiredCount: expired.length,
-        },
-        lowStockProducts: lowStock.slice(0, 50).map(mapProduct),
-        expiringProducts: expiring.slice(0, 50).map(mapProduct),
-      })
-    }
-
-    // refunds
-    const { data: voids, error: voidError } = await db()
-      .from('pharmacy_pos_sales')
-      .select(
-        'id, receipt_number, total_amount, payment_method, voided_reason, voided_at, updated_at, created_at',
-      )
-      .eq('tenant_id', tenantId)
-      .eq('status', 'voided')
-      .gte('updated_at', dateFromISO)
-      .lte('updated_at', dateToISO)
-      .order('updated_at', { ascending: false })
-      .limit(100)
-
-    if (voidError) {
-      console.error('[mobile/pharmacy/reports refunds]', voidError.message)
-      return NextResponse.json({ error: 'Failed to load refunds report' }, { status: 500 })
-    }
-
-    const refunds = (voids ?? []).map((s: Record<string, unknown>) => ({
-      id: s.id,
-      receiptNumber: s.receipt_number,
-      totalAmount: Number(s.total_amount ?? 0),
-      paymentMethod: s.payment_method,
-      reason: s.voided_reason,
-      voidedAt: s.voided_at ?? s.updated_at,
-      createdAt: s.created_at,
-    }))
-    const totalRefunded = refunds.reduce(
-      (s: number, r: { totalAmount: number }) => s + r.totalAmount,
-      0,
-    )
-
-    return NextResponse.json({
-      type: 'refunds',
-      from: dateFromISO,
-      to: dateToISO,
-      summary: {
-        refundCount: refunds.length,
-        totalRefunded,
-      },
-      refunds,
-    })
-  } catch (error) {
-    console.error('[mobile/pharmacy/reports]', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+  return NextResponse.json({
+    period,
+    from,
+    to,
+    summary: {
+      totalSales,
+      transactionCount,
+      averageTransaction,
+      totalDiscount,
+      totalTax,
+      grossProfit: Math.round(revenue - cost),
+      profitMargin: revenue > 0 ? Math.round(((revenue - cost) / revenue) * 100) : 0,
+    },
+    paymentMix: [...payment.entries()].map(([method, v]) => ({ method, total: v.total, count: v.count })),
+    topProducts: [...topProducts.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 15),
+    lowStock: lowStock.slice(0, 50),
+    expiring: expiring.slice(0, 50),
+  })
 }

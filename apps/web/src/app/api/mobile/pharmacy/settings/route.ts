@@ -11,133 +11,112 @@ export const dynamic = 'force-dynamic'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = () => supabaseAdmin as any
 
-function mapSettings(settings: Record<string, unknown>) {
-  return {
-    id: settings.id,
-    tenantId: settings.tenant_id,
-    pharmacyName: settings.pharmacy_name ?? '',
-    location: settings.location ?? '',
-    contact: settings.contact ?? '',
-    email: settings.email ?? '',
-    footerText: settings.footer_text ?? '',
-    receiptHeader: settings.receipt_header ?? '',
-    receiptFooter: settings.receipt_footer ?? '',
-    currency: settings.currency ?? 'UGX',
-    taxRate: settings.tax_rate ?? 0,
-    lowStockThreshold: settings.low_stock_threshold ?? 10,
-  }
-}
-
-/** GET — pharmacy settings for the authenticated tenant. */
+/** Pharmacy settings incl. receipt identity (TIN, NDA licence, supervising pharmacist). */
 export async function GET(req: NextRequest) {
   const auth = await requireMobilePharmacyAuth(req)
   if (!isMobileAuth(auth)) return auth
 
-  const { data: settings, error } = await db()
+  const { data: s } = await db()
     .from('pharmacy_settings')
     .select('*')
     .eq('tenant_id', auth.tenantId)
     .maybeSingle()
 
-  if (error && error.code !== 'PGRST116') {
-    console.error('[mobile/pharmacy/settings GET]', error.message)
-    return NextResponse.json({ error: 'Failed to load settings' }, { status: 500 })
-  }
-
-  if (!settings) {
-    return NextResponse.json({
-      settings: {
-        pharmacyName: '',
-        receiptHeader: '',
-        receiptFooter: '',
-        currency: 'UGX',
-        lowStockThreshold: 10,
-      },
-    })
-  }
-
-  return NextResponse.json({ settings: mapSettings(settings as Record<string, unknown>) })
+  return NextResponse.json({
+    settings: {
+      pharmacyName: s?.pharmacy_name ?? '',
+      legalName: s?.legal_name ?? '',
+      tradingName: s?.trading_name ?? '',
+      location: s?.location ?? '',
+      contact: s?.contact ?? '',
+      email: s?.email ?? '',
+      logoUrl: s?.logo_url ?? s?.logo ?? null,
+      tin: s?.tin ?? '',
+      ndaLicenseNumber: s?.nda_license_number ?? '',
+      supervisingPharmacist: s?.supervising_pharmacist ?? '',
+      pharmacistRegNumber: s?.pharmacist_registration_number ?? '',
+      branchName: s?.branch_name ?? '',
+      receiptHeader: s?.receipt_header ?? '',
+      receiptFooter: s?.receipt_footer ?? s?.footer_text ?? '',
+      currency: s?.currency ?? 'UGX',
+      taxRate: Number(s?.tax_rate ?? 0),
+      vatEnabled: Boolean(s?.vat_enabled),
+      vatRate: Number(s?.vat_rate ?? 18),
+      lowStockThreshold: Number(s?.low_stock_threshold ?? 10),
+      discountApprovalThresholdPct: Number(s?.discount_approval_threshold_pct ?? 5),
+      mandatoryReceiptPrint: s?.mandatory_receipt_print !== false,
+      printerType: s?.printer_type ?? 'default',
+    },
+    canEdit: isMobilePharmacyAdmin(auth),
+  })
 }
 
-/** PATCH — limited fields (receipt header/footer, pharmacy name) for admins. */
-export async function PATCH(req: NextRequest) {
+/** Save settings. Admin-only. Core columns always saved; receipt-identity columns saved
+ *  additively (guarded) so this works before/after the identity migration is applied. */
+export async function POST(req: NextRequest) {
   const auth = await requireMobilePharmacyAuth(req)
   if (!isMobileAuth(auth)) return auth
-
   if (!isMobilePharmacyAdmin(auth)) {
-    return NextResponse.json({ error: 'Admin permission required' }, { status: 403 })
+    return NextResponse.json({ error: 'Admin role required' }, { status: 403 })
   }
 
-  const body = (await req.json().catch(() => null)) as {
-    pharmacyName?: string
-    receiptHeader?: string
-    receiptFooter?: string
-  } | null
+  const d = (await req.json().catch(() => ({}))) as Record<string, unknown>
 
-  if (!body) {
-    return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
-  }
-
-  const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
-  if (typeof body.pharmacyName === 'string') update.pharmacy_name = body.pharmacyName.trim()
-  if (typeof body.receiptHeader === 'string') update.receipt_header = body.receiptHeader
-  if (typeof body.receiptFooter === 'string') update.receipt_footer = body.receiptFooter
-
-  if (Object.keys(update).length <= 1) {
-    return NextResponse.json(
-      { error: 'Provide pharmacyName, receiptHeader, and/or receiptFooter' },
-      { status: 400 },
-    )
-  }
-
-  const { data: existing } = await db()
-    .from('pharmacy_settings')
-    .select('id')
-    .eq('tenant_id', auth.tenantId)
-    .maybeSingle()
-
-  let settings: Record<string, unknown> | null = null
-  if (existing) {
-    const { data, error } = await db()
-      .from('pharmacy_settings')
-      .update(update)
-      .eq('tenant_id', auth.tenantId)
-      .select('*')
-      .single()
-    if (error) {
-      console.error('[mobile/pharmacy/settings PATCH]', error.message)
-      return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 })
-    }
-    settings = data
-  } else {
-    const { data, error } = await db()
-      .from('pharmacy_settings')
-      .insert({
-        tenant_id: auth.tenantId,
-        pharmacy_name: typeof body.pharmacyName === 'string' ? body.pharmacyName.trim() : '',
-        receipt_header: typeof body.receiptHeader === 'string' ? body.receiptHeader : '',
-        receipt_footer: typeof body.receiptFooter === 'string' ? body.receiptFooter : '',
-      })
-      .select('*')
-      .single()
-    if (error) {
-      console.error('[mobile/pharmacy/settings PATCH insert]', error.message)
-      return NextResponse.json({ error: 'Failed to create settings' }, { status: 500 })
-    }
-    settings = data
-  }
-
-  await db().from('pharmacy_audit_logs').insert({
+  const core = {
     tenant_id: auth.tenantId,
-    profile_id: auth.userId,
-    action: 'UPDATE_SETTINGS',
-    entity: 'SETTINGS',
-    entity_id: settings?.id ?? auth.tenantId,
-    details: 'Updated pharmacy settings (mobile)',
-  })
+    pharmacy_name: d.pharmacyName ?? null,
+    location: d.location ?? null,
+    contact: d.contact ?? null,
+    email: d.email ?? null,
+    receipt_header: d.receiptHeader ?? null,
+    receipt_footer: d.receiptFooter ?? null,
+    footer_text: d.receiptFooter ?? null,
+    currency: d.currency ?? 'UGX',
+    tax_rate: d.taxRate ?? 0,
+    low_stock_threshold: d.lowStockThreshold ?? 10,
+    printer_type: d.printerType ?? 'default',
+  }
 
-  return NextResponse.json({
-    ok: true,
-    settings: mapSettings(settings as Record<string, unknown>),
-  })
+  const { error } = await db().from('pharmacy_settings').upsert(core, { onConflict: 'tenant_id' })
+  if (error) {
+    console.error('[mobile/pharmacy/settings]', error.message)
+    return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 })
+  }
+
+  // Receipt-identity + policy columns (present after the identity migration).
+  try {
+    await db()
+      .from('pharmacy_settings')
+      .update({
+        legal_name: d.legalName ?? null,
+        trading_name: d.tradingName ?? null,
+        logo_url: d.logoUrl ?? null,
+        tin: d.tin ?? null,
+        nda_license_number: d.ndaLicenseNumber ?? null,
+        supervising_pharmacist: d.supervisingPharmacist ?? null,
+        pharmacist_registration_number: d.pharmacistRegNumber ?? null,
+        branch_name: d.branchName ?? null,
+        vat_enabled: Boolean(d.vatEnabled),
+        vat_rate: d.vatRate ?? 18,
+        discount_approval_threshold_pct: d.discountApprovalThresholdPct ?? 5,
+        mandatory_receipt_print: d.mandatoryReceiptPrint !== false,
+      })
+      .eq('tenant_id', auth.tenantId)
+  } catch {
+    // Columns not present yet (identity migration not applied) — core settings still saved.
+  }
+
+  try {
+    await db().from('pharmacy_audit_logs').insert({
+      tenant_id: auth.tenantId,
+      profile_id: auth.userId,
+      action: 'UPDATE_SETTINGS',
+      entity: 'pharmacy_settings',
+      details: { source: 'mobile' },
+    })
+  } catch {
+    /* non-fatal */
+  }
+
+  return NextResponse.json({ ok: true })
 }

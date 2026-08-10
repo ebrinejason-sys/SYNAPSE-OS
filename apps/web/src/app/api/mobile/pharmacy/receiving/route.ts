@@ -25,7 +25,11 @@ function canReceive(auth: MobileAuth): boolean {
   return INVENTORY_WRITE_ROLES.has(auth.role) || isMobilePharmacyAdmin(auth)
 }
 
-/** POST — receive stock via receivePharmacyStock (batch + expiry required). */
+/**
+ * Goods-received-note / stock receiving. New sellable stock enters ONLY through a real batch
+ * via receivePharmacyStock — requires a genuine batch number, positive quantity and a future
+ * expiry date. Accepts one or more lines (native GRN screen).
+ */
 export async function POST(req: NextRequest) {
   const auth = await requireMobilePharmacyAuth(req)
   if (!isMobileAuth(auth)) return auth
@@ -35,74 +39,59 @@ export async function POST(req: NextRequest) {
   }
 
   const body = (await req.json().catch(() => null)) as {
-    productId?: string
-    batchNumber?: string
-    quantity?: number
-    expiryDate?: string
-    costPrice?: number
-    sellingPrice?: number
-    supplierId?: string
     supplierRef?: string
-    purchaseOrderId?: string
-    storeId?: string
-    reason?: string
+    lines?: Array<{
+      productId: string
+      batchNumber: string
+      quantity: number
+      expiryDate: string
+      costPrice?: number
+    }>
   } | null
 
-  if (
-    !body?.productId ||
-    !body.batchNumber?.trim() ||
-    !body.quantity ||
-    !body.expiryDate
-  ) {
-    return NextResponse.json(
-      {
-        error:
-          'productId, batchNumber, quantity, and expiryDate are required to receive stock.',
-        code: 'REQUIRES_BATCH',
-      },
-      { status: 400 },
-    )
+  const lines = body?.lines ?? []
+  if (lines.length === 0) {
+    return NextResponse.json({ error: 'At least one line is required' }, { status: 400 })
   }
 
-  const { data: product } = await db()
-    .from('pharmacy_products')
-    .select('id, name')
-    .eq('id', body.productId)
-    .eq('tenant_id', auth.tenantId)
-    .maybeSingle()
+  const results: Array<{ productId: string; ok: boolean; batchId?: string; error?: string }> = []
+  for (const line of lines) {
+    if (!line.productId || !line.batchNumber?.trim() || !line.expiryDate || !(Number(line.quantity) > 0)) {
+      results.push({
+        productId: line.productId,
+        ok: false,
+        error: 'Missing batch number, quantity or expiry',
+      })
+      continue
+    }
 
-  if (!product) {
-    return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+    const { data, error } = await receivePharmacyStock(db(), {
+      tenantId: auth.tenantId,
+      productId: line.productId,
+      batchNumber: line.batchNumber,
+      quantity: Math.trunc(Number(line.quantity)),
+      expiryDate: line.expiryDate,
+      costPrice: line.costPrice ?? null,
+      receivedBy: auth.userId,
+      supplierRef: body?.supplierRef ?? null,
+      reason: 'Stock received (mobile GRN)',
+    })
+
+    if (error) {
+      results.push({
+        productId: line.productId,
+        ok: false,
+        error: error.humanMessage || error.message || 'Receiving failed',
+      })
+    } else {
+      results.push({
+        productId: line.productId,
+        ok: true,
+        batchId: data?.batchId,
+      })
+    }
   }
 
-  const { data, error } = await receivePharmacyStock(db(), {
-    tenantId: auth.tenantId,
-    productId: body.productId,
-    batchNumber: body.batchNumber,
-    quantity: Number(body.quantity),
-    expiryDate: body.expiryDate,
-    costPrice: body.costPrice ?? null,
-    sellingPrice: body.sellingPrice ?? null,
-    receivedBy: auth.userId,
-    supplierId: body.supplierId ?? null,
-    supplierRef: body.supplierRef ?? null,
-    purchaseOrderId: body.purchaseOrderId ?? null,
-    storeId: body.storeId ?? null,
-    reason: body.reason ?? 'Stock received (mobile)',
-  })
-
-  if (error) {
-    return NextResponse.json(
-      { error: error.humanMessage, code: error.code, detail: error.message },
-      { status: 400 },
-    )
-  }
-
-  return NextResponse.json({
-    ok: true,
-    productId: data?.productId ?? body.productId,
-    batchId: data?.batchId ?? null,
-    received: data?.received ?? Number(body.quantity),
-    productName: product.name,
-  })
+  const anyOk = results.some((r) => r.ok)
+  return NextResponse.json({ ok: anyOk, results }, { status: anyOk ? 200 : 400 })
 }

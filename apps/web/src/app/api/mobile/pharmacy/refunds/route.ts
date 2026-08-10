@@ -4,6 +4,7 @@ import { reversePharmacySale } from '@synapse/db/inventory-rpc'
 import { canDo } from '../../../../../lib/capability-map'
 import {
   isMobileAuth,
+  isMobilePharmacyAdmin,
   requireMobilePharmacyAuth,
   type MobileAuth,
 } from '../../../../../lib/mobile-pharmacy-auth'
@@ -22,59 +23,43 @@ const REFUND_ROLES = new Set([
 ])
 
 function canRefund(auth: MobileAuth): boolean {
+  if (isMobilePharmacyAdmin(auth)) return true
   if (REFUND_ROLES.has(auth.role)) return true
   return canDo(auth.role, 'pos', 'refund', 'write')
 }
 
-/** GET — list voided POS sales for the tenant. */
+/** GET — list voided/refunded POS sales for this tenant. */
 export async function GET(req: NextRequest) {
   const auth = await requireMobilePharmacyAuth(req)
   if (!isMobileAuth(auth)) return auth
 
-  if (!canRefund(auth)) {
-    return NextResponse.json(
-      { error: 'Refund permission required (pos.refund)' },
-      { status: 403 },
-    )
-  }
-
-  const { data: posVoids, error } = await db()
+  const { data } = await db()
     .from('pharmacy_pos_sales')
     .select(
-      `
-      id, receipt_number, total_amount, payment_method, cashier_id, status,
-      voided_reason, voided_at, updated_at, created_at,
-      items:pharmacy_pos_sale_items (
-        id, quantity, unit_price, product:pharmacy_products ( name, sku )
-      )
-    `,
+      'id, receipt_number, total_amount, payment_method, status, voided_reason, voided_at, created_at',
     )
     .eq('tenant_id', auth.tenantId)
     .eq('status', 'voided')
-    .order('updated_at', { ascending: false })
-    .limit(100)
-
-  if (error) {
-    console.error('[mobile/pharmacy/refunds GET]', error.message)
-    return NextResponse.json({ error: 'Failed to fetch refunds' }, { status: 500 })
-  }
+    .order('voided_at', { ascending: false })
+    .limit(50)
 
   return NextResponse.json({
-    refunds: (posVoids ?? []).map((s: Record<string, unknown>) => ({
+    canRefund: canRefund(auth),
+    refunds: (data ?? []).map((s: Record<string, unknown>) => ({
       id: s.id,
       receiptNumber: s.receipt_number,
-      totalAmount: Number(s.total_amount ?? 0),
+      amount: Number(s.total_amount ?? 0),
       paymentMethod: s.payment_method,
-      status: 'voided',
-      reason: s.voided_reason,
-      voidedAt: s.voided_at ?? s.updated_at,
+      reason: s.voided_reason ?? null,
+      voidedAt: s.voided_at ?? null,
       createdAt: s.created_at,
-      items: s.items ?? [],
     })),
   })
 }
 
-/** POST — void a completed POS sale via reversePharmacySale (default restore quarantined). */
+/**
+ * POST — refund/void a completed POS sale via reversePharmacySale (batch + product restore).
+ */
 export async function POST(req: NextRequest) {
   const auth = await requireMobilePharmacyAuth(req)
   if (!isMobileAuth(auth)) return auth
@@ -93,14 +78,14 @@ export async function POST(req: NextRequest) {
   } | null
 
   const saleId = typeof body?.saleId === 'string' ? body.saleId.trim() : ''
-  const reason = typeof body?.reason === 'string' ? body.reason.trim() : ''
+  const reason =
+    typeof body?.reason === 'string' && body.reason.trim()
+      ? body.reason.trim()
+      : 'Refund from app'
   const restoreAs = body?.restoreAs === 'active' ? 'active' : 'quarantined'
 
   if (!saleId) {
     return NextResponse.json({ error: 'saleId is required' }, { status: 400 })
-  }
-  if (!reason) {
-    return NextResponse.json({ error: 'reason is required' }, { status: 400 })
   }
 
   const { data, error } = await reversePharmacySale(db(), {
