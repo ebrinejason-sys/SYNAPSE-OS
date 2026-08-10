@@ -378,9 +378,14 @@ function esc(s: string | null | undefined): string {
 }
 
 /** HTML receipt for PDF generation (expo-print) or web print. Self-contained, print-optimised. */
-export function renderReceiptHtml(snapshot: ReceiptSnapshot): string {
+export function renderReceiptHtml(
+  snapshot: ReceiptSnapshot,
+  opts?: { paperWidth?: "58" | "80" | "a4"; fontScale?: number },
+): string {
   const c = snapshot.currency;
   const p = snapshot.pharmacy;
+  const paper = opts?.paperWidth ?? "80";
+  const scale = opts?.fontScale && opts.fontScale > 0 ? opts.fontScale : 1;
   const money = (n: number) => esc(formatMoney(n, c));
   const rows = snapshot.lines
     .map((l) => {
@@ -393,7 +398,7 @@ export function renderReceiptHtml(snapshot: ReceiptSnapshot): string {
         l.prescriptionRef ? `Rx ${l.prescriptionRef}` : null,
       ]
         .filter(Boolean)
-        .map((x) => esc(x))
+        .map((x) => esc(x as string))
         .join(" · ");
       return `<tr><td class="l">${esc(title)}${sub ? `<div class="sub">${sub}</div>` : ""}</td>
         <td class="c">${esc(String(l.quantity))} ${esc(l.packageName || l.unit || "unit")}</td>
@@ -410,28 +415,58 @@ export function renderReceiptHtml(snapshot: ReceiptSnapshot): string {
 
   return `<!doctype html><html><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color:#0b0b0d; margin:0; padding:16px; }
-  .receipt { max-width: 360px; margin: 0 auto; position: relative; }
+  @page { margin: 6mm; }
+  body {
+    font-family: "IBM Plex Mono", "Courier New", ui-monospace, monospace;
+    color:#0b0b0d;
+    margin:0;
+    padding:12px;
+    font-size: ${Math.round(12 * scale)}px;
+    line-height: 1.35;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .receipt { max-width: var(--receipt-width, 360px); margin: 0 auto; position: relative; }
+  .receipt.paper-58 { --receipt-width: 220px; }
+  .receipt.paper-80 { --receipt-width: 300px; }
+  .receipt.paper-a4 { --receipt-width: 640px; }
   .center { text-align:center; }
-  .muted { color:#555; font-size:12px; }
-  h1 { font-size:18px; margin:0; }
-  .label { font-weight:700; letter-spacing:1px; margin:8px 0; }
+  .muted { color:#555; font-size:0.92em; font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif; }
+  h1 {
+    font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    font-size:1.35em;
+    margin:0;
+    letter-spacing: 0.02em;
+    font-weight: 700;
+  }
+  .label { font-weight:700; letter-spacing:1px; margin:8px 0; font-family: "IBM Plex Sans", sans-serif; }
   .nonfiscal { color:#b45309; }
-  table { width:100%; border-collapse:collapse; font-size:12px; }
+  table { width:100%; border-collapse:collapse; font-size:1em; }
   td { padding:4px 0; vertical-align:top; }
   td.c { text-align:center; white-space:nowrap; padding-left:6px; }
-  td.r { text-align:right; white-space:nowrap; padding-left:6px; }
-  .sub { color:#666; font-size:10px; }
+  td.r { text-align:right; white-space:nowrap; padding-left:6px; font-variant-numeric: tabular-nums; }
+  .sub { color:#666; font-size:0.85em; font-family: "IBM Plex Sans", sans-serif; }
   hr { border:none; border-top:1px dashed #999; margin:8px 0; }
-  .totals td { font-size:13px; }
-  .totals .tot { font-weight:700; font-size:15px; }
-  .wm { position:absolute; top:40%; left:0; right:0; text-align:center; font-size:52px;
-        color:rgba(200,0,0,0.12); transform:rotate(-20deg); font-weight:800; pointer-events:none; }
-  .foot { margin-top:10px; font-size:11px; }
+  .totals td { font-size:1.05em; }
+  .totals .tot { font-weight:700; font-size:1.2em; }
+  .wm {
+    position:absolute; inset:20% 0 auto; text-align:center;
+    font-size:2.4em; color:rgba(180,83,9,0.18); font-weight:700;
+    transform: rotate(-18deg); pointer-events:none;
+    font-family: "IBM Plex Sans", sans-serif;
+  }
+  .foot { margin-top:10px; font-size:0.92em; }
+  @media print {
+    body { padding: 0; }
+    .receipt { max-width: 100%; }
+  }
 </style></head>
-<body><div class="receipt">${watermark}
+<body><div class="receipt paper-${esc(paper)}">${watermark}
   <div class="center">
     ${p.logoUrl ? `<img src="${esc(p.logoUrl)}" alt="logo" style="max-height:56px"/><br/>` : ""}
     <h1>${esc(p.tradingName || p.legalName)}</h1>
@@ -479,3 +514,4 @@ export function renderReceiptHtml(snapshot: ReceiptSnapshot): string {
   </div>
 </div></body></html>`;
 }
+

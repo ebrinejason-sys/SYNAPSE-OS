@@ -46,6 +46,13 @@ export async function GET(req: NextRequest) {
       discountApprovalThresholdPct: Number(s?.discount_approval_threshold_pct ?? 5),
       mandatoryReceiptPrint: s?.mandatory_receipt_print !== false,
       printerType: s?.printer_type ?? 'default',
+      receiptPaperWidth: (() => {
+        const paper = String(s?.receipt_paper_width ?? '').toLowerCase()
+        if (paper === '58' || paper === '80' || paper === 'a4') return paper
+        return String(s?.printer_type ?? '').includes('58') ? '58' : '80'
+      })(),
+      receiptFontScale: Number(s?.receipt_font_scale ?? 1) || 1,
+      autoPrintReceipt: Boolean(s?.auto_print_receipt),
     },
     canEdit: isMobilePharmacyAdmin(auth),
   })
@@ -100,10 +107,16 @@ export async function POST(req: NextRequest) {
         vat_rate: d.vatRate ?? 18,
         discount_approval_threshold_pct: d.discountApprovalThresholdPct ?? 5,
         mandatory_receipt_print: d.mandatoryReceiptPrint !== false,
+        receipt_paper_width: (() => {
+          const paper = String(d.receiptPaperWidth ?? '80').toLowerCase()
+          return paper === '58' || paper === 'a4' ? paper : '80'
+        })(),
+        receipt_font_scale: Number(d.receiptFontScale ?? 1) || 1,
+        auto_print_receipt: Boolean(d.autoPrintReceipt),
       })
       .eq('tenant_id', auth.tenantId)
   } catch {
-    // Columns not present yet (identity migration not applied) — core settings still saved.
+    // Columns not present yet — core settings still saved.
   }
 
   try {

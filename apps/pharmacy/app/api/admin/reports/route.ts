@@ -205,7 +205,14 @@ export async function GET(request: NextRequest) {
         existing.count += 1
         paymentMethodMap.set(method, existing)
       }
-      const salesByPaymentMethod = Array.from(paymentMethodMap.values())
+      const salesByPaymentMethod = Array.from(paymentMethodMap.values()).map((row) => ({
+        paymentMethod: row.payment_method,
+        payment_method: row.payment_method,
+        total: row.total,
+        count: row.count,
+        _sum: { netAmount: row.total },
+        _count: row.count,
+      }))
 
       // Sales by day
       const salesByDayMap = new Map<
@@ -296,6 +303,19 @@ export async function GET(request: NextRequest) {
       const topProducts = Array.from(topProductsMap.values())
         .sort((a, b) => b.total - a.total)
         .slice(0, 10)
+        .map((row) => ({
+          productId: row.productId,
+          productName: row.productName,
+          productSku: row.productSku,
+          quantity: row.quantity,
+          total: row.total,
+          _sum: { quantity: row.quantity, totalPrice: row.total },
+          product: {
+            id: row.productId,
+            name: row.productName ?? "Unknown",
+            sku: row.productSku ?? "",
+          },
+        }))
 
       // Sales by user (JS aggregation)
       const salesByUserMap = new Map<
@@ -319,7 +339,16 @@ export async function GET(request: NextRequest) {
         existing.count += 1
         salesByUserMap.set(uid, existing)
       }
-      const salesByUser = Array.from(salesByUserMap.values())
+      const salesByUser = Array.from(salesByUserMap.values()).map((row) => ({
+        userId: row.cashier_id,
+        cashier_id: row.cashier_id,
+        userName: row.userName,
+        total: row.total,
+        count: row.count,
+        _sum: { netAmount: row.total },
+        _count: row.count,
+        user: { id: row.cashier_id, name: row.userName ?? "Unknown Staff" },
+      }))
 
       const transactionCount = transactions.length
 

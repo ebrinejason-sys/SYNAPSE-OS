@@ -98,6 +98,7 @@ export default function PosScreen() {
   const [loading, setLoading] = useState(true)
   const [cart, setCart] = useState<CartLine[]>([])
   const [payment, setPayment] = useState<(typeof PAYMENTS)[number]['key']>('CASH')
+  const [autoPrintReceipt, setAutoPrintReceipt] = useState(false)
   const [cartDiscount, setCartDiscount] = useState('')
   const [discountReason, setDiscountReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -161,6 +162,26 @@ export default function PosScreen() {
     }
     void AsyncStorage.setItem(CART_DRAFT_KEY, JSON.stringify(payload))
   }, [cart, payment, cartDiscount, discountReason, draftRestored])
+
+  // Load pharmacy printer preference once for auto-print after sale.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!token) return
+      try {
+        const data = await apiRequest<{ settings?: { autoPrintReceipt?: boolean } }>(
+          '/api/mobile/pharmacy/settings',
+          { token },
+        )
+        if (!cancelled) setAutoPrintReceipt(Boolean(data.settings?.autoPrintReceipt))
+      } catch {
+        /* non-fatal */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [token])
 
   const load = useCallback(async () => {
     if (!token) {
@@ -331,7 +352,10 @@ export default function PosScreen() {
       idempotencyRef.current = newIdempotencyKey()
       void AsyncStorage.removeItem(CART_DRAFT_KEY)
       load()
-      if ((data.lowStock ?? []).length > 0) {
+      const saleId = data.sale.sale_id
+      if (autoPrintReceipt && saleId) {
+        router.push(`/receipt/${saleId}?autoprint=1` as never)
+      } else if ((data.lowStock ?? []).length > 0) {
         const names = data.lowStock!.slice(0, 3).map((p) => p.name).join(', ')
         Alert.alert(
           'Sale complete — stock alert',

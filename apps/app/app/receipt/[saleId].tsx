@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Alert,
   Pressable,
@@ -69,13 +69,14 @@ interface ReceiptSnapshot {
 }
 
 export default function ReceiptScreen() {
-  const { saleId } = useLocalSearchParams<{ saleId: string }>()
+  const { saleId, autoprint } = useLocalSearchParams<{ saleId: string; autoprint?: string }>()
   const { token } = useAuth()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const [receipt, setReceipt] = useState<ReceiptSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<null | string>(null)
+  const autoPrintTried = useRef(false)
 
   const money = (n: number) => `${receipt?.currency ?? 'UGX'} ${Number(n).toLocaleString()}`
 
@@ -140,6 +141,14 @@ export default function ReceiptScreen() {
       setBusy(null)
     }
   }
+
+  useEffect(() => {
+    if (loading || !receipt || !token || autoPrintTried.current) return
+    if (autoprint !== '1') return
+    autoPrintTried.current = true
+    void handlePrint()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once after first successful load
+  }, [loading, receipt, token, autoprint])
 
   const handleShare = async () => {
     setBusy('share')

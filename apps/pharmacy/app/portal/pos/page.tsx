@@ -115,6 +115,10 @@ interface Settings {
   mandatoryReceiptPrint?: boolean
   vatEnabled?: boolean
   vatRate?: number
+  printerType?: string
+  receiptPaperWidth?: "58" | "80" | "a4"
+  receiptFontScale?: number
+  autoPrintReceipt?: boolean
 }
 
 interface StaffMember {
@@ -710,7 +714,21 @@ export default function POSPage() {
           setPendingTransaction(printTxn)
           setReceiptStaffNamePending(receiptStaffName)
           setPendingReceiptMeta({ paymentMethod, amountPaid, change })
-          setShowPrintPrompt(true)
+          if (settings?.autoPrintReceipt) {
+            setPrintReceiptData({
+              transaction: printTxn,
+              staffName: receiptStaffName,
+              meta: { paymentMethod, amountPaid, change },
+              settings,
+            })
+            setIsPrintingReceipt(true)
+            triggerReliablePrint()
+            setPendingTransaction(null)
+            setReceiptStaffNamePending("")
+            setPendingReceiptMeta(null)
+          } else {
+            setShowPrintPrompt(true)
+          }
 
           setCart([])
           localStorage.removeItem('pos-cart')
@@ -2064,6 +2082,8 @@ function TransactionReceipt({
   const contact    = settings?.contact     || ""
   const email      = settings?.email       || ""
   const footer     = settings?.footerText  || "Thank you for your purchase!"
+  const paperWidth = (settings?.receiptPaperWidth || "80").toLowerCase()
+  const fontScale  = settings?.receiptFontScale && settings.receiptFontScale > 0 ? settings.receiptFontScale : 1
 
   const receiptDate = transaction?.createdAt ? new Date(transaction.createdAt) : new Date()
   const items       = Array.isArray(transaction?.items) ? transaction.items : []
@@ -2082,10 +2102,13 @@ function TransactionReceipt({
   const hasClient = transaction?.clientName || transaction?.clientPhone || transaction?.clientAddress
 
   return (
-    <div className="thermal-receipt">
+    <div
+      className={`thermal-receipt paper-${paperWidth === "58" || paperWidth === "a4" ? paperWidth : "80"}`}
+      style={{ ["--receipt-font-scale" as string]: String(fontScale) }}
+    >
 
       {/* ── Header ── */}
-      <p className="tr-center tr-bold tr-lg">{pharmName}</p>
+      <p className="tr-center tr-bold tr-lg tr-brand">{pharmName}</p>
       {location && <p className="tr-center tr-sm">{location}</p>}
       {(contact || email) && (
         <p className="tr-center tr-sm">

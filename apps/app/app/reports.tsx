@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import {
   Alert,
   Pressable,
@@ -88,19 +88,26 @@ export default function ReportsScreen() {
       lines.push(`Profit margin %,${data.summary.profitMargin}`)
       lines.push('')
       lines.push('Payment method,Total,Count')
-      data.paymentMix.forEach((p) => lines.push(`${p.method},${p.total},${p.count}`))
+      ;(data.paymentMix ?? []).forEach((p) => lines.push(`${p.method},${p.total},${p.count}`))
       lines.push('')
       lines.push('Top product,Quantity,Revenue')
-      data.topProducts.forEach((p) => lines.push(`${p.name.replace(/,/g, ' ')},${p.quantity},${p.revenue}`))
+      ;(data.topProducts ?? []).forEach((p) => lines.push(`${p.name.replace(/,/g, ' ')},${p.quantity},${p.revenue}`))
       lines.push('')
       lines.push('Low stock,Sellable,Reorder level')
-      data.lowStock.forEach((p) => lines.push(`${p.name.replace(/,/g, ' ')},${p.sellable},${p.reorderLevel}`))
+      ;(data.lowStock ?? []).forEach((p) => lines.push(`${p.name.replace(/,/g, ' ')},${p.sellable},${p.reorderLevel}`))
       lines.push('')
       lines.push('Expiring soon,Expiry,Days left')
-      data.expiring.forEach((p) => lines.push(`${p.name.replace(/,/g, ' ')},${p.expiryDate},${p.days}`))
+      ;(data.expiring ?? []).forEach((p) => lines.push(`${p.name.replace(/,/g, ' ')},${p.expiryDate},${p.days}`))
 
-      const uri = `${FileSystem.cacheDirectory}synapse-report-${period}.csv`
-      await FileSystem.writeAsStringAsync(uri, lines.join('\n'), { encoding: FileSystem.EncodingType.UTF8 })
+      const dir = FileSystem.cacheDirectory
+      if (!dir) {
+        Alert.alert('Export unavailable', 'File cache is not available on this device.')
+        return
+      }
+      const uri = `${dir}synapse-report-${period}.csv`
+      await FileSystem.writeAsStringAsync(uri, lines.join('\n'), {
+        encoding: (FileSystem as { EncodingType?: { UTF8: string } }).EncodingType?.UTF8 ?? 'utf8',
+      })
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: 'Share report' })
       } else {
@@ -147,26 +154,26 @@ export default function ReportsScreen() {
           </View>
 
           <Group title="Payment methods">
-            {data.paymentMix.length === 0 ? <Text style={styles.help}>No sales in this period.</Text> : null}
-            {data.paymentMix.map((p) => (
+            {(data.paymentMix ?? []).length === 0 ? <Text style={styles.help}>No sales in this period.</Text> : null}
+            {(data.paymentMix ?? []).map((p) => (
               <Row key={p.method} left={p.method} right={`${money(p.total)} · ${p.count}`} />
             ))}
           </Group>
 
           <Group title="Top products">
-            {data.topProducts.map((p) => (
+            {(data.topProducts ?? []).map((p) => (
               <Row key={p.name} left={`${p.name} ×${p.quantity}`} right={money(p.revenue)} />
             ))}
           </Group>
 
-          <Group title={`Low stock (${data.lowStock.length})`}>
-            {data.lowStock.map((p) => (
+          <Group title={`Low stock (${(data.lowStock ?? []).length})`}>
+            {(data.lowStock ?? []).map((p) => (
               <Row key={p.name} left={p.name} right={`${p.sellable} / reorder ${p.reorderLevel}`} tone="warn" />
             ))}
           </Group>
 
-          <Group title={`Expiring ≤90d (${data.expiring.length})`}>
-            {data.expiring.map((p, i) => (
+          <Group title={`Expiring ≤90d (${(data.expiring ?? []).length})`}>
+            {(data.expiring ?? []).map((p, i) => (
               <Row key={`${p.name}-${i}`} left={p.name} right={`${p.expiryDate} (${p.days}d)`} tone="warn" />
             ))}
           </Group>
@@ -186,7 +193,7 @@ function Stat({ label, value }: { label: string; value: string }) {
     </View>
   )
 }
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
+function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <View style={styles.group}>
       <Text style={styles.groupTitle}>{title}</Text>

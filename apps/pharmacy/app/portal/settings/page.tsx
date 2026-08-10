@@ -24,6 +24,9 @@ interface Settings {
   taxRate: number
   logo?: string
   printerType: string
+  receiptPaperWidth: "58" | "80" | "a4"
+  receiptFontScale: number
+  autoPrintReceipt: boolean
 }
 
 export default function SettingsPage() {
@@ -38,6 +41,9 @@ export default function SettingsPage() {
     taxRate: 0,
     logo: "",
     printerType: "default",
+    receiptPaperWidth: "80",
+    receiptFontScale: 1,
+    autoPrintReceipt: false,
   })
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -57,6 +63,16 @@ export default function SettingsPage() {
         const data = await response.json()
         if (data) {
           // Map snake_case DB columns → camelCase state fields
+          const printerType = data.printer_type ?? data.printerType ?? "default"
+          const paperRaw = String(data.receipt_paper_width ?? data.receiptPaperWidth ?? "").toLowerCase()
+          const receiptPaperWidth: Settings["receiptPaperWidth"] =
+            paperRaw === "58" || paperRaw === "a4"
+              ? paperRaw
+              : String(printerType).includes("58")
+                ? "58"
+                : String(printerType).includes("brother") || String(printerType).includes("a4")
+                  ? "a4"
+                  : "80"
           setSettings({
             pharmacyName: data.pharmacy_name ?? data.pharmacyName ?? "",
             location: data.location ?? "",
@@ -66,7 +82,10 @@ export default function SettingsPage() {
             currency: data.currency ?? "UGX",
             taxRate: Number(data.tax_rate ?? data.taxRate ?? 0),
             logo: data.logo ?? "",
-            printerType: data.printer_type ?? data.printerType ?? "default",
+            printerType,
+            receiptPaperWidth,
+            receiptFontScale: Number(data.receipt_font_scale ?? data.receiptFontScale ?? 1) || 1,
+            autoPrintReceipt: Boolean(data.auto_print_receipt ?? data.autoPrintReceipt),
           })
           if (data.logo) setLogoPreview(data.logo)
         }
@@ -335,7 +354,17 @@ export default function SettingsPage() {
                 title="Select printer type"
                 aria-label="Printer Type"
                 value={settings.printerType}
-                onChange={(e) => setSettings({ ...settings, printerType: e.target.value })}
+                onChange={(e) => {
+                  const printerType = e.target.value
+                  const nextPaper: Settings["receiptPaperWidth"] = printerType.includes("58")
+                    ? "58"
+                    : printerType.includes("brother") || printerType.includes("a4")
+                      ? "a4"
+                      : printerType.includes("80") || printerType.includes("epson") || printerType.includes("star")
+                        ? "80"
+                        : settings.receiptPaperWidth
+                  setSettings({ ...settings, printerType, receiptPaperWidth: nextPaper })
+                }}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="default">Default System Printer</option>
@@ -349,11 +378,65 @@ export default function SettingsPage() {
               </select>
               <p className="text-xs text-muted-foreground">Select your printer model for optimized receipt printing</p>
             </div>
-            {settings.printerType === "brother-dcp-t300" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="receiptPaperWidth">Paper width</Label>
+                <select
+                  id="receiptPaperWidth"
+                  title="Receipt paper width"
+                  aria-label="Receipt paper width"
+                  value={settings.receiptPaperWidth}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      receiptPaperWidth: e.target.value as Settings["receiptPaperWidth"],
+                    })
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="58">58mm thermal</option>
+                  <option value="80">80mm thermal</option>
+                  <option value="a4">A4 / letter</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="receiptFontScale">Receipt font size</Label>
+                <select
+                  id="receiptFontScale"
+                  title="Receipt font size"
+                  aria-label="Receipt font size"
+                  value={String(settings.receiptFontScale)}
+                  onChange={(e) =>
+                    setSettings({ ...settings, receiptFontScale: Number(e.target.value) || 1 })
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="0.9">Compact</option>
+                  <option value="1">Standard</option>
+                  <option value="1.15">Large</option>
+                  <option value="1.3">Extra large</option>
+                </select>
+              </div>
+            </div>
+            <label className="flex items-start gap-3 text-sm text-foreground">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={settings.autoPrintReceipt}
+                onChange={(e) => setSettings({ ...settings, autoPrintReceipt: e.target.checked })}
+              />
+              <span>
+                <span className="font-medium">Auto-print after sale</span>
+                <span className="block text-xs text-muted-foreground mt-0.5">
+                  Opens the print dialog immediately when a POS sale completes (no “Print receipt?” prompt).
+                </span>
+              </span>
+            </label>
+            {(settings.printerType === "brother-dcp-t300" || settings.receiptPaperWidth === "a4") && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-sm text-blue-800">
-                  <strong>Brother DCP-T300:</strong> Multi-function inkjet printer. Receipts will be formatted for A4/Letter paper.
-                  Make sure the printer is connected via USB and drivers are installed.
+                  <strong>A4 / inkjet:</strong> Receipts render at letter width. Connect the printer and confirm
+                  drivers are installed before pilot sales.
                 </p>
               </div>
             )}

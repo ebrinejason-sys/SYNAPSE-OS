@@ -438,7 +438,7 @@ export default function ReportsPage() {
             <CardContent>
               <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={(report as SalesReport).salesByDay}>
+                  <AreaChart data={(report as SalesReport).salesByDay ?? []}>
                     <defs>
                       <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
@@ -476,7 +476,7 @@ export default function ReportsPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={(report as SalesReport).salesByCategory}
+                        data={(report as SalesReport).salesByCategory ?? []}
                         dataKey="total"
                         nameKey="category"
                         cx="50%"
@@ -484,7 +484,7 @@ export default function ReportsPage() {
                         outerRadius={80}
                         label={({ category, percent }) => `${category} ${(percent * 100).toFixed(0)}%`}
                       >
-                        {(report as SalesReport).salesByCategory.map((entry, index) => (
+                        {((report as SalesReport).salesByCategory ?? []).map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
@@ -507,13 +507,13 @@ export default function ReportsPage() {
               <CardContent>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={(report as SalesReport).salesByPaymentMethod}>
+                    <BarChart data={(report as SalesReport).salesByPaymentMethod ?? []}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="paymentMethod" />
                       <YAxis tickFormatter={(value) => `UGX ${value/1000}k`} />
                       <Tooltip formatter={(value: number) => formatCurrency(value)} />
                       <Bar dataKey="_sum.netAmount" name="Total Sales" fill="#10b981">
-                        {(report as SalesReport).salesByPaymentMethod.map((entry, index) => (
+                        {((report as SalesReport).salesByPaymentMethod ?? []).map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Bar>
@@ -542,9 +542,15 @@ export default function ReportsPage() {
                   <TableBody>
                     {(report as SalesReport).topProducts.slice(0, 10).map((item) => (
                       <TableRow key={item.productId}>
-                        <TableCell className="font-medium">{item.product?.name || "Unknown"}</TableCell>
-                        <TableCell className="text-right">{item._sum.quantity}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(item._sum.totalPrice || 0)}</TableCell>
+                        <TableCell className="font-medium">
+                          {item.product?.name || (item as { productName?: string }).productName || "Unknown"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {item._sum?.quantity ?? (item as { quantity?: number }).quantity ?? 0}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(item._sum?.totalPrice ?? (item as { total?: number }).total ?? 0)}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -605,16 +611,20 @@ export default function ReportsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(report as SalesReport).salesByUser.map((user) => (
+                  {(report as SalesReport).salesByUser.map((user) => {
+                    const revenue = user._sum?.netAmount ?? (user as { total?: number }).total ?? 0
+                    const count = user._count ?? (user as { count?: number }).count ?? 0
+                    return (
                     <TableRow key={user.userId}>
                       <TableCell className="font-medium">{user.user?.name || "Unknown Staff"}</TableCell>
-                      <TableCell className="text-right">{user._count}</TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(user._sum.netAmount || 0)}</TableCell>
+                      <TableCell className="text-right">{count}</TableCell>
+                      <TableCell className="text-right font-semibold">{formatCurrency(revenue)}</TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        {formatCurrency((user._sum.netAmount || 0) / user._count)}
+                        {formatCurrency(count > 0 ? revenue / count : 0)}
                       </TableCell>
                     </TableRow>
-                  ))}
+                    )
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
@@ -784,7 +794,7 @@ export default function ReportsPage() {
           </div>
 
           {/* Expired Products */}
-          {(report as InventoryReport).expiredProducts.length > 0 && (
+          {(report as InventoryReport).expiredProducts?.length > 0 && (
             <Card className="border-red-200">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-destructive">

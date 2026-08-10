@@ -7,7 +7,8 @@ Last updated: 2026-08-10.
 
 The pharmacy operational loop is implemented in-repo and build-verified, but the milestone is
 **not GREEN** until live migrations are applied and the 18-step smoke test PASSes on a real
-pilot tenant. This agent cannot apply migrations or produce an EAS APK with current credentials.
+pilot tenant. EAS preview build was triggered with Expo credentials; live DB apply remains blocked
+without Supabase service-role secrets.
 
 ---
 
@@ -17,7 +18,7 @@ pilot tenant. This agent cannot apply migrations or produce an EAS APK with curr
 |------|--------|
 | Web production build | ✅ verified |
 | Android Expo export | ✅ verified |
-| Android installable APK (EAS preview) | ❌ blocked — `eas-cli` not logged in |
+| Android installable APK (EAS preview) | 🟡 in progress — Expo build `dcbfe724…` (v1.2.0 / versionCode 3); rebuild after report/receipt/printer fixes |
 | Live inventory-authority migrations | ❌ not applied (confirmed live) |
 | Live receive → FEFO sale → receipt → refund smoke | ❌ blocked (no service-role / migrations) |
 | Shared inventory/sales/receipt authority in code | ✅ |
@@ -36,9 +37,11 @@ pilot tenant. This agent cannot apply migrations or produce an EAS APK with curr
 - Expo **android export ✅** (`expo export --platform android` → Hermes bundle)
 - Native: home, POS (draft cart + pending-sync UX), stock, receive, import, sales, receipt print/share/email/reprint, suppliers, POs, reports, refunds, settings, users, barcode scan (`expo-camera` + manual fallback)
 - Profile portal redirects removed for those flows; **billing remains portal** (deferred)
-- App identity: name `Synapse`, package `tech.synapseos.app`, version `1.1.0` / versionCode `2`
+- App identity: name `Synapse`, package `tech.synapseos.app`, version `1.2.0` / versionCode `3`
 - API base: `https://www.synapseos.tech` (no localhost in config)
-- EAS preview APK: **not produced** — `npx eas-cli whoami` → `Not logged in`
+- Reports crash fixed (API shape + null-safe UI); receipt HTML uses IBM Plex Mono/Sans with paper width + font scale
+- Pharmacy-admin printer prefs: paper width / font scale / auto-print (portal + native settings)
+- EAS preview APK: build started 2026-08-10 — https://expo.dev/accounts/ebrinejason/projects/synapse-app/builds/dcbfe724-ec8d-4341-8a3d-181b7c8d03ba
 
 ## 4. Database status (live, read-only probe 2026-08-10)
 Using Expo anon key against `qfqakzmjatszisuqjwon.supabase.co`:
@@ -53,6 +56,7 @@ Using Expo anon key against `qfqakzmjatszisuqjwon.supabase.co`:
 |-----------|------|------|
 | `20260805130000_pharmacy_inventory_authority.sql` | ✅ | ❌ not applied |
 | `20260810120000_pharmacy_pilot_authority_hardening.sql` | ✅ | ❌ not applied |
+| `20260810140000_pharmacy_printer_preferences.sql` | ✅ | ❌ not applied |
 
 Apply order (human/ops with real service role): dry-run → push → verify status column + RPCs + grants → run smoke.
 
