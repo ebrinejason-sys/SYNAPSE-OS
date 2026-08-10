@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import { isPharmacyAdmin } from "@/lib/auth"
 import { requirePharmacyAdmin } from "@/lib/api-auth"
+import { mapOrder } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { generateOrderNo, generateTransactionNo } from "@/lib/utils"
 
 type OrderStatsRow = {
   status: string
-  total_amount: number | null
-  order_type: string | null
-  is_online_order: boolean | null
-  claimed_by: string | null
+  totalAmount: number | null
+  orderType: string | null
+  isOnlineOrder: boolean | null
+  claimedBy: string | null
 }
 
 export async function GET(request: NextRequest) {
@@ -64,11 +65,16 @@ export async function GET(request: NextRequest) {
     const enrichedOrders = (orders ?? []).map((order: Record<string, unknown> & {
       processed_by?: string | null
       claimed_by?: string | null
-    }) => ({
-      ...order,
-      processedByUser: order.processed_by ? { name: profileNameMap.get(order.processed_by) ?? null } : null,
-      claimedByUser: order.claimed_by ? { name: profileNameMap.get(order.claimed_by) ?? null } : null,
-    })) as OrderStatsRow[]
+    }) =>
+      mapOrder(order, {
+        processedByName: order.processed_by
+          ? profileNameMap.get(order.processed_by) ?? null
+          : null,
+        claimedByName: order.claimed_by
+          ? profileNameMap.get(order.claimed_by) ?? null
+          : null,
+      }),
+    ) as OrderStatsRow[]
 
     const stats = {
       pending: enrichedOrders.filter((o) => o.status === "PENDING").length,
@@ -76,12 +82,12 @@ export async function GET(request: NextRequest) {
       cancelled: enrichedOrders.filter((o) => o.status === "CANCELLED").length,
       totalRevenue: enrichedOrders
         .filter((o) => o.status === "COMPLETED")
-        .reduce((sum, o) => sum + (o.total_amount ?? 0), 0),
-      supplierOrders: enrichedOrders.filter((o) => o.order_type === "SUPPLIER").length,
-      customerOrders: enrichedOrders.filter((o) => o.order_type === "CUSTOMER").length,
-      onlineOrders: enrichedOrders.filter((o) => o.is_online_order === true).length,
+        .reduce((sum, o) => sum + (o.totalAmount ?? 0), 0),
+      supplierOrders: enrichedOrders.filter((o) => o.orderType === "SUPPLIER").length,
+      customerOrders: enrichedOrders.filter((o) => o.orderType === "CUSTOMER").length,
+      onlineOrders: enrichedOrders.filter((o) => o.isOnlineOrder === true).length,
       unclaimedOrders: enrichedOrders.filter(
-        (o) => o.is_online_order === true && !o.claimed_by && o.status === "PENDING"
+        (o) => o.isOnlineOrder === true && !o.claimedBy && o.status === "PENDING"
       ).length,
     }
 

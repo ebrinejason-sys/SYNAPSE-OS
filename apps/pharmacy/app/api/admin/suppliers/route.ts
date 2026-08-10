@@ -1,22 +1,40 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
+import { mapSupplier } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   try {
     const auth = await requirePharmacyPermission("purchasing.manage")
     if (!auth.ok) return auth.response
-    const { session, tenantId } = auth
+    const { tenantId } = auth
 
-    const { data: suppliers, error } = await (supabaseAdmin as any)
-      .from("pharmacy_suppliers")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .order("created_at", { ascending: false })
+    const [{ data: suppliers, error }, { data: poRows }] = await Promise.all([
+      (supabaseAdmin as any)
+        .from("pharmacy_suppliers")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: false }),
+      (supabaseAdmin as any)
+        .from("pharmacy_purchase_orders")
+        .select("supplier_id")
+        .eq("tenant_id", tenantId),
+    ])
 
     if (error) throw error
 
-    return NextResponse.json(suppliers)
+    const poCounts = new Map<string, number>()
+    for (const row of poRows ?? []) {
+      const sid = row.supplier_id as string
+      if (!sid) continue
+      poCounts.set(sid, (poCounts.get(sid) ?? 0) + 1)
+    }
+
+    return NextResponse.json(
+      (suppliers ?? []).map((row: Record<string, unknown>) =>
+        mapSupplier(row, poCounts.get(String(row.id)) ?? 0),
+      ),
+    )
   } catch (error) {
     console.error("Get suppliers error:", error)
     return NextResponse.json(
@@ -82,7 +100,10 @@ export async function POST(request: NextRequest) {
       details: `Created supplier: ${name}`,
     })
 
-    return NextResponse.json({ success: true, supplier })
+    return NextResponse.json({
+      success: true,
+      supplier: mapSupplier(supplier as Record<string, unknown>, 0),
+    })
   } catch (error) {
     console.error("Create supplier error:", error)
     return NextResponse.json(
@@ -151,7 +172,10 @@ export async function PATCH(request: NextRequest) {
       details: `Updated supplier: ${name}`,
     })
 
-    return NextResponse.json({ success: true, supplier })
+    return NextResponse.json({
+      success: true,
+      supplier: mapSupplier(supplier as Record<string, unknown>),
+    })
   } catch (error) {
     console.error("Update supplier error:", error)
     return NextResponse.json(

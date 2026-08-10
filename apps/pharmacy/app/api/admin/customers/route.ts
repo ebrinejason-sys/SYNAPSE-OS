@@ -1,22 +1,56 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyTenant } from "@/lib/api-auth"
+import { mapCustomer } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
   try {
     const auth = await requirePharmacyTenant()
     if (!auth.ok) return auth.response
-    const { session, tenantId } = auth
+    const { tenantId } = auth
 
-    const { data: customers, error } = await (supabaseAdmin as any)
-      .from("pharmacy_customers")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .order("created_at", { ascending: false })
+    const [{ data: customers, error }, { data: orderRows }, { data: txRows }] =
+      await Promise.all([
+        (supabaseAdmin as any)
+          .from("pharmacy_customers")
+          .select("*")
+          .eq("tenant_id", tenantId)
+          .order("created_at", { ascending: false }),
+        (supabaseAdmin as any)
+          .from("pharmacy_orders")
+          .select("customer_id")
+          .eq("tenant_id", tenantId)
+          .not("customer_id", "is", null),
+        (supabaseAdmin as any)
+          .from("pharmacy_transactions")
+          .select("customer_id")
+          .eq("tenant_id", tenantId)
+          .not("customer_id", "is", null),
+      ])
 
     if (error) throw error
 
-    return NextResponse.json(customers)
+    const orderCounts = new Map<string, number>()
+    for (const row of orderRows ?? []) {
+      const cid = row.customer_id as string
+      if (!cid) continue
+      orderCounts.set(cid, (orderCounts.get(cid) ?? 0) + 1)
+    }
+    const txCounts = new Map<string, number>()
+    for (const row of txRows ?? []) {
+      const cid = row.customer_id as string
+      if (!cid) continue
+      txCounts.set(cid, (txCounts.get(cid) ?? 0) + 1)
+    }
+
+    return NextResponse.json(
+      (customers ?? []).map((row: Record<string, unknown>) =>
+        mapCustomer(row, {
+          orders: orderCounts.get(String(row.id)) ?? 0,
+          transactions: txCounts.get(String(row.id)) ?? 0,
+        }),
+      ),
+    )
   } catch (error) {
     console.error("Get customers error:", error)
     return NextResponse.json(
@@ -105,7 +139,12 @@ export async function POST(request: NextRequest) {
       details: `Created customer: ${name}${normalizedEmail ? ` (${normalizedEmail})` : ""}`,
     })
 
-    return NextResponse.json(customer)
+    return NextResponse.json(
+      mapCustomer(customer as Record<string, unknown>, {
+        orders: 0,
+        transactions: 0,
+      }),
+    )
   } catch (error) {
     console.error("Create customer error:", error)
     return NextResponse.json(
@@ -153,7 +192,7 @@ export async function PATCH(request: NextRequest) {
       details: `Updated customer: ${name}`,
     })
 
-    return NextResponse.json(customer)
+    return NextResponse.json(mapCustomer(customer as Record<string, unknown>))
   } catch (error) {
     console.error("Update customer error:", error)
     return NextResponse.json(

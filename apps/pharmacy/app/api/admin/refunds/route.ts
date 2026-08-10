@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
+import { mapRefund } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { reversePharmacySale } from "@synapse/db/inventory-rpc"
 
@@ -20,7 +21,7 @@ export async function GET(_request: NextRequest) {
           id, receipt_number, total_amount, payment_method, cashier_id, status,
           voided_reason, voided_at, updated_at, created_at,
           items:pharmacy_pos_sale_items (
-            id, quantity, unit_price, product:pharmacy_products ( name, sku )
+            id, quantity, unit_price, product_id, product:pharmacy_products ( name, sku )
           )
         `,
         )
@@ -33,6 +34,7 @@ export async function GET(_request: NextRequest) {
           `
           *,
           cashier:profiles!pharmacy_transactions_cashier_id_fkey ( full_name ),
+          customer:pharmacy_customers ( name ),
           items:pharmacy_transaction_items (
             *,
             product:pharmacy_products ( name, sku )
@@ -49,20 +51,44 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch refunds" }, { status: 500 })
     }
 
-    const mappedPos = (posVoids ?? []).map((s: any) => ({
-      id: s.id,
-      transaction_no: s.receipt_number,
-      net_amount: s.total_amount,
-      payment_method: s.payment_method,
-      status: "REFUNDED",
-      notes: s.voided_reason,
-      updated_at: s.voided_at ?? s.updated_at,
-      created_at: s.created_at,
-      source: "pos",
-      items: s.items ?? [],
-    }))
+    const cashierIds = new Set<string>()
+    for (const s of posVoids ?? []) {
+      if (s.cashier_id) cashierIds.add(s.cashier_id)
+    }
+    const cashierNames = new Map<string, string>()
+    if (cashierIds.size > 0) {
+      const { data: profiles } = await db()
+        .from("profiles")
+        .select("id, full_name, first_name, last_name")
+        .in("id", Array.from(cashierIds))
+      for (const p of profiles ?? []) {
+        cashierNames.set(
+          p.id,
+          p.full_name ||
+            [p.first_name, p.last_name].filter(Boolean).join(" ") ||
+            "Unknown",
+        )
+      }
+    }
 
-    return NextResponse.json([...mappedPos, ...(orderRefunds ?? [])])
+    const mappedPos = (posVoids ?? []).map((s: Record<string, unknown>) =>
+      mapRefund({
+        ...s,
+        transaction_no: s.receipt_number,
+        net_amount: s.total_amount,
+        notes: s.voided_reason,
+        created_at: s.voided_at ?? s.updated_at ?? s.created_at,
+        status: "REFUNDED",
+        source: "pos",
+        user: { name: cashierNames.get(String(s.cashier_id)) ?? "Unknown" },
+      }),
+    )
+
+    const mappedOrders = (orderRefunds ?? []).map((row: Record<string, unknown>) =>
+      mapRefund({ ...row, source: "order" }),
+    )
+
+    return NextResponse.json([...mappedPos, ...mappedOrders])
   } catch (error) {
     console.error("Get refunds error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
