@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { isPharmacyAdmin } from "@/lib/auth"
 import { requirePharmacyPermission } from "@/lib/api-auth"
+import { mapPurchaseOrder } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail } from "@/lib/email"
 
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
       .select(
         `
         *,
-        supplier:pharmacy_suppliers(name, email, phone),
+        supplier:pharmacy_suppliers(id, name, email, phone),
         items:pharmacy_purchase_order_items(
           id, product_id, product_name, quantity, unit_price, total_price
         )
@@ -47,7 +48,38 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
     }
 
-    return NextResponse.json(purchaseOrders ?? [])
+    const creatorIds = new Set<string>()
+    for (const po of purchaseOrders ?? []) {
+      if (po.created_by) creatorIds.add(po.created_by)
+    }
+
+    const nameMap = new Map<string, string>()
+    if (creatorIds.size > 0) {
+      const { data: profiles } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, first_name, last_name")
+        .in("id", Array.from(creatorIds))
+
+      for (const p of profiles ?? []) {
+        nameMap.set(
+          p.id,
+          p.full_name ??
+            `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() ??
+            p.id,
+        )
+      }
+    }
+
+    return NextResponse.json(
+      (purchaseOrders ?? []).map((row: Record<string, unknown>) =>
+        mapPurchaseOrder(
+          row,
+          row.created_by
+            ? nameMap.get(String(row.created_by)) ?? "Unknown"
+            : "Unknown",
+        ),
+      ),
+    )
   } catch (error) {
     console.error("Get purchase orders error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -207,7 +239,26 @@ export async function POST(request: NextRequest) {
       details: `Created PO ${orderNo} for ${supplier.name}${sendEmailToSupplier ? " (email sent)" : ""}`,
     })
 
-    return NextResponse.json({ success: true, purchaseOrder })
+    return NextResponse.json({
+      success: true,
+      purchaseOrder: mapPurchaseOrder(
+        {
+          ...(purchaseOrder as Record<string, unknown>),
+          supplier: {
+            id: supplier.id,
+            name: supplier.name,
+            email: supplier.email,
+            phone: null,
+          },
+          items: [],
+          expected_date: expectedDate ? new Date(expectedDate).toISOString() : null,
+          notes: notes ?? null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        session.fullName || session.email || "Unknown",
+      ),
+    })
   } catch (error) {
     console.error("Create purchase order error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

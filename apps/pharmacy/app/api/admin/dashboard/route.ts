@@ -1,13 +1,32 @@
 import { NextRequest, NextResponse } from "next/server"
 import { isPharmacyAdmin, hasPermission } from "@/lib/auth"
-import { requirePharmacyAdmin } from "@/lib/api-auth"
+import { requirePharmacyTenant } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { ensureDefaultPharmacyStore } from "@/lib/ensure-default-store"
 import { listRecentLedgerSales, sumCompletedRevenue } from "@/lib/pos/sale-ledger"
 
+async function countOpenPurchaseOrders(tenantId: string): Promise<number> {
+  const { count } = await (supabaseAdmin as any)
+    .from("pharmacy_purchase_orders")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .not("status", "in", '("RECEIVED","CANCELLED")')
+  return count ?? 0
+}
+
+async function countPendingCustomerOrders(tenantId: string): Promise<number> {
+  const { count } = await (supabaseAdmin as any)
+    .from("pharmacy_orders")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("status", "PENDING")
+  return count ?? 0
+}
+
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requirePharmacyAdmin()
+    // Any authenticated pharmacy staff may load their dashboard (admin vs staff payload below).
+    const auth = await requirePharmacyTenant()
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 
@@ -52,6 +71,8 @@ export async function GET(request: NextRequest) {
         expiringResult,
         recentActivityResult,
         staffSettingsResult,
+        openPoCount,
+        pendingCustomerOrders,
       ] = await Promise.all([
         // Total active products
         (supabaseAdmin as any)
@@ -90,6 +111,8 @@ export async function GET(request: NextRequest) {
           .select("profile_id, pharmacy_role")
           .eq("tenant_id", tenantId)
           .eq("is_active", true),
+        countOpenPurchaseOrders(tenantId),
+        countPendingCustomerOrders(tenantId),
       ])
 
       const totalRevenueAmount = totalRevenue.amount
@@ -153,7 +176,7 @@ export async function GET(request: NextRequest) {
         totalRevenue: totalRevenueAmount,
         todaySales: todaySalesAmount,
         lowStockCount: lowStockResult.count ?? 0,
-        pendingOrders: 0,
+        pendingOrders: openPoCount + pendingCustomerOrders,
         expiringProducts: expiringResult.data ?? [],
         recentActivity,
         userStats,
@@ -193,20 +216,21 @@ export async function GET(request: NextRequest) {
     }
 
     if (hasPOSAccess) {
-      const [myToday, myAll] = await Promise.all([
+      const [myToday, myAll, pendingOrders] = await Promise.all([
         sumCompletedRevenue({
           tenantId,
           cashierId: session.user.id,
           fromIso: todayStartISO,
         }),
         sumCompletedRevenue({ tenantId, cashierId: session.user.id }),
+        countPendingCustomerOrders(tenantId),
       ])
 
       dashboardData.myTodaySales = myToday.amount
       dashboardData.myTodayTransactions = myToday.count
       dashboardData.myTotalSales = myAll.amount
       dashboardData.myTotalTransactions = myAll.count
-      dashboardData.pendingOrders = 0
+      dashboardData.pendingOrders = pendingOrders
     }
 
     if (hasTransactionAccess) {
