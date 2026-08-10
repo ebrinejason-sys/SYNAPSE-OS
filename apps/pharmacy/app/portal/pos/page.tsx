@@ -1312,10 +1312,27 @@ export default function POSPage() {
         <div>
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <ShoppingCart className="h-5 w-5 mr-2" />
-                Cart ({cart.length})
-              </CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center">
+                  <ShoppingCart className="h-5 w-5 mr-2" />
+                  Cart ({cart.length})
+                </CardTitle>
+                {cart.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => {
+                      if (!confirm("Clear the held cart? This only removes items saved on this device.")) return
+                      setCart([])
+                      localStorage.removeItem("pos-cart")
+                      toast({ title: "Held cart cleared" })
+                    }}
+                  >
+                    Clear held cart
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4 max-h-[400px] overflow-y-auto">

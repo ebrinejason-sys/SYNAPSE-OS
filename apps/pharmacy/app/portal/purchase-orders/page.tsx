@@ -47,6 +47,16 @@ interface PurchaseOrder {
   }
 }
 
+interface ReceiptLine {
+  productId: string
+  productName: string
+  quantity: number
+  unitPrice: number
+  batchNumber: string
+  expiryDate: string
+  costPrice: string
+}
+
 const statusConfig = {
   PENDING: { label: "Pending", color: "bg-yellow-500/15 text-yellow-400", icon: Package },
   SENT: { label: "Sent to Supplier", color: "bg-blue-500/15 text-blue-400", icon: Mail },
@@ -61,6 +71,7 @@ export default function PurchaseOrdersPage() {
   const [orders, setOrders] = useState<PurchaseOrder[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null)
+  const [receivingOrder, setReceivingOrder] = useState<PurchaseOrder | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>("ALL")
   const { toast } = useToast()
 
@@ -88,29 +99,50 @@ export default function PurchaseOrdersPage() {
     }
   }
 
-  const handleUpdateStatus = async (orderId: string, newStatus: string) => {
+  const handleUpdateStatus = async (
+    orderId: string,
+    newStatus: string,
+    receiptItems?: Array<{
+      productId: string
+      batchNumber: string
+      expiryDate: string
+      quantity?: number
+      costPrice?: number
+    }>,
+  ) => {
     try {
       const response = await fetch("/api/admin/purchase-orders", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: orderId, status: newStatus }),
+        body: JSON.stringify({
+          id: orderId,
+          status: newStatus,
+          ...(receiptItems ? { receiptItems } : {}),
+        }),
       })
+
+      const data = await response.json().catch(() => ({}))
 
       if (response.ok) {
         toast({
           title: "Success",
-          description: newStatus === "RECEIVED" 
-            ? "Order marked as received - inventory updated"
+          description: newStatus === "RECEIVED"
+            ? "Order received — stock booked to genuine batches"
             : "Order status updated",
         })
         fetchOrders()
         setSelectedOrder(null)
+        setReceivingOrder(null)
       } else {
-        const data = await response.json()
+        const requiresBatch = data.code === "REQUIRES_BATCH"
         toast({
           variant: "destructive",
-          title: "Error",
-          description: data.error || "Failed to update status",
+          title: requiresBatch ? "Batch data required" : "Error",
+          description:
+            data.error ||
+            (requiresBatch
+              ? "Each product line needs a batch number and expiry date before this order can be received."
+              : "Failed to update status"),
         })
       }
     } catch (error) {
@@ -189,8 +221,24 @@ export default function PurchaseOrdersPage() {
           order={selectedOrder}
           isAdmin={isAdmin}
           onClose={() => setSelectedOrder(null)}
-          onUpdateStatus={handleUpdateStatus}
+          onUpdateStatus={(orderId, status) => {
+            if (status === "RECEIVED") {
+              setReceivingOrder(selectedOrder)
+              return
+            }
+            handleUpdateStatus(orderId, status)
+          }}
           onResendEmail={handleResendEmail}
+        />
+      )}
+
+      {receivingOrder && (
+        <ReceiveOrderDialog
+          order={receivingOrder}
+          onClose={() => setReceivingOrder(null)}
+          onConfirm={(receiptItems) =>
+            handleUpdateStatus(receivingOrder.id, "RECEIVED", receiptItems)
+          }
         />
       )}
 
@@ -312,6 +360,166 @@ export default function PurchaseOrdersPage() {
               </div>
             </>
           )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function ReceiveOrderDialog({
+  order,
+  onClose,
+  onConfirm,
+}: {
+  order: PurchaseOrder
+  onClose: () => void
+  onConfirm: (
+    receiptItems: Array<{
+      productId: string
+      batchNumber: string
+      expiryDate: string
+      quantity?: number
+      costPrice?: number
+    }>,
+  ) => void | Promise<void>
+}) {
+  const linkedItems = order.items.filter((i) => i.productId)
+  const [lines, setLines] = useState<ReceiptLine[]>(() =>
+    linkedItems.map((item) => ({
+      productId: item.productId as string,
+      productName: item.productName,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      batchNumber: "",
+      expiryDate: "",
+      costPrice: item.unitPrice != null ? String(item.unitPrice) : "",
+    })),
+  )
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { toast } = useToast()
+
+  const updateLine = (productId: string, patch: Partial<ReceiptLine>) => {
+    setLines((prev) =>
+      prev.map((line) => (line.productId === productId ? { ...line, ...patch } : line)),
+    )
+  }
+
+  const handleSubmit = async () => {
+    const incomplete = lines.find((l) => !l.batchNumber.trim() || !l.expiryDate)
+    if (incomplete) {
+      toast({
+        variant: "destructive",
+        title: "Batch data required",
+        description: `Enter batch number and expiry for ${incomplete.productName} before receiving.`,
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      await onConfirm(
+        lines.map((l) => ({
+          productId: l.productId,
+          batchNumber: l.batchNumber.trim(),
+          expiryDate: l.expiryDate,
+          quantity: l.quantity,
+          ...(l.costPrice.trim() !== ""
+            ? { costPrice: Number(l.costPrice) }
+            : {}),
+        })),
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Receive order {order.orderNumber}</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Enter the supplier batch number and expiry for each product. Stock cannot be marked received without genuine batch data.
+              </p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={onClose} disabled={isSubmitting}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {linkedItems.length === 0 ? (
+            <p className="text-sm text-destructive">
+              No product-linked lines to receive. Link products on the purchase order first.
+            </p>
+          ) : (
+            lines.map((line) => (
+              <div key={line.productId} className="border rounded-lg p-4 space-y-3">
+                <div className="flex justify-between gap-2">
+                  <div>
+                    <p className="font-medium">{line.productName}</p>
+                    <p className="text-xs text-muted-foreground">Qty {line.quantity}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label>Batch number *</Label>
+                    <Input
+                      value={line.batchNumber}
+                      onChange={(e) => updateLine(line.productId, { batchNumber: e.target.value })}
+                      placeholder="e.g. BN-2026-041"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Expiry date *</Label>
+                    <Input
+                      type="date"
+                      value={line.expiryDate}
+                      onChange={(e) => updateLine(line.productId, { expiryDate: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Cost (optional)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={line.costPrice}
+                      onChange={(e) => updateLine(line.productId, { costPrice: e.target.value })}
+                      placeholder={String(line.unitPrice)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+
+          <div className="flex gap-2 pt-2 border-t">
+            <Button variant="outline" className="flex-1" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={handleSubmit}
+              disabled={isSubmitting || linkedItems.length === 0}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Receiving…
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Confirm receipt
+                </>
+              )}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -453,7 +661,7 @@ function OrderDetailDialog({
                     {nextStatus === "RECEIVED" ? (
                       <>
                         <CheckCircle className="h-4 w-4 mr-2" />
-                        Mark as Received (Update Inventory)
+                        Receive with batch details…
                       </>
                     ) : (
                       <>Mark as {statusConfig[nextStatus as keyof typeof statusConfig].label}</>
