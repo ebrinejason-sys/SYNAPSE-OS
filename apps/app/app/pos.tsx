@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -21,6 +22,8 @@ import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { useAuth } from '@/lib/auth'
 import { apiRequest, ApiError } from '@/lib/api'
 import { colors, radii, spacing, typography, TONE_COLORS } from '@/lib/theme'
+
+const CART_DRAFT_KEY = 'synapse.pharmacy.pos.draft.v1'
 
 type PosProduct = {
   id: string
@@ -101,11 +104,63 @@ export default function PosScreen() {
   const [lastSale, setLastSale] = useState<SaleResult | null>(null)
   const [lowStock, setLowStock] = useState<LowStockItem[]>([])
   const idempotencyRef = useRef(newIdempotencyKey())
+  const [draftRestored, setDraftRestored] = useState(false)
+  const [pendingSync, setPendingSync] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query.trim()), 280)
     return () => clearTimeout(t)
   }, [query])
+
+  // Restore unfinished cart draft (local only — never treated as a completed sale).
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const raw = await AsyncStorage.getItem(CART_DRAFT_KEY)
+        if (!raw || cancelled) return
+        const parsed = JSON.parse(raw) as {
+          cart?: CartLine[]
+          payment?: (typeof PAYMENTS)[number]['key']
+          cartDiscount?: string
+          discountReason?: string
+          idempotencyKey?: string
+        }
+        if (Array.isArray(parsed.cart) && parsed.cart.length > 0) {
+          setCart(parsed.cart)
+          if (parsed.payment) setPayment(parsed.payment)
+          if (parsed.cartDiscount) setCartDiscount(parsed.cartDiscount)
+          if (parsed.discountReason) setDiscountReason(parsed.discountReason)
+          if (parsed.idempotencyKey) idempotencyRef.current = parsed.idempotencyKey
+        }
+      } catch {
+        /* ignore corrupt draft */
+      } finally {
+        if (!cancelled) setDraftRestored(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Persist draft cart locally. Financial completion still requires server confirmation.
+  useEffect(() => {
+    if (!draftRestored) return
+    const payload = {
+      cart,
+      payment,
+      cartDiscount,
+      discountReason,
+      idempotencyKey: idempotencyRef.current,
+      updatedAt: new Date().toISOString(),
+    }
+    if (cart.length === 0) {
+      void AsyncStorage.removeItem(CART_DRAFT_KEY)
+      return
+    }
+    void AsyncStorage.setItem(CART_DRAFT_KEY, JSON.stringify(payload))
+  }, [cart, payment, cartDiscount, discountReason, draftRestored])
 
   const load = useCallback(async () => {
     if (!token) {
@@ -229,7 +284,9 @@ export default function PosScreen() {
     setCart([])
     setCartDiscount('')
     setDiscountReason('')
+    setPendingSync(false)
     idempotencyRef.current = newIdempotencyKey()
+    void AsyncStorage.removeItem(CART_DRAFT_KEY)
   }
 
   const completeSale = async () => {
@@ -239,6 +296,7 @@ export default function PosScreen() {
       return
     }
     setSubmitting(true)
+    setPendingSync(false)
     try {
       // Apply cart discount to the first line so RPC sees a single line discount (no double-count).
       const items = cart.map((l, idx) => ({
@@ -269,7 +327,9 @@ export default function PosScreen() {
       setCart([])
       setCartDiscount('')
       setDiscountReason('')
+      setPendingSync(false)
       idempotencyRef.current = newIdempotencyKey()
+      void AsyncStorage.removeItem(CART_DRAFT_KEY)
       load()
       if ((data.lowStock ?? []).length > 0) {
         const names = data.lowStock!.slice(0, 3).map((p) => p.name).join(', ')
@@ -279,13 +339,24 @@ export default function PosScreen() {
         )
       }
     } catch (err) {
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
+      const networkish =
+        err instanceof Error &&
+        /network|timeout|fetch failed|failed to fetch|internet/i.test(err.message)
+      if (networkish) {
+        setPendingSync(true)
+        Alert.alert(
+          'Sale not completed',
+          'No internet or the server did not confirm this sale. The cart is still held as a local draft — it is NOT sold yet. Retry when connectivity returns (same receipt key prevents duplicates).',
+        )
+      } else {
+        const message =
+          err instanceof ApiError
             ? err.message
-            : 'Sale failed'
-      Alert.alert('Sale failed', message)
+            : err instanceof Error
+              ? err.message
+              : 'Sale failed'
+        Alert.alert('Sale failed', message)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -323,6 +394,14 @@ export default function PosScreen() {
           <View style={{ width: 48 }} />
         )}
       </View>
+
+      {pendingSync ? (
+        <View style={styles.pendingBanner}>
+          <Text style={styles.pendingText}>
+            Sale not confirmed by server. Cart held as draft — retry when online. Not sold yet.
+          </Text>
+        </View>
+      ) : null}
 
       {lastSale ? (
         <View style={styles.receiptCard}>
@@ -536,6 +615,20 @@ const styles = StyleSheet.create({
     fontFamily: 'DMSans_500Medium',
     width: 48,
     textAlign: 'right',
+  },
+  pendingBanner: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.warningSoft,
+    borderWidth: 1,
+    borderColor: colors.warning,
+  },
+  pendingText: {
+    ...typography.caption,
+    color: colors.text,
+    fontFamily: 'DMSans_500Medium',
   },
   receiptBanner: {
     flexDirection: 'row',
