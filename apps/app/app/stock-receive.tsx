@@ -98,7 +98,11 @@ export default function StockReceiveScreen() {
         costPrice: costPrice ? Number(costPrice) : undefined,
         reason: 'Stock received (mobile)',
       })
-      Alert.alert('Received', `${res.productName ?? selected.name}: +${res.received}`, [
+      if (!res.ok) {
+        Alert.alert('Receive failed', res.error ?? 'Stock was not recorded.')
+        return
+      }
+      Alert.alert('Received', `${selected.name}: +${res.received || qty}`, [
         { text: 'Done', onPress: () => router.back() },
         {
           text: 'Receive more',

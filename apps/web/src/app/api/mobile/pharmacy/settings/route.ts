@@ -133,3 +133,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true })
 }
+
+/** Alias — some older native helpers used PATCH. */
+export async function PATCH(req: NextRequest) {
+  return POST(req)
+}

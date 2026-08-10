@@ -40,6 +40,11 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => null)) as {
     supplierRef?: string
+    productId?: string
+    batchNumber?: string
+    quantity?: number
+    expiryDate?: string
+    costPrice?: number
     lines?: Array<{
       productId: string
       batchNumber: string
@@ -49,7 +54,21 @@ export async function POST(req: NextRequest) {
     }>
   } | null
 
-  const lines = body?.lines ?? []
+  // Accept either GRN `lines[]` or a single flat line (older native helper).
+  const lines =
+    body?.lines && body.lines.length > 0
+      ? body.lines
+      : body?.productId
+        ? [
+            {
+              productId: body.productId,
+              batchNumber: String(body.batchNumber ?? ''),
+              quantity: Number(body.quantity ?? 0),
+              expiryDate: String(body.expiryDate ?? ''),
+              costPrice: body.costPrice,
+            },
+          ]
+        : []
   if (lines.length === 0) {
     return NextResponse.json({ error: 'At least one line is required' }, { status: 400 })
   }

@@ -279,10 +279,11 @@ export function patchPharmacySettings(
   token: string,
   body: { pharmacyName?: string; receiptHeader?: string; receiptFooter?: string },
 ) {
-  return apiRequest<{ ok: boolean; settings: PharmacySettings }>(
-    '/api/mobile/pharmacy/settings',
-    { method: 'PATCH', token, body },
-  )
+  return apiRequest<{ ok: boolean }>('/api/mobile/pharmacy/settings', {
+    method: 'POST',
+    token,
+    body,
+  })
 }
 
 export function fetchPharmacyUsers(token: string) {
@@ -304,11 +305,32 @@ export function receivePharmacyStockMobile(
 ) {
   return apiRequest<{
     ok: boolean
-    productId: string
-    batchId: string | null
-    received: number
-    productName?: string
-  }>('/api/mobile/pharmacy/receiving', { method: 'POST', token, body })
+    results?: Array<{ productId: string; ok: boolean; batchId?: string; error?: string }>
+  }>('/api/mobile/pharmacy/receiving', {
+    method: 'POST',
+    token,
+    body: {
+      supplierRef: body.supplierId,
+      lines: [
+        {
+          productId: body.productId,
+          batchNumber: body.batchNumber,
+          quantity: body.quantity,
+          expiryDate: body.expiryDate,
+          costPrice: body.costPrice,
+        },
+      ],
+    },
+  }).then((res) => {
+    const first = res.results?.[0]
+    return {
+      ok: Boolean(res.ok && first?.ok),
+      productId: body.productId,
+      batchId: first?.batchId ?? null,
+      received: first?.ok ? body.quantity : 0,
+      error: first?.error,
+    }
+  })
 }
 
 export function fetchPharmacyRefunds(token: string) {
