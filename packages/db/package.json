@@ -9,6 +9,7 @@
     "./admin": "./src/admin.ts",
     "./inventory": "./src/inventory.ts",
     "./import-validation": "./src/import-validation.ts",
+    "./inventory-rpc": "./src/inventory-rpc.ts",
     "./receipt": "./src/receipt.ts"
   },
   "dependencies": {

@@ -1,0 +1,183 @@
+/**
+ * Shared helpers for pharmacy inventory RPCs used by portal + mobile BFFs.
+ * Pure message parsing is client-safe; callers pass their own supabase admin client.
+ */
+
+import { parseRpcStockError, type StockReasonCode } from "./inventory";
+
+export interface ReceiveStockInput {
+  tenantId: string;
+  productId: string;
+  batchNumber: string;
+  quantity: number;
+  expiryDate: string; // YYYY-MM-DD
+  costPrice?: number | null;
+  sellingPrice?: number | null;
+  receivedBy?: string | null;
+  supplierRef?: string | null;
+  supplierId?: string | null;
+  purchaseOrderId?: string | null;
+  storeId?: string | null;
+  reason?: string | null;
+}
+
+export interface ReceiveStockResult {
+  ok: true;
+  batchId: string;
+  productId: string;
+  received: number;
+}
+
+export interface AdjustBatchInput {
+  tenantId: string;
+  productId: string;
+  /** Absolute CORRECTION quantity for a specific batch, or delta for DECREASE/INCREASE */
+  quantity: number;
+  type: "INCREASE" | "DECREASE" | "CORRECTION" | "DAMAGE" | "QUARANTINE" | "RECALL";
+  reason: string;
+  actorId: string;
+  batchId?: string | null;
+  batchNumber?: string | null;
+  expiryDate?: string | null;
+  costPrice?: number | null;
+  /** When restoring via refund, restoreAs controls sellability. Default active for non-Rx operational returns. */
+  restoreAs?: "active" | "quarantined";
+}
+
+export type PharmacyRpcErrorCode =
+  | StockReasonCode
+  | "REQUIRES_BATCH"
+  | "REQUIRES_EXPIRY"
+  | "INVALID_QUANTITY"
+  | "EXPIRED_RECEIPT"
+  | "PRODUCT_NOT_FOUND"
+  | "BATCH_NOT_FOUND"
+  | "INSUFFICIENT_BATCH"
+  | "ALREADY_REFUNDED"
+  | "SALE_NOT_REFUNDABLE"
+  | "PERMISSION"
+  | "UNKNOWN";
+
+export interface PharmacyRpcError {
+  code: PharmacyRpcErrorCode;
+  message: string;
+  humanMessage: string;
+}
+
+/** Map Postgres raise exception text into pharmacy-language errors. */
+export function parsePharmacyRpcError(raw: string | null | undefined): PharmacyRpcError {
+  const message = String(raw ?? "Unknown inventory error");
+  const codeMatch = message.match(/^([A-Z_]+):/);
+  const code = (codeMatch?.[1] ?? "UNKNOWN") as PharmacyRpcErrorCode;
+  const parsed = parseRpcStockError(message);
+
+  const humanByCode: Partial<Record<PharmacyRpcErrorCode, string>> = {
+    REQUIRES_BATCH: "A genuine batch number is required to receive or increase stock.",
+    REQUIRES_EXPIRY: "A future expiry date is required to receive stock.",
+    INVALID_QUANTITY: "Quantity must be a positive whole number.",
+    EXPIRED_RECEIPT: "Cannot receive stock that is already expired.",
+    PRODUCT_NOT_FOUND: "Product was not found in this pharmacy.",
+    BATCH_NOT_FOUND: "The selected batch was not found.",
+    INSUFFICIENT_BATCH: "Not enough quantity remains on the selected batch.",
+    INSUFFICIENT_STOCK:
+      parsed.productName && parsed.shortBy != null
+        ? `Only some units of ${parsed.productName} are sellable; short by ${parsed.shortBy}.`
+        : "Not enough sellable stock for this sale.",
+    ALREADY_REFUNDED: "This sale has already been refunded or voided.",
+    SALE_NOT_REFUNDABLE: "Only completed sales can be refunded.",
+    UNBATCHED_STOCK:
+      "This product shows stock without batch records. Receive it with genuine batch data before selling.",
+  };
+
+  return {
+    code: (parsed.reasonCode as PharmacyRpcErrorCode) || code,
+    message,
+    humanMessage: humanByCode[code] ?? humanByCode[parsed.reasonCode as PharmacyRpcErrorCode] ?? message.replace(/^[A-Z_]+:\s*/, ""),
+  };
+}
+
+type RpcClient = {
+  rpc: (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+};
+
+export async function receivePharmacyStock(
+  client: RpcClient,
+  input: ReceiveStockInput,
+): Promise<{ data: ReceiveStockResult | null; error: PharmacyRpcError | null }> {
+  const { data, error } = await client.rpc("receive_pharmacy_stock", {
+    p_tenant_id: input.tenantId,
+    p_product_id: input.productId,
+    p_batch_number: input.batchNumber.trim(),
+    p_quantity: Math.trunc(input.quantity),
+    p_expiry_date: String(input.expiryDate).slice(0, 10),
+    p_cost_price: input.costPrice ?? null,
+    p_received_by: input.receivedBy ?? null,
+    p_supplier_ref: input.supplierRef ?? null,
+    p_selling_price: input.sellingPrice ?? null,
+    p_supplier_id: input.supplierId ?? null,
+    p_purchase_order_id: input.purchaseOrderId ?? null,
+    p_store_id: input.storeId ?? null,
+    p_reason: input.reason ?? null,
+  });
+
+  if (error) return { data: null, error: parsePharmacyRpcError(error.message) };
+
+  const row = (data ?? {}) as Record<string, unknown>;
+  return {
+    data: {
+      ok: true,
+      batchId: String(row.batch_id ?? ""),
+      productId: String(row.product_id ?? input.productId),
+      received: Number(row.received ?? input.quantity),
+    },
+    error: null,
+  };
+}
+
+export async function adjustPharmacyBatchStock(
+  client: RpcClient,
+  input: AdjustBatchInput,
+): Promise<{ data: Record<string, unknown> | null; error: PharmacyRpcError | null }> {
+  const { data, error } = await client.rpc("adjust_pharmacy_batch_stock", {
+    p_tenant_id: input.tenantId,
+    p_product_id: input.productId,
+    p_quantity: Math.trunc(input.quantity),
+    p_type: input.type,
+    p_reason: input.reason,
+    p_actor_id: input.actorId,
+    p_batch_id: input.batchId ?? null,
+    p_batch_number: input.batchNumber ?? null,
+    p_expiry_date: input.expiryDate ? String(input.expiryDate).slice(0, 10) : null,
+    p_cost_price: input.costPrice ?? null,
+    p_restore_as: input.restoreAs ?? "active",
+  });
+
+  if (error) return { data: null, error: parsePharmacyRpcError(error.message) };
+  return { data: (data as Record<string, unknown>) ?? {}, error: null };
+}
+
+export async function reversePharmacySale(
+  client: RpcClient,
+  input: {
+    tenantId: string;
+    saleId: string;
+    actorId: string;
+    reason: string;
+    /** Default quarantined — dispensed medicines are not blindly re-sellable. */
+    restoreAs?: "active" | "quarantined";
+  },
+): Promise<{ data: Record<string, unknown> | null; error: PharmacyRpcError | null }> {
+  const { data, error } = await client.rpc("reverse_pharmacy_sale", {
+    p_tenant_id: input.tenantId,
+    p_sale_id: input.saleId,
+    p_actor_id: input.actorId,
+    p_reason: input.reason,
+    p_restore_as: input.restoreAs ?? "quarantined",
+  });
+
+  if (error) return { data: null, error: parsePharmacyRpcError(error.message) };
+  return { data: (data as Record<string, unknown>) ?? {}, error: null };
+}
