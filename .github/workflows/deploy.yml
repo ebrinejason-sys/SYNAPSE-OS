@@ -58,11 +58,12 @@ jobs:
         run: npm run lint --workspace @synapse/web -- --max-warnings 0
         continue-on-error: true
 
-  # Runs only on main when VERCEL_TOKEN is configured. Disable this job if Vercel Git integration deploys on push.
+  # Optional CLI deploy. Prefer Vercel Git integration for www/pharm production.
+  # Skip when VERCEL_TOKEN is unset so CI stays green (empty --token= fails the job).
   deploy-vercel:
     needs: verify
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && secrets.VERCEL_TOKEN != ''
     steps:
       - uses: actions/checkout@v4
 
