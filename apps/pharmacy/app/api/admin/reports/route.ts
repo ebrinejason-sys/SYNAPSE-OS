@@ -494,7 +494,25 @@ export async function GET(request: NextRequest) {
         existing.total_quantity += p.quantity ?? 0
         productsByCategoryMap.set(cat, existing)
       }
-      const productsByCategory = Array.from(productsByCategoryMap.values())
+      const productsByCategory = Array.from(productsByCategoryMap.values()).map((row) => ({
+        category: row.category,
+        count: row.count,
+        total_quantity: row.total_quantity,
+        quantity: row.total_quantity,
+        _count: row.count,
+        _sum: { quantity: row.total_quantity },
+      }))
+
+      const mapProduct = (p: any) => ({
+        id: p.id,
+        name: p.name ?? "Unknown",
+        sku: p.sku ?? "",
+        quantity: p.quantity ?? 0,
+        reorderLevel: p.reorder_level ?? p.reorderLevel ?? 0,
+        expiryDate: p.expiry_date ?? p.expiryDate ?? null,
+        category: p.category ?? "Uncategorized",
+        ...p,
+      })
 
       return NextResponse.json({
         type: "inventory",
@@ -512,10 +530,10 @@ export async function GET(request: NextRequest) {
           expiringCount: expiringResult.data?.length ?? 0,
           expiredCount: expiredResult.data?.length ?? 0,
         },
-        lowStockProducts: lowStockResult.data ?? [],
-        outOfStockProducts: outOfStockResult.data ?? [],
-        expiringProducts: expiringResult.data ?? [],
-        expiredProducts: expiredResult.data ?? [],
+        lowStockProducts: (lowStockResult.data ?? []).map(mapProduct),
+        outOfStockProducts: (outOfStockResult.data ?? []).map(mapProduct),
+        expiringProducts: (expiringResult.data ?? []).map(mapProduct),
+        expiredProducts: (expiredResult.data ?? []).map(mapProduct),
         productsByCategory,
         stockMovements: stockMovementsResult.data ?? [],
       })

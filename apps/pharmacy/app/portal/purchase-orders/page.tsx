@@ -64,6 +64,12 @@ const statusConfig = {
   SHIPPED: { label: "Shipped", color: "bg-indigo-500/15 text-indigo-400", icon: Truck },
   RECEIVED: { label: "Received", color: "bg-green-500/15 text-[#22C55E]", icon: CheckCircle },
   CANCELLED: { label: "Cancelled", color: "bg-red-500/15 text-destructive", icon: XCircle },
+} as const
+
+type PoStatus = keyof typeof statusConfig
+
+function getStatusConfig(status: string) {
+  return statusConfig[(status as PoStatus)] ?? statusConfig.PENDING
 }
 
 export default function PurchaseOrdersPage() {
@@ -262,7 +268,7 @@ export default function PurchaseOrdersPage() {
               {/* Mobile View */}
               <div className="block sm:hidden space-y-4">
                 {orders.map((order) => {
-                  const StatusIcon = statusConfig[order.status].icon
+                  const StatusIcon = getStatusConfig(order.status).icon
                   return (
                     <div key={order.id} className="border rounded-lg p-4 space-y-3">
                       <div className="flex items-start justify-between">
@@ -270,14 +276,14 @@ export default function PurchaseOrdersPage() {
                           <h3 className="font-semibold">{order.orderNumber}</h3>
                           <p className="text-sm text-muted-foreground">{order.supplier.name}</p>
                         </div>
-                        <span className={`px-2 py-1 text-xs rounded-full flex items-center gap-1 ${statusConfig[order.status].color}`}>
+                        <span className={`px-2 py-1 text-xs rounded-full flex items-center gap-1 ${getStatusConfig(order.status).color}`}>
                           <StatusIcon className="h-3 w-3" />
-                          {statusConfig[order.status].label}
+                          {getStatusConfig(order.status).label}
                         </span>
                       </div>
                       
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">{order.items.length} items</span>
+                        <span className="text-muted-foreground">{(order.items ?? []).length} items</span>
                         <span className="font-semibold text-[#22C55E]">{formatCurrency(order.totalAmount)}</span>
                       </div>
                       
@@ -316,7 +322,7 @@ export default function PurchaseOrdersPage() {
                   </TableHeader>
                   <TableBody>
                     {orders.map((order) => {
-                      const StatusIcon = statusConfig[order.status].icon
+                      const StatusIcon = getStatusConfig(order.status).icon
                       return (
                         <TableRow key={order.id}>
                           <TableCell className="font-mono">{order.orderNumber}</TableCell>
@@ -324,14 +330,14 @@ export default function PurchaseOrdersPage() {
                             <div>{order.supplier.name}</div>
                             <div className="text-xs text-muted-foreground">{order.supplier.email}</div>
                           </TableCell>
-                          <TableCell>{order.items.length} items</TableCell>
+                          <TableCell>{(order.items ?? []).length} items</TableCell>
                           <TableCell className="font-semibold text-[#22C55E]">
                             {formatCurrency(order.totalAmount)}
                           </TableCell>
                           <TableCell>
-                            <span className={`px-2 py-1 text-xs rounded-full flex items-center gap-1 w-fit ${statusConfig[order.status].color}`}>
+                            <span className={`px-2 py-1 text-xs rounded-full flex items-center gap-1 w-fit ${getStatusConfig(order.status).color}`}>
                               <StatusIcon className="h-3 w-3" />
-                              {statusConfig[order.status].label}
+                              {getStatusConfig(order.status).label}
                             </span>
                           </TableCell>
                           <TableCell>
@@ -383,7 +389,7 @@ function ReceiveOrderDialog({
     }>,
   ) => void | Promise<void>
 }) {
-  const linkedItems = order.items.filter((i) => i.productId)
+  const linkedItems = (order.items ?? []).filter((i) => i.productId)
   const [lines, setLines] = useState<ReceiptLine[]>(() =>
     linkedItems.map((item) => ({
       productId: item.productId as string,
@@ -540,7 +546,7 @@ function OrderDetailDialog({
   onUpdateStatus: (orderId: string, status: string) => void
   onResendEmail: (orderId: string) => void
 }) {
-  const StatusIcon = statusConfig[order.status].icon
+  const StatusIcon = getStatusConfig(order.status).icon
 
   const statusFlow = ["PENDING", "SENT", "CONFIRMED", "SHIPPED", "RECEIVED"]
   const currentIndex = statusFlow.indexOf(order.status)
@@ -554,9 +560,9 @@ function OrderDetailDialog({
             <div>
               <CardTitle className="flex items-center gap-2">
                 Order {order.orderNumber}
-                <span className={`px-2 py-1 text-xs rounded-full flex items-center gap-1 ${statusConfig[order.status].color}`}>
+                <span className={`px-2 py-1 text-xs rounded-full flex items-center gap-1 ${getStatusConfig(order.status).color}`}>
                   <StatusIcon className="h-3 w-3" />
-                  {statusConfig[order.status].label}
+                  {getStatusConfig(order.status).label}
                 </span>
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
@@ -593,7 +599,7 @@ function OrderDetailDialog({
                   </tr>
                 </thead>
                 <tbody>
-                  {order.items.map((item) => (
+                  {(order.items ?? []).map((item) => (
                     <tr key={item.id} className="border-t">
                       <td className="p-3">
                         <div>{item.productName}</div>

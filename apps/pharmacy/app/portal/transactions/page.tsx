@@ -169,10 +169,10 @@ export default function TransactionsPage() {
   }
 
   const calculateProfit = (transaction: Transaction) => {
-    return transaction.items.reduce((total, item) => {
+    return (transaction.items ?? []).reduce((total, item) => {
       // Use stored costPrice if available, otherwise fall back to current product cost
-      const costAtSale = item.costPrice ?? item.product.costPrice
-      const profit = (item.unitPrice - costAtSale) * Math.abs(item.quantity)
+      const costAtSale = item.costPrice ?? item.product?.costPrice ?? 0
+      const profit = (item.unitPrice - costAtSale) * Math.abs(item.quantity ?? 0)
       return total + profit
     }, 0)
   }
@@ -275,11 +275,11 @@ export default function TransactionsPage() {
       return
     }
     setEditingTransaction(transaction)
-    setEditItems(transaction.items.map(item => ({
+    setEditItems((transaction.items ?? []).map(item => ({
       id: item.id,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
-      productName: item.product.name
+      productName: item.product?.name ?? "Unknown"
     })))
     setEditPaymentMethod(transaction.paymentMethod)
     setEditReason("")
@@ -717,15 +717,15 @@ export default function TransactionsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedTransaction.items.map((item) => (
+                    {(selectedTransaction.items ?? []).map((item) => (
                       <TableRow key={item.id}>
-                        <TableCell>{item.product.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{item.product.sku}</TableCell>
+                        <TableCell>{item.product?.name ?? "Unknown"}</TableCell>
+                        <TableCell className="text-muted-foreground">{item.product?.sku ?? "—"}</TableCell>
                         <TableCell className="text-right">{item.quantity}</TableCell>
                         <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
                         <TableCell className="text-right font-semibold">{formatCurrency(item.totalPrice)}</TableCell>
                         <TableCell className="text-right text-[#22C55E]">
-                          {formatCurrency((item.unitPrice - item.product.costPrice) * item.quantity)}
+                          {formatCurrency((item.unitPrice - (item.costPrice ?? item.product?.costPrice ?? 0)) * Math.abs(item.quantity ?? 0))}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1055,11 +1055,11 @@ function TransactionReceipt({
               </tr>
             </thead>
             <tbody>
-              {transaction.items.map((item) => (
+              {(transaction.items ?? []).map((item) => (
                 <tr key={item.id} className="print-no-break border-b border-border">
                   <td className="py-1 px-2">
-                    <span className="font-medium text-[10px]">{item.product.name}</span>
-                    {item.product.sku && <span className="text-[8px] block">{item.product.sku}</span>}
+                    <span className="font-medium text-[10px]">{item.product?.name ?? "Unknown"}</span>
+                    {item.product?.sku ? <span className="text-[8px] block">{item.product.sku}</span> : null}
                     {item.product.expiryDate && <span className="text-[8px] block">Exp: {new Date(item.product.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</span>}
                   </td>
                   <td className="text-center py-1 px-1">{item.quantity}</td>

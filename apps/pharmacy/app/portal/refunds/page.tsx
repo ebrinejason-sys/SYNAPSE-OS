@@ -211,7 +211,7 @@ export default function RefundsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transaction.items.map((item) => (
+                {(transaction.items ?? []).map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.product?.name || "Unknown"}</TableCell>
                     <TableCell>{item.product?.sku || "-"}</TableCell>

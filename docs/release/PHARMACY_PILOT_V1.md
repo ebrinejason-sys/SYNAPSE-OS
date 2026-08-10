@@ -18,7 +18,7 @@ without Supabase service-role secrets.
 |------|--------|
 | Web production build | ✅ verified |
 | Android Expo export | ✅ verified |
-| Android installable APK (EAS preview) | ✅ finished — v1.2.0 / versionCode **4** · [download APK](https://expo.dev/artifacts/eas/ZETtpvyJGb5s22SJ1-0k0_-JGo6US_vdW3KD6qkDbDU.apk) |
+| Android installable APK (EAS preview) | ✅ finished — v1.2.1 / versionCode **5** · [download APK](https://expo.dev/artifacts/eas/8_5SZGbtsQZJX5HcHvWyUxzssrJ2ny-nNrSAVH7YJBc.apk) |
 | Live inventory-authority migrations | ❌ not applied (confirmed live) |
 | Live receive → FEFO sale → receipt → refund smoke | ❌ blocked (no service-role / migrations) |
 | Shared inventory/sales/receipt authority in code | ✅ |
@@ -42,7 +42,7 @@ without Supabase service-role secrets.
 - Reports crash fixed (API shape + null-safe UI); receipt HTML uses IBM Plex Mono/Sans with paper width + font scale
 - Pharmacy-admin printer prefs: paper width / font scale / auto-print (portal + native settings)
 - Native: dark/light/system appearance; forgot + reset password; More hub grouped like portal (Sales, Inventory, Purchasing, Admin)
-- EAS preview APK ✅ (v1.2.0 / versionCode 4): [APK download](https://expo.dev/artifacts/eas/ZETtpvyJGb5s22SJ1-0k0_-JGo6US_vdW3KD6qkDbDU.apk) · rebuild for 1.2.1 in progress
+- EAS preview APK ✅ (v1.2.1 / versionCode 5): [APK download](https://expo.dev/artifacts/eas/8_5SZGbtsQZJX5HcHvWyUxzssrJ2ny-nNrSAVH7YJBc.apk) · [build logs](https://expo.dev/accounts/ebrinejason/projects/synapse-app/builds/93d3775d-915b-4fa1-8876-c86e29f46c97)
 
 ## 4. Database status (live, read-only probe 2026-08-10)
 Using Expo anon key against `qfqakzmjatszisuqjwon.supabase.co`:

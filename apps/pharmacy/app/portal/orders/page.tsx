@@ -514,7 +514,7 @@ export default function OrdersPage() {
                       <span className="text-muted-foreground">Supplier Order</span>
                     )}
                   </TableCell>
-                  <TableCell>{order.items.length} items</TableCell>
+                  <TableCell>{(order.items ?? []).length} items</TableCell>
                   <TableCell className="font-semibold">{formatCurrency(order.totalAmount)}</TableCell>
                   <TableCell>
                     {order.claimedByUser ? (
@@ -1309,7 +1309,7 @@ function OrderDetailsDialog({ order, onClose, onStatusChange, onRefresh }: Order
         ${order.deliveryAddress ? `<p><strong>Address:</strong> ${order.deliveryAddress}</p>` : ""}
         <div class="line"></div>
         <table>
-          ${order.items.map(item => `
+          ${(order.items ?? []).map(item => `
             <tr>
               <td>${item.productName || item.product?.name}</td>
               <td class="center">x${item.quantity}</td>
@@ -1446,7 +1446,7 @@ function OrderDetailsDialog({ order, onClose, onStatusChange, onRefresh }: Order
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {order.items.map((item) => (
+                {(order.items ?? []).map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>{item.productName || item.product?.name}</TableCell>
                     <TableCell className="text-right">{item.quantity}</TableCell>

@@ -198,20 +198,20 @@ export default function ReportsPage() {
 
       csvContent += "DAILY SALES\n"
       csvContent += "Date,Total,Count\n"
-      ;(report as SalesReport).salesByDay.forEach(d => {
+      ;((report as SalesReport).salesByDay ?? []).forEach(d => {
         csvContent += `${d.date},${d.total},${d.count}\n`
       })
 
       csvContent += "\nSALES BY CATEGORY\n"
       csvContent += "Category,Total,Count\n"
-      ;(report as SalesReport).salesByCategory.forEach(c => {
+      ;((report as SalesReport).salesByCategory ?? []).forEach(c => {
         csvContent += `${c.category},${c.total},${c.count}\n`
       })
 
       csvContent += "\nTOP PRODUCTS\n"
       csvContent += "Product,Quantity,Revenue\n"
-      ;(report as SalesReport).topProducts.forEach(p => {
-        csvContent += `${p.product?.name || 'Unknown'},${p._sum.quantity},${p._sum.totalPrice}\n`
+      ;((report as SalesReport).topProducts ?? []).forEach(p => {
+        csvContent += `${p.product?.name || 'Unknown'},${p._sum?.quantity ?? (p as { quantity?: number }).quantity ?? 0},${p._sum?.totalPrice ?? (p as { total?: number }).total ?? 0}\n`
       })
     } else if (report.type === "inventory") {
       csvContent = "INVENTORY REPORT\n"
@@ -221,19 +221,19 @@ export default function ReportsPage() {
 
       csvContent += "LOW STOCK PRODUCTS\n"
       csvContent += "Product,SKU,Quantity,Status\n"
-      ;(report as InventoryReport).lowStockProducts.forEach(p => {
+      ;((report as InventoryReport).lowStockProducts ?? []).forEach(p => {
         csvContent += `${p.name},${p.sku},${p.quantity},Low Stock\n`
       })
 
       csvContent += "\nOUT OF STOCK PRODUCTS\n"
       csvContent += "Product,SKU,Quantity\n"
-      ;(report as InventoryReport).outOfStockProducts?.forEach(p => {
+      ;((report as InventoryReport).outOfStockProducts ?? []).forEach(p => {
         csvContent += `${p.name},${p.sku},${p.quantity}\n`
       })
 
       csvContent += "\nEXPIRING PRODUCTS\n"
       csvContent += "Product,Expiry Date,Quantity\n"
-      ;(report as InventoryReport).expiringProducts?.forEach(p => {
+      ;((report as InventoryReport).expiringProducts ?? []).forEach(p => {
         csvContent += `${p.name},${new Date(p.expiryDate).toLocaleDateString()},${p.quantity}\n`
       })
     } else if (report.type === "profit") {
@@ -244,14 +244,14 @@ export default function ReportsPage() {
 
       csvContent += "PROFIT BY PRODUCT\n"
       csvContent += "Product,Quantity,Revenue,Cost,Profit,Margin (%)\n"
-      ;(report as ProfitReport).profitByProduct.forEach(p => {
+      ;((report as ProfitReport).profitByProduct ?? []).forEach(p => {
         const margin = p.revenue > 0 ? ((p.profit / p.revenue) * 100).toFixed(2) : 0
         csvContent += `${p.name},${p.quantity},${p.revenue},${p.cost},${p.profit},${margin}\n`
       })
 
       csvContent += "\nPROFIT BY CATEGORY\n"
       csvContent += "Category,Revenue,Cost,Profit,Margin (%)\n"
-      ;(report as ProfitReport).profitByCategory?.forEach(c => {
+      ;((report as ProfitReport).profitByCategory ?? []).forEach(c => {
         const margin = c.revenue > 0 ? ((c.profit / c.revenue) * 100).toFixed(2) : 0
         csvContent += `${c.category},${c.revenue},${c.cost},${c.profit},${margin}\n`
       })
@@ -540,7 +540,7 @@ export default function ReportsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(report as SalesReport).topProducts.slice(0, 10).map((item) => (
+                    {((report as SalesReport).topProducts ?? []).slice(0, 10).map((item) => (
                       <TableRow key={item.productId}>
                         <TableCell className="font-medium">
                           {item.product?.name || (item as { productName?: string }).productName || "Unknown"}
@@ -573,7 +573,7 @@ export default function ReportsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(report as SalesReport).topCustomers.map((customer, index) => (
+                    {((report as SalesReport).topCustomers ?? []).map((customer, index) => (
                       <TableRow key={index}>
                         <TableCell className="font-medium">{customer.name}</TableCell>
                         <TableCell className="text-right">{customer.count}</TableCell>
@@ -582,7 +582,7 @@ export default function ReportsPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {(report as SalesReport).topCustomers.length === 0 && (
+                    {((report as SalesReport).topCustomers ?? []).length === 0 && (
                       <TableRow>
                         <TableCell colSpan={3} className="text-center text-muted-foreground py-4">
                           No customer data recorded for this period
@@ -611,7 +611,7 @@ export default function ReportsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(report as SalesReport).salesByUser.map((user) => {
+                  {((report as SalesReport).salesByUser ?? []).map((user) => {
                     const revenue = user._sum?.netAmount ?? (user as { total?: number }).total ?? 0
                     const count = user._count ?? (user as { count?: number }).count ?? 0
                     return (
@@ -751,7 +751,7 @@ export default function ReportsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(report as InventoryReport).lowStockProducts.slice(0, 10).map((product) => (
+                    {((report as InventoryReport).lowStockProducts ?? []).slice(0, 10).map((product) => (
                       <TableRow key={product.id}>
                         <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell>{product.sku}</TableCell>
@@ -813,7 +813,7 @@ export default function ReportsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(report as InventoryReport).expiredProducts.map((product) => (
+                    {((report as InventoryReport).expiredProducts ?? []).map((product) => (
                       <TableRow key={product.id} className="bg-red-50">
                         <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell>{product.sku}</TableCell>
@@ -841,15 +841,18 @@ export default function ReportsPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={(report as InventoryReport).productsByCategory}
-                        dataKey="_sum.quantity"
+                        data={((report as InventoryReport).productsByCategory ?? []).map((cat) => ({
+                          ...cat,
+                          quantity: cat._sum?.quantity ?? (cat as { total_quantity?: number; quantity?: number }).total_quantity ?? (cat as { quantity?: number }).quantity ?? 0,
+                        }))}
+                        dataKey="quantity"
                         nameKey="category"
                         cx="50%"
                         cy="50%"
                         outerRadius={80}
                         label={({ category, percent }) => `${category} ${(percent * 100).toFixed(0)}%`}
                       >
-                        {(report as InventoryReport).productsByCategory.map((entry, index) => (
+                        {((report as InventoryReport).productsByCategory ?? []).map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
@@ -875,11 +878,18 @@ export default function ReportsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(report as InventoryReport).productsByCategory.map((cat) => (
+                    {((report as InventoryReport).productsByCategory ?? []).map((cat) => (
                       <TableRow key={cat.category}>
                         <TableCell className="font-medium">{cat.category}</TableCell>
-                        <TableCell className="text-right">{cat._count}</TableCell>
-                        <TableCell className="text-right">{cat._sum.quantity}</TableCell>
+                        <TableCell className="text-right">
+                          {cat._count ?? (cat as { count?: number }).count ?? 0}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {cat._sum?.quantity ??
+                            (cat as { total_quantity?: number; quantity?: number }).total_quantity ??
+                            (cat as { quantity?: number }).quantity ??
+                            0}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -951,7 +961,7 @@ export default function ReportsPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={(report as ProfitReport).profitByCategory}
+                        data={(report as ProfitReport).profitByCategory ?? []}
                         dataKey="profit"
                         nameKey="category"
                         cx="50%"
@@ -959,7 +969,7 @@ export default function ReportsPage() {
                         outerRadius={80}
                         label={({ category, percent }) => `${category} ${(percent * 100).toFixed(0)}%`}
                       >
-                        {(report as ProfitReport).profitByCategory?.map((entry, index) => (
+                        {((report as ProfitReport).profitByCategory ?? []).map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
@@ -982,7 +992,7 @@ export default function ReportsPage() {
               <CardContent>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={(report as ProfitReport).profitByCategory}>
+                    <BarChart data={(report as ProfitReport).profitByCategory ?? []}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="category" />
                       <YAxis tickFormatter={(value) => `UGX ${value/1000}k`} />
@@ -1015,7 +1025,7 @@ export default function ReportsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(report as ProfitReport).profitByProduct.map((product, index) => (
+                  {((report as ProfitReport).profitByProduct ?? []).map((product, index) => (
                     <TableRow key={index}>
                       <TableCell className="font-medium">{product.name}</TableCell>
                       <TableCell className="text-right">{product.quantity}</TableCell>
