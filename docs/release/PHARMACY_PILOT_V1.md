@@ -37,11 +37,11 @@ without Supabase service-role secrets.
 - Expo **android export ✅** (`expo export --platform android` → Hermes bundle)
 - Native: home, POS (draft cart + pending-sync UX), stock, receive, import, sales, receipt print/share/email/reprint, suppliers, POs, reports, refunds, settings, users, barcode scan (`expo-camera` + manual fallback)
 - Profile portal redirects removed for those flows; **billing remains portal** (deferred)
-- App identity: name `Synapse`, package `tech.synapseos.app`, version `1.2.0` / versionCode `3`
+- App identity: name `Synapse`, package `tech.synapseos.app`, version `1.2.0` / versionCode `4`
 - API base: `https://www.synapseos.tech` (no localhost in config)
 - Reports crash fixed (API shape + null-safe UI); receipt HTML uses IBM Plex Mono/Sans with paper width + font scale
 - Pharmacy-admin printer prefs: paper width / font scale / auto-print (portal + native settings)
-- EAS preview APK: build started 2026-08-10 — https://expo.dev/accounts/ebrinejason/projects/synapse-app/builds/dcbfe724-ec8d-4341-8a3d-181b7c8d03ba
+- EAS preview APK (with this revision): https://expo.dev/accounts/ebrinejason/projects/synapse-app/builds/6bfef252-409b-4834-9a98-74bc89053432
 
 ## 4. Database status (live, read-only probe 2026-08-10)
 Using Expo anon key against `qfqakzmjatszisuqjwon.supabase.co`:
