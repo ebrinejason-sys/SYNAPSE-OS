@@ -16,6 +16,14 @@ import { formatCurrency, generateTransactionNo } from "@/lib/utils"
 import { Search, ShoppingCart, Trash2, Printer, Clock, Eye, Calculator, Package, Wifi, WifiOff, Download } from "lucide-react"
 import { getPendingActions, saveMetadata, getMetadata } from "@/lib/offlineStorage"
 import {
+  commitOfflineSale,
+  loadOfflineCatalog,
+  persistCatalogSnapshot,
+  persistOfflineIdentity,
+  syncOfflineSales,
+} from "@/lib/offline/client"
+import type { CatalogProduct } from "@synapse/offline"
+import {
   allocateFefoBatches,
   DISCOUNT_REASONS,
   expiryBadgeClass,
@@ -182,6 +190,8 @@ export default function POSPage() {
     client: { name: string; phone: string; address: string }
   } | null>(null)
   const [pendingSyncCount, setPendingSyncCount] = useState(0)
+  const [conflictCount, setConflictCount] = useState(0)
+  const [catalogCapturedAt, setCatalogCapturedAt] = useState<string | null>(null)
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const { toast } = useToast()
 
@@ -249,6 +259,68 @@ export default function POSPage() {
     setPendingSyncCount(pending.length)
   }
 
+  const catalogIdentity = user?.tenantId && user.id
+    ? {
+        tenantId: user.tenantId,
+        actorId: user.id,
+        actorName: user.fullName ?? user.email ?? "Staff",
+        isAdmin: user.isAdmin,
+        pharmacyRole: user.pharmacyRole,
+      }
+    : null
+
+  const refreshProjectedCatalog = async (tenantId: string, fallback?: Product[]) => {
+    try {
+      const projected = await loadOfflineCatalog(tenantId)
+      setPendingSyncCount(projected.pendingCount)
+      setConflictCount(projected.conflictCount)
+      setCatalogCapturedAt(projected.snapshot?.capturedAt ?? null)
+      if (projected.products.length > 0) {
+        setProducts(projected.products as Product[])
+      } else if (fallback) {
+        setProducts(fallback)
+      }
+    } catch {
+      if (fallback) setProducts(fallback)
+    }
+  }
+
+  useEffect(() => {
+    if (!catalogIdentity) return
+    void persistOfflineIdentity(catalogIdentity)
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      void (async () => {
+        const result = await syncOfflineSales(catalogIdentity.tenantId)
+        setPendingSyncCount(result.remaining)
+        setConflictCount(result.conflicts)
+        if (result.synced > 0) {
+          toast({
+            title: "Offline sales synced",
+            description: `${result.synced} sale(s) posted to the ledger.`,
+          })
+          fetchProducts()
+        }
+        if (result.needsAuth) {
+          toast({
+            variant: "destructive",
+            title: "Sign in to sync",
+            description: "Queued sales are saved on this device. Sign in again to post them.",
+          })
+        }
+        if (result.conflicts > 0) {
+          toast({
+            variant: "destructive",
+            title: "Stock conflict",
+            description: `${result.conflicts} offline sale(s) need manager reconciliation. Goods already left this counter.`,
+          })
+        }
+      })()
+    } else {
+      void refreshProjectedCatalog(catalogIdentity.tenantId)
+    }
+  }, [catalogIdentity?.tenantId, catalogIdentity?.actorId, isOnline])
+
+
   // Check for sync updates periodically or when online status changes
   useEffect(() => {
     const interval = setInterval(updatePendingSyncCount, 10000)
@@ -308,7 +380,6 @@ export default function POSPage() {
           return
         }
       }
-      // Offline fallback
       const cachedStaff = await getMetadata('staff-members')
       if (Array.isArray(cachedStaff)) setStaffMembers(cachedStaff as StaffMember[])
     } catch (error) {
@@ -329,7 +400,6 @@ export default function POSPage() {
           return
         }
       }
-      // Offline fallback
       const cachedSettings = await getMetadata('settings')
       if (cachedSettings && typeof cachedSettings === 'object') setSettings(cachedSettings as Settings)
     } catch (error) {
@@ -340,25 +410,49 @@ export default function POSPage() {
   }
 
   const fetchProducts = async () => {
+    const tenantId = catalogIdentity?.tenantId
     try {
       if (navigator.onLine) {
         const response = await fetch("/api/admin/inventory")
         if (response.ok) {
           const data = await response.json()
-          const productList = Array.isArray(data) ? data : []
-          setProducts(productList)
-          saveMetadata('products', productList)
+          const productList = (Array.isArray(data) ? data : []) as Product[]
+          if (tenantId) {
+            const cachedSettings = await getMetadata("settings")
+            const cachedStaff = await getMetadata("staff-members")
+            await persistCatalogSnapshot({
+              tenantId,
+              products: productList.map((p) => ({
+                ...p,
+                batches: p.batches ?? [],
+                isActive: true,
+              })),
+              settings: settings ?? cachedSettings,
+              staff: staffMembers.length ? staffMembers : cachedStaff,
+              identity: catalogIdentity,
+            })
+            await refreshProjectedCatalog(tenantId, productList)
+          } else {
+            setProducts(productList)
+          }
           return
         }
         throw new Error('Failed to fetch products')
       }
-      // Offline fallback
+      if (tenantId) {
+        await refreshProjectedCatalog(tenantId)
+        return
+      }
       const cachedProducts = await getMetadata('products')
       if (Array.isArray(cachedProducts)) setProducts(cachedProducts as Product[])
     } catch (error) {
       console.error("Failed to fetch products:", error)
-      const cachedProducts = await getMetadata('products')
-      if (Array.isArray(cachedProducts)) setProducts(cachedProducts as Product[])
+      if (tenantId) {
+        await refreshProjectedCatalog(tenantId)
+      } else {
+        const cachedProducts = await getMetadata('products')
+        if (Array.isArray(cachedProducts)) setProducts(cachedProducts as Product[])
+      }
 
       if (navigator.onLine) {
         toast({
@@ -653,18 +747,125 @@ export default function POSPage() {
         : {}),
     };
 
-    if (!navigator.onLine) {
-      toast({
-        variant: "destructive",
-        title: "You are offline",
-        description:
-          "Sales cannot be completed offline. Stay connected — nothing was charged or deducted from stock.",
+    const presentSaleReceipt = (printTxn: Record<string, unknown>) => {
+      setPendingTransaction(printTxn)
+      setReceiptStaffNamePending(receiptStaffName)
+      setPendingReceiptMeta({ paymentMethod, amountPaid, change })
+      if (settings?.autoPrintReceipt) {
+        setPrintReceiptData({
+          transaction: printTxn,
+          staffName: receiptStaffName,
+          meta: { paymentMethod, amountPaid, change },
+          settings,
+        })
+        setIsPrintingReceipt(true)
+        triggerReliablePrint()
+        setPendingTransaction(null)
+        setReceiptStaffNamePending("")
+        setPendingReceiptMeta(null)
+      } else {
+        setShowPrintPrompt(true)
+      }
+
+      setCart([])
+      localStorage.removeItem("pos-cart")
+      setSelectedStaff(null)
+      setAmountPaid("")
+      setCreditCustomerId("")
+      setCreditDueDate("")
+      setDiscountApprovedBy(null)
+    }
+
+    const receiptItems = cart.map((item, idx) => ({
+      id: `item-${idx}`,
+      quantity: item.baseUnitsTotal || item.cartQuantity,
+      unitPrice: item.sellingPrice,
+      totalPrice: item.subtotal,
+      packageName: item.selectedPackage?.name || null,
+      packageQuantity: item.packageQuantity || null,
+      product: { name: item.name, sku: item.sku },
+      batch: item.batchNumber
+        ? { batchNumber: item.batchNumber, expiryDate: item.expiryDate }
+        : null,
+    }))
+
+    const commitLocally = async () => {
+      const tenantId = catalogIdentity?.tenantId
+      if (!tenantId || !catalogIdentity) {
+        toast({
+          variant: "destructive",
+          title: "Cannot save offline",
+          description: "Sign in while online once so this counter can cache cashier identity.",
+        })
+        return false
+      }
+      const result = await commitOfflineSale({
+        tenantId,
+        actorId: catalogIdentity.actorId,
+        paymentMethod,
+        taxAmount,
+        receiptStaffName,
+        clientName: client.name,
+        clientPhone: client.phone,
+        clientAddress: client.address,
+        idempotencyKey,
+        items: cart.map((item) => {
+          const reason =
+            item.discountReason === "other"
+              ? `other:${item.discountReasonOther || "unspecified"}`
+              : item.discountReason || null
+          return {
+            productId: item.id,
+            productName: item.name,
+            sku: item.sku,
+            quantity: item.baseUnitsTotal || item.cartQuantity,
+            listPrice: item.listPrice,
+            unitPrice: item.sellingPrice,
+            discountAmount: item.discountAmount,
+            discountReason: reason,
+            discountApprovedBy: effectiveApproval,
+            costPrice: item.costPrice,
+            packageName: item.selectedPackage?.name || null,
+            packageQuantity: item.packageQuantity || null,
+          }
+        }),
       })
+      if (!result.ok) {
+        toast({
+          variant: "destructive",
+          title: "Sale not saved",
+          description: result.error,
+        })
+        return false
+      }
+      toast({
+        title: "Saved on this device",
+        description: `${result.command.payload.localReceiptNumber} will post when this counter is back online. Not yet on the central ledger.`,
+      })
+      presentSaleReceipt({
+        id: result.command.commandId,
+        transactionNo: result.command.payload.localReceiptNumber,
+        createdAt: result.command.localCommittedAt,
+        clientName: client.name,
+        clientPhone: client.phone,
+        clientAddress: client.address,
+        totalAmount: total,
+        tax: taxAmount,
+        netAmount: grandTotal,
+        paymentMethod,
+        syncStatus: "pending",
+        items: receiptItems,
+      })
+      await refreshProjectedCatalog(tenantId)
+      return true
+    }
+
+    if (!navigator.onLine) {
+      await commitLocally()
       setIsProcessing(false)
       return
     }
 
-    // Online: Proceed with API call
     try {
         const response = await fetch("/api/admin/pos/complete-sale", {
           method: "POST",
@@ -686,7 +887,7 @@ export default function POSPage() {
               : "Sale completed successfully",
           })
 
-          const printTxn = {
+          presentSaleReceipt({
             id: sale?.sale_id ?? sale?.id ?? `sale-${Date.now()}`,
             transactionNo: sale?.receipt_number ?? txnNo,
             createdAt: new Date().toISOString(),
@@ -697,47 +898,19 @@ export default function POSPage() {
             tax: Number(sale?.tax_amount ?? taxAmount),
             netAmount: Number(sale?.total_amount ?? grandTotal),
             paymentMethod,
-            items: cart.map((item, idx) => ({
-              id: `item-${idx}`,
-              quantity: item.baseUnitsTotal || item.cartQuantity,
-              unitPrice: item.sellingPrice,
-              totalPrice: item.subtotal,
-              packageName: item.selectedPackage?.name || null,
-              packageQuantity: item.packageQuantity || null,
-              product: { name: item.name, sku: item.sku },
-              batch: item.batchNumber
-                ? { batchNumber: item.batchNumber, expiryDate: item.expiryDate }
-                : null,
-            })),
-          }
-
-          setPendingTransaction(printTxn)
-          setReceiptStaffNamePending(receiptStaffName)
-          setPendingReceiptMeta({ paymentMethod, amountPaid, change })
-          if (settings?.autoPrintReceipt) {
-            setPrintReceiptData({
-              transaction: printTxn,
-              staffName: receiptStaffName,
-              meta: { paymentMethod, amountPaid, change },
-              settings,
-            })
-            setIsPrintingReceipt(true)
-            triggerReliablePrint()
-            setPendingTransaction(null)
-            setReceiptStaffNamePending("")
-            setPendingReceiptMeta(null)
-          } else {
-            setShowPrintPrompt(true)
-          }
-
-          setCart([])
-          localStorage.removeItem('pos-cart')
-          setSelectedStaff(null)
-          setAmountPaid("")
-          setCreditCustomerId("")
-          setCreditDueDate("")
-          setDiscountApprovedBy(null)
+            syncStatus: "synced",
+            items: receiptItems,
+          })
           fetchProducts()
+        } else if (response.status >= 500) {
+          const queued = await commitLocally()
+          if (!queued) {
+            toast({
+              variant: "destructive",
+              title: "Error",
+              description: data.error || "Failed to process transaction",
+            })
+          }
         } else {
           toast({
             variant: "destructive",
@@ -745,12 +918,15 @@ export default function POSPage() {
             description: data.error || "Failed to process transaction",
           })
         }
-      } catch (error) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "An error occurred",
-        })
+      } catch {
+        const queued = await commitLocally()
+        if (!queued) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Network error. Sale was not saved.",
+          })
+        }
       }
 
     setIsProcessing(false);
@@ -914,7 +1090,7 @@ export default function POSPage() {
             {isOnline ? (
               <><Wifi className="h-3 w-3" /> Online</>
             ) : (
-              <><WifiOff className="h-3 w-3" /> Offline Mode</>
+              <><WifiOff className="h-3 w-3" /> Offline POS</>
             )}
           </div>
 
@@ -924,8 +1100,21 @@ export default function POSPage() {
               {pendingSyncCount} pending sync
             </div>
           )}
+          {conflictCount > 0 && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-red-50 border border-red-200 text-red-700">
+              {conflictCount} stock conflict{conflictCount === 1 ? "" : "s"}
+            </div>
+          )}
         </div>
       </div>
+
+      {!isOnline && (
+        <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900">
+          Selling from the last stock snapshot
+          {catalogCapturedAt ? ` (${new Date(catalogCapturedAt).toLocaleString()})` : ""}.
+          Cash / mobile money / card only. Credit needs a live connection. Receipts stay on this device until they sync.
+        </div>
+      )}
 
       {/* Staff Selection Dialog for SYNAPSE PHARM account */}
       {showStaffDialog && (
@@ -1198,12 +1387,19 @@ export default function POSPage() {
           <Card className="w-full max-w-sm">
             <CardHeader>
               <CardTitle>Print Receipt?</CardTitle>
-              <p className="text-sm text-muted-foreground mt-2">Your sale has been recorded successfully. Would you like to print the receipt?</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                {pendingTransaction?.syncStatus === "pending"
+                  ? "This sale is saved on this device and will post when you are back online."
+                  : "Your sale has been recorded successfully. Would you like to print the receipt?"}
+              </p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-accent/10 border border-accent/25 rounded-lg p-3">
                 <p className="text-sm text-foreground">
-                  <strong>Important:</strong> The transaction has already been saved to the system regardless of your choice.
+                  <strong>Important:</strong>{" "}
+                  {pendingTransaction?.syncStatus === "pending"
+                    ? "The customer received goods against a local receipt. It is not on the central ledger until sync succeeds."
+                    : "The transaction has already been saved to the system regardless of your choice."}
                 </p>
               </div>
               <div className="flex gap-3">
@@ -2118,7 +2314,9 @@ function TransactionReceipt({
         </p>
       )}
       <div className="tr-heavy" />
-      <p className="tr-center tr-bold">*** SALES RECEIPT ***</p>
+      <p className="tr-center tr-bold">
+        {transaction?.syncStatus === "pending" ? "*** LOCAL RECEIPT — PENDING SYNC ***" : "*** SALES RECEIPT ***"}
+      </p>
       <div className="tr-dash" />
 
       {/* ── Transaction meta ── */}
@@ -2212,6 +2410,9 @@ function TransactionReceipt({
       <p className="tr-center tr-sm">Served by: <strong>{staffName}</strong></p>
       <p className="tr-center tr-bold">{footer}</p>
       <p className="tr-center tr-sm">Keep this receipt for your records.</p>
+      {transaction?.syncStatus === "pending" && (
+        <p className="tr-center tr-sm tr-bold">Not yet posted to the central ledger</p>
+      )}
       <div className="tr-dash" />
       <p className="tr-center tr-mono tr-sm">{transaction?.transactionNo || ""}</p>
     </div>

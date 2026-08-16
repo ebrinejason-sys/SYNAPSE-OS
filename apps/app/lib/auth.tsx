@@ -4,10 +4,11 @@ import * as SecureStore from 'expo-secure-store'
 import * as LocalAuthentication from 'expo-local-authentication'
 import * as Notifications from 'expo-notifications'
 import * as Device from 'expo-device'
-import { apiRequest } from './api'
+import { apiRequest, ApiError } from './api'
 import { clearAllCache } from './cache'
 
 const TOKEN_KEY = 'synapse_mobile_token'
+const USER_CACHE_KEY = 'synapse_mobile_user_cache'
 const BIOMETRIC_LAST_KEY = 'synapse_biometric_last_auth'
 const BIOMETRIC_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
@@ -80,8 +81,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false
 
     async function restore() {
+      let stored: string | null = null
       try {
-        const stored = await Promise.race([
+        stored = await Promise.race([
           SecureStore.getItemAsync(TOKEN_KEY),
           new Promise<string | null>((resolve) => {
             setTimeout(() => resolve(null), 8_000)
@@ -97,22 +99,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           timeoutMs: 20_000,
         })
         if (cancelled) return
+        const nextUser = {
+          ...user,
+          synapseId: user.synapseId ?? null,
+          dashboardKind: user.dashboardKind ?? 'generic',
+        }
+        await SecureStore.setItemAsync(USER_CACHE_KEY, JSON.stringify(nextUser)).catch(() => {})
         setState({
-          user: {
-            ...user,
-            synapseId: user.synapseId ?? null,
-            dashboardKind: user.dashboardKind ?? 'generic',
-          },
+          user: nextUser,
           token: stored,
           isLoading: false,
           isLocked: false,
         })
         // Register push token after session restore
         registerPushToken(stored, user.role).catch(() => {})
-      } catch {
-        await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {})
+      } catch (err) {
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {})
+          await SecureStore.deleteItemAsync(USER_CACHE_KEY).catch(() => {})
+          if (!cancelled) {
+            setState({ user: null, token: null, isLoading: false, isLocked: false })
+          }
+          return
+        }
+        const cached = await SecureStore.getItemAsync(USER_CACHE_KEY).catch(() => null)
+        if (!cancelled && stored && cached) {
+          try {
+            const user = JSON.parse(cached) as MobileUser
+            setState({ user, token: stored, isLoading: false, isLocked: false })
+            return
+          } catch {
+            /* fall through */
+          }
+        }
         if (!cancelled) {
-          setState({ user: null, token: null, isLoading: false, isLocked: false })
+          setState({ user: null, token: stored, isLoading: false, isLocked: false })
         }
       }
     }
@@ -136,6 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       { method: 'POST', body: { email, otp } }
     )
     await SecureStore.setItemAsync(TOKEN_KEY, data.token)
+    await SecureStore.setItemAsync(USER_CACHE_KEY, JSON.stringify(data.user)).catch(() => {})
     setState({ user: data.user, token: data.token, isLoading: false, isLocked: false })
     // Register push token after new login
     registerPushToken(data.token, data.user.role).catch(() => {})
@@ -145,6 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const currentToken = state.token
     setState({ user: null, token: null, isLoading: false, isLocked: false })
     await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {})
+    await SecureStore.deleteItemAsync(USER_CACHE_KEY).catch(() => {})
     // Release 0: never leave private dashboard cache across sessions.
     await clearAllCache().catch(() => {})
     if (currentToken) {

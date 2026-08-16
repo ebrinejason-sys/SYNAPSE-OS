@@ -21,6 +21,14 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { useAuth } from '@/lib/auth'
 import { apiRequest, ApiError } from '@/lib/api'
+import {
+  commitMobileOfflineSale,
+  loadMobileCatalog,
+  persistMobileCatalog,
+  persistMobileIdentity,
+  posProductToCatalog,
+  syncMobileOfflineSales,
+} from '@/lib/offline-pos'
 import { colors, radii, spacing, typography, TONE_COLORS } from '@/lib/theme'
 
 const CART_DRAFT_KEY = 'synapse.pharmacy.pos.draft.v1'
@@ -87,7 +95,7 @@ function newIdempotencyKey() {
 }
 
 export default function PosScreen() {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { height: windowHeight } = useWindowDimensions()
@@ -107,6 +115,8 @@ export default function PosScreen() {
   const idempotencyRef = useRef(newIdempotencyKey())
   const [draftRestored, setDraftRestored] = useState(false)
   const [pendingSync, setPendingSync] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [offlineMode, setOfflineMode] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query.trim()), 280)
@@ -188,6 +198,7 @@ export default function PosScreen() {
       setLoading(false)
       return
     }
+    const tenantId = user?.tenantId
     try {
       const path =
         debounced.length > 0
@@ -195,12 +206,92 @@ export default function PosScreen() {
           : '/api/mobile/pharmacy/pos/products?limit=60'
       const data = await apiRequest<{ products: PosProduct[] }>(path, { token })
       setProducts(data.products)
+      setOfflineMode(false)
+      if (tenantId) {
+        await persistMobileCatalog({
+          tenantId,
+          products: data.products.map(posProductToCatalog),
+          identity: user
+            ? {
+                tenantId: user.tenantId,
+                actorId: user.id,
+                actorName: user.fullName ?? user.email,
+                isAdmin: user.isAdmin,
+                pharmacyRole: user.role,
+              }
+            : null,
+        })
+        const projected = await loadMobileCatalog(tenantId)
+        if (projected.products.length > 0) {
+          setProducts(
+            data.products.map((p): PosProduct => {
+              const local = projected.products.find((x) => x.id === p.id)
+              if (!local) return p
+              return {
+                ...p,
+                quantity: local.sellableQuantity ?? local.quantity,
+                batches: local.batches.map((b) => ({
+                  id: b.id,
+                  batchNumber: b.batchNumber,
+                  quantity: b.quantity,
+                  expiryDate: b.expiryDate ?? '',
+                })),
+              }
+            }),
+          )
+        }
+        setPendingCount(projected.pendingCount)
+      }
     } catch {
-      setProducts([])
+      if (tenantId) {
+        const projected = await loadMobileCatalog(tenantId)
+        setProducts(
+          projected.products.map((p) => ({
+            id: p.id,
+            name: p.name,
+            sku: p.sku ?? null,
+            barcode: p.barcode ?? null,
+            price: p.price,
+            quantity: p.sellableQuantity ?? p.quantity,
+            unit: p.unitOfMeasure ?? 'unit',
+            requiresPrescription: Boolean(p.requiresPrescription),
+            packages: p.packages ?? [],
+            batches: (p.batches ?? []).map((b) => ({
+              id: b.id,
+              batchNumber: b.batchNumber,
+              quantity: b.quantity,
+              expiryDate: b.expiryDate ?? '',
+            })),
+          })),
+        )
+        setPendingCount(projected.pendingCount)
+        setOfflineMode(true)
+      } else {
+        setProducts([])
+      }
     } finally {
       setLoading(false)
     }
-  }, [token, debounced])
+  }, [token, debounced, user])
+
+  useEffect(() => {
+    if (!user?.tenantId) return
+    void persistMobileIdentity({
+      tenantId: user.tenantId,
+      actorId: user.id,
+      actorName: user.fullName ?? user.email,
+      isAdmin: user.isAdmin,
+      pharmacyRole: user.role,
+    })
+  }, [user])
+
+  useEffect(() => {
+    if (!token || !user?.tenantId) return
+    void syncMobileOfflineSales(user.tenantId, token).then((result) => {
+      setPendingCount(result.remaining)
+      if (result.synced > 0) load()
+    })
+  }, [token, user?.tenantId, load])
 
   useEffect(() => {
     setLoading(true)
@@ -366,12 +457,60 @@ export default function PosScreen() {
       const networkish =
         err instanceof Error &&
         /network|timeout|fetch failed|failed to fetch|internet/i.test(err.message)
-      if (networkish) {
-        setPendingSync(true)
-        Alert.alert(
-          'Sale not completed',
-          'No internet or the server did not confirm this sale. The cart is still held as a local draft — it is NOT sold yet. Retry when connectivity returns (same receipt key prevents duplicates).',
-        )
+      if (networkish || (err instanceof ApiError && err.status >= 500)) {
+        const tenantId = user?.tenantId
+        if (!tenantId || !user) {
+          setPendingSync(true)
+          Alert.alert(
+            'Sale not completed',
+            'No internet and this device has no cached cashier identity. Sign in while online once, then you can sell through an outage.',
+          )
+        } else {
+          const local = await commitMobileOfflineSale({
+            tenantId,
+            actorId: user.id,
+            paymentMethod: payment,
+            taxAmount: 0,
+            receiptStaffName: user.fullName ?? user.email,
+            idempotencyKey: idempotencyRef.current,
+            items: cart.map((l, idx) => ({
+              productId: l.productId,
+              productName: l.name,
+              quantity: l.quantity,
+              listPrice: l.unitPrice,
+              unitPrice: l.unitPrice,
+              discountAmount: idx === 0 ? discountN : 0,
+              discountReason: idx === 0 && discountN > 0 ? discountReason.trim() : null,
+              discountApprovedBy: null,
+              costPrice: 0,
+              packageName: l.packageLabel,
+              packageQuantity: l.unitsPerPackage > 1 ? l.quantity : null,
+            })),
+          })
+          if (!local.ok) {
+            Alert.alert('Sale not saved', local.error)
+          } else {
+            setLastSale({
+              sale_id: local.command.commandId,
+              receipt_number: local.command.payload.localReceiptNumber,
+              total_amount: total,
+              status: 'pending_sync',
+            })
+            setPendingCount((n) => n + 1)
+            setOfflineMode(true)
+            setCart([])
+            setCartDiscount('')
+            setDiscountReason('')
+            setPendingSync(false)
+            idempotencyRef.current = newIdempotencyKey()
+            void AsyncStorage.removeItem(CART_DRAFT_KEY)
+            Alert.alert(
+              'Saved on this device',
+              `${local.command.payload.localReceiptNumber} will post when you are back online. Not yet on the central ledger.`,
+            )
+            load()
+          }
+        }
       } else {
         const message =
           err instanceof ApiError
@@ -419,10 +558,26 @@ export default function PosScreen() {
         )}
       </View>
 
+      {offlineMode ? (
+        <View style={styles.pendingBanner}>
+          <Text style={styles.pendingText}>
+            Offline POS — selling from the last stock snapshot. Cash / mobile money / card only.
+          </Text>
+        </View>
+      ) : null}
+
+      {pendingCount > 0 ? (
+        <View style={styles.pendingBanner}>
+          <Text style={styles.pendingText}>
+            {pendingCount} sale{pendingCount === 1 ? '' : 's'} saved on this device, waiting to sync.
+          </Text>
+        </View>
+      ) : null}
+
       {pendingSync ? (
         <View style={styles.pendingBanner}>
           <Text style={styles.pendingText}>
-            Sale not confirmed by server. Cart held as draft — retry when online. Not sold yet.
+            Sale not confirmed. Cart is still held as a draft — it is not sold yet.
           </Text>
         </View>
       ) : null}

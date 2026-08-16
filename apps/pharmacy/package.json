@@ -30,6 +30,7 @@
     "@synapse/config": "*",
     "@synapse/db": "*",
     "@synapse/email": "*",
+    "@synapse/offline": "*",
     "autoprefixer": "^10.4.23",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

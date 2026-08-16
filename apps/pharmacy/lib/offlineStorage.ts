@@ -1,10 +1,14 @@
 /**
- * Offline storage stub for the web pharmacy app.
- * Durable offline POS is NOT implemented. Callers must not treat these as success.
+ * Pharmacy offline facade.
+ * Generic HTTP mutation replay is still forbidden. POS sales go through the
+ * typed `pharmacy.sale.complete.v1` outbox in `@synapse/offline`.
  */
 
+import { pendingCommands } from "@synapse/offline"
+import { pharmacyOffline } from "./offline/client"
+
 export class OfflineUnavailableError extends Error {
-  constructor(message = "Offline persistence is disabled until a durable encrypted queue ships.") {
+  constructor(message = "Generic offline mutation replay is disabled. Use the POS sale outbox.") {
     super(message)
     this.name = "OfflineUnavailableError"
   }
@@ -20,17 +24,35 @@ export async function queueMutation(
 }
 
 export async function saveOfflineTransaction(_transaction: unknown): Promise<void> {
-  throw new OfflineUnavailableError()
+  throw new OfflineUnavailableError(
+    "Use commitOfflineSale() — unstructured transaction blobs are not durable sales.",
+  )
 }
 
 export async function getPendingActions(): Promise<unknown[]> {
-  return []
+  try {
+    const engine = await pharmacyOffline()
+    const all = await engine.listAllCommands()
+    return pendingCommands(all)
+  } catch {
+    return []
+  }
 }
 
-export async function saveMetadata(_key: string, _value: unknown): Promise<void> {
-  // Metadata cache is non-financial — allow no-op.
+export async function saveMetadata(key: string, value: unknown): Promise<void> {
+  try {
+    const engine = await pharmacyOffline()
+    await engine.setMeta(key, value)
+  } catch {
+    // Non-financial cache — ignore persistence failures.
+  }
 }
 
-export async function getMetadata(_key: string): Promise<unknown> {
-  return null
+export async function getMetadata(key: string): Promise<unknown> {
+  try {
+    const engine = await pharmacyOffline()
+    return engine.getMeta(key)
+  } catch {
+    return null
+  }
 }
