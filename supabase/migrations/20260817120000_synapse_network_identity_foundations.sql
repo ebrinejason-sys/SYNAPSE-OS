@@ -6,6 +6,7 @@
 -- ADDITIVE + REVERSIBLE. Does not recreate live pharmacy POS/inventory tables.
 -- Does not destroy or rewrite patients / pharmacy_customers rows.
 -- person_id columns are nullable so existing records keep working until linked.
+-- Preserves live public.generate_synapse_id() (zero-arg) used by patient_profiles.
 --
 -- Rollback outline:
 --   drop functions / policies created here; drop new tables; drop added columns.
@@ -122,7 +123,9 @@ comment on table public.persons is
 
 -- Human-readable SYNAPSE ID: SYN-{ISO3166}-{8 Crockford}{1 check}
 -- Collision-resistant: 40 bits of entropy from gen_random_bytes + uniqueness retry.
-create or replace function public.generate_synapse_id(p_country_code text default 'UG')
+-- One-arg overload for persons. Intentionally no DEFAULT so it cannot collide
+-- with the live zero-arg generate_synapse_id() used by patient_profiles.
+create or replace function public.generate_synapse_id(p_country_code text)
 returns text
 language plpgsql
 as $$
@@ -136,6 +139,7 @@ declare
   candidate text;
   cc text;
   attempts int := 0;
+  taken boolean;
 begin
   cc := upper(regexp_replace(coalesce(nullif(trim(p_country_code), ''), 'UG'), '[^A-Z]', '', 'g'));
   if length(cc) <> 2 then
@@ -159,7 +163,12 @@ begin
       + ascii(substr(body, 8, 1)) + ascii(cc, 1) + ascii(cc, 2)
     ) % 32;
     candidate := 'SYN-' || cc || '-' || body || substr(alphabet, check_idx + 1, 1);
-    exit when not exists (select 1 from public.persons where synapse_id = candidate);
+    taken := exists (select 1 from public.persons where synapse_id = candidate);
+    if not taken and to_regclass('public.patient_profiles') is not null then
+      execute 'select exists (select 1 from public.patient_profiles where synapse_id = $1)'
+        into taken using candidate;
+    end if;
+    exit when not taken;
     if attempts > 8 then
       raise exception 'SYNAPSE_ID_GENERATION_FAILED';
     end if;
@@ -995,16 +1004,8 @@ create policy pharmacy_stock_transfer_items_via_parent on public.pharmacy_stock_
     )
   );
 
+-- Person SYNAPSE IDs use generate_synapse_id(text).
+-- Do NOT replace or revoke the existing zero-arg generate_synapse_id() used by
+-- patient_profiles (granted to anon + authenticated on live SYNAPSE_OS).
 revoke all on function public.generate_synapse_id(text) from public, anon;
 grant execute on function public.generate_synapse_id(text) to authenticated, service_role;
-
--- Keep a zero-arg overload if live code already calls generate_synapse_id()
-create or replace function public.generate_synapse_id()
-returns text
-language sql
-as $$
-  select public.generate_synapse_id('UG');
-$$;
-
-revoke all on function public.generate_synapse_id() from public, anon;
-grant execute on function public.generate_synapse_id() to authenticated, service_role;
