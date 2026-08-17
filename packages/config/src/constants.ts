@@ -25,6 +25,18 @@ export const UGANDA_DISTRICTS = [
 
 export type UgandaDistrict = typeof UGANDA_DISTRICTS[number]
 
+export const FACILITY_MODES = [
+  'NATIVE','CONNECTED','HYBRID','SATELLITE','COMMUNITY_ACCESS',
+] as const
+
+export type FacilityMode = typeof FACILITY_MODES[number]
+
+export const SITE_KINDS = [
+  'main','satellite','warehouse','community_access','branch',
+] as const
+
+export type SiteKind = typeof SITE_KINDS[number]
+
 export const FACILITY_TYPES = [
   'hospital','clinic','pharmacy','laboratory',
   'imaging_center','dental','mental_health','care_home',

@@ -15,6 +15,8 @@ export interface SynapseTokenPayload extends JWTPayload {
   email: string
   role: string
   tenant_id: string
+  organization_id?: string
+  site_id?: string
   app: 'web' | 'pharmacy' | 'mobile'
   synapse_id?: string
   is_impersonation?: boolean
