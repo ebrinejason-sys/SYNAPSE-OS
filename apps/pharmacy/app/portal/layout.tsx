@@ -8,7 +8,7 @@ import {
   Settings, LogOut, Menu, X, UserCheck, ClipboardList,
   MessageSquare, Activity, Truck, FileText, BarChart3,
   RotateCcw, Wifi, WifiOff, CalendarClock, WalletCards, BrainCircuit,
-  Sun, Moon, CreditCard, UserCircle,
+  Sun, Moon, CreditCard, UserCircle, Building2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NotificationBell } from "@/components/ui/notification-bell"
@@ -17,6 +17,7 @@ import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { usePharmacySession } from "@/hooks/use-pharmacy-session"
 import { sessionHasCapability } from "@/lib/capabilities"
+import { SkipLink } from "@synapse/ui"
 
 export const dynamic = "force-dynamic"
 
@@ -59,6 +60,7 @@ const NAV_GROUPS = [
     label: 'Admin',
     items: [
       { name: 'Users',        href: '/portal/users',        icon: Users,         permission: 'MANAGE_USERS' },
+      { name: 'Branches',     href: '/portal/branches',     icon: Building2,     permission: 'MANAGE_SETTINGS' },
       { name: 'Network',      href: '/portal/network',      icon: Wifi,          permission: 'MANAGE_SETTINGS' },
       { name: 'Inquiries',    href: '/portal/inquiries',    icon: MessageSquare, adminOnly: true },
       { name: 'Activity Log', href: '/portal/activity-log', icon: Activity,      adminOnly: true },
@@ -171,6 +173,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="min-h-screen bg-background">
+      <SkipLink href="#main" />
       <IdleLogoutModal />
 
       {/* Impersonation banner */}
@@ -219,7 +222,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               <span className="block text-[10px] font-normal text-muted-foreground -mt-0.5">Pharmacy</span>
             </span>
           </Link>
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(false)}>
+          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(false)} aria-label="Close navigation menu">
             <X className="h-5 w-5" />
           </Button>
         </div>
@@ -298,7 +301,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <div className={cn("lg:pl-64 flex flex-col h-screen", user?.isImpersonation && "pt-10")}>
         {/* Top bar — sticky within the flex column */}
         <header className="app-header shrink-0 z-30 flex items-center justify-between h-16 px-4 lg:px-6 bg-card/80 backdrop-blur-md border-b border-border">
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(true)}>
+          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(true)} aria-label="Open navigation menu">
             <Menu className="h-5 w-5" />
           </Button>
 
@@ -312,7 +315,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               isOnline
                 ? "bg-green-500/10 text-green-400 border-green-500/20"
                 : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-            )}>
+            )}
+            aria-live="polite"
+          >
               {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
               <span>{isOnline ? "Online" : "Offline"}</span>
             </div>
@@ -323,6 +328,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               onClick={toggleTheme}
               className="text-muted-foreground hover:text-foreground"
               title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
             >
               {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
@@ -335,7 +341,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         </header>
 
         {/* Scrollable content area */}
-        <main className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 xl:p-8 lg:pb-8">
+        <main id="main" className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 xl:p-8 lg:pb-8">
           <div className="max-w-[1920px] mx-auto">
             {children}
           </div>

@@ -10,7 +10,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@synapse/auth', '@synapse/db', '@synapse/config', '@synapse/email'],
+  transpilePackages: ['@synapse/auth', '@synapse/db', '@synapse/config', '@synapse/email', '@synapse/ui', '@synapse/interop'],
   typescript: {
     ignoreBuildErrors: false,
   },

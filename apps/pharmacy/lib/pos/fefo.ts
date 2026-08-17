@@ -63,6 +63,21 @@ export function expiryBadgeClass(tone: ExpiryTone): string {
   }
 }
 
+export function expiryToneLabel(tone: ExpiryTone): string {
+  switch (tone) {
+    case "ok":
+      return "In date"
+    case "warn":
+      return "Expires within 180 days"
+    case "critical":
+      return "Expires within 90 days"
+    case "expired":
+      return "Expired"
+    default:
+      return "Expiry unknown"
+  }
+}
+
 /**
  * Allocate `qtyNeeded` base units across FEFO batches (earliest expiry first).
  * Skips expired / empty batches. May return partial allocation if stock is short.

@@ -18,7 +18,7 @@
     --secondary:         0 0% 15%;         /* #262626 */
     --secondary-foreground:0 0% 90%;
     --muted:             0 0% 16%;         /* #292929 */
-    --muted-foreground:  0 0% 55%;         /* #8C8C8C */
+    --muted-foreground:  0 0% 72%;         /* ~#B8B8B8 — ≥4.5:1 on charcoal */
     --accent:            40 77% 57%;       /* #E8B84B gold */
     --accent-foreground: 0 0% 4%;
     --destructive:       0 84% 60%;
@@ -43,7 +43,7 @@
     --secondary:         220 30% 92%;      /* #DDE5F2 blue-grey tint */
     --secondary-foreground:220 40% 13%;
     --muted:             220 25% 94%;      /* slightly darker than bg */
-    --muted-foreground:  220 15% 45%;      /* medium blue-grey */
+    --muted-foreground:  220 22% 32%;      /* #3E4A5C — ≥4.5:1 on off-white */
     --accent:            40 90% 50%;       /* #E8A800 saturated gold */
     --accent-foreground: 0 0% 4%;
     --destructive:       0 84% 55%;

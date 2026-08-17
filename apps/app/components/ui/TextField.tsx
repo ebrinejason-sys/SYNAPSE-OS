@@ -12,6 +12,7 @@ export function TextField({ label, hint, style, ...props }: TextFieldProps) {
     <View style={styles.wrap}>
       <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
       <TextInput
+        accessibilityLabel={label}
         placeholderTextColor={colors.textMuted}
         style={[
           styles.input,

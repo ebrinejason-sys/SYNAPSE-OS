@@ -30,6 +30,8 @@
     "@synapse/config": "*",
     "@synapse/db": "*",
     "@synapse/email": "*",
+    "@synapse/interop": "*",
+    "@synapse/ui": "*",
     "autoprefixer": "^10.4.23",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyTenant } from "@/lib/api-auth"
 import { mapCustomer } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { registerPersonForFacility } from "@synapse/db/identity-persist"
 
 export async function GET(request: NextRequest) {
   try {
@@ -116,6 +117,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const person = await registerPersonForFacility({
+      tenantId,
+      actorId: session.userId,
+      sourceSystem: "synapse-pharm",
+      demographics: {
+        fullName: name.trim(),
+        phone: phone?.trim() ?? null,
+        email: email?.trim() ?? null,
+        countryCode: "UG",
+      },
+    }).catch((err) => {
+      console.error("[customers] person register failed", err)
+      return null
+    })
+
     const { data: customer, error } = await supabaseAdmin
       .from("pharmacy_customers")
       .insert({
@@ -124,9 +140,29 @@ export async function POST(request: NextRequest) {
         email: normalizedEmail,
         phone: phone?.trim() ?? null,
         address: address ?? null,
+        ...(person ? { person_id: person.id } : {}),
       })
       .select()
       .single()
+
+    if (error && person && String(error.message ?? "").toLowerCase().includes("person_id")) {
+      const retry = await supabaseAdmin
+        .from("pharmacy_customers")
+        .insert({
+          tenant_id: tenantId,
+          name: name.trim(),
+          email: normalizedEmail,
+          phone: phone?.trim() ?? null,
+          address: address ?? null,
+        })
+        .select()
+        .single()
+      if (retry.error) throw retry.error
+      return NextResponse.json(
+        mapCustomer(retry.data as Record<string, unknown>, { orders: 0, transactions: 0 }),
+        { status: 201 },
+      )
+    }
 
     if (error) throw error
 
@@ -140,10 +176,16 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json(
-      mapCustomer(customer as Record<string, unknown>, {
-        orders: 0,
-        transactions: 0,
-      }),
+      mapCustomer(
+        {
+          ...(customer as Record<string, unknown>),
+          synapse_id: person?.synapseId ?? null,
+        },
+        {
+          orders: 0,
+          transactions: 0,
+        },
+      ),
     )
   } catch (error) {
     console.error("Create customer error:", error)

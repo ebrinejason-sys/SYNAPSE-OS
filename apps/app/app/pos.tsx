@@ -479,6 +479,8 @@ export default function PosScreen() {
           onChangeText={setQuery}
           autoCorrect={false}
           autoCapitalize="none"
+          accessibilityLabel="Product search"
+          accessibilityHint="Search by name, SKU, or barcode"
         />
       </View>
 

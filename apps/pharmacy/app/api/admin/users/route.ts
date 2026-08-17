@@ -16,6 +16,7 @@ type UserSettingRow = {
   is_active: boolean | null
   two_factor_enabled: boolean | null
   created_at: string | null
+  store_id: string | null
 }
 
 type ProfileSummaryRow = {
@@ -36,11 +37,21 @@ export async function GET() {
 
     if (!tenantId) return NextResponse.json({ error: "Tenant not found" }, { status: 400 })
 
-    const { data: userSettings, error: settingsError } = await db
+    let { data: userSettings, error: settingsError } = await db
       .from("pharmacy_user_settings")
-      .select("profile_id, username, pharmacy_role, permissions, is_active, two_factor_enabled, created_at")
+      .select("profile_id, username, pharmacy_role, permissions, is_active, two_factor_enabled, created_at, store_id")
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
+
+    if (settingsError && String(settingsError.message ?? "").toLowerCase().includes("store_id")) {
+      const fallback = await db
+        .from("pharmacy_user_settings")
+        .select("profile_id, username, pharmacy_role, permissions, is_active, two_factor_enabled, created_at")
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: false })
+      userSettings = fallback.data
+      settingsError = fallback.error
+    }
 
     if (settingsError) {
       console.error("Error fetching user settings:", settingsError)
@@ -77,6 +88,7 @@ export async function GET() {
         isActive: setting.is_active,
         twoFactorEnabled: setting.two_factor_enabled ?? false,
         createdAt: setting.created_at,
+        storeId: setting.store_id ?? null,
       }
     })
 
@@ -97,7 +109,7 @@ export async function POST(request: NextRequest) {
 
     if (!tenantId) return NextResponse.json({ error: "Tenant not found" }, { status: 400 })
 
-    const { name, email, username, role, permissions } = await request.json()
+    const { name, email, username, role, permissions, storeId } = await request.json()
     if (!name || !email || !role) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
@@ -161,9 +173,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to create user" }, { status: 500 })
     }
 
-    const { error: settingsError } = await db
-      .from("pharmacy_user_settings")
-      .insert({
+    const settingsPayload: Record<string, unknown> = {
         tenant_id: tenantId,
         profile_id: newUserId,
         username: username ? username.toLowerCase() : null,
@@ -174,7 +184,18 @@ export async function POST(request: NextRequest) {
         created_by: session.user.id,
         created_at: now,
         updated_at: now,
-      })
+    }
+    if (storeId) settingsPayload.store_id = storeId
+
+    let { error: settingsError } = await db
+      .from("pharmacy_user_settings")
+      .insert(settingsPayload)
+
+    if (settingsError && storeId && String(settingsError.message ?? "").toLowerCase().includes("store_id")) {
+      delete settingsPayload.store_id
+      const retry = await db.from("pharmacy_user_settings").insert(settingsPayload)
+      settingsError = retry.error
+    }
 
     if (settingsError) {
       console.error("Error inserting user settings:", settingsError)

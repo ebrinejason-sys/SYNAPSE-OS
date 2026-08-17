@@ -16,6 +16,8 @@ import {
   type SaleLineInput,
 } from "@/lib/pos/sale-validation"
 import { buildStockError, type StructuredStockError } from "@synapse/db/inventory"
+import { pharmacyDispenseTimelineEvent } from "@synapse/db/timeline"
+import { publishTimelineEvent } from "@synapse/db/identity-persist"
 
 /**
  * Complete a POS sale via live `complete_pharmacy_sale` RPC.
@@ -162,6 +164,33 @@ export async function POST(request: NextRequest) {
       response: data,
     })
   }
+
+  void (async () => {
+    try {
+      const sale = data && typeof data === "object" ? (data as Record<string, unknown>) : {}
+      const saleId = String(sale.sale_id ?? sale.id ?? "")
+      if (!saleId) return
+      const personId = typeof body.personId === "string" ? body.personId : null
+      const patientId = typeof body.patientId === "string" ? body.patientId : null
+      if (!personId && !patientId) return
+      const names = rpcItems.map((i) => String(i.product_name ?? i.product_id)).slice(0, 4)
+      await publishTimelineEvent(
+        pharmacyDispenseTimelineEvent({
+          tenantId,
+          personId,
+          patientId,
+          siteId: typeof body.storeId === "string" ? body.storeId : null,
+          saleId,
+          receiptNumber: String(sale.receipt_number ?? ""),
+          facilityName: session.tenantName,
+          itemSummary: names.join(", "),
+          createdBy: session.userId,
+        }),
+      )
+    } catch (err) {
+      console.error("[pos] timeline publish failed:", err)
+    }
+  })()
 
   // After sale, push if any sold product crossed below reorder
   void (async () => {

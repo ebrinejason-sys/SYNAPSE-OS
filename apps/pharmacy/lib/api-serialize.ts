@@ -136,6 +136,8 @@ export type MappedCustomer = {
   address: string | null
   isActive: boolean
   createdAt: string | null
+  personId: string | null
+  synapseId: string | null
   _count: { orders: number; transactions: number }
 }
 
@@ -151,6 +153,8 @@ export function mapCustomer(
     address: (row.address as string | null) ?? null,
     isActive: Boolean(row.is_active ?? true),
     createdAt: (row.created_at as string | null) ?? null,
+    personId: (row.person_id as string | null) ?? null,
+    synapseId: (row.synapse_id as string | null) ?? null,
     _count: {
       orders: counts?.orders ?? 0,
       transactions: counts?.transactions ?? 0,
