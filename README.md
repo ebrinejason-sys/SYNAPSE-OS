@@ -54,6 +54,8 @@ See `docs/deploy.md` for Vercel project mapping and deploy gates.
 
 ## Documentation
 
+- `docs/architecture/synapse-network-architecture.md` — identity, facilities, interoperability, accessibility
+- `docs/adr/` — irreversible architecture decisions
 - `docs/SYNAPSE_ECOSYSTEM_OPERATING_MODEL_2026.md` — authoritative three-product ecosystem, outcomes, ownership, architecture, and roadmap
 - `docs/SYNAPSE_MASTER_BLUEPRINT_2026.md` — technical sweep, risk register, capability universe, and implementation annex
 - `SETUP_GUIDE.md` — local env and first-run
