@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo, useCallback } from "react"
+import { useEffect, useState, useMemo, useCallback, useRef } from "react"
 import { usePharmacySession } from "@/hooks/use-pharmacy-session"
 
 // Force dynamic rendering
@@ -15,11 +15,14 @@ import { useToast } from "@/hooks/use-toast"
 import { formatCurrency, generateTransactionNo } from "@/lib/utils"
 import { Search, ShoppingCart, Trash2, Printer, Clock, Eye, Calculator, Package, Wifi, WifiOff, Download } from "lucide-react"
 import { getPendingActions, saveMetadata, getMetadata } from "@/lib/offlineStorage"
+import { LiveRegion } from "@synapse/ui"
+import { usePosKeyboardShortcuts } from "@/lib/pos/keyboard"
 import {
   allocateFefoBatches,
   DISCOUNT_REASONS,
   expiryBadgeClass,
   expiryTone,
+  expiryToneLabel,
   type BatchAllocation,
   type DiscountReasonValue,
 } from "@/lib/pos/fefo"
@@ -184,6 +187,10 @@ export default function POSPage() {
   const [pendingSyncCount, setPendingSyncCount] = useState(0)
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const { toast } = useToast()
+  const productSearchRef = useRef<HTMLInputElement>(null)
+  const paymentRef = useRef<HTMLSelectElement>(null)
+  const patientRef = useRef<HTMLInputElement>(null)
+  const [liveMessage, setLiveMessage] = useState("")
 
   // Debounce search query for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
@@ -444,6 +451,7 @@ export default function POSPage() {
   }
 
   const addToCart = (product: Product, selectedPackage?: ProductPackage | null) => {
+    setLiveMessage(`${product.name} added to cart`)
     const existingItem = cart.find((item) => item.id === product.id &&
       item.selectedPackage?.id === selectedPackage?.id)
 
@@ -685,6 +693,11 @@ export default function POSPage() {
               ? `Sale ${sale.receipt_number} completed`
               : "Sale completed successfully",
           })
+          setLiveMessage(
+            sale?.receipt_number
+              ? `Payment completed. Sale ${sale.receipt_number}`
+              : "Payment completed",
+          )
 
           const printTxn = {
             id: sale?.sale_id ?? sale?.id ?? `sale-${Date.now()}`,
@@ -868,8 +881,43 @@ export default function POSPage() {
     setShowOrderDialog(true)
   }
 
+  usePosKeyboardShortcuts({
+    onPatientSearch: () => patientRef.current?.focus(),
+    onProductSearch: () => productSearchRef.current?.focus(),
+    onPayment: () => paymentRef.current?.focus(),
+    onHoldSale: () => {
+      if (cart.length === 0) {
+        setLiveMessage("Cart is empty — nothing to hold")
+        return
+      }
+      localStorage.setItem("pos-cart-held", JSON.stringify(cart))
+      setCart([])
+      setLiveMessage("Sale held")
+      toast({ title: "Sale held", description: "Press F9 to resume." })
+    },
+    onResumeSale: () => {
+      const held = localStorage.getItem("pos-cart-held")
+      if (!held) {
+        setLiveMessage("No held sale")
+        return
+      }
+      try {
+        setCart(JSON.parse(held))
+        setLiveMessage("Held sale resumed")
+        toast({ title: "Sale resumed" })
+      } catch {
+        setLiveMessage("Could not resume held sale")
+      }
+    },
+    onClose: () => {
+      setShowMobileCart(false)
+      setShowReceiptPreview(false)
+    },
+  })
+
   return (
     <div>
+      <LiveRegion message={liveMessage} politeness="polite" />
       {isPrintingReceipt && printReceiptData && (
         <div className="print-area fixed inset-0 z-[9999] overflow-auto" style={{ background: 'rgba(0,0,0,0.88)' }}>
           <div className="flex min-h-full items-start justify-center py-10">
@@ -887,10 +935,10 @@ export default function POSPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Point of Sale</h1>
           <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
-            Process sales and generate receipts
+            Process sales and generate receipts. Keyboard: F2 patient, F3 products, F6 payment, F8 hold, F9 resume.
             {isSynapsePharmAccount && selectedStaff && (
               <span className="ml-2 text-primary font-medium">
-                * Selling as: {selectedStaff.name}
+                {" "}Selling as: {selectedStaff.name}
               </span>
             )}
           </p>
@@ -1076,9 +1124,11 @@ export default function POSPage() {
                 <Label htmlFor="clientName">Client Name</Label>
                 <Input
                   id="clientName"
+                  ref={patientRef}
                   value={clientDetailsBeforeSale.name}
                   onChange={(e) => setClientDetailsBeforeSale({ ...clientDetailsBeforeSale, name: e.target.value })}
                   placeholder="e.g. John Doe"
+                  autoComplete="name"
                   required={paymentMethod === "CREDIT"}
                 />
               </div>
@@ -1241,8 +1291,11 @@ export default function POSPage() {
                 </div>
               </div>
               <div className="relative mt-4">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <Label htmlFor="pos-product-search" className="sr-only">Product search</Label>
                 <Input
+                  id="pos-product-search"
+                  ref={productSearchRef}
                   placeholder="Search by name, SKU, or scan barcode..."
                   value={searchQuery}
                   onChange={(e) => {
@@ -1250,7 +1303,12 @@ export default function POSPage() {
                     setDisplayCount(20) // Reset display count when searching
                   }}
                   className="pl-10"
+                  autoComplete="off"
+                  aria-describedby="pos-product-search-help"
                 />
+                <p id="pos-product-search-help" className="sr-only">
+                  Shortcut F3 focuses this search. Results update as you type.
+                </p>
               </div>
             </CardHeader>
             <CardContent>
@@ -1261,8 +1319,10 @@ export default function POSPage() {
                     className="p-4 border rounded-lg hover:bg-muted/20 text-left transition-colors"
                   >
                     <button
+                      type="button"
                       onClick={() => addToCart(product)}
                       className="w-full text-left"
+                      aria-label={`Add ${product.name} to cart, ${formatCurrency(product.price)}, stock ${product.quantity}`}
                     >
                       <div className="font-medium text-sm">{product.name} {product.strength && <span className="text-muted-foreground text-[10px]">({product.strength})</span>}</div>
                       <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{product.activeIngredient}</div>
@@ -1277,7 +1337,13 @@ export default function POSPage() {
                           <span className="text-primary font-bold">{formatCurrency(product.price)}</span>
                         </div>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1 pt-1 border-t">Stock: {product.quantity}</div>
+                      <div className="text-xs text-muted-foreground mt-1 pt-1 border-t">
+                        {product.quantity <= 0 ? (
+                          <span>OUT OF STOCK · 0 {product.unitOfMeasure}</span>
+                        ) : (
+                          <span>Stock: {product.quantity}</span>
+                        )}
+                      </div>
                     </button>
                     {/* Package options */}
                     {product.packages && product.packages.length > 0 && (
@@ -1380,6 +1446,7 @@ export default function POSPage() {
                                 key={`${item.id}-${alloc.batchId}-${alloc.batchNumber}`}
                                 className={`font-mono text-[11px] tabular-nums ${expiryBadgeClass(tone)}`}
                               >
+                                <span className="sr-only">{expiryToneLabel(tone)}. </span>
                                 {alloc.batchNumber}
                                 {alloc.expiryDate
                                   ? ` · Exp ${new Date(alloc.expiryDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`
@@ -1515,8 +1582,10 @@ export default function POSPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Payment Method</label>
+                  <label htmlFor="pos-payment" className="text-sm font-medium">Payment Method</label>
                   <select
+                    id="pos-payment"
+                    ref={paymentRef}
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -1607,6 +1676,7 @@ export default function POSPage() {
                   onClick={handleCompleteSale}
                   className="w-full"
                   disabled={isProcessing || cart.length === 0}
+                  aria-busy={isProcessing}
                 >
                   {isProcessing ? "Processing..." : "Complete Sale"}
                 </Button>

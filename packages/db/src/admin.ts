@@ -21,7 +21,6 @@ function getInstance(): SupabaseClient<Database> {
   const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
   const url = stripBom(rawUrl).trim()
   const key = stripBom(rawKey).trim()
-  console.log('[admin] url_char0:', rawUrl.charCodeAt(0), '| key_char0:', rawKey.charCodeAt(0), '| url_clean:', url.slice(0, 40))
   if (!url || !key) {
     throw new Error(
       '[SYNAPSE] SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY must both be set to use the service-role client.'

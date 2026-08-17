@@ -18,7 +18,7 @@ export interface AuditEntry {
 
 export async function logAudit(entry: AuditEntry): Promise<void> {
   try {
-    const { error } = await supabaseAdmin.from('audit_log').insert({
+    const { error } = await (supabaseAdmin as any).from('audit_log').insert({
       ...entry,
       created_at: new Date().toISOString(),
     })
@@ -38,7 +38,7 @@ export async function logPHIAccess(params: {
   tenant_id: string
 }): Promise<void> {
   try {
-    const { error } = await supabaseAdmin.from('phi_access_log').insert({
+    const { error } = await (supabaseAdmin as any).from('phi_access_log').insert({
       ...params,
       accessed_at: new Date().toISOString(),
     })

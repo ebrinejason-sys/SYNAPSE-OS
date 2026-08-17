@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
     "@synapse/db",
     "@synapse/config",
     "@synapse/email",
+    "@synapse/ui",
+    "@synapse/interop",
   ],
   // ESLint flat-config + monorepo ajv hoist can trip `defaultMeta` during CI;
   // type-check still runs in verify scripts / local tsc.
