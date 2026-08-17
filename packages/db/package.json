@@ -15,7 +15,9 @@
     "./identity-persist": "./src/identity-persist.ts",
     "./mpi": "./src/mpi.ts",
     "./timeline": "./src/timeline.ts",
-    "./scope": "./src/scope.ts"
+    "./scope": "./src/scope.ts",
+    "./consent": "./src/consent.ts",
+    "./offline": "./src/offline.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",

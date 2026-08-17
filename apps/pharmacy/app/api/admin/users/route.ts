@@ -49,7 +49,7 @@ export async function GET() {
         .select("profile_id, username, pharmacy_role, permissions, is_active, two_factor_enabled, created_at")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
-      userSettings = fallback.data
+      userSettings = fallback.data as typeof userSettings
       settingsError = fallback.error
     }
 

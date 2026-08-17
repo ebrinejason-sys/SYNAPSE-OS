@@ -79,7 +79,7 @@ export async function registerPersonForFacility(params: {
 
   const personId = person.id as string
 
-  const identifierRows = built.identifiers.map((id) => ({
+  const identifierRows: Array<Record<string, unknown>> = built.identifiers.map((id) => ({
     person_id: personId,
     identifier_value: id.value,
     identifier_type: id.type,

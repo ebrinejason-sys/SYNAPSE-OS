@@ -120,12 +120,12 @@ export function isValidSynapseId(value: string): boolean {
 
 function encodeCrockford40(bytes: Uint8Array): string {
   if (bytes.length < 5) throw new Error("need 5 bytes")
-  let n = 0n
-  for (let i = 0; i < 5; i++) n = (n << 8n) + BigInt(bytes[i]!)
+  let n = 0
+  for (let i = 0; i < 5; i++) n = n * 256 + (bytes[i] ?? 0)
   let body = ""
   for (let i = 0; i < 8; i++) {
-    body = SYNAPSE_ID_ALPHABET[Number(n & 31n)] + body
-    n >>= 5n
+    body = SYNAPSE_ID_ALPHABET[n % 32] + body
+    n = Math.floor(n / 32)
   }
   return body
 }
