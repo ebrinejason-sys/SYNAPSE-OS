@@ -160,7 +160,7 @@ begin
     end loop;
     check_idx := (
       ascii(substr(body, 1, 1)) + ascii(substr(body, 3, 1)) + ascii(substr(body, 5, 1))
-      + ascii(substr(body, 8, 1)) + ascii(cc, 1) + ascii(cc, 2)
+      + ascii(substr(body, 8, 1)) + ascii(substr(cc, 1, 1)) + ascii(substr(cc, 2, 1))
     ) % 32;
     candidate := 'SYN-' || cc || '-' || body || substr(alphabet, check_idx + 1, 1);
     taken := exists (select 1 from public.persons where synapse_id = candidate);
