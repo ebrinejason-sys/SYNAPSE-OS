@@ -3,13 +3,13 @@ import {
   type SyncCommand,
   type SyncConflict,
   type SyncOutboxStatus,
-} from '@synapse/db/sync-contract'
+} from '../../../packages/db/src/sync-contract'
 import type {
   SyncApplyResult,
   SyncOutboxRecord,
   SyncOutboxStore,
   SyncPersistResult,
-} from '@synapse/db/sync-runtime'
+} from '../../../packages/db/src/sync-runtime'
 
 export type SQLiteValue = string | number | null | Uint8Array
 

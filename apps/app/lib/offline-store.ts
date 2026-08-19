@@ -4,14 +4,15 @@ import * as SQLite from 'expo-sqlite'
 import {
   SYNC_SCHEMA_VERSION,
   canonicalizePayload,
+  isUuid,
   type SyncCommand,
   type SyncConflict,
-} from '@synapse/db/sync-contract'
+} from '../../../packages/db/src/sync-contract'
 import {
   SyncRuntime,
   type SyncApplyResult,
   type SyncFlushSummary,
-} from '@synapse/db/sync-runtime'
+} from '../../../packages/db/src/sync-runtime'
 import { apiRequest, ApiError } from './api'
 import {
   SQLiteSyncOutboxStore,
@@ -73,7 +74,7 @@ async function expoPayloadHash(payload: Record<string, unknown>): Promise<string
 
 async function getSyncDeviceId(): Promise<string> {
   const existing = await SecureStore.getItemAsync(DEVICE_ID_KEY)
-  if (existing) return existing
+  if (existing && isUuid(existing)) return existing
   const created = Crypto.randomUUID()
   await SecureStore.setItemAsync(DEVICE_ID_KEY, created)
   return created
