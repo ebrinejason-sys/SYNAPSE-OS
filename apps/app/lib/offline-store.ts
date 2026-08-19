@@ -51,6 +51,7 @@ type ServerApplyResponse = {
 }
 
 let storePromise: Promise<SQLiteSyncOutboxStore> | null = null
+const activeTenantSyncs = new Map<string, Promise<SyncFlushSummary>>()
 
 async function getStore(): Promise<SQLiteSyncOutboxStore> {
   if (!storePromise) {
@@ -110,8 +111,24 @@ export async function syncPharmacySales(
   tenantId: string,
   token: string,
 ): Promise<SyncFlushSummary> {
-  const runtime = new SyncRuntime(tenantId, await getStore(), expoPayloadHash)
-  return runtime.flush((command) => applyCommand(command, token))
+  const store = await getStore()
+  // Serialize foreground timer/manual retries per tenant. Server idempotency
+  // remains the cross-process safeguard after a crash or app restart.
+  for (;;) {
+    const active = activeTenantSyncs.get(tenantId)
+    if (!active) break
+    await active.catch(() => undefined)
+  }
+
+  const runtime = new SyncRuntime(tenantId, store, expoPayloadHash)
+  const pending = runtime.flush((command) => applyCommand(command, token))
+  const guarded = pending.finally(() => {
+    if (activeTenantSyncs.get(tenantId) === guarded) {
+      activeTenantSyncs.delete(tenantId)
+    }
+  })
+  activeTenantSyncs.set(tenantId, guarded)
+  return guarded
 }
 
 export async function getPharmacySyncStatus(
