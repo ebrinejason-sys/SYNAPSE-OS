@@ -11,5 +11,6 @@ export * from "./scope";
 export * from "./consent";
 export * from "./offline";
 export * from "./sync-contract";
+export * from "./sync-runtime";
 export { logAudit, logPHIAccess } from './audit'
 export type { AuditEntry } from './audit'

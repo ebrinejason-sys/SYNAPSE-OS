@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   FlatList,
@@ -20,7 +20,12 @@ import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { useAuth } from '@/lib/auth'
-import { apiRequest, ApiError } from '@/lib/api'
+import { apiRequest } from '@/lib/api'
+import {
+  commitPharmacySale,
+  getPharmacySyncStatus,
+  syncPharmacySales,
+} from '@/lib/offline-store'
 import { colors, radii, spacing, typography, TONE_COLORS } from '@/lib/theme'
 
 const CART_DRAFT_KEY = 'synapse.pharmacy.pos.draft.v1'
@@ -82,12 +87,8 @@ const PAYMENTS = [
   { key: 'CARD', label: 'Card' },
 ] as const
 
-function newIdempotencyKey() {
-  return `mpos-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-}
-
 export default function PosScreen() {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { height: windowHeight } = useWindowDimensions()
@@ -104,9 +105,9 @@ export default function PosScreen() {
   const [submitting, setSubmitting] = useState(false)
   const [lastSale, setLastSale] = useState<SaleResult | null>(null)
   const [lowStock, setLowStock] = useState<LowStockItem[]>([])
-  const idempotencyRef = useRef(newIdempotencyKey())
   const [draftRestored, setDraftRestored] = useState(false)
   const [pendingSync, setPendingSync] = useState(false)
+  const [syncNeedsReview, setSyncNeedsReview] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query.trim()), 280)
@@ -125,14 +126,12 @@ export default function PosScreen() {
           payment?: (typeof PAYMENTS)[number]['key']
           cartDiscount?: string
           discountReason?: string
-          idempotencyKey?: string
         }
         if (Array.isArray(parsed.cart) && parsed.cart.length > 0) {
           setCart(parsed.cart)
           if (parsed.payment) setPayment(parsed.payment)
           if (parsed.cartDiscount) setCartDiscount(parsed.cartDiscount)
           if (parsed.discountReason) setDiscountReason(parsed.discountReason)
-          if (parsed.idempotencyKey) idempotencyRef.current = parsed.idempotencyKey
         }
       } catch {
         /* ignore corrupt draft */
@@ -153,7 +152,6 @@ export default function PosScreen() {
       payment,
       cartDiscount,
       discountReason,
-      idempotencyKey: idempotencyRef.current,
       updatedAt: new Date().toISOString(),
     }
     if (cart.length === 0) {
@@ -206,6 +204,26 @@ export default function PosScreen() {
     setLoading(true)
     load()
   }, [load])
+
+  // Recover queued SQLite commands after app/process restart and retry while this screen is open.
+  useEffect(() => {
+    if (!token || !user) return
+    let cancelled = false
+    const retry = async () => {
+      await syncPharmacySales(user.tenantId, token).catch(() => null)
+      const status = await getPharmacySyncStatus(user.tenantId).catch(() => null)
+      if (!cancelled && status) {
+        setPendingSync(status.pending > 0)
+        setSyncNeedsReview(status.rejected + status.conflicts > 0)
+      }
+    }
+    void retry()
+    const timer = setInterval(() => void retry(), 15_000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [token, user])
 
   const subtotal = useMemo(
     () => cart.reduce((s, line) => s + line.unitPrice * line.quantity, 0),
@@ -305,82 +323,106 @@ export default function PosScreen() {
     setCart([])
     setCartDiscount('')
     setDiscountReason('')
-    setPendingSync(false)
-    idempotencyRef.current = newIdempotencyKey()
     void AsyncStorage.removeItem(CART_DRAFT_KEY)
   }
 
   const completeSale = async () => {
-    if (!token || cart.length === 0) return
+    if (!token || !user || cart.length === 0) return
     if (discountN > 0 && !discountReason.trim()) {
       Alert.alert('Discount reason', 'Enter a reason when applying a cart discount.')
       return
     }
     setSubmitting(true)
-    setPendingSync(false)
+    // Apply cart discount to the first line so RPC sees a single line discount (no double-count).
+    const items = cart.map((line, index) => ({
+      productId: line.productId,
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      discountAmount: index === 0 ? discountN : 0,
+      discountReason:
+        index === 0 && discountN > 0 ? discountReason.trim() : undefined,
+      batchId: line.batchId,
+    }))
+
+    let commandId: string
     try {
-      // Apply cart discount to the first line so RPC sees a single line discount (no double-count).
-      const items = cart.map((l, idx) => ({
-        productId: l.productId,
-        quantity: l.quantity,
-        unitPrice: l.unitPrice,
-        discountAmount: idx === 0 ? discountN : 0,
-        discountReason: idx === 0 && discountN > 0 ? discountReason.trim() : undefined,
-        batchId: l.batchId,
-      }))
-      const data = await apiRequest<{
-        ok: boolean
-        sale: SaleResult
-        lowStock?: LowStockItem[]
-        idempotentReplay?: boolean
-      }>('/api/mobile/pharmacy/pos/complete-sale', {
-        method: 'POST',
-        token,
-        body: {
-          idempotencyKey: idempotencyRef.current,
+      const command = await commitPharmacySale({
+        tenantId: user.tenantId,
+        actorId: user.id,
+        payload: {
           paymentMethod: payment,
           taxAmount: 0,
           items,
         },
       })
-      setLastSale(data.sale)
-      setLowStock(data.lowStock ?? [])
-      setCart([])
-      setCartDiscount('')
-      setDiscountReason('')
-      setPendingSync(false)
-      idempotencyRef.current = newIdempotencyKey()
-      void AsyncStorage.removeItem(CART_DRAFT_KEY)
-      load()
-      const saleId = data.sale.sale_id
-      if (autoPrintReceipt && saleId) {
-        router.push(`/receipt/${saleId}?autoprint=1` as never)
-      } else if ((data.lowStock ?? []).length > 0) {
-        const names = data.lowStock!.slice(0, 3).map((p) => p.name).join(', ')
+      commandId = command.commandId
+    } catch (error) {
+      setSubmitting(false)
+      const message =
+        error instanceof Error ? error.message : 'Local SQLite commit failed'
+      Alert.alert(
+        'Sale not saved',
+        `${message}. The cart is still open and no sale was reported complete.`,
+      )
+      return
+    }
+
+    // UI success is allowed only after the durable SQLite transaction above resolves.
+    setCart([])
+    setCartDiscount('')
+    setDiscountReason('')
+    setPendingSync(true)
+    await AsyncStorage.removeItem(CART_DRAFT_KEY).catch(() => {})
+
+    try {
+      const summary = await syncPharmacySales(user.tenantId, token)
+      const current = summary.items.find((item) => item.commandId === commandId)
+      const status = await getPharmacySyncStatus(user.tenantId)
+      setPendingSync(status.pending > 0)
+      setSyncNeedsReview(status.rejected + status.conflicts > 0)
+
+      if (current?.outcome === 'applied' || current?.outcome === 'replay') {
+        const data = current.response as
+          | {
+              ok?: boolean
+              sale?: SaleResult
+              lowStock?: LowStockItem[]
+            }
+          | undefined
+        if (data?.sale) {
+          setLastSale(data.sale)
+          setLowStock(data.lowStock ?? [])
+          void load()
+          const saleId = data.sale.sale_id
+          if (autoPrintReceipt && saleId) {
+            router.push(`/receipt/${saleId}?autoprint=1` as never)
+          } else if ((data.lowStock ?? []).length > 0) {
+            const names = data.lowStock!.slice(0, 3).map((product) => product.name).join(', ')
+            Alert.alert(
+              'Sale complete — stock alert',
+              `${data.sale.receipt_number ?? 'Receipt'} saved.\nNow at/below reorder: ${names}`,
+            )
+          }
+        }
+      } else if (current?.outcome === 'rejected' || current?.outcome === 'conflict') {
         Alert.alert(
-          'Sale complete — stock alert',
-          `${data.sale.receipt_number ?? 'Receipt'} saved.\nNow at/below reorder: ${names}`,
-        )
-      }
-    } catch (err) {
-      const networkish =
-        err instanceof Error &&
-        /network|timeout|fetch failed|failed to fetch|internet/i.test(err.message)
-      if (networkish) {
-        setPendingSync(true)
-        Alert.alert(
-          'Sale not completed',
-          'No internet or the server did not confirm this sale. The cart is still held as a local draft — it is NOT sold yet. Retry when connectivity returns (same receipt key prevents duplicates).',
+          'Sale needs review',
+          `The command is safely stored on this device but was not applied: ${
+            current.error ?? current.outcome
+          }. Stock was not reduced.`,
         )
       } else {
-        const message =
-          err instanceof ApiError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : 'Sale failed'
-        Alert.alert('Sale failed', message)
+        Alert.alert(
+          'Sale saved on device',
+          'The sale is durably committed in the local outbox and awaits server stock confirmation. No server receipt is available yet.',
+        )
       }
+    } catch {
+      setPendingSync(true)
+      Alert.alert(
+        'Sale saved on device',
+        'The local commit succeeded, but acknowledgement is pending. Sync will retry automatically.',
+      )
     } finally {
       setSubmitting(false)
     }
@@ -419,10 +461,12 @@ export default function PosScreen() {
         )}
       </View>
 
-      {pendingSync ? (
+      {pendingSync || syncNeedsReview ? (
         <View style={styles.pendingBanner}>
           <Text style={styles.pendingText}>
-            Sale not confirmed by server. Cart held as draft — retry when online. Not sold yet.
+            {syncNeedsReview
+              ? 'One or more locally committed sales need human review and were not applied to stock.'
+              : 'Locally committed sale awaiting server acknowledgement. No receipt is shown until applied.'}
           </Text>
         </View>
       ) : null}

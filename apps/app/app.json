@@ -69,7 +69,8 @@
         {
           "cameraPermission": "Allow Synapse to use the camera to scan product barcodes."
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "extra": {
       "supabaseUrl": "https://qfqakzmjatszisuqjwon.supabase.co",
