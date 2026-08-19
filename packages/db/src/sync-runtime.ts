@@ -156,7 +156,7 @@ export class SyncRuntime {
         }
       }
 
-      if (result.outcome === "applied" || result.outcome === "replay") {
+      if ("serverAckId" in result) {
         await this.store.markApplied(record.command.commandId, result)
         // Checkpoint and local acknowledgement are committed together by the store.
         await this.store.acknowledge(record.command.commandId, this.tenantId, result)
