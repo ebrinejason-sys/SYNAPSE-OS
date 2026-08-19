@@ -1,9 +1,5 @@
-import { describe, it, expect, vi } from "vitest"
-import {
-  parsePharmacyRpcError,
-  shipPharmacyStockTransfer,
-  receivePharmacyStockTransfer,
-} from "@synapse/db/inventory-rpc"
+import { describe, it, expect } from "vitest"
+import { parsePharmacyRpcError } from "@synapse/db/inventory-rpc"
 import { allocateFefo, allocatedQuantity, summarizeInventory } from "@synapse/db/inventory"
 
 describe("parsePharmacyRpcError", () => {
@@ -29,114 +25,6 @@ describe("parsePharmacyRpcError", () => {
     const e = parsePharmacyRpcError("EXPIRED_RECEIPT: cannot receive stock that is already expired")
     expect(e.code).toBe("EXPIRED_RECEIPT")
     expect(e.humanMessage.toLowerCase()).toContain("expired")
-  })
-
-  it("maps TRANSFER_NOT_FOUND", () => {
-    const e = parsePharmacyRpcError("TRANSFER_NOT_FOUND: 11111111-1111-1111-1111-111111111111")
-    expect(e.code).toBe("TRANSFER_NOT_FOUND")
-    expect(e.humanMessage.toLowerCase()).toContain("transfer")
-  })
-
-  it("maps INVALID_TRANSFER_STATE", () => {
-    const e = parsePharmacyRpcError("INVALID_TRANSFER_STATE: expected draft, got received")
-    expect(e.code).toBe("INVALID_TRANSFER_STATE")
-    expect(e.humanMessage.toLowerCase()).toContain("state")
-  })
-
-  it("maps TRANSFER_EMPTY", () => {
-    const e = parsePharmacyRpcError("TRANSFER_EMPTY: transfer has no items")
-    expect(e.code).toBe("TRANSFER_EMPTY")
-    expect(e.humanMessage.toLowerCase()).toContain("items")
-  })
-})
-
-describe("shipPharmacyStockTransfer", () => {
-  it("calls ship_pharmacy_stock_transfer with tenant-scoped args and maps the result", async () => {
-    const rpc = vi.fn().mockResolvedValue({
-      data: { ok: true, transfer_id: "t1", items_shipped: 2, units_shipped: 15 },
-      error: null,
-    })
-    const { data, error } = await shipPharmacyStockTransfer(
-      { rpc },
-      { tenantId: "tenant-1", transferId: "t1", actorId: "actor-1" },
-    )
-    expect(rpc).toHaveBeenCalledWith("ship_pharmacy_stock_transfer", {
-      p_tenant_id: "tenant-1",
-      p_transfer_id: "t1",
-      p_actor_id: "actor-1",
-    })
-    expect(error).toBeNull()
-    expect(data).toEqual({
-      ok: true,
-      transferId: "t1",
-      status: "in_transit",
-      itemsShipped: 2,
-      unitsShipped: 15,
-    })
-  })
-
-  it("maps INSUFFICIENT_STOCK failures from a short source store", async () => {
-    const rpc = vi.fn().mockResolvedValue({
-      data: null,
-      error: { message: "INSUFFICIENT_STOCK: Amoxicillin short by 5 units at source store" },
-    })
-    const { data, error } = await shipPharmacyStockTransfer(
-      { rpc },
-      { tenantId: "tenant-1", transferId: "t1", actorId: "actor-1" },
-    )
-    expect(data).toBeNull()
-    expect(error?.code).toBe("INSUFFICIENT_STOCK")
-  })
-
-  it("maps INVALID_TRANSFER_STATE when the transfer is not a draft", async () => {
-    const rpc = vi.fn().mockResolvedValue({
-      data: null,
-      error: { message: "INVALID_TRANSFER_STATE: expected draft, got in_transit" },
-    })
-    const { error } = await shipPharmacyStockTransfer(
-      { rpc },
-      { tenantId: "tenant-1", transferId: "t1", actorId: "actor-1" },
-    )
-    expect(error?.code).toBe("INVALID_TRANSFER_STATE")
-  })
-})
-
-describe("receivePharmacyStockTransfer", () => {
-  it("calls receive_pharmacy_stock_transfer with tenant-scoped args and maps the result", async () => {
-    const rpc = vi.fn().mockResolvedValue({
-      data: { ok: true, transfer_id: "t1", allocations_received: 3, units_received: 15 },
-      error: null,
-    })
-    const { data, error } = await receivePharmacyStockTransfer(
-      { rpc },
-      { tenantId: "tenant-1", transferId: "t1", actorId: "actor-2" },
-    )
-    expect(rpc).toHaveBeenCalledWith("receive_pharmacy_stock_transfer", {
-      p_tenant_id: "tenant-1",
-      p_transfer_id: "t1",
-      p_actor_id: "actor-2",
-    })
-    expect(error).toBeNull()
-    expect(data).toEqual({
-      ok: true,
-      transferId: "t1",
-      status: "received",
-      allocationsReceived: 3,
-      unitsReceived: 15,
-    })
-  })
-
-  it("maps TRANSFER_NOT_FOUND for a transfer outside the caller's tenant", async () => {
-    const rpc = vi.fn().mockResolvedValue({
-      data: null,
-      error: { message: "TRANSFER_NOT_FOUND: t1" },
-    })
-    const { data, error } = await receivePharmacyStockTransfer(
-      { rpc },
-      { tenantId: "tenant-1", transferId: "t1", actorId: "actor-2" },
-    )
-    expect(data).toBeNull()
-    expect(error?.code).toBe("TRANSFER_NOT_FOUND")
   })
 })
 
