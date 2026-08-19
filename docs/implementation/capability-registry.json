@@ -1,0 +1,239 @@
+{
+  "version": 1,
+  "updated": "2026-08-19",
+  "owner": "lead-architect",
+  "status_values": ["OPERATIONAL", "PARTIAL", "PLANNED"],
+  "features": [
+    {
+      "domain": "pharm",
+      "feature": "pos_online_sale",
+      "status": "OPERATIONAL",
+      "owner": "pharmacy-domain",
+      "tests": ["apps/pharmacy/lib/pos", "apps/pharmacy/app/api/admin/pos"],
+      "offline_support": false,
+      "mobile_support": true,
+      "security_review": "partial",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "pharm",
+      "feature": "batch_authoritative_inventory",
+      "status": "OPERATIONAL",
+      "owner": "pharmacy-domain",
+      "tests": ["apps/pharmacy/lib/pos/inventory-authority.test.ts", "apps/pharmacy/lib/pos/fefo.test.ts"],
+      "offline_support": false,
+      "mobile_support": true,
+      "security_review": "partial",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "pharm",
+      "feature": "receive_stock",
+      "status": "OPERATIONAL",
+      "owner": "pharmacy-domain",
+      "tests": ["packages/db/src/inventory-rpc.ts"],
+      "offline_support": false,
+      "mobile_support": true,
+      "security_review": "partial",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "pharm",
+      "feature": "stock_adjust",
+      "status": "OPERATIONAL",
+      "owner": "pharmacy-domain",
+      "tests": ["apps/pharmacy/app/api/admin/inventory/stock"],
+      "offline_support": false,
+      "mobile_support": true,
+      "security_review": "partial",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "pharm",
+      "feature": "refund_reverse",
+      "status": "OPERATIONAL",
+      "owner": "pharmacy-domain",
+      "tests": ["packages/db/src/inventory-rpc.ts"],
+      "offline_support": false,
+      "mobile_support": true,
+      "security_review": "partial",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "pharm",
+      "feature": "receipts",
+      "status": "OPERATIONAL",
+      "owner": "pharmacy-domain",
+      "tests": ["apps/pharmacy/lib/pos/receipt-domain.test.ts"],
+      "offline_support": false,
+      "mobile_support": true,
+      "security_review": "partial",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "pharm",
+      "feature": "branches_crud",
+      "status": "PARTIAL",
+      "owner": "pharmacy-domain",
+      "tests": ["apps/pharmacy/app/api/admin/branches"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "pharm",
+      "feature": "stock_transfers_execute",
+      "status": "PARTIAL",
+      "owner": "pharmacy-domain",
+      "tests": ["apps/pharmacy/app/api/admin/transfers"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "pharm",
+      "feature": "offline_durable_pos",
+      "status": "PLANNED",
+      "owner": "offline-sync",
+      "tests": [],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "core",
+      "feature": "person_identity",
+      "status": "PARTIAL",
+      "owner": "identity-mpi",
+      "tests": ["apps/pharmacy/lib/platform/network-foundations.test.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "unreviewed"
+    },
+    {
+      "domain": "core",
+      "feature": "mpi_no_auto_merge",
+      "status": "PARTIAL",
+      "owner": "identity-mpi",
+      "tests": ["apps/pharmacy/lib/platform/network-foundations.test.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "unreviewed"
+    },
+    {
+      "domain": "core",
+      "feature": "facility_hierarchy",
+      "status": "PARTIAL",
+      "owner": "facilities-rbac",
+      "tests": ["packages/db/src/scope.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "core",
+      "feature": "sync_protocol",
+      "status": "PARTIAL",
+      "owner": "offline-sync",
+      "tests": ["apps/pharmacy/lib/platform/sync-contract.test.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "core",
+      "feature": "fhir_validated_api",
+      "status": "PLANNED",
+      "owner": "fhir-interop",
+      "tests": [],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "unreviewed"
+    },
+    {
+      "domain": "os",
+      "feature": "clinical_journey_e2e",
+      "status": "PLANNED",
+      "owner": "clinical-journey",
+      "tests": [],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "unreviewed"
+    },
+    {
+      "domain": "os",
+      "feature": "ward_adt_engine",
+      "status": "PLANNED",
+      "owner": "ward-adt",
+      "tests": [],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "unreviewed"
+    },
+    {
+      "domain": "os",
+      "feature": "laboratory_lis",
+      "status": "PLANNED",
+      "owner": "laboratory",
+      "tests": [],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "unreviewed"
+    },
+    {
+      "domain": "public-health",
+      "feature": "dhis2_export",
+      "status": "PLANNED",
+      "owner": "public-health",
+      "tests": [],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "unreviewed"
+    },
+    {
+      "domain": "app",
+      "feature": "patient_phr",
+      "status": "PARTIAL",
+      "owner": "patient-app",
+      "tests": [],
+      "offline_support": false,
+      "mobile_support": true,
+      "security_review": "unreviewed",
+      "clinical_review": "unreviewed"
+    },
+    {
+      "domain": "app",
+      "feature": "glucose_bgm_cgm",
+      "status": "PLANNED",
+      "owner": "patient-app",
+      "tests": [],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "unreviewed"
+    },
+    {
+      "domain": "edge",
+      "feature": "facility_lan_authority",
+      "status": "PLANNED",
+      "owner": "synapse-edge",
+      "tests": [],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a"
+    }
+  ]
+}

@@ -1,5 +1,9 @@
 # Implementation Status Ledger
 
+> **Source of truth for claims:** `docs/implementation/capability-registry.json`.
+> Architecture contracts: `docs/architecture/contracts.md`.
+> This ledger is historical (pilot-ready v1, 2026-08). Treat registry status as authoritative when they disagree.
+
 Branch: `cursor/pharmacy-pilot-v1-9386` (Pilot-Ready v1 work). Honest status — no phase is claimed
 done unless built, buildable, and tested. Live DB apply remains a separate ops gate.
 
