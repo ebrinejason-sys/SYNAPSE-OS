@@ -36,6 +36,10 @@ export function isReplaySafe(existingKey: string, incomingKey: string): boolean 
   return existingKey === incomingKey && existingKey.length > 0
 }
 
+/**
+ * Legacy row mapper. New code should build a SyncCommand and call toSyncOutboxRow.
+ * The outbox idempotency_key is the command ID.
+ */
 export function toOutboxInsert(envelope: OfflineMutationEnvelope): Record<string, unknown> {
   if (!envelope.idempotencyKey?.trim()) throw new Error("IDEMPOTENCY_KEY_REQUIRED")
   if (!envelope.tenantId) throw new Error("TENANT_REQUIRED")
