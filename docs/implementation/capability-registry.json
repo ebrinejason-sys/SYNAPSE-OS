@@ -86,7 +86,12 @@
       "feature": "stock_transfers_execute",
       "status": "PARTIAL",
       "owner": "pharmacy-domain",
-      "tests": ["apps/pharmacy/app/api/admin/transfers"],
+      "tests": [
+        "apps/pharmacy/app/api/admin/transfers",
+        "apps/pharmacy/app/api/admin/transfers/[id]/ship/route.test.ts",
+        "apps/pharmacy/app/api/admin/transfers/[id]/receive/route.test.ts",
+        "apps/pharmacy/lib/pos/inventory-rpc.test.ts"
+      ],
       "offline_support": false,
       "mobile_support": false,
       "security_review": "unreviewed",
