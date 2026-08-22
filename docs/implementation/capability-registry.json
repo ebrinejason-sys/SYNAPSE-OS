@@ -88,14 +88,14 @@
     {
       "domain": "pharm",
       "feature": "stock_transfers_execute",
-      "status": "PLANNED",
+      "status": "PARTIAL",
       "owner": "pharmacy-domain",
       "tests": ["apps/pharmacy/app/api/admin/transfers"],
       "offline_support": false,
       "mobile_support": false,
       "security_review": "unreviewed",
       "clinical_review": "n/a",
-      "limitation": "Draft create/list only on main. Ship/receive RPCs live on PR #40 and will land in a follow-up."
+      "limitation": "Ship/receive RPCs and APIs are in-repo. Live SQL apply and native Expo UI are still required before OPERATIONAL."
     },
     {
       "domain": "pharm",

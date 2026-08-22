@@ -55,6 +55,10 @@ export type PharmacyRpcErrorCode =
   | "INSUFFICIENT_BATCH"
   | "ALREADY_REFUNDED"
   | "SALE_NOT_REFUNDABLE"
+  | "TRANSFER_NOT_FOUND"
+  | "TRANSFER_EMPTY"
+  | "TRANSFER_STATE_INVALID"
+  | "INVALID_TRANSFER_STATE"
   | "PERMISSION"
   | "UNKNOWN";
 
@@ -71,6 +75,9 @@ export function parsePharmacyRpcError(raw: string | null | undefined): PharmacyR
   const code = (codeMatch?.[1] ?? "UNKNOWN") as PharmacyRpcErrorCode;
   const parsed = parseRpcStockError(message);
 
+  const normalizedCode =
+    code === "INVALID_TRANSFER_STATE" ? "TRANSFER_STATE_INVALID" : code;
+
   const humanByCode: Partial<Record<PharmacyRpcErrorCode, string>> = {
     REQUIRES_BATCH: "A genuine batch number is required to receive or increase stock.",
     REQUIRES_EXPIRY: "A future expiry date is required to receive stock.",
@@ -85,14 +92,22 @@ export function parsePharmacyRpcError(raw: string | null | undefined): PharmacyR
         : "Not enough sellable stock for this sale.",
     ALREADY_REFUNDED: "This sale has already been refunded or voided.",
     SALE_NOT_REFUNDABLE: "Only completed sales can be refunded.",
+    TRANSFER_NOT_FOUND: "That stock transfer was not found in this pharmacy.",
+    TRANSFER_EMPTY: "This transfer has no items or shipped allocations.",
+    TRANSFER_STATE_INVALID: "This transfer is not in the right state for that action.",
+    INVALID_TRANSFER_STATE: "This transfer is not in the right state for that action.",
     UNBATCHED_STOCK:
       "This product shows stock without batch records. Receive it with genuine batch data before selling.",
   };
 
   return {
-    code: (parsed.reasonCode as PharmacyRpcErrorCode) || code,
+    code: (parsed.reasonCode as PharmacyRpcErrorCode) || (normalizedCode as PharmacyRpcErrorCode),
     message,
-    humanMessage: humanByCode[code] ?? humanByCode[parsed.reasonCode as PharmacyRpcErrorCode] ?? message.replace(/^[A-Z_]+:\s*/, ""),
+    humanMessage:
+      humanByCode[normalizedCode as PharmacyRpcErrorCode] ??
+      humanByCode[code] ??
+      humanByCode[parsed.reasonCode as PharmacyRpcErrorCode] ??
+      message.replace(/^[A-Z_]+:\s*/, ""),
   };
 }
 
@@ -180,4 +195,92 @@ export async function reversePharmacySale(
 
   if (error) return { data: null, error: parsePharmacyRpcError(error.message) };
   return { data: (data as Record<string, unknown>) ?? {}, error: null };
+}
+
+export interface ShipStockTransferInput {
+  tenantId: string;
+  transferId: string;
+  actorId: string;
+}
+
+export interface ShipStockTransferResult {
+  ok: true;
+  transferId: string;
+  status: "in_transit";
+  itemsShipped: number;
+  unitsShipped: number;
+}
+
+/**
+ * Ships a draft transfer: FEFO-deducts sellable batches at the source store
+ * (never product.quantity) and records the exact source batches consumed so
+ * they can be re-created at the destination store on receipt.
+ */
+export async function shipPharmacyStockTransfer(
+  client: RpcClient,
+  input: ShipStockTransferInput,
+): Promise<{ data: ShipStockTransferResult | null; error: PharmacyRpcError | null }> {
+  const { data, error } = await client.rpc("ship_pharmacy_stock_transfer", {
+    p_tenant_id: input.tenantId,
+    p_transfer_id: input.transferId,
+    p_actor_id: input.actorId,
+  });
+
+  if (error) return { data: null, error: parsePharmacyRpcError(error.message) };
+
+  const row = (data ?? {}) as Record<string, unknown>;
+  return {
+    data: {
+      ok: true,
+      transferId: String(row.transfer_id ?? input.transferId),
+      status: "in_transit",
+      itemsShipped: Number(row.items_shipped ?? 0),
+      unitsShipped: Number(row.units_shipped ?? 0),
+    },
+    error: null,
+  };
+}
+
+export interface ReceiveStockTransferInput {
+  tenantId: string;
+  transferId: string;
+  actorId: string;
+}
+
+export interface ReceiveStockTransferResult {
+  ok: true;
+  transferId: string;
+  status: "received";
+  allocationsReceived: number;
+  unitsReceived: number;
+}
+
+/**
+ * Receives an in-transit transfer at the destination store: re-creates or
+ * tops up the genuine source batch (batch_number + expiry_date + cost_price)
+ * so FEFO ordering is preserved across stores.
+ */
+export async function receivePharmacyStockTransfer(
+  client: RpcClient,
+  input: ReceiveStockTransferInput,
+): Promise<{ data: ReceiveStockTransferResult | null; error: PharmacyRpcError | null }> {
+  const { data, error } = await client.rpc("receive_pharmacy_stock_transfer", {
+    p_tenant_id: input.tenantId,
+    p_transfer_id: input.transferId,
+    p_actor_id: input.actorId,
+  });
+
+  if (error) return { data: null, error: parsePharmacyRpcError(error.message) };
+
+  const row = (data ?? {}) as Record<string, unknown>;
+  return {
+    data: {
+      ok: true,
+      transferId: String(row.transfer_id ?? input.transferId),
+      status: "received",
+      allocationsReceived: Number(row.allocations_received ?? 0),
+      unitsReceived: Number(row.units_received ?? 0),
+    },
+    error: null,
+  };
 }

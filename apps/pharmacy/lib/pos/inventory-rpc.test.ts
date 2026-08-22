@@ -26,6 +26,12 @@ describe("parsePharmacyRpcError", () => {
     expect(e.code).toBe("EXPIRED_RECEIPT")
     expect(e.humanMessage.toLowerCase()).toContain("expired")
   })
+
+  it("maps INVALID_TRANSFER_STATE to TRANSFER_STATE_INVALID", () => {
+    const e = parsePharmacyRpcError("INVALID_TRANSFER_STATE: expected draft, got in_transit")
+    expect(e.code).toBe("TRANSFER_STATE_INVALID")
+    expect(e.humanMessage.toLowerCase()).toMatch(/state|transfer/)
+  })
 })
 
 describe("pilot FEFO smoke (domain)", () => {

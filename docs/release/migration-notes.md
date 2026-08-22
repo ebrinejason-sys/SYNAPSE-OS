@@ -1,5 +1,19 @@
 # Migration Notes
 
+## 20260819120000_pharmacy_stock_transfers_execute.sql (PR E)
+
+**Type:** additive, reversible. Depends on `pharmacy_stock_transfers` from `20260817120000`.
+
+**Changes**
+- `pharmacy_stock_transfer_item_allocations` ledger (source batch identity for destination receipt)
+- `ship_pharmacy_stock_transfer` — draft → in_transit, FEFO deduct at source store
+- `receive_pharmacy_stock_transfer` — in_transit → received, recreate/top-up genuine batch at destination
+- EXECUTE granted to `service_role` only
+
+**Does not** change `pharmacy_products.quantity` (tenant-wide physical total is unchanged by internal transfer).
+
+**Live status:** not applied in this environment. Dry-run before `db push`.
+
 ## 20260822120000_generate_synapse_id_person_compat.sql (PR A)
 
 **Type:** additive, reversible. **Does not** edit `20260817120000` in place.

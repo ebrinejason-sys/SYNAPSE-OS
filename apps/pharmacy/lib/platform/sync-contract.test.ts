@@ -131,7 +131,7 @@ describe("capability registry", () => {
 
   it("does not claim transfer execution is operational", () => {
     const transfers = registry.features.find((f) => f.feature === "stock_transfers_execute")
-    expect(transfers?.status).toBe("PLANNED")
+    expect(transfers?.status).toBe("PARTIAL")
   })
 
   it("does not claim online POS operational until till and side-doors are closed", () => {
