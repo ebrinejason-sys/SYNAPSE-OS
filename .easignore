@@ -14,7 +14,9 @@ apps/demo/
 public/
 docs/
 legacy/
-/scripts/
+/scripts/*
+!/scripts/patch-expo-metro-file-store.mjs
+!/scripts/nest-eslint-ajv6.mjs
 supabase/
 test-results/
 packages/
