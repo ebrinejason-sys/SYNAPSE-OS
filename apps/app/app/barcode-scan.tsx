@@ -152,7 +152,12 @@ export default function BarcodeScanScreen() {
             </Text>
             <View style={styles.actions}>
               <Button
+                label="Add to sale"
+                onPress={() => router.push(`/pos?barcode=${encodeURIComponent(result.barcode ?? result.sku ?? '')}` as never)}
+              />
+              <Button
                 label="Open product"
+                variant="ghost"
                 onPress={() => router.push(`/stock-item/${result.id}` as never)}
               />
               <Button

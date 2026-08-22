@@ -27,7 +27,7 @@
       "mobile_support": true,
       "security_review": "partial",
       "clinical_review": "n/a",
-      "limitation": "Sale/receive/adjust/PO/import/void use RPCs. Catalogue CRUD, onboarding seed, and order-complete still write pharmacy_products.quantity."
+      "limitation": "Sale/receive/adjust/PO/import/void/order-complete/onboarding use RPCs or qty 0. Catalogue PATCH rejects quantity writes. Live SQL apply still required."
     },
     {
       "domain": "pharm",
@@ -100,14 +100,17 @@
     {
       "domain": "pharm",
       "feature": "offline_durable_pos",
-      "status": "PLANNED",
+      "status": "PARTIAL",
       "owner": "offline-sync",
-      "tests": ["apps/pharmacy/lib/platform/sync-contract.test.ts"],
-      "offline_support": false,
-      "mobile_support": false,
-      "security_review": "unreviewed",
+      "tests": [
+        "apps/pharmacy/lib/platform/sync-contract.test.ts",
+        "apps/pharmacy/lib/platform/offline-sync-runtime.test.ts"
+      ],
+      "offline_support": true,
+      "mobile_support": true,
+      "security_review": "partial",
       "clinical_review": "n/a",
-      "limitation": "SyncCommand contract is locked. Expo still has cart-draft + online idempotency only. No SQLite outbox on this PR."
+      "limitation": "SQLite outbox + apply BFF + local FEFO reservation exist. Device restart, encrypted-at-rest, and live backend apply are still required before OPERATIONAL / PILOT_READY."
     },
     {
       "domain": "core",

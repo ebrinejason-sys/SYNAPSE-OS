@@ -14,13 +14,24 @@ import {
 } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Ionicons } from '@expo/vector-icons'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { useAuth } from '@/lib/auth'
 import { apiRequest, ApiError } from '@/lib/api'
+import {
+  cachePharmacyCatalogue,
+  commitPharmacySale,
+  getPharmacySellableMap,
+  getPharmacySyncStatus,
+  loadCachedPharmacyCatalogue,
+  newPharmacyCommandId,
+  OfflineStockError,
+  syncPharmacySales,
+} from '@/lib/offline-store'
+import { SyncPayloadConflictError } from '../../../packages/db/src/sync-runtime'
 import { colors, radii, spacing, typography, TONE_COLORS } from '@/lib/theme'
 
 const CART_DRAFT_KEY = 'synapse.pharmacy.pos.draft.v1'
@@ -82,13 +93,31 @@ const PAYMENTS = [
   { key: 'CARD', label: 'Card' },
 ] as const
 
-function newIdempotencyKey() {
-  return `mpos-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+function newCommandId() {
+  return newPharmacyCommandId()
+}
+
+function syncBannerLabel(
+  banner: 'pending' | 'offline' | 'conflict' | 'rejected' | 'stale',
+): string {
+  switch (banner) {
+    case 'pending':
+      return 'Pending sync. Sale saved on this device. Tap for command list.'
+    case 'offline':
+      return 'Offline. Selling from cached stock. Receipts stay pending until synced.'
+    case 'stale':
+      return 'Cached stock is stale. Reconnect before selling offline. Tap for status.'
+    case 'conflict':
+      return 'Needs review. A synced command has a payload conflict. Tap for details.'
+    case 'rejected':
+      return 'Failed. A command was rejected by the server. Tap for details.'
+  }
 }
 
 export default function PosScreen() {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const router = useRouter()
+  const params = useLocalSearchParams<{ barcode?: string }>()
   const insets = useSafeAreaInsets()
   const { height: windowHeight } = useWindowDimensions()
   const cartMaxHeight = Math.min(Math.round(windowHeight * 0.36), 300)
@@ -104,9 +133,12 @@ export default function PosScreen() {
   const [submitting, setSubmitting] = useState(false)
   const [lastSale, setLastSale] = useState<SaleResult | null>(null)
   const [lowStock, setLowStock] = useState<LowStockItem[]>([])
-  const idempotencyRef = useRef(newIdempotencyKey())
+  const idempotencyRef = useRef(newCommandId())
   const [draftRestored, setDraftRestored] = useState(false)
-  const [pendingSync, setPendingSync] = useState(false)
+  const [syncBanner, setSyncBanner] = useState<
+    null | 'pending' | 'offline' | 'conflict' | 'rejected' | 'stale'
+  >(null)
+  const [catalogueStale, setCatalogueStale] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query.trim()), 280)
@@ -132,7 +164,9 @@ export default function PosScreen() {
           if (parsed.payment) setPayment(parsed.payment)
           if (parsed.cartDiscount) setCartDiscount(parsed.cartDiscount)
           if (parsed.discountReason) setDiscountReason(parsed.discountReason)
-          if (parsed.idempotencyKey) idempotencyRef.current = parsed.idempotencyKey
+          if (parsed.idempotencyKey && /^[0-9a-f-]{36}$/i.test(parsed.idempotencyKey)) {
+            idempotencyRef.current = parsed.idempotencyKey
+          }
         }
       } catch {
         /* ignore corrupt draft */
@@ -144,6 +178,12 @@ export default function PosScreen() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    const code = typeof params.barcode === 'string' ? params.barcode.trim() : ''
+    if (!code) return
+    setQuery(code)
+  }, [params.barcode])
 
   // Persist draft cart locally. Financial completion still requires server confirmation.
   useEffect(() => {
@@ -184,7 +224,7 @@ export default function PosScreen() {
   }, [token])
 
   const load = useCallback(async () => {
-    if (!token) {
+    if (!token || !user?.tenantId) {
       setLoading(false)
       return
     }
@@ -195,12 +235,56 @@ export default function PosScreen() {
           : '/api/mobile/pharmacy/pos/products?limit=60'
       const data = await apiRequest<{ products: PosProduct[] }>(path, { token })
       setProducts(data.products)
+      setCatalogueStale(false)
+      if (debounced.length === 0) {
+        await cachePharmacyCatalogue(user.tenantId, data.products)
+      }
+      const remaining = await getPharmacySellableMap(user.tenantId)
+      setProducts((current) =>
+        current.map((product) => ({
+          ...product,
+          quantity: remaining.get(product.id) ?? product.quantity,
+        })),
+      )
+      const status = await getPharmacySyncStatus(user.tenantId)
+      if (status.conflicts > 0) setSyncBanner('conflict')
+      else if (status.rejected > 0) setSyncBanner('rejected')
+      else if (status.pending > 0) setSyncBanner('pending')
+      else setSyncBanner(null)
     } catch {
-      setProducts([])
+      const cached = await loadCachedPharmacyCatalogue(user.tenantId)
+      if (cached) {
+        const remaining = await getPharmacySellableMap(user.tenantId)
+        setProducts(
+          cached.products
+            .filter((product) => {
+              if (!debounced) return true
+              const q = debounced.toLowerCase()
+              return (
+                product.name.toLowerCase().includes(q) ||
+                String(product.sku ?? '').toLowerCase().includes(q) ||
+                String(product.barcode ?? '').toLowerCase().includes(q)
+              )
+            })
+            .map((product) => ({
+              ...product,
+              quantity: remaining.get(product.id) ?? product.quantity,
+              unit: product.unit ?? 'unit',
+              requiresPrescription: product.requiresPrescription ?? false,
+              packages: product.packages ?? [],
+            })),
+        )
+        setCatalogueStale(cached.stale)
+        setSyncBanner(cached.stale ? 'stale' : 'offline')
+      } else {
+        setProducts([])
+        setSyncBanner('stale')
+        setCatalogueStale(true)
+      }
     } finally {
       setLoading(false)
     }
-  }, [token, debounced])
+  }, [token, user?.tenantId, debounced])
 
   useEffect(() => {
     setLoading(true)
@@ -305,21 +389,26 @@ export default function PosScreen() {
     setCart([])
     setCartDiscount('')
     setDiscountReason('')
-    setPendingSync(false)
-    idempotencyRef.current = newIdempotencyKey()
+    setSyncBanner(null)
+    idempotencyRef.current = newCommandId()
     void AsyncStorage.removeItem(CART_DRAFT_KEY)
   }
 
   const completeSale = async () => {
-    if (!token || cart.length === 0) return
+    if (!token || !user?.id || !user.tenantId || cart.length === 0) return
     if (discountN > 0 && !discountReason.trim()) {
       Alert.alert('Discount reason', 'Enter a reason when applying a cart discount.')
       return
     }
+    if (catalogueStale) {
+      Alert.alert(
+        'Stock cache stale',
+        'Reconnect and refresh inventory before selling. Offline sales are blocked when the snapshot is older than 4 hours.',
+      )
+      return
+    }
     setSubmitting(true)
-    setPendingSync(false)
     try {
-      // Apply cart discount to the first line so RPC sees a single line discount (no double-count).
       const items = cart.map((l, idx) => ({
         productId: l.productId,
         quantity: l.quantity,
@@ -328,59 +417,98 @@ export default function PosScreen() {
         discountReason: idx === 0 && discountN > 0 ? discountReason.trim() : undefined,
         batchId: l.batchId,
       }))
-      const data = await apiRequest<{
-        ok: boolean
-        sale: SaleResult
-        lowStock?: LowStockItem[]
-        idempotentReplay?: boolean
-      }>('/api/mobile/pharmacy/pos/complete-sale', {
-        method: 'POST',
-        token,
-        body: {
-          idempotencyKey: idempotencyRef.current,
+      const command = await commitPharmacySale({
+        tenantId: user.tenantId,
+        actorId: user.id,
+        commandId: idempotencyRef.current,
+        payload: {
           paymentMethod: payment,
+          paymentStatus: payment === 'CASH' ? 'captured' : 'offline_unverified',
           taxAmount: 0,
           items,
         },
       })
-      setLastSale(data.sale)
-      setLowStock(data.lowStock ?? [])
       setCart([])
       setCartDiscount('')
       setDiscountReason('')
-      setPendingSync(false)
-      idempotencyRef.current = newIdempotencyKey()
+      setSyncBanner('pending')
+      idempotencyRef.current = newCommandId()
       void AsyncStorage.removeItem(CART_DRAFT_KEY)
-      load()
-      const saleId = data.sale.sale_id
-      if (autoPrintReceipt && saleId) {
-        router.push(`/receipt/${saleId}?autoprint=1` as never)
-      } else if ((data.lowStock ?? []).length > 0) {
-        const names = data.lowStock!.slice(0, 3).map((p) => p.name).join(', ')
-        Alert.alert(
-          'Sale complete — stock alert',
-          `${data.sale.receipt_number ?? 'Receipt'} saved.\nNow at/below reorder: ${names}`,
-        )
+      setLastSale({
+        receipt_number: 'PENDING SYNC',
+        status: 'pending',
+        total_amount: total,
+      })
+
+      const summary = await syncPharmacySales(user.tenantId, token)
+      const item = summary.items.find((entry) => entry.commandId === command.commandId)
+      const result = item?.response as
+        | { sale?: SaleResult; lowStock?: LowStockItem[] }
+        | undefined
+      if (item?.outcome === 'applied' || item?.outcome === 'replay') {
+        const sale = result?.sale ?? {}
+        setLastSale(sale)
+        setLowStock(result?.lowStock ?? [])
+        setSyncBanner(null)
+        load()
+        const saleId = sale.sale_id
+        if (autoPrintReceipt && saleId) {
+          router.push(`/receipt/${saleId}?autoprint=1` as never)
+        } else if ((result?.lowStock ?? []).length > 0) {
+          const names = result!.lowStock!.slice(0, 3).map((p) => p.name).join(', ')
+          Alert.alert(
+            'Sale synced',
+            `${sale.receipt_number ?? 'Receipt'} saved.\nNow at/below reorder: ${names}`,
+          )
+        }
+        return
       }
+      if (item?.outcome === 'conflict') {
+        setSyncBanner('conflict')
+        Alert.alert(
+          'Needs review',
+          'This command id was reused with different content. The original sale was kept. Open Sync status.',
+        )
+        return
+      }
+      if (item?.outcome === 'rejected') {
+        setSyncBanner('rejected')
+        Alert.alert(
+          'Sale rejected',
+          item.error ?? 'The server refused this sale. Stock was not taken. Open Sync status.',
+        )
+        return
+      }
+      Alert.alert(
+        'Pending sync',
+        payment === 'CASH'
+          ? 'Sale is saved on this device. Receipt is pending until the command syncs. Cash recorded locally.'
+          : 'Sale is saved on this device. Card/mobile-money is unverified until the command syncs. Do not treat this as provider success.',
+      )
     } catch (err) {
-      const networkish =
-        err instanceof Error &&
-        /network|timeout|fetch failed|failed to fetch|internet/i.test(err.message)
-      if (networkish) {
-        setPendingSync(true)
+      if (err instanceof OfflineStockError) {
         Alert.alert(
-          'Sale not completed',
-          'No internet or the server did not confirm this sale. The cart is still held as a local draft — it is NOT sold yet. Retry when connectivity returns (same receipt key prevents duplicates).',
+          err.code === 'OFFLINE_STOCK_STALE' ? 'Stock cache stale' : 'Insufficient stock',
+          err.message,
         )
-      } else {
-        const message =
-          err instanceof ApiError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : 'Sale failed'
-        Alert.alert('Sale failed', message)
+        if (err.code === 'OFFLINE_STOCK_STALE') setSyncBanner('stale')
+        return
       }
+      if (err instanceof SyncPayloadConflictError) {
+        setSyncBanner('conflict')
+        Alert.alert(
+          'Needs review',
+          'The same command id was used with a different cart. Human review is required. Open Sync status.',
+        )
+        return
+      }
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Sale failed'
+      Alert.alert('Sale failed', message)
     } finally {
       setSubmitting(false)
     }
@@ -406,25 +534,56 @@ export default function PosScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
           <Ionicons name="chevron-back" size={22} color={colors.primary} />
         </Pressable>
-        <Text style={styles.title}>New sale</Text>
-        {cart.length > 0 ? (
-          <Pressable onPress={clearCart} hitSlop={8}>
-            <Text style={styles.clear}>Clear</Text>
+        <Text style={styles.title} accessibilityRole="header">
+          New sale
+        </Text>
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => router.push('/barcode-scan?returnTo=pos' as never)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Scan barcode"
+          >
+            <Ionicons name="barcode-outline" size={22} color={colors.primary} />
           </Pressable>
-        ) : (
-          <View style={{ width: 48 }} />
-        )}
+          {cart.length > 0 ? (
+            <Pressable
+              onPress={clearCart}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Clear cart"
+            >
+              <Text style={styles.clear}>Clear</Text>
+            </Pressable>
+          ) : (
+            <View style={{ width: 48 }} />
+          )}
+        </View>
       </View>
 
-      {pendingSync ? (
-        <View style={styles.pendingBanner}>
-          <Text style={styles.pendingText}>
-            Sale not confirmed by server. Cart held as draft — retry when online. Not sold yet.
-          </Text>
-        </View>
+      {syncBanner ? (
+        <Pressable
+          style={[
+            styles.pendingBanner,
+            syncBanner === 'conflict' || syncBanner === 'rejected' || syncBanner === 'stale'
+              ? styles.reviewBanner
+              : null,
+          ]}
+          onPress={() => router.push('/sync-status' as never)}
+          accessibilityRole="button"
+          accessibilityLabel={syncBannerLabel(syncBanner)}
+        >
+          <Text style={styles.pendingText}>{syncBannerLabel(syncBanner)}</Text>
+        </Pressable>
       ) : null}
 
       {lastSale ? (
@@ -505,6 +664,8 @@ export default function PosScreen() {
               <Pressable
                 style={({ pressed }) => [styles.productRow, pressed && styles.pressed]}
                 onPress={() => addProduct(item)}
+                accessibilityRole="button"
+                accessibilityLabel={`Add ${item.name}, quantity ${item.quantity}, ${item.price} shillings`}
               >
                 <View style={styles.productCopy}>
                   <Text style={styles.productName} numberOfLines={2}>
@@ -553,11 +714,23 @@ export default function PosScreen() {
                     </Text>
                   </View>
                   <View style={styles.qtyControls}>
-                    <Pressable onPress={() => bumpQty(line.key, -1)} style={styles.qtyBtn}>
+                    <Pressable
+                      onPress={() => bumpQty(line.key, -1)}
+                      style={styles.qtyBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Decrease ${line.name}`}
+                    >
                       <Ionicons name="remove" size={16} color={colors.text} />
                     </Pressable>
-                    <Text style={styles.qtyValue}>{line.quantity}</Text>
-                    <Pressable onPress={() => bumpQty(line.key, 1)} style={styles.qtyBtn}>
+                    <Text style={styles.qtyValue} accessibilityLabel={`Quantity ${line.quantity}`}>
+                      {line.quantity}
+                    </Text>
+                    <Pressable
+                      onPress={() => bumpQty(line.key, 1)}
+                      style={styles.qtyBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Increase ${line.name}`}
+                    >
                       <Ionicons name="add" size={16} color={colors.text} />
                     </Pressable>
                   </View>
@@ -589,6 +762,9 @@ export default function PosScreen() {
                   key={p.key}
                   onPress={() => setPayment(p.key)}
                   style={[styles.payChip, payment === p.key && styles.payChipOn]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: payment === p.key }}
+                  accessibilityLabel={`Payment method ${p.label}`}
                 >
                   <Text
                     style={[styles.payChipText, payment === p.key && styles.payChipTextOn]}
@@ -630,6 +806,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   backBtn: { width: 48 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 88, justifyContent: 'flex-end' },
   title: {
     ...typography.h3,
     color: colors.text,
@@ -655,6 +832,10 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.text,
     fontFamily: 'DMSans_500Medium',
+  },
+  reviewBanner: {
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.danger,
   },
   receiptBanner: {
     flexDirection: 'row',

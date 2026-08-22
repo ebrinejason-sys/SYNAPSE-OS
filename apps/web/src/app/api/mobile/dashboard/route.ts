@@ -199,6 +199,7 @@ export async function GET(req: NextRequest) {
     // Pharmacy ops — mirror portal priorities, phone-friendly order
     quickActions = [
       { key: 'pos', label: 'New sale (POS)', target: 'app:/pos' },
+      { key: 'sync', label: 'Sync status', target: 'app:/sync-status' },
       { key: 'inventory', label: 'Inventory', target: 'app:/(main)/stock' },
       { key: 'orders', label: 'Orders', target: 'app:/(main)/orders' },
       { key: 'receive', label: 'Receive stock', target: 'app:/receive-stock' },

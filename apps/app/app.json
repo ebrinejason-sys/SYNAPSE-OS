@@ -66,6 +66,7 @@
       ],
       [
         "expo-camera",
+      "expo-sqlite"
         {
           "cameraPermission": "Allow Synapse to use the camera to scan product barcodes."
         }

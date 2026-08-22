@@ -125,8 +125,9 @@ describe("pharmacy domain errors", () => {
 describe("capability registry", () => {
   it("does not claim durable offline POS is operational", () => {
     const offline = registry.features.find((f) => f.feature === "offline_durable_pos")
-    expect(offline?.status).toBe("PLANNED")
-    expect(offline?.offline_support).toBe(false)
+    expect(offline?.status).toBe("PARTIAL")
+    expect(offline?.offline_support).toBe(true)
+    expect(offline?.status).not.toBe("OPERATIONAL")
   })
 
   it("does not claim transfer execution is operational", () => {

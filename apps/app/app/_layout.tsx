@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { LockScreen } from '@/components/LockScreen'
 import { AuthProvider, useAuth } from '@/lib/auth'
+import { PharmacySyncHost } from '@/lib/pharmacy-sync'
 import { usePushDeepLinks } from '@/lib/push-deeplinks'
 import { ThemeProvider, useTheme } from '@/lib/theme'
 
@@ -105,7 +106,9 @@ export default function RootLayout() {
       <ThemeProvider>
         <ThemedShell>
           <AuthProvider>
-            <RootNavigator />
+            <PharmacySyncHost>
+              <RootNavigator />
+            </PharmacySyncHost>
           </AuthProvider>
         </ThemedShell>
       </ThemeProvider>

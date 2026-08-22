@@ -2,14 +2,14 @@
 
 Owner: **Offline Sync** (protocol runtime) + **Pharmacy domain** (sale/stock engines).
 Contract: ADR 0004, `@synapse/db/sync-contract`.
-Registry flag: `pharm/offline_durable_pos` remains **PLANNED** until the gates below are green.
+Registry flag: `pharm/offline_durable_pos` is **PARTIAL** (SQLite outbox + apply BFF + local reservation). It stays short of **PILOT_READY** / **OPERATIONAL** until device-restart proof and live backend apply exist.
 
 ## Current truth
 
 - Online POS uses `complete_pharmacy_sale` (FEFO, idempotent). Status: **PARTIAL** until till enforcement and quantity side-doors are closed.
 - Web POS refuses offline completion (`OfflineUnavailableError`) and tells the cashier nothing was charged. Keep that honesty until durability exists.
-- Expo keeps a cart draft and sale idempotency key; it does not persist a committed sale across restart without network.
-- `offline_mutation_outbox` exists in SQL; no application writer on this PR.
+- Expo POS commits `SyncCommand` to SQLite before UI success, then flushes `/api/mobile/pharmacy/sync/apply`.
+- `offline_mutation_outbox` is written by the apply BFF before `complete_pharmacy_sale`.
 - `SyncCommand` / `SyncEnvelope` are locked. Runtime (SQLite + apply API) follows in a dedicated PR that consumes this contract — not `packages/offline` from PR #36.
 
 ## Acceptance (OPERATIONAL)

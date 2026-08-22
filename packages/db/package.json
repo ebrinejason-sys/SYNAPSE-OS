@@ -19,6 +19,7 @@
     "./consent": "./src/consent.ts",
     "./offline": "./src/offline.ts",
     "./sync-contract": "./src/sync-contract.ts",
+    "./sync-runtime": "./src/sync-runtime.ts",
     "./contracts": "./src/contracts.ts",
     "./errors": "./src/errors.ts"
   },
