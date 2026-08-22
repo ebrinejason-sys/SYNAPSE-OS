@@ -17,7 +17,7 @@ Do not in-place-edit shipped SQL from `#38`.
 | Surface | Version |
 | ------- | ------- |
 | Web / pharmacy portal | `@synapse/pharmacy` 1.0.0 · Next 15 |
-| Mobile / APK | Expo app `1.2.1` / Android `versionCode` 5 · SDK 52 |
+| Mobile / APK | Expo app `1.2.2` / Android `versionCode` 6 · SDK 52 |
 | Database migration level (repo) | Latest additive: `20260822120000_generate_synapse_id_person_compat.sql` (identity compat). Transfers execute: `20260819120000_pharmacy_stock_transfers_execute.sql`. Inventory authority: `20260810120000_pharmacy_pilot_authority_hardening.sql` |
 | Live project | `qfqakzmjatszisuqjwon` — **this agent did not apply SQL** |
 
@@ -113,7 +113,7 @@ Live 18-step smoke against a real tenant was **not** executed in this cloud envi
 (no operator-approved `supabase db push`, no EAS login, placeholder-or-absent live keys
 for a disposable probe).
 
-Existing enrollment APK (`v1.2.1`) must be rebuilt after these PRs merge before calling
+Existing enrollment APK (`v1.2.1` / versionCode 5) is superseded by repo `v1.2.2` / versionCode 6. Rebuild the APK from `main` before calling
 the offline outbox “in the field.”
 
 ---
