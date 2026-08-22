@@ -25,7 +25,9 @@ legacy/
 !/scripts/nest-eslint-ajv6.mjs
 supabase/
 test-results/
-packages/
+packages/*
+!packages/db/
+!packages/db/**
 
 # Root noise
 GODMODE_REPORT.md
@@ -45,7 +47,9 @@ turbo.json
 ../../legacy/
 ../../supabase/
 ../../test-results/
-../../packages/
+../../packages/*
+!../../packages/db/
+!../../packages/db/**
 ../../node_modules/
 node_modules/
 **/node_modules/

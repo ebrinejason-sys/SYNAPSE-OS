@@ -19,7 +19,9 @@ legacy/
 !/scripts/nest-eslint-ajv6.mjs
 supabase/
 test-results/
-packages/
+packages/*
+!packages/db/
+!packages/db/**
 
 node_modules/
 **/node_modules/
