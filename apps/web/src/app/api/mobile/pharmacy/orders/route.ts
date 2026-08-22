@@ -4,6 +4,8 @@ import {
   isMobileAuth,
   requireMobilePharmacyAuth,
 } from '../../../../../lib/mobile-pharmacy-auth'
+import { adjustPharmacyBatchStock } from '@synapse/db/inventory-rpc'
+import { pharmacyDomainError, httpStatusForPharmacyError } from '@synapse/db/errors'
 
 export const dynamic = 'force-dynamic'
 
@@ -152,7 +154,7 @@ export async function PATCH(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: 'Failed to complete' }, { status: 500 })
 
-    // Deduct stock for customer orders (same as pharmacy portal PATCH).
+    // Deduct sellable batch stock via FEFO (never product.quantity).
     if (order.order_type === 'CUSTOMER') {
       const items = (order.items as Array<{
         product_id: string | null
@@ -161,32 +163,23 @@ export async function PATCH(req: NextRequest) {
       }>).filter((i) => i.product_id)
 
       for (const item of items) {
-        const { data: product } = await db()
-          .from('pharmacy_products')
-          .select('quantity')
-          .eq('tenant_id', auth.tenantId)
-          .eq('id', item.product_id)
-          .maybeSingle()
-
-        const previousQty = Number(product?.quantity ?? 0)
-        const newQty = Math.max(0, previousQty - Number(item.quantity ?? 0))
-
-        await db()
-          .from('pharmacy_products')
-          .update({ quantity: newQty, updated_at: new Date().toISOString() })
-          .eq('id', item.product_id)
-          .eq('tenant_id', auth.tenantId)
-
-        await db().from('pharmacy_stock_adjustments').insert({
-          tenant_id: auth.tenantId,
-          product_id: item.product_id,
-          quantity: -Number(item.quantity ?? 0),
+        const debit = await adjustPharmacyBatchStock(db(), {
+          tenantId: auth.tenantId,
+          productId: item.product_id as string,
+          quantity: Number(item.quantity ?? 0),
           type: 'DECREASE',
           reason: `Order ${order.order_no} completed (mobile)`,
-          previous_qty: previousQty,
-          new_qty: newQty,
-          created_by: auth.userId,
+          actorId: auth.userId,
         })
+        if (debit.error) {
+          return NextResponse.json(
+            pharmacyDomainError(debit.error.code, debit.error.humanMessage, {
+              productId: item.product_id ?? undefined,
+              requestedQuantity: Number(item.quantity ?? 0),
+            }),
+            { status: httpStatusForPharmacyError(debit.error.code) },
+          )
+        }
       }
     }
 

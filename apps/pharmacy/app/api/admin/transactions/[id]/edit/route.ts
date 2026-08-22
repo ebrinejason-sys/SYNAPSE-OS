@@ -77,56 +77,25 @@ export async function PUT(
       return NextResponse.json({ error: "Transaction not found" }, { status: 404 })
     }
 
-    // Snapshot of previous data as JSONB object (NOT stringified)
-    const previousData = existingTransaction as unknown as Record<string, unknown>
+    // Quantity edits are forbidden. Reverse via refund/void so batches stay authoritative.
+    if (body.items.some((item) => {
+      const existing = (existingTransaction.items ?? []).find(
+        (row: { id: string }) => row.id === item.id,
+      )
+      return existing && item.quantity !== (existing as { quantity: number }).quantity
+    })) {
+      return NextResponse.json(
+        {
+          error: "Transaction quantities cannot be edited. Use refund/void so batch stock stays reconciled.",
+          code: "POS_APPEND_ONLY",
+        },
+        { status: 409 },
+      )
+    }
 
     // Tax defaulted to 0 (no settings table in schema)
     const taxRate = 0
-
-    // Process stock adjustments for quantity changes
-    for (const editItem of body.items) {
-      const existingItem = (existingTransaction.items ?? []).find(
-        (item: { id: string }) => item.id === editItem.id
-      )
-
-      if (!existingItem) continue
-
-      const quantityDiff = editItem.quantity - (existingItem as { quantity: number }).quantity
-
-      if (quantityDiff !== 0) {
-        const { data: product } = await supabaseAdmin
-          .from("pharmacy_products")
-          .select("quantity")
-          .eq("id", (existingItem as { product_id: string }).product_id)
-          .eq("tenant_id", tenantId)
-          .single()
-
-        if (product) {
-          const newQty = product.quantity - quantityDiff
-          await supabaseAdmin
-            .from("pharmacy_products")
-            .update({
-              quantity: newQty,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", (existingItem as { product_id: string }).product_id)
-            .eq("tenant_id", tenantId)
-
-          await supabaseAdmin.from("pharmacy_stock_adjustments").insert({
-            tenant_id: tenantId,
-            product_id: (existingItem as { product_id: string }).product_id,
-            quantity: -quantityDiff,
-            type: quantityDiff > 0 ? "DECREASE" : "INCREASE",
-            reason: `Transaction Edit - ${existingTransaction.transaction_no}: ${body.reason}`,
-            previous_qty: product.quantity,
-            new_qty: newQty,
-            created_by: session.user.id,
-          })
-        }
-      }
-    }
-
-    // Calculate new totals
+    const previousData = existingTransaction as unknown as Record<string, unknown>
     let newTotalAmount = 0
     const updatedItems: Array<{
       id: string

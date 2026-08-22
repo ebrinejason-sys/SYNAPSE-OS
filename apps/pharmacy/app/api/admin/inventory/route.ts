@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { summarizeInventory, kampalaToday, normaliseBatch, isSellableBatch } from "@synapse/db/inventory"
+import { receivePharmacyStock } from "@synapse/db/inventory-rpc"
+import { pharmacyDomainError, httpStatusForPharmacyError } from "@synapse/db/errors"
+import {
+  catalogueOpeningQuantity,
+  catalogueQuantityPatchForbidden,
+  catalogueBatchMutationForbidden,
+} from "@/lib/inventory/catalogue-write"
 
 export async function GET(request: NextRequest) {
   try {
@@ -120,7 +127,7 @@ export async function POST(request: NextRequest) {
         category: (data.category as string) || "General",
         price: data.price as number,
         cost_price: data.costPrice as number,
-        quantity: (data.quantity as number) || 0,
+        quantity: catalogueOpeningQuantity(data.quantity),
         reorder_level: (data.reorderLevel as number) || 10,
         unit_of_measure: (data.unitOfMeasure as string) || "Tablet",
         description: (data.description as string) || null,
@@ -158,36 +165,36 @@ export async function POST(request: NextRequest) {
       if (packagesError) return NextResponse.json({ error: packagesError.message }, { status: 500 })
     }
 
-    // Create batches if provided
+    // Batches enter only through receive_pharmacy_stock (never raw inserts).
     const batches = data.batches as Array<Record<string, unknown>> | undefined
     if (Array.isArray(batches) && batches.length > 0) {
-      const { error: batchesError } = await supabaseAdmin
-        .from("pharmacy_product_batches")
-        .insert(
-          batches.map((batch) => ({
-            tenant_id: tenantId,
-            product_id: product.id,
-            batch_number: batch.batchNumber as string,
-            quantity: batch.quantity as number,
-            initial_quantity: batch.quantity as number,
-            expiry_date: batch.expiryDate as string,
-            cost_price: (batch.costPrice as number) || (data.costPrice as number),
-          }))
-        )
-      if (batchesError) return NextResponse.json({ error: batchesError.message }, { status: 500 })
-
-      // Update product quantity to sum of batch quantities
-      const totalBatchQty = batches.reduce(
-        (sum, b) => sum + ((b.quantity as number) || 0),
-        0
-      )
-      if (totalBatchQty > 0) {
-        const { error: updateError } = await supabaseAdmin
-          .from("pharmacy_products")
-          .update({ quantity: totalBatchQty })
-          .eq("id", product.id)
-          .eq("tenant_id", tenantId)
-        if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+      for (const batch of batches) {
+        const qty = Number(batch.quantity ?? 0)
+        const batchNumber = String(batch.batchNumber ?? "").trim()
+        const expiryDate = String(batch.expiryDate ?? "").slice(0, 10)
+        if (!batchNumber || !expiryDate || qty <= 0) {
+          const err = pharmacyDomainError(
+            "REQUIRES_BATCH",
+            "Opening stock requires a genuine batch number, future expiry, and positive quantity.",
+          )
+          return NextResponse.json(err, { status: httpStatusForPharmacyError(err.code) })
+        }
+        const received = await receivePharmacyStock(supabaseAdmin as any, {
+          tenantId,
+          productId: product.id,
+          batchNumber,
+          quantity: qty,
+          expiryDate,
+          costPrice: (batch.costPrice as number) || (data.costPrice as number) || null,
+          receivedBy: session.user.id,
+          reason: "Product create opening batch",
+        })
+        if (received.error) {
+          return NextResponse.json(
+            pharmacyDomainError(received.error.code, received.error.humanMessage),
+            { status: httpStatusForPharmacyError(received.error.code) },
+          )
+        }
       }
     }
 
@@ -232,7 +239,15 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
-    // Update the product
+    if (catalogueQuantityPatchForbidden(data) || catalogueBatchMutationForbidden(data)) {
+      const err = pharmacyDomainError(
+        "REQUIRES_BATCH",
+        "Product quantity and batch stock cannot be edited here. Receive, adjust, or reverse through the inventory RPCs.",
+      )
+      return NextResponse.json(err, { status: httpStatusForPharmacyError(err.code) })
+    }
+
+    // Update the product (catalogue fields only — never quantity)
     const { data: product, error: productError } = await supabaseAdmin
       .from("pharmacy_products")
       .update({
@@ -241,7 +256,6 @@ export async function PATCH(request: NextRequest) {
         category: (data.category as string) || "General",
         price: data.price as number,
         cost_price: data.costPrice as number,
-        quantity: data.quantity as number,
         reorder_level: (data.reorderLevel as number) || 10,
         unit_of_measure: (data.unitOfMeasure as string) || "Tablet",
         description: (data.description as string) || null,
@@ -263,18 +277,10 @@ export async function PATCH(request: NextRequest) {
 
     if (productError) return NextResponse.json({ error: productError.message }, { status: 500 })
 
-    // Soft-delete removed batches (bulk update)
-    const deletedBatchIds = data.deletedBatchIds as string[] | undefined
-    if (Array.isArray(deletedBatchIds) && deletedBatchIds.length > 0) {
-      const { error: batchDeleteError } = await supabaseAdmin
-        .from("pharmacy_product_batches")
-        .update({ is_active: false })
-        .in("id", deletedBatchIds)
-        .eq("tenant_id", tenantId)
-      if (batchDeleteError) return NextResponse.json({ error: batchDeleteError.message }, { status: 500 })
-    }
+    // Batch quantity / create / delete is not allowed on catalogue PATCH.
+    // Receive and adjust RPCs own those mutations.
 
-    // Hard-delete removed packages
+    // Handle packages: update existing, create new
     const deletedPackageIds = data.deletedPackageIds as string[] | undefined
     if (Array.isArray(deletedPackageIds) && deletedPackageIds.length > 0) {
       const { error: pkgDeleteError } = await supabaseAdmin
@@ -311,42 +317,6 @@ export async function PATCH(request: NextRequest) {
               units_per_package: pkg.unitsPerPackage as number,
               price: pkg.price as number,
               is_default: (pkg.isDefault as boolean) || false,
-            })
-          if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-        }
-      }
-    }
-
-    // Handle batches: update existing, create new
-    const batches = data.batches as Array<Record<string, unknown>> | undefined
-    if (Array.isArray(batches)) {
-      for (const batch of batches) {
-        if (batch.id) {
-          const updateFields: Record<string, unknown> = {
-            batch_number: batch.batchNumber,
-            quantity: batch.quantity,
-            cost_price: batch.costPrice,
-          }
-          if (batch.expiryDate !== undefined) {
-            updateFields.expiry_date = batch.expiryDate || null
-          }
-          const { error } = await supabaseAdmin
-            .from("pharmacy_product_batches")
-            .update(updateFields)
-            .eq("id", batch.id as string)
-            .eq("tenant_id", tenantId)
-          if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-        } else {
-          const { error } = await supabaseAdmin
-            .from("pharmacy_product_batches")
-            .insert({
-              tenant_id: tenantId,
-              product_id: product.id,
-              batch_number: batch.batchNumber as string,
-              quantity: batch.quantity as number,
-              initial_quantity: batch.quantity as number,
-              expiry_date: batch.expiryDate as string,
-              cost_price: (batch.costPrice as number) || (data.costPrice as number),
             })
           if (error) return NextResponse.json({ error: error.message }, { status: 500 })
         }

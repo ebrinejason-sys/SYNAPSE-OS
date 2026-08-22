@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
           tenant_id: tenantId,
           name: row.name.trim(),
           category: row.category.trim() || 'General',
-          quantity: parseInt(row.quantity) || 0,
+          quantity: 0,
           price: parseFloat(row.price) || 0,
           reorder_level: parseInt(row.reorderLevel) || 5,
           is_active: true,

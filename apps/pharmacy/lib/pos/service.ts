@@ -218,76 +218,15 @@ export async function createSale(params: {
 // ── Human-confirmed sale ────────────────────────────────────────────────────
 
 /**
- * REQUIRES human confirmation. Decrements FEFO batch stock and marks sale completed.
- * This is the ONLY path to inventory decrement in the POS system.
+ * RETIRED. Live POS uses complete_pharmacy_sale. Direct batch quantity
+ * updates are forbidden and would create a second inventory authority.
  */
-export async function confirmSale(params: {
+export async function confirmSale(_params: {
   saleId:      string
   tenantId:    string
   confirmedBy: string
 }): Promise<void> {
-  const { data: sale } = await db
-    .from('pharmacy_pos_sales')
-    .select('id, status')
-    .eq('id', params.saleId)
-    .eq('tenant_id', params.tenantId)
-    .single()
-
-  if (!sale) throw new Error('Sale not found.')
-  if (sale.status !== 'pending_confirmation') {
-    throw new Error(`Cannot confirm sale with status '${sale.status}'.`)
-  }
-
-  const { data: items } = await db
-    .from('pharmacy_pos_sale_items')
-    .select('id, batch_id, product_id, quantity, stock_decremented')
-    .eq('sale_id', params.saleId)
-    .eq('stock_decremented', false)
-
-  for (const item of items ?? []) {
-    if (item.batch_id) {
-      // Read current batch quantity
-      const { data: batch } = await db
-        .from('pharmacy_product_batches')
-        .select('quantity')
-        .eq('id', item.batch_id)
-        .single()
-
-      if (batch) {
-        const prevQty = batch.quantity as number
-        const newQty  = Math.max(0, prevQty - (item.quantity as number))
-
-        await db
-          .from('pharmacy_product_batches')
-          .update({ quantity: newQty })
-          .eq('id', item.batch_id)
-
-        // Stock adjustment record
-        await db.from('pharmacy_stock_adjustments').insert({
-          tenant_id:    params.tenantId,
-          product_id:   item.product_id,
-          quantity:     -(item.quantity as number),
-          type:         'sale',
-          reason:       `POS sale ${params.saleId}`,
-          previous_qty: prevQty,
-          new_qty:      newQty,
-          created_by:   params.confirmedBy,
-        }).catch(() => {})
-      }
-    }
-
-    await db
-      .from('pharmacy_pos_sale_items')
-      .update({ stock_decremented: true })
-      .eq('id', item.id)
-  }
-
-  await db
-    .from('pharmacy_pos_sales')
-    .update({
-      status:       'completed',
-      confirmed_by: params.confirmedBy,
-      confirmed_at: new Date().toISOString(),
-    })
-    .eq('id', params.saleId)
+  throw new Error(
+    'POS_LEGACY_CONFIRM_RETIRED: use complete_pharmacy_sale. Direct batch quantity updates are forbidden.',
+  )
 }

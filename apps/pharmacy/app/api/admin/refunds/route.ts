@@ -262,39 +262,10 @@ export async function POST(request: NextRequest) {
 
       if (!originalItem.product_id) continue
 
-      // Legacy path: bump denormalised product qty only — do NOT fabricate batch rows.
-      // Restored units remain unbatched / non-sellable until received with genuine batch data.
-      const { data: currentProduct } = await supabaseAdmin
-        .from("pharmacy_products")
-        .select("quantity")
-        .eq("id", originalItem.product_id)
-        .eq("tenant_id", tenantId)
-        .single()
-
-      if (currentProduct) {
-        const previousQty = currentProduct.quantity
-        const newQty = previousQty + refundQty
-
-        await supabaseAdmin
-          .from("pharmacy_products")
-          .update({
-            quantity: newQty,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", originalItem.product_id)
-          .eq("tenant_id", tenantId)
-
-        await supabaseAdmin.from("pharmacy_stock_adjustments").insert({
-          tenant_id: tenantId,
-          product_id: originalItem.product_id,
-          quantity: refundQty,
-          type: "INCREASE",
-          reason: `Refund from transaction ${transaction.transaction_no}: ${refundReason}`,
-          previous_qty: previousQty,
-          new_qty: newQty,
-          created_by: session.user.id,
-        })
-      }
+      // Legacy order txs are not POS sales. Do not bump product.quantity and
+      // do not fabricate batches. Returned units stay non-sellable until a
+      // pharmacist receives/quarantines them through inventory RPCs.
+      void refundQty
     }
 
     const existingNotes = (transaction as { notes: string | null }).notes ?? ""

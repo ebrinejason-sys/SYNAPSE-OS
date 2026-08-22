@@ -5,11 +5,10 @@ import { supabaseAdmin } from "@/lib/supabase/admin"
 
 /**
  * DELETE /api/admin/transactions/[id]
- * Delete a specific transaction (Admin only)
- * Includes reversal of stock adjustments
+ * Hard deletes are forbidden. Stock-moving records must be voided/refunded.
  */
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -46,89 +45,14 @@ export async function DELETE(
       )
     }
 
-    // Fetch the transaction with all its items
-    const { data: transaction, error: fetchError } = await (supabaseAdmin as any)
-      .from("pharmacy_transactions")
-      .select("*, items:pharmacy_transaction_items(*)")
-      .eq("tenant_id", tenantId)
-      .eq("id", id)
-      .single()
-
-    if (fetchError || !transaction) {
-      return NextResponse.json({ error: "Transaction not found" }, { status: 404 })
-    }
-
-    // Find stock adjustments for this transaction
-    const { data: stockAdjustments } = await supabaseAdmin
-      .from("pharmacy_stock_adjustments")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .like("reason", `Sale - Transaction ${transaction.transaction_no}%`)
-
-    // Delete the stock adjustments
-    if (stockAdjustments && stockAdjustments.length > 0) {
-      await supabaseAdmin
-        .from("pharmacy_stock_adjustments")
-        .delete()
-        .eq("tenant_id", tenantId)
-        .like("reason", `Sale - Transaction ${transaction.transaction_no}%`)
-    }
-
-    // Restore product quantities based on the deleted stock adjustments
-    for (const adjustment of stockAdjustments ?? []) {
-      const { data: product } = await supabaseAdmin
-        .from("pharmacy_products")
-        .select("quantity")
-        .eq("id", adjustment.product_id)
-        .eq("tenant_id", tenantId)
-        .single()
-
-      if (product) {
-        await supabaseAdmin
-          .from("pharmacy_products")
-          .update({
-            quantity: product.quantity + Math.abs(adjustment.quantity),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", adjustment.product_id)
-          .eq("tenant_id", tenantId)
-      }
-    }
-
-    // Delete transaction items first (foreign key constraint)
-    await supabaseAdmin
-      .from("pharmacy_transaction_items")
-      .delete()
-      .eq("transaction_id", id)
-      .eq("tenant_id", tenantId)
-
-    // Delete the transaction itself
-    await supabaseAdmin
-      .from("pharmacy_transactions")
-      .delete()
-      .eq("id", id)
-      .eq("tenant_id", tenantId)
-
-    // Create audit log
-    await supabaseAdmin.from("pharmacy_audit_logs").insert({
-      tenant_id: tenantId,
-      profile_id: session.user.id,
-      action: "DELETE_TRANSACTION",
-      entity: "TRANSACTION",
-      entity_id: id,
-      details: `Deleted transaction ${transaction.transaction_no}. Total amount: ${transaction.net_amount}. Items: ${(transaction.items ?? []).length}. Stock levels have been restored.`,
-    })
-
-    return NextResponse.json({
-      success: true,
-      message: `Transaction ${transaction.transaction_no} has been deleted successfully. Stock levels have been restored.`,
-      deletedTransaction: {
-        id: transaction.id,
-        transactionNo: transaction.transaction_no,
-        netAmount: transaction.net_amount,
-        itemsCount: (transaction.items ?? []).length,
+    return NextResponse.json(
+      {
+        error:
+          "Transactions that moved stock cannot be deleted. Use refund/void so batch inventory stays authoritative.",
+        code: "POS_APPEND_ONLY",
       },
-    })
+      { status: 409 },
+    )
   } catch (error) {
     console.error("Delete transaction error:", error)
     return NextResponse.json(

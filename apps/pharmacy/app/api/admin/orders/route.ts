@@ -4,6 +4,8 @@ import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { mapOrder } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { generateOrderNo, generateTransactionNo } from "@/lib/utils"
+import { adjustPharmacyBatchStock } from "@synapse/db/inventory-rpc"
+import { pharmacyDomainError, httpStatusForPharmacyError } from "@synapse/db/errors"
 
 type OrderStatsRow = {
   status: string
@@ -340,36 +342,27 @@ export async function PATCH(request: NextRequest) {
             }))
           )
 
-          // Deduct stock
+          // Deduct sellable batch stock via FEFO (never product.quantity).
           for (const item of itemsWithProducts) {
             if (!item.product_id) continue
 
-            const { data: product } = await (supabaseAdmin as any)
-              .from("pharmacy_products")
-              .select("quantity")
-              .eq("tenant_id", tenantId)
-              .eq("id", item.product_id)
-              .single()
-
-            const previousQty = product?.quantity ?? 0
-            const newQty = previousQty - item.quantity
-
-            await supabaseAdmin
-              .from("pharmacy_products")
-              .update({ quantity: newQty, updated_at: new Date().toISOString() })
-              .eq("id", item.product_id)
-              .eq("tenant_id", tenantId)
-
-            await supabaseAdmin.from("pharmacy_stock_adjustments").insert({
-              tenant_id: tenantId,
-              product_id: item.product_id,
-              quantity: -item.quantity,
+            const debit = await adjustPharmacyBatchStock(supabaseAdmin as any, {
+              tenantId,
+              productId: item.product_id,
+              quantity: item.quantity,
               type: "DECREASE",
               reason: `Order ${order.order_no} completed`,
-              previous_qty: previousQty,
-              new_qty: newQty,
-              created_by: session.user.id,
+              actorId: session.user.id,
             })
+            if (debit.error) {
+              return NextResponse.json(
+                pharmacyDomainError(debit.error.code, debit.error.humanMessage, {
+                  productId: item.product_id,
+                  requestedQuantity: item.quantity,
+                }),
+                { status: httpStatusForPharmacyError(debit.error.code) },
+              )
+            }
           }
         }
       }
