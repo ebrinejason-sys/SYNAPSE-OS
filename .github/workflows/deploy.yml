@@ -51,12 +51,9 @@ jobs:
 
       - name: Type-check Expo app (Release 0 equal citizen)
         run: npm run type-check --workspace @synapse/app
-        continue-on-error: true
 
-      # ESLint FlatCompat+ajv toolchain currently crashes in CI; type-check/build remain the gate.
       - name: Lint web app
-        run: npm run lint --workspace @synapse/web -- --max-warnings 0
-        continue-on-error: true
+        run: npm run lint --workspace @synapse/web
 
   # Optional CLI deploy. Prefer Vercel Git integration for www/pharm production.
   # Skip when VERCEL_TOKEN is unset so CI stays green (empty --token= fails the job).

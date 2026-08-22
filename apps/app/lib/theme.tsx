@@ -102,7 +102,8 @@ const lightPalette = {
   glowOrange: 'rgba(234, 106, 12, 0.06)',
 } as const
 
-export type ThemeColors = typeof darkPalette
+type PaletteKeys = keyof typeof darkPalette
+export type ThemeColors = { [K in PaletteKeys]: string }
 
 /** Default export kept for legacy StyleSheet imports (dark). Prefer useTheme(). */
 export const colors: ThemeColors = { ...darkPalette }
@@ -182,6 +183,7 @@ export function toneColors(c: ThemeColors) {
     muted: c.textMuted,
     teal: c.teal,
     warning: c.warning,
+    amber: c.warning,
     info: c.info,
   } as const
 }

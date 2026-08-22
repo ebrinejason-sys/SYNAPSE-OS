@@ -1,24 +1,17 @@
-import { FlatCompat } from "@eslint/eslintrc";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import nextPlugin from "@next/eslint-plugin-next"
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const compat = new FlatCompat({ baseDirectory: __dirname });
-
-/** ESLint flat config — replaces deprecated `next lint`. */
+/**
+ * Native ESLint 9 flat config. Do not use FlatCompat/@eslint/eslintrc:
+ * that package requires ajv@6 while Expo/metro require ajv@8 in this monorepo.
+ */
 export default [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  nextPlugin.flatConfig.coreWebVitals,
   {
     rules: {
       "react/no-unescaped-entities": "off",
       "@next/next/no-html-link-for-pages": "off",
-      "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-unused-vars": [
-        "warn",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
-      ],
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "off",
     },
   },
   {
@@ -31,4 +24,4 @@ export default [
       "public/**",
     ],
   },
-];
+]

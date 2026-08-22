@@ -106,7 +106,7 @@ export default function ReportsScreen() {
       }
       const uri = `${dir}synapse-report-${period}.csv`
       await FileSystem.writeAsStringAsync(uri, lines.join('\n'), {
-        encoding: (FileSystem as { EncodingType?: { UTF8: string } }).EncodingType?.UTF8 ?? 'utf8',
+        encoding: 'utf8',
       })
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: 'Share report' })
