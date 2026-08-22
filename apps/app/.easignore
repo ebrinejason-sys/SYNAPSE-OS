@@ -25,9 +25,7 @@ legacy/
 !/scripts/nest-eslint-ajv6.mjs
 supabase/
 test-results/
-packages/*
-!packages/db/
-!packages/db/**
+# Keep packages/ — Metro resolves ../../../packages/db from apps/app.
 
 # Root noise
 GODMODE_REPORT.md
@@ -47,9 +45,6 @@ turbo.json
 ../../legacy/
 ../../supabase/
 ../../test-results/
-../../packages/*
-!../../packages/db/
-!../../packages/db/**
 ../../node_modules/
 node_modules/
 **/node_modules/

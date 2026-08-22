@@ -19,9 +19,8 @@ legacy/
 !/scripts/nest-eslint-ajv6.mjs
 supabase/
 test-results/
-packages/*
-!packages/db/
-!packages/db/**
+# Keep packages/ (Expo POS imports @synapse/db sync-contract/runtime).
+# eas-cli ignore does not honor gitignore negation reliably.
 
 node_modules/
 **/node_modules/
