@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "updated": "2026-08-22",
+  "owner": "lead-architect",
+  "status_values": ["OPERATIONAL", "PILOT_READY", "PARTIAL", "PLANNED"],
+  "notes": "OPERATIONAL requires implementation + tests + security review + live/backend verification + failure-mode verification. Code existing is not enough.",
+  "features": [
+    {
+      "domain": "pharm",
+      "feature": "pos_online_sale",
+      "status": "PARTIAL",
+      "owner": "pharmacy-domain",
+      "tests": ["apps/pharmacy/lib/pos", "apps/pharmacy/app/api/admin/pos"],
+      "offline_support": false,
+      "mobile_support": true,
+      "security_review": "partial",
+      "clinical_review": "n/a",
+      "limitation": "complete_pharmacy_sale RPC is idempotent and FEFO-aware. Till sessions are not enforced. Dual ledger (pharmacy_pos_sales vs pharmacy_transactions) remains."
+    },
+    {
+      "domain": "pharm",
+      "feature": "batch_authoritative_inventory",
+      "status": "PARTIAL",
+      "owner": "pharmacy-domain",
+      "tests": ["apps/pharmacy/lib/pos/inventory-authority.test.ts", "apps/pharmacy/lib/pos/fefo.test.ts"],
+      "offline_support": false,
+      "mobile_support": true,
+      "security_review": "partial",
+      "clinical_review": "n/a",
+      "limitation": "Sale/receive/adjust/PO/import/void use RPCs. Catalogue CRUD, onboarding seed, and order-complete still write pharmacy_products.quantity."
+    },
+    {
+      "domain": "pharm",
+      "feature": "receive_stock",
+      "status": "PARTIAL",
+      "owner": "pharmacy-domain",
+      "tests": ["packages/db/src/inventory-rpc.ts"],
+      "offline_support": false,
+      "mobile_support": true,
+      "security_review": "partial",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "pharm",
+      "feature": "stock_adjust",
+      "status": "PARTIAL",
+      "owner": "pharmacy-domain",
+      "tests": ["apps/pharmacy/app/api/admin/inventory/stock"],
+      "offline_support": false,
+      "mobile_support": true,
+      "security_review": "partial",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "pharm",
+      "feature": "refund_reverse",
+      "status": "PARTIAL",
+      "owner": "pharmacy-domain",
+      "tests": ["packages/db/src/inventory-rpc.ts"],
+      "offline_support": false,
+      "mobile_support": true,
+      "security_review": "partial",
+      "clinical_review": "n/a",
+      "limitation": "POS refunds use reverse_pharmacy_sale (default quarantined). Legacy pharmacy_transactions refund still mutates product quantity only."
+    },
+    {
+      "domain": "pharm",
+      "feature": "receipts",
+      "status": "PARTIAL",
+      "owner": "pharmacy-domain",
+      "tests": ["apps/pharmacy/lib/pos/receipt-domain.test.ts"],
+      "offline_support": false,
+      "mobile_support": true,
+      "security_review": "partial",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "pharm",
+      "feature": "branches_crud",
+      "status": "PARTIAL",
+      "owner": "pharmacy-domain",
+      "tests": ["apps/pharmacy/app/api/admin/branches"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "pharm",
+      "feature": "stock_transfers_execute",
+      "status": "PLANNED",
+      "owner": "pharmacy-domain",
+      "tests": ["apps/pharmacy/app/api/admin/transfers"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a",
+      "limitation": "Draft create/list only on main. Ship/receive RPCs live on PR #40 and will land in a follow-up."
+    },
+    {
+      "domain": "pharm",
+      "feature": "offline_durable_pos",
+      "status": "PLANNED",
+      "owner": "offline-sync",
+      "tests": ["apps/pharmacy/lib/platform/sync-contract.test.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a",
+      "limitation": "SyncCommand contract is locked. Expo still has cart-draft + online idempotency only. No SQLite outbox on this PR."
+    },
+    {
+      "domain": "core",
+      "feature": "sync_protocol",
+      "status": "PARTIAL",
+      "owner": "offline-sync",
+      "tests": ["apps/pharmacy/lib/platform/sync-contract.test.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "core",
+      "feature": "person_identity",
+      "status": "PARTIAL",
+      "owner": "identity-mpi",
+      "tests": ["apps/pharmacy/lib/platform/network-foundations.test.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "unreviewed"
+    },
+    {
+      "domain": "core",
+      "feature": "mpi_no_auto_merge",
+      "status": "PARTIAL",
+      "owner": "identity-mpi",
+      "tests": ["apps/pharmacy/lib/platform/network-foundations.test.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "unreviewed"
+    },
+    {
+      "domain": "core",
+      "feature": "facility_hierarchy",
+      "status": "PARTIAL",
+      "owner": "facilities-rbac",
+      "tests": ["packages/db/src/scope.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "core",
+      "feature": "pharmacy_domain_errors",
+      "status": "PARTIAL",
+      "owner": "pharmacy-domain",
+      "tests": ["apps/pharmacy/lib/platform/sync-contract.test.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a"
+    }
+  ]
+}

@@ -102,6 +102,14 @@ export function assertSiteAllowed(
   return { ok: true }
 }
 
+export type FacilityContext = {
+  organizationId?: string | null
+  facilityId: string
+  siteId?: string | null
+  departmentId?: string | null
+  facilityMode?: FacilityMode | null
+}
+
 export type FacilityRecord = {
   id: string
   organizationId?: string | null

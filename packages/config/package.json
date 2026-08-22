@@ -7,6 +7,7 @@
     "./tailwind": "./tailwind.ts",
     "./typescript": "./tsconfig.json",
     "./constants": "./src/constants.ts",
+    "./capability": "./src/capability.ts",
     "./typography.css": "./typography.css"
   },
   "devDependencies": {

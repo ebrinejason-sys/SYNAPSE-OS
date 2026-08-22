@@ -1,5 +1,15 @@
 # Migration Notes
 
+## 20260822120000_generate_synapse_id_person_compat.sql (PR A)
+
+**Type:** additive, reversible. **Does not** edit `20260817120000` in place.
+
+**Changes**
+- Recreates `generate_synapse_id(text)` with valid `ascii(substr(...))` and collision checks against `persons` and `patient_profiles`.
+- Does **not** replace or revoke live zero-arg `generate_synapse_id()` used by `patient_profiles`.
+
+**Apply:** with other pending identity migrations after dry-run. Safe if `20260817120000` was already applied.
+
 ## 20260810120000_pharmacy_pilot_authority_hardening.sql (Pilot v1)
 **Type:** additive, reversible. **Depends on** concepts from `20260805130000` (safe to apply even if
 that migration was partially applied — this file re-asserts status columns / summary view).

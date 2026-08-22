@@ -1,7 +1,10 @@
 # Implementation Status Ledger
 
-Branch: `cursor/pharmacy-pilot-v1-9386` (Pilot-Ready v1 work). Honest status — no phase is claimed
+Branch: `cursor/pharm-core-contracts-bf39` (PR A — Core contracts). Honest status — no phase is claimed
 done unless built, buildable, and tested. Live DB apply remains a separate ops gate.
+
+Authoritative capability claims: `docs/implementation/capability-registry.json`.
+Sync protocol: ADR 0004 / `@synapse/db/sync-contract`. Database ownership: ADR 0005.
 
 ## Legend
 ✅ done & tested · 🟡 partial · 📐 designed only · ⛔ not started · 🚫 blocked
