@@ -203,6 +203,7 @@ export async function GET(req: NextRequest) {
       { key: 'inventory', label: 'Inventory', target: 'app:/(main)/stock' },
       { key: 'orders', label: 'Orders', target: 'app:/(main)/orders' },
       { key: 'receive', label: 'Receive stock', target: 'app:/receive-stock' },
+      { key: 'transfers', label: 'Stock transfers', target: 'app:/transfers' },
       { key: 'sales', label: 'Sales history', target: 'app:/(main)/sales' },
       { key: 'reports', label: 'Reports', target: 'app:/reports' },
       { key: 'more', label: 'More tools', target: 'app:/(main)/profile' },

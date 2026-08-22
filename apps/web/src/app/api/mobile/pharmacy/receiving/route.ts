@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@synapse/db/admin'
 import { receivePharmacyStock } from '@synapse/db/inventory-rpc'
 import {
   isMobileAuth,
-  isMobilePharmacyAdmin,
+  canWriteMobilePharmacyInventory,
   requireMobilePharmacyAuth,
   type MobileAuth,
 } from '../../../../../lib/mobile-pharmacy-auth'
@@ -13,16 +13,8 @@ export const dynamic = 'force-dynamic'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = () => supabaseAdmin as any
 
-const INVENTORY_WRITE_ROLES = new Set([
-  'pharmacy_admin',
-  'pharmacy_ceo',
-  'pharmacist',
-  'pharmacy_store_manager',
-  'pharmacy_staff',
-])
-
 function canReceive(auth: MobileAuth): boolean {
-  return INVENTORY_WRITE_ROLES.has(auth.role) || isMobilePharmacyAdmin(auth)
+  return canWriteMobilePharmacyInventory(auth)
 }
 
 /**

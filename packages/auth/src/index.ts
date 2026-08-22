@@ -71,3 +71,7 @@ export {
 } from './billing/entitlement'
 export type { EntitlementInput, EntitlementResult } from './billing/entitlement'
 export { verifyWebhookHash } from './billing/flutterwave'
+export {
+  PHARMACY_INVENTORY_MUTATOR_ROLES,
+  canMutatePharmacyInventory,
+} from './pharmacy-mobile-roles'

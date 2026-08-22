@@ -90,12 +90,12 @@
       "feature": "stock_transfers_execute",
       "status": "PARTIAL",
       "owner": "pharmacy-domain",
-      "tests": ["apps/pharmacy/app/api/admin/transfers"],
+      "tests": ["apps/pharmacy/app/api/admin/transfers", "apps/pharmacy/lib/platform/mobile-inventory-roles.test.ts"],
       "offline_support": false,
-      "mobile_support": false,
-      "security_review": "unreviewed",
+      "mobile_support": true,
+      "security_review": "partial",
       "clinical_review": "n/a",
-      "limitation": "Ship/receive RPCs and APIs are in-repo. Live SQL apply and native Expo UI are still required before OPERATIONAL."
+      "limitation": "Ship/receive RPCs, portal APIs, and Expo list/ship/receive exist. Live SQL apply still required before OPERATIONAL."
     },
     {
       "domain": "pharm",

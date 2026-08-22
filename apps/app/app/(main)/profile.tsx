@@ -86,6 +86,7 @@ export default function ProfileScreen() {
   const inventoryItems: NavItem[] = [
     { label: 'Inventory', subtitle: 'Stock on hand', icon: 'cube-outline', route: '/(main)/stock' },
     { label: 'Receive stock (GRN)', subtitle: 'Batch + expiry', icon: 'download-outline', route: '/receive-stock' },
+    { label: 'Stock transfers', subtitle: 'Ship and receive between stores', icon: 'swap-horizontal-outline', route: '/transfers' },
     { label: 'Stock import', subtitle: 'CSV / Excel', icon: 'cloud-upload-outline', route: '/stock-import' },
     { label: 'Barcode lookup', subtitle: 'Scan or type', icon: 'barcode-outline', route: '/barcode-scan' },
   ]

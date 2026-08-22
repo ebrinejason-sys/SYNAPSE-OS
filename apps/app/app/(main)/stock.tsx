@@ -135,6 +135,8 @@ export default function StockScreen() {
             <Pressable
               style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
               onPress={() => router.push(`/stock-item/${item.id}` as never)}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.name}, ${STATUS_LABELS[item.status]}, quantity ${item.quantity}`}
             >
               <View style={styles.cardTop}>
                 <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
