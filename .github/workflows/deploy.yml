@@ -52,6 +52,9 @@ jobs:
       - name: Type-check Expo app (Release 0 equal citizen)
         run: npm run type-check --workspace @synapse/app
 
+      - name: Export Expo Android bundle
+        run: npm run export:android --workspace @synapse/app
+
       - name: Lint web app
         run: npm run lint --workspace @synapse/web
 

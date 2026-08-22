@@ -19,6 +19,7 @@
     "type-check": "turbo type-check",
     "verify:web": "node scripts/verify-web-build.mjs",
     "verify:pharmacy": "npm run type-check --workspace @synapse/pharmacy && npm run lint --workspace @synapse/pharmacy && npm run test --workspace @synapse/pharmacy && npm run build --workspace @synapse/pharmacy",
+    "verify:pharm-release": "node scripts/verify-pharm-release.mjs",
     "verify:deploy": "npm run db:check && npm run verify:web",
     "db:check": "node scripts/check-supabase-migrations.mjs",
     "db:lint": "supabase db lint --local",

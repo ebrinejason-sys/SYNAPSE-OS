@@ -4,6 +4,8 @@ Branch: `cursor/pharm-core-contracts-bf39` (PR A — Core contracts). Honest sta
 done unless built, buildable, and tested. Live DB apply remains a separate ops gate.
 
 Authoritative capability claims: `docs/implementation/capability-registry.json`.
+Production-readiness (YELLOW): `docs/release/SYNAPSE_PHARM_PRODUCTION_READINESS.md`.
+Release command: `npm run verify:pharm-release`.
 Sync protocol: ADR 0004 / `@synapse/db/sync-contract`. Database ownership: ADR 0005.
 
 ## Legend
