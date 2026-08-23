@@ -8,7 +8,7 @@ Final candidate SHA is `git rev-parse HEAD` after this branch merges. Do not tre
 | Gate | Current evidence | Missing evidence | Owner | Status |
 | ---- | ---------------- | ---------------- | ----- | ------ |
 | Local `verify:pharm-release` | `RELEASE_GATE=PASS` on `418e868` (db/lint/typecheck/test/builds/expo export) | Re-run if source SHA changes | release | PASS |
-| GitHub Actions CI | Vercel checks PASS. Workflow `CI` failed in 0s because `secrets` was used in a job `if` | Visible `CI / verify` and `CI / pharm-release` on the final SHA | release | FAIL |
+| GitHub Actions CI | `CI / verify` + `CI / pharm-release` success on `a29a2ac` ([run 32636533122](https://github.com/ebrinejason-sys/SYNAPSE-OS/actions/runs/32636533122), 11m57s, `RELEASE_GATE=PASS` in CI). Vercel is extra, not the gate. | Re-require both checks on `main` after merge. Re-run if source SHA changes. | release | PASS |
 | DB parity | Live has ship/receive RPCs, till columns, identity compat | Re-verify after any new migration | db | PASS |
 | RLS present | Critical Pharm tables have RLS from prior migrations | Live JWT attack by foreign IDs | security | BLOCKED |
 | RPC security | Transfer RPCs: anon/auth execute false, service_role true | Same grant matrix recorded in live probe log for this SHA | security | PASS |
@@ -21,7 +21,7 @@ Final candidate SHA is `git rev-parse HEAD` after this branch merges. Do not tre
 | Stock transfer live | RPCs live | Two-store ship/receive proof | qa | BLOCKED |
 | Till close | APIs + UI | Operator open/sale/close/variance | qa | BLOCKED |
 | Financial authority | POS-only default + unit test | Controlled 100,000 live report | finance | BLOCKED |
-| Evidence SHA | Previously hardcoded `d722e64` | `npm run evidence:pharm-green` writes `git rev-parse HEAD` | release | FAIL |
+| Evidence SHA | `npm run evidence:pharm-green` writes `git rev-parse HEAD`. Writer landed in `1f02326`. | Re-stamp after every source SHA change | release | PASS |
 | Secrets / Expo token | Token pasted historically | Rotation confirmation | security | BLOCKED |
 
 Allowed statuses: PASS / FAIL / BLOCKED. This audit is not a GREEN recommendation.

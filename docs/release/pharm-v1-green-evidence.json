@@ -16,6 +16,16 @@
     "note": "ship/receive RPCs and till columns verified on qfqakzmjatszisuqjwon. Tenant isolation JWTs were not supplied."
   },
   "localGate": "PASS",
+  "githubActions": "PASS",
+  "githubActionsRun": {
+    "sha": "a29a2ace7819abf7810e6632b55474f747e3ab02",
+    "runId": 32636533122,
+    "url": "https://github.com/ebrinejason-sys/SYNAPSE-OS/actions/runs/32636533122",
+    "verifyJob": "https://github.com/ebrinejason-sys/SYNAPSE-OS/actions/runs/32636533122/job/97187050431",
+    "pharmReleaseJob": "https://github.com/ebrinejason-sys/SYNAPSE-OS/actions/runs/32636533122/job/97187738168",
+    "duration": "11m57s",
+    "releaseGate": "PASS"
+  },
   "liveGate": "FAIL",
   "apkBuild": "BLOCKED",
   "deviceOffline": "BLOCKED",
@@ -29,6 +39,7 @@
   "release": "YELLOW",
   "evidence": {
     "localGate": "npm run verify:pharm-release on 418e868 → RELEASE_GATE=PASS. Log: /opt/cursor/artifacts/verify_pharm_release_418e868.log. A later evidence-only commit does not change source.",
+    "githubActions": "CI workflow run 32636533122 on a29a2ac: verify success + pharm-release success with RELEASE_GATE=PASS. This is the real Actions gate (not Vercel-only). Re-run if source changes.",
     "liveGate": "npm run verify:pharm-live fails without SYNAPSE_PHARM_LIVE_TENANT_A_JWT / B_JWT. Schema/RPC objects are present.",
     "apkBuild": "Last installable APK is 1.2.2 / vc6 from EAS 21af12b8, built before this GREEN SHA. No EXPO_TOKEN in this environment.",
     "deviceOffline": "See docs/testing/PHARM_OFFLINE_DEVICE_GREEN.md. Cases A-H are BLOCKED.",
