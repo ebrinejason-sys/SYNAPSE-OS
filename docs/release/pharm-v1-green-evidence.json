@@ -1,7 +1,7 @@
 {
-  "commit": "d722e64",
-  "version": "1.2.2",
-  "androidVersionCode": 6,
+  "commit": "15d7daf2bc1cb15a1c2c9e09b87de722eeaf4742",
+  "version": "1.3.0",
+  "androidVersionCode": 7,
   "dbMigration": {
     "repoLatest": "20260823120000_pharmacy_cashier_sessions_v1.sql",
     "liveApplied": [
@@ -35,5 +35,7 @@
     "printer": "See docs/testing/PHARM_PRINTER_GREEN.md.",
     "tenantIsolation": "Unit/store-scope tests exist. Live JWT isolation not executed.",
     "smokeTest": "docs/release/PHARMACY_PILOT_SMOKE.md still has blank operator boxes."
-  }
+  },
+  "recordedAt": "2026-08-23T11:22:39.030Z",
+  "note": "commit is git rev-parse HEAD at write time. Re-run every gate if this SHA changes."
 }
