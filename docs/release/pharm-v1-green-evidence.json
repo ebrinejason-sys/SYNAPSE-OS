@@ -1,39 +1,43 @@
 {
-  "commit": "d722e64",
-  "version": "1.2.2",
-  "androidVersionCode": 6,
-  "dbMigration": {
-    "repoLatest": "20260823120000_pharmacy_cashier_sessions_v1.sql",
-    "liveApplied": [
-      "pharmacy_stock_transfers_execute",
-      "pharmacy_stock_transfer_rpcs",
-      "pharmacy_stock_transfer_receive_rpc",
-      "pharmacy_cashier_sessions_v1",
-      "generate_synapse_id_person_compat"
-    ],
-    "liveTransferRpcs": "PASS",
-    "liveTillColumns": "PASS",
-    "note": "ship/receive RPCs and till columns verified on qfqakzmjatszisuqjwon. Tenant isolation JWTs were not supplied."
-  },
-  "localGate": "PARTIAL",
+  "commit": "6b27722905c92350423e09ba97f0a4ca1ae42155",
+  "version": "1.3.0",
+  "androidVersionCode": 7,
+  "localGate": "PASS",
+  "githubCI": "PENDING",
   "liveGate": "FAIL",
-  "apkBuild": "BLOCKED",
-  "deviceOffline": "BLOCKED",
-  "printer": "BLOCKED",
   "tenantIsolation": "BLOCKED",
   "storeIsolation": "PARTIAL",
-  "smokeTest": "BLOCKED",
+  "dbParity": "PASS",
+  "rpcSecurity": "PARTIAL",
+  "apkBuild": "SUBMITTED",
+  "apkInstall": "BLOCKED",
+  "deviceOffline": "BLOCKED",
+  "printer": "BLOCKED",
+  "stockTransfer": "PARTIAL",
   "tillSessions": "PARTIAL",
   "ledgerAuthority": "PARTIAL",
-  "offlineEncryption": "PARTIAL",
+  "smokeTest": "BLOCKED",
   "release": "YELLOW",
+  "eas": {
+    "buildId": "e224e216-af11-48de-ac15-50aa5947e653",
+    "url": "https://expo.dev/accounts/ebrinejason/projects/synapse-app/builds/e224e216-af11-48de-ac15-50aa5947e653",
+    "profile": "preview",
+    "status": "NEW",
+    "gitCommitHash": "6b27722905c92350423e09ba97f0a4ca1ae42155",
+    "note": "APK submitted from this SHA. Not PASS until the build finishes and a device install is proven."
+  },
   "evidence": {
-    "localGate": "db:check PASS (44 files). Pharmacy lint/type-check PASS. App type-check PASS. Pharmacy tests 160+3 PASS. Full npm run verify:pharm-release (web build + Expo export) was not completed in this pass.",
-    "liveGate": "npm run verify:pharm-live fails without SYNAPSE_PHARM_LIVE_TENANT_A_JWT / B_JWT. Schema/RPC objects are present.",
-    "apkBuild": "Last installable APK is 1.2.2 / vc6 from EAS 21af12b8, built before this GREEN SHA. No EXPO_TOKEN in this environment.",
-    "deviceOffline": "See docs/testing/PHARM_OFFLINE_DEVICE_GREEN.md. Cases A-H are BLOCKED.",
-    "printer": "See docs/testing/PHARM_PRINTER_GREEN.md.",
-    "tenantIsolation": "Unit/store-scope tests exist. Live JWT isolation not executed.",
-    "smokeTest": "docs/release/PHARMACY_PILOT_SMOKE.md still has blank operator boxes."
-  }
+    "localGate": "npm run verify:pharm-release RELEASE_GATE=PASS on 6b27722905c92350423e09ba97f0a4ca1ae42155. Log: docs/release/evidence/6b27722905c92350423e09ba97f0a4ca1ae42155/local-release.log",
+    "githubCI": "ci.yml publishes CI / verify and CI / pharm-release. PR 52 checks were still running when this file was written. Vercel success is not the Pharm gate.",
+    "liveGate": "SYNAPSE_PHARM_LIVE=1 npm run verify:pharm-live failed closed: no live URL/service role/JWTs in this environment.",
+    "tenantIsolation": "Code probes attack known foreign product/batch/sale/transfer IDs. No tenant A/B JWTs supplied.",
+    "storeIsolation": "requireStoreScope on receive, stock adjust, transfer create/ship/receive, till open, POS complete. Unit tests deny store A1 vs A2. Live HTTP store proof not run.",
+    "apkBuild": "EAS preview Android APK 1.3.0 / versionCode 7 submitted as e224e216. Not yet finished. Prior installable APK 1.2.2/vc6 is stale.",
+    "deviceOffline": "See docs/testing/PHARM_OFFLINE_DEVICE_GREEN.md. Cases A-H require a physical device.",
+    "printer": "See docs/testing/PHARM_PRINTER_GREEN.md. No 80mm printer in this environment.",
+    "smokeTest": "docs/release/PHARMACY_PILOT_SMOKE.md still has blank operator boxes.",
+    "ledgerAuthority": "Reports now total pharmacy_pos_sales only (unit: 100000 POS sale => 100000). Live 100000 sale proof not run.",
+    "expoToken": "A historical Expo token was exposed in chat. Rotate at https://expo.dev/settings/access-tokens before production. Do not paste tokens into tickets."
+  },
+  "operatorLiveCommand": "SYNAPSE_PHARM_LIVE=1 NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co SUPABASE_SERVICE_ROLE_KEY=<service-role> NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon> SYNAPSE_PHARM_LIVE_TENANT_A_JWT=<jwt-a> SYNAPSE_PHARM_LIVE_TENANT_B_JWT=<jwt-b> SYNAPSE_PHARM_LIVE_A_PRODUCT_ID=<uuid> SYNAPSE_PHARM_LIVE_A_BATCH_ID=<uuid> SYNAPSE_PHARM_LIVE_A_SALE_ID=<uuid> SYNAPSE_PHARM_LIVE_A_TRANSFER_ID=<uuid> SYNAPSE_PHARM_LIVE_B_PRODUCT_ID=<uuid> SYNAPSE_PHARM_LIVE_B_BATCH_ID=<uuid> SYNAPSE_PHARM_LIVE_B_SALE_ID=<uuid> SYNAPSE_PHARM_LIVE_B_TRANSFER_ID=<uuid> npm run verify:pharm-live"
 }

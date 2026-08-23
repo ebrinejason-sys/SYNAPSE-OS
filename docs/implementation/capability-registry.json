@@ -61,7 +61,7 @@
       "mobile_support": true,
       "security_review": "partial",
       "clinical_review": "n/a",
-      "limitation": "POS refunds use reverse_pharmacy_sale (default quarantined). Legacy pharmacy_transactions refund still mutates product quantity only."
+      "limitation": "POS refunds use reverse_pharmacy_sale (default quarantined). Legacy pharmacy_transactions refund is financial-only: product.quantity is unchanged and no batch is created. Returned units must be received/quarantined through inventory."
     },
     {
       "domain": "pharm",
@@ -95,7 +95,7 @@
       "mobile_support": true,
       "security_review": "partial",
       "clinical_review": "n/a",
-      "limitation": "Ship/receive RPCs are live (service_role only). Operator two-store transfer proof is still required before OPERATIONAL."
+      "limitation": "Ship/receive RPCs are live (service_role only). Unit store-scope exists. Operator two-store transfer proof is still required before OPERATIONAL."
     },
     {
       "domain": "pharm",
@@ -110,7 +110,7 @@
       "mobile_support": true,
       "security_review": "partial",
       "clinical_review": "n/a",
-      "limitation": "SQLite outbox + AES-GCM payload encryption + apply BFF exist for single-counter Android. Physical force-stop/reboot proof is still required before OPERATIONAL."
+      "limitation": "SQLite outbox + AES-GCM payload encryption + apply BFF exist for single-counter Android. Physical force-stop/reboot proof on APK 1.3.0/vc7 is still required before OPERATIONAL."
     },
     {
       "domain": "core",
