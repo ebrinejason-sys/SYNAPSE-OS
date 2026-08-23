@@ -22,6 +22,7 @@
     "verify:pharm-release": "node scripts/verify-pharm-release.mjs",
     "verify:pharm-live": "node scripts/verify-pharm-live.mjs",
     "verify:pharm-release:live": "node scripts/verify-pharm-release.mjs --live",
+    "evidence:pharm-green": "node scripts/write-pharm-green-evidence.mjs",
     "verify:deploy": "npm run db:check && npm run verify:web",
     "db:check": "node scripts/check-supabase-migrations.mjs",
     "db:lint": "supabase db lint --local",
