@@ -28,7 +28,7 @@
   "offlineEncryption": "PARTIAL",
   "release": "YELLOW",
   "evidence": {
-    "localGate": "db:check PASS (44 files). Pharmacy lint/type-check PASS. App type-check PASS. Pharmacy tests 160+3 PASS. Full npm run verify:pharm-release (web build + Expo export) was not completed in this pass.",
+    "localGate": "npm run verify:pharm-release on 418e868 → RELEASE_GATE=PASS. Log: /opt/cursor/artifacts/verify_pharm_release_418e868.log. A later evidence-only commit does not change source.",
     "liveGate": "npm run verify:pharm-live fails without SYNAPSE_PHARM_LIVE_TENANT_A_JWT / B_JWT. Schema/RPC objects are present.",
     "apkBuild": "Last installable APK is 1.2.2 / vc6 from EAS 21af12b8, built before this GREEN SHA. No EXPO_TOKEN in this environment.",
     "deviceOffline": "See docs/testing/PHARM_OFFLINE_DEVICE_GREEN.md. Cases A-H are BLOCKED.",

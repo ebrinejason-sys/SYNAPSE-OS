@@ -11,7 +11,7 @@ Date: 2026-08-23
 | Gate | Result |
 |------|--------|
 | GitHub CI | FAIL until `CI / verify` appears (workflow parse bug fixed on this branch) |
-| Local release | BLOCKED until `npm run verify:pharm-release` on the final SHA |
+| Local release | PASS on `418e868` (`RELEASE_GATE=PASS`) |
 | DB parity | PASS |
 | RLS | BLOCKED (policies exist; live JWT ID attacks not run) |
 | RPC security | PASS (transfer RPCs service_role only) |

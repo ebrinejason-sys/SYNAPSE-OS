@@ -7,7 +7,7 @@ Final candidate SHA is `git rev-parse HEAD` after this branch merges. Do not tre
 
 | Gate | Current evidence | Missing evidence | Owner | Status |
 | ---- | ---------------- | ---------------- | ----- | ------ |
-| Local `verify:pharm-release` | Pharmacy unit/lint/type-check/db:check passed on e87e8f8 | Full monorepo gate on the **final** SHA (web build + Expo export) | release | BLOCKED |
+| Local `verify:pharm-release` | `RELEASE_GATE=PASS` on `418e868` (db/lint/typecheck/test/builds/expo export) | Re-run if source SHA changes | release | PASS |
 | GitHub Actions CI | Vercel checks PASS. Workflow `CI` failed in 0s because `secrets` was used in a job `if` | Visible `CI / verify` and `CI / pharm-release` on the final SHA | release | FAIL |
 | DB parity | Live has ship/receive RPCs, till columns, identity compat | Re-verify after any new migration | db | PASS |
 | RLS present | Critical Pharm tables have RLS from prior migrations | Live JWT attack by foreign IDs | security | BLOCKED |
