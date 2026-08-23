@@ -2,7 +2,7 @@
 
 Release: Synapse Pharm v1 candidate (**YELLOW — CONTROLLED PILOT ONLY**)
 Tested commit: `6b27722905c92350423e09ba97f0a4ca1ae42155`
-APK: Expo **1.3.0 / Android versionCode 7** — EAS `e224e216-af11-48de-ac15-50aa5947e653` submitted from that SHA (build not finished; install not proven)
+APK: Expo **1.3.0 / Android versionCode 7** — EAS `e224e216-af11-48de-ac15-50aa5947e653` **FINISHED** from that SHA. Physical install/upgrade still **BLOCKED**.
 Database: live `qfqakzmjatszisuqjwon` previously verified for transfer RPCs + till columns (this agent did not re-probe live SQL)
 Date: 2026-08-23
 
@@ -11,7 +11,8 @@ Date: 2026-08-23
 | Gate | Result |
 |------|--------|
 | Local `verify:pharm-release` | PASS |
-| GitHub CI | PENDING on PR (new `CI / verify` + `CI / pharm-release`) |
+| GitHub CI | PASS (`CI / verify` + `CI / pharm-release` on run 32648604155; Vercel is not the Pharm gate) |
+| APK build | PASS (EAS preview FINISHED; install still BLOCKED) |
 | DB parity | PASS (prior live apply; not re-run here) |
 | RLS | PARTIAL (policies exist; live JWT isolation not run) |
 | RPC security | PARTIAL (migrations revoke anon/authenticated; live GRANT probe needs anon key) |
@@ -34,7 +35,7 @@ Date: 2026-08-23
 - Legacy order refund warning no longer claims quantity restore. Regression: quantity delta 0, no batch, sellable unchanged.
 - Sales reports total `pharmacy_pos_sales` only so one POS sale of 100000 is 100000, not 200000.
 - Live script attacks known foreign IDs (read/update/refund/ship/receive) and fails closed without JWTs.
-- APK version bumped to 1.3.0 / versionCode 7; EAS preview build submitted.
+- APK version bumped to 1.3.0 / versionCode 7; EAS preview APK FINISHED (`e224e216`). Physical device install is still BLOCKED.
 
 ## Capability notes
 
@@ -70,7 +71,7 @@ SYNAPSE_PHARM_LIVE_B_TRANSFER_ID=<uuid> \
 npm run verify:pharm-live
 ```
 
-3. Wait for EAS APK `e224e216` (1.3.0 / vc7) to finish, install on a real Android device, confirm upgrade from 1.2.2/vc6.
+3. Install EAS APK `e224e216` (1.3.0 / vc7) on a real Android device; confirm upgrade from 1.2.2/vc6 if applicable.
 4. Execute `docs/testing/PHARM_OFFLINE_DEVICE_GREEN.md` cases A–H on that APK.
 5. Execute `docs/testing/PHARM_PRINTER_GREEN.md` on one 80mm printer.
 6. Fill every box in `docs/release/PHARMACY_PILOT_SMOKE.md`, plus two-store transfer and till close (exact + variance).
@@ -82,4 +83,4 @@ npm run verify:pharm-live
 YELLOW — REMAINING EXTERNAL VALIDATION BLOCKERS
 ```
 
-GREEN is not allowed while live JWTs, a finished device APK, printer, or operator smoke are missing.
+GREEN is not allowed while live JWTs, physical APK install, printer, or operator smoke are missing.
