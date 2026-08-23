@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify migrations
+        run: npm run db:check
+
+      - name: Lint web
+        run: npm run lint --workspace @synapse/web
+
+      - name: Lint pharmacy
+        run: npm run lint --workspace @synapse/pharmacy
+
+      - name: Type-check web
+        run: npm run type-check --workspace @synapse/web
+
+      - name: Type-check pharmacy
+        run: npm run type-check --workspace @synapse/pharmacy
+
+      - name: Type-check Expo
+        run: npm run type-check --workspace @synapse/app
+
+      - name: Test pharmacy
+        run: npm run test --workspace @synapse/pharmacy
+
+      - name: Build pharmacy
+        run: npm run build --workspace @synapse/pharmacy
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SYNAPSE_JWT_SECRET: ${{ secrets.SYNAPSE_JWT_SECRET }}
+          NEXT_PUBLIC_PHARMACY_APP_URL: https://pharm.synapseos.tech
+
+      - name: Verify web
+        run: npm run verify:web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_APP_URL: https://synapseos.tech
+          SYNAPSE_JWT_SECRET: ${{ secrets.SYNAPSE_JWT_SECRET }}
+
+      - name: Export Expo Android bundle
+        run: npm run export:android --workspace @synapse/app
+
+  pharm-release:
+    name: pharm-release
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Pharmacy release gate
+        run: npm run verify:pharm-release
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SYNAPSE_JWT_SECRET: ${{ secrets.SYNAPSE_JWT_SECRET }}
+          NEXT_PUBLIC_APP_URL: https://synapseos.tech
+          NEXT_PUBLIC_PHARMACY_APP_URL: https://pharm.synapseos.tech
