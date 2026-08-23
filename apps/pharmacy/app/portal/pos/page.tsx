@@ -16,6 +16,7 @@ import { formatCurrency, generateTransactionNo } from "@/lib/utils"
 import { Search, ShoppingCart, Trash2, Printer, Clock, Eye, Calculator, Package, Wifi, WifiOff, Download } from "lucide-react"
 import { getPendingActions, saveMetadata, getMetadata } from "@/lib/offlineStorage"
 import { LiveRegion } from "@synapse/ui"
+import { TillBanner } from "@/components/till-banner"
 import { usePosKeyboardShortcuts } from "@/lib/pos/keyboard"
 import {
   allocateFefoBatches,
@@ -918,6 +919,7 @@ export default function POSPage() {
   return (
     <div>
       <LiveRegion message={liveMessage} politeness="polite" />
+      <TillBanner />
       {isPrintingReceipt && printReceiptData && (
         <div className="print-area fixed inset-0 z-[9999] overflow-auto" style={{ background: 'rgba(0,0,0,0.88)' }}>
           <div className="flex min-h-full items-start justify-center py-10">

@@ -41,6 +41,7 @@ const NAV_GROUPS = [
     label: 'Sales',
     items: [
       { name: 'POS',       href: '/portal/pos',       icon: ShoppingCart,  permission: 'MANAGE_POS' },
+      { name: 'Till',      href: '/portal/till',      icon: WalletCards,   permission: 'MANAGE_POS' },
       { name: 'Orders',    href: '/portal/orders',    icon: ClipboardList, permission: 'MANAGE_POS' },
       { name: 'Customers', href: '/portal/customers', icon: UserCheck,     permission: 'MANAGE_POS' },
       { name: 'Refills',   href: '/portal/refills',   icon: CalendarClock, permission: 'MANAGE_POS' },

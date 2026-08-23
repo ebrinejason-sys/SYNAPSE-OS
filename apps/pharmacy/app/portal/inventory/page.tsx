@@ -244,6 +244,13 @@ export default function InventoryPage() {
             <span className="hidden sm:inline">{unbatchedLoading ? "Loading…" : "Unbatched stock"}</span>
             <span className="sm:hidden">Unbatched</span>
           </Button>
+          <Button variant="outline" asChild className="flex-1 sm:flex-none text-xs sm:text-sm px-2 sm:px-4">
+            <a href="/portal/inventory/integrity">
+              <AlertTriangle className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Integrity</span>
+              <span className="sm:hidden">Audit</span>
+            </a>
+          </Button>
           <Button variant="outline" onClick={() => setShowUpdateStock(true)} className="flex-1 sm:flex-none text-xs sm:text-sm px-2 sm:px-4">
             <PackagePlus className="h-4 w-4 sm:mr-2" />
             <span className="hidden sm:inline">Update Stock</span>

@@ -130,9 +130,14 @@ const HOLD_STATUSES = "'queued','syncing','applied'"
 const ACK_RESULT =
   {} as Extract<SyncApplyResult, { outcome: 'applied' | 'replay' }>
 
-function rowToRecord(row: OutboxRow): SyncOutboxRecord {
+export type CommandJsonCodec = {
+  encode(json: string): Promise<string>
+  decode(stored: string): Promise<string>
+}
+
+function rowToRecord(row: OutboxRow, commandJson = row.command_json): SyncOutboxRecord {
   return {
-    command: JSON.parse(row.command_json) as SyncCommand,
+    command: JSON.parse(commandJson) as SyncCommand,
     status: row.status,
     attemptCount: Number(row.attempt_count),
     lastError: row.last_error,
@@ -221,7 +226,22 @@ export function allocateLocalFefo(
 export class SQLiteSyncOutboxStore implements SyncOutboxStore {
   private initialization: Promise<void> | null = null
 
-  constructor(private readonly database: SyncSQLiteConnection) {}
+  constructor(
+    private readonly database: SyncSQLiteConnection,
+    private readonly codec?: CommandJsonCodec,
+  ) {}
+
+  private async encodeCommand(json: string): Promise<string> {
+    return this.codec ? this.codec.encode(json) : json
+  }
+
+  private async decodeCommand(stored: string): Promise<string> {
+    return this.codec ? this.codec.decode(stored) : stored
+  }
+
+  private async hydrate(row: OutboxRow): Promise<SyncOutboxRecord> {
+    return rowToRecord(row, await this.decodeCommand(row.command_json))
+  }
 
   initialize(): Promise<void> {
     if (!this.initialization) {
@@ -409,7 +429,7 @@ export class SQLiteSyncOutboxStore implements SyncOutboxStore {
       'SELECT * FROM synapse_sync_outbox WHERE command_id = ?',
       [commandId],
     )
-    return row ? rowToRecord(row) : null
+    return row ? this.hydrate(row) : null
   }
 
   async listReady(tenantId: string, limit: number): Promise<SyncOutboxRecord[]> {
@@ -421,7 +441,7 @@ export class SQLiteSyncOutboxStore implements SyncOutboxStore {
        LIMIT ?`,
       [tenantId, limit],
     )
-    return rows.map(rowToRecord)
+    return Promise.all(rows.map((row) => this.hydrate(row)))
   }
 
   async listCommands(tenantId: string): Promise<OfflineOutboxListItem[]> {
@@ -433,18 +453,20 @@ export class SQLiteSyncOutboxStore implements SyncOutboxStore {
        LIMIT 100`,
       [tenantId],
     )
-    return rows.map((row) => {
-      const command = JSON.parse(row.command_json) as SyncCommand
-      return {
-        commandId: row.command_id,
-        commandType: String(command.commandType),
-        status: row.status,
-        lastError: row.last_error,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        attemptCount: Number(row.attempt_count),
-      }
-    })
+    return Promise.all(
+      rows.map(async (row) => {
+        const command = JSON.parse(await this.decodeCommand(row.command_json)) as SyncCommand
+        return {
+          commandId: row.command_id,
+          commandType: String(command.commandType),
+          status: row.status,
+          lastError: row.last_error,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          attemptCount: Number(row.attempt_count),
+        }
+      }),
+    )
   }
 
   async markSyncing(commandId: string): Promise<void> {
@@ -568,7 +590,7 @@ export class SQLiteSyncOutboxStore implements SyncOutboxStore {
     )
 
     if (existing) {
-      const existingRecord = rowToRecord(existing)
+      const existingRecord = await this.hydrate(existing)
       const resolution = resolveSyncConflict({
         existing: {
           commandId: existing.command_id,
@@ -613,7 +635,7 @@ export class SQLiteSyncOutboxStore implements SyncOutboxStore {
         command.commandId,
         command.tenantId,
         command.payloadHash,
-        JSON.stringify(command),
+        await this.encodeCommand(JSON.stringify(command)),
         now,
         now,
       ],

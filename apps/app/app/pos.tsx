@@ -548,6 +548,14 @@ export default function PosScreen() {
         </Text>
         <View style={styles.headerActions}>
           <Pressable
+            onPress={() => router.push('/till' as never)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Open till session"
+          >
+            <Ionicons name="wallet-outline" size={22} color={colors.primary} />
+          </Pressable>
+          <Pressable
             onPress={() => router.push('/barcode-scan?returnTo=pos' as never)}
             hitSlop={8}
             accessibilityRole="button"

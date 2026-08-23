@@ -17,6 +17,13 @@ import {
 } from '../../../packages/db/src/sync-runtime'
 import { apiRequest, ApiError } from './api'
 import {
+  decodeKey,
+  encodeKey,
+  decryptUtf8,
+  encryptUtf8,
+  generateOfflineKeyBytes,
+} from '../../../packages/db/src/offline-crypto'
+import {
   OFFLINE_STOCK_MAX_AGE_MS,
   OfflineStockError,
   SQLiteSyncOutboxStore,
@@ -29,6 +36,7 @@ import {
 
 const DATABASE_NAME = 'synapse-sync-v1.db'
 const DEVICE_ID_KEY = 'synapse_sync_device_id_v1'
+const OFFLINE_AES_KEY = 'synapse_offline_aes_v1'
 
 export { OFFLINE_STOCK_MAX_AGE_MS, OfflineStockError }
 export type { CatalogueProduct, OfflineOutboxListItem, OfflineSyncStatus }
@@ -66,14 +74,31 @@ type ServerApplyResponse = {
 let storePromise: Promise<SQLiteSyncOutboxStore> | null = null
 const activeTenantSyncs = new Map<string, Promise<SyncFlushSummary>>()
 
+async function getOrCreateOfflineAesKey(): Promise<Uint8Array> {
+  const existing = await SecureStore.getItemAsync(OFFLINE_AES_KEY)
+  if (existing) return decodeKey(existing)
+  const created = await generateOfflineKeyBytes()
+  await SecureStore.setItemAsync(OFFLINE_AES_KEY, encodeKey(created))
+  return created
+}
+
 async function getStore(): Promise<SQLiteSyncOutboxStore> {
   if (!storePromise) {
-    storePromise = SQLite.openDatabaseAsync(DATABASE_NAME).then((database) => {
+    storePromise = (async () => {
+      const [database, keyBytes] = await Promise.all([
+        SQLite.openDatabaseAsync(DATABASE_NAME),
+        getOrCreateOfflineAesKey(),
+      ])
       const store = new SQLiteSyncOutboxStore(
         database as unknown as SyncSQLiteConnection,
+        {
+          encode: (json) => encryptUtf8(json, keyBytes),
+          decode: (stored) => decryptUtf8(stored, keyBytes),
+        },
       )
-      return store.initialize().then(() => store)
-    })
+      await store.initialize()
+      return store
+    })()
   }
   return storePromise
 }

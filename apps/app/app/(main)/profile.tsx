@@ -77,6 +77,7 @@ export default function ProfileScreen() {
 
   const salesItems: NavItem[] = [
     { label: 'Point of sale', subtitle: 'Complete a sale', icon: 'cart-outline', route: '/pos' },
+    { label: 'Till / cashier session', subtitle: 'Open, count, and close', icon: 'wallet-outline', route: '/till' },
     { label: 'Sync status', subtitle: 'Pending, failed, needs review', icon: 'cloud-upload-outline', route: '/sync-status' },
     { label: 'Sales history', subtitle: 'Receipts & lookups', icon: 'cash-outline', route: '/(main)/sales' },
     { label: 'Refunds', subtitle: 'Reverse a sale', icon: 'return-down-back-outline', route: '/refunds' },
