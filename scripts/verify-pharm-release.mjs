@@ -2,21 +2,24 @@
 /**
  * Deterministic SYNAPSE Pharm release gate.
  *
- * Required steps always run and fail the process on non-zero.
- * Optional live-backend steps print SKIPPED with a reason — they never print PASS.
- * The summary line is one of:
- *   RELEASE_GATE=FAIL
- *   RELEASE_GATE=PASS
- *   RELEASE_GATE=PASS_WITH_SKIPS
+ * LOCAL (default):
+ *   npm run verify:pharm-release
+ *   Required in-repo checks only. PASS or FAIL. No PASS_WITH_SKIPS.
+ *
+ * LIVE:
+ *   npm run verify:pharm-release:live
+ *   Local checks + live probes. Requires SYNAPSE_PHARM_LIVE=1.
+ *   A skip or missing live credential is FAIL, not PASS.
  */
 import { spawnSync } from 'node:child_process'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
+const live = process.argv.includes('--live') || process.env.SYNAPSE_PHARM_RELEASE_LIVE === '1'
 const results = []
 
-function run(name, command, args, { required = true, env = {}, cwd = root } = {}) {
+function run(name, command, args, { env = {}, cwd = root } = {}) {
   console.log(`\n[verify:pharm-release] ${name}`)
   const started = Date.now()
   const result = spawnSync(command, args, {
@@ -28,26 +31,19 @@ function run(name, command, args, { required = true, env = {}, cwd = root } = {}
   const status = result.status ?? 1
   const ms = Date.now() - started
   const outcome = status === 0 ? 'PASS' : 'FAIL'
-  results.push({ name, required, outcome, status, ms })
+  results.push({ name, outcome, status, ms })
   console.log(`[verify:pharm-release] ${name} ${outcome} (${ms}ms)`)
-  if (required && status !== 0) {
+  if (status !== 0) {
     printSummary('FAIL')
     process.exit(status)
   }
-  return status === 0
-}
-
-function skip(name, reason) {
-  console.log(`\n[verify:pharm-release] ${name}`)
-  console.log(`[verify:pharm-release] SKIPPED — ${reason}`)
-  results.push({ name, required: false, outcome: 'SKIPPED', status: null, reason, ms: 0 })
+  return true
 }
 
 function printSummary(final) {
   console.log('\n[verify:pharm-release] summary')
   for (const row of results) {
-    const extra = row.reason ? ` (${row.reason})` : ''
-    console.log(`  ${row.outcome.padEnd(8)} ${row.name}${extra}`)
+    console.log(`  ${row.outcome.padEnd(8)} ${row.name}`)
   }
   console.log(`\nRELEASE_GATE=${final}`)
 }
@@ -63,26 +59,11 @@ run('build @synapse/pharmacy', 'npm', ['run', 'build', '--workspace', '@synapse/
 run('verify:web (type-check + Next build)', 'npm', ['run', 'verify:web'])
 run('expo export --platform android', 'npm', ['run', 'export:android', '--workspace', '@synapse/app'])
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? ''
-const liveUrl = /supabase\.co/.test(supabaseUrl) && !/placeholder/i.test(supabaseUrl)
-if (liveUrl && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  skip(
-    'live RLS/RPC probes',
-    'no disposable integration harness is wired; do not treat unit tests as live tenant isolation proof',
-  )
-} else {
-  skip('live RLS/RPC probes', 'live Supabase credentials are not available in this environment')
+if (live) {
+  run('live RLS/RPC/schema probes', 'node', ['scripts/verify-pharm-live.mjs'], {
+    env: { SYNAPSE_PHARM_LIVE: process.env.SYNAPSE_PHARM_LIVE ?? '1' },
+  })
 }
 
-if (process.env.EXPO_TOKEN) {
-  skip(
-    'eas android apk',
-    'EAS APK is an operator job; this gate proves Metro android export only',
-  )
-} else {
-  skip('eas android apk', 'EXPO_TOKEN unset — cannot authenticate EAS')
-}
-
-const skipped = results.some((row) => row.outcome === 'SKIPPED')
-printSummary(skipped ? 'PASS_WITH_SKIPS' : 'PASS')
+printSummary('PASS')
 process.exit(0)

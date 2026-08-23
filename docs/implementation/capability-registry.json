@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-08-22",
+  "updated": "2026-08-23",
   "owner": "lead-architect",
   "status_values": ["OPERATIONAL", "PILOT_READY", "PARTIAL", "PLANNED"],
   "notes": "OPERATIONAL requires implementation + tests + security review + live/backend verification + failure-mode verification. Code existing is not enough.",
@@ -15,7 +15,7 @@
       "mobile_support": true,
       "security_review": "partial",
       "clinical_review": "n/a",
-      "limitation": "complete_pharmacy_sale RPC is idempotent and FEFO-aware. Till sessions are not enforced. Dual ledger (pharmacy_pos_sales vs pharmacy_transactions) remains."
+      "limitation": "complete_pharmacy_sale is till-linked. Reports default to pharmacy_pos_sales only. Live isolation JWTs and operator smoke still required."
     },
     {
       "domain": "pharm",
@@ -95,7 +95,7 @@
       "mobile_support": true,
       "security_review": "partial",
       "clinical_review": "n/a",
-      "limitation": "Ship/receive RPCs, portal APIs, and Expo list/ship/receive exist. Live SQL apply still required before OPERATIONAL."
+      "limitation": "Ship/receive RPCs are live (service_role only). Operator two-store transfer proof is still required before OPERATIONAL."
     },
     {
       "domain": "pharm",
@@ -110,7 +110,7 @@
       "mobile_support": true,
       "security_review": "partial",
       "clinical_review": "n/a",
-      "limitation": "SQLite outbox + apply BFF + local FEFO reservation exist. Device restart, encrypted-at-rest, and live backend apply are still required before OPERATIONAL / PILOT_READY."
+      "limitation": "SQLite outbox + AES-GCM payload encryption + apply BFF exist for single-counter Android. Physical force-stop/reboot proof is still required before OPERATIONAL."
     },
     {
       "domain": "core",
@@ -166,6 +166,30 @@
       "mobile_support": false,
       "security_review": "unreviewed",
       "clinical_review": "n/a"
+    },
+    {
+      "domain": "pharm",
+      "feature": "cashier_till_sessions",
+      "status": "PARTIAL",
+      "owner": "pharmacy-domain",
+      "tests": ["apps/pharmacy/lib/pos/cashier-session.test.ts"],
+      "offline_support": false,
+      "mobile_support": true,
+      "security_review": "partial",
+      "clinical_review": "n/a",
+      "limitation": "Open/close/movement APIs and UI exist. Operator till close + variance review still required before OPERATIONAL."
+    },
+    {
+      "domain": "pharm",
+      "feature": "multi_counter_offline",
+      "status": "PLANNED",
+      "owner": "offline-sync",
+      "tests": [],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "n/a",
+      "clinical_review": "n/a",
+      "limitation": "Out of v1 GREEN scope."
     }
   ]
 }

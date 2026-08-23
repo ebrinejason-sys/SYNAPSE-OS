@@ -1,0 +1,39 @@
+{
+  "commit": "uncommitted-on-cursor/pharm-v1-green-bf39",
+  "version": "1.2.2",
+  "androidVersionCode": 6,
+  "dbMigration": {
+    "repoLatest": "20260823120000_pharmacy_cashier_sessions_v1.sql",
+    "liveApplied": [
+      "pharmacy_stock_transfers_execute",
+      "pharmacy_stock_transfer_rpcs",
+      "pharmacy_stock_transfer_receive_rpc",
+      "pharmacy_cashier_sessions_v1",
+      "generate_synapse_id_person_compat"
+    ],
+    "liveTransferRpcs": "PASS",
+    "liveTillColumns": "PASS",
+    "note": "ship/receive RPCs and till columns verified on qfqakzmjatszisuqjwon. Tenant isolation JWTs were not supplied."
+  },
+  "localGate": "PENDING",
+  "liveGate": "FAIL",
+  "apkBuild": "BLOCKED",
+  "deviceOffline": "BLOCKED",
+  "printer": "BLOCKED",
+  "tenantIsolation": "BLOCKED",
+  "storeIsolation": "PARTIAL",
+  "smokeTest": "BLOCKED",
+  "tillSessions": "PARTIAL",
+  "ledgerAuthority": "PARTIAL",
+  "offlineEncryption": "PARTIAL",
+  "release": "YELLOW",
+  "evidence": {
+    "localGate": "Run npm run verify:pharm-release on this branch. Do not record PASS until that command exits 0.",
+    "liveGate": "npm run verify:pharm-live fails without SYNAPSE_PHARM_LIVE_TENANT_A_JWT / B_JWT. Schema/RPC objects are present.",
+    "apkBuild": "Last installable APK is 1.2.2 / vc6 from EAS 21af12b8, built before this GREEN SHA. No EXPO_TOKEN in this environment.",
+    "deviceOffline": "See docs/testing/PHARM_OFFLINE_DEVICE_GREEN.md. Cases A-H are BLOCKED.",
+    "printer": "See docs/testing/PHARM_PRINTER_GREEN.md.",
+    "tenantIsolation": "Unit/store-scope tests exist. Live JWT isolation not executed.",
+    "smokeTest": "docs/release/PHARMACY_PILOT_SMOKE.md still has blank operator boxes."
+  }
+}
