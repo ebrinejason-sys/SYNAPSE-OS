@@ -10,7 +10,7 @@ Date: 2026-08-23
 
 | Gate | Result |
 |------|--------|
-| GitHub CI | PASS on `a29a2ac` — `CI / verify` + `CI / pharm-release` ([run 32636533122](https://github.com/ebrinejason-sys/synapse-os/actions/runs/32636533122)). `RELEASE_GATE=PASS` in Actions, not only Vercel. |
+| GitHub CI | PASS on `a29a2ac` — `CI / verify` + `CI / pharm-release` ([run 32636533122](https://github.com/ebrinejason-sys/SYNAPSE-OS/actions/runs/32636533122)). `RELEASE_GATE=PASS` in Actions, not only Vercel. |
 | Local release | PASS on `418e868` (`RELEASE_GATE=PASS`). Later commits on this branch are docs/evidence only. |
 | DB parity | PASS |
 | RLS | BLOCKED (policies exist; live JWT ID attacks not run) |
