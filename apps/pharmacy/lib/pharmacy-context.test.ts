@@ -55,4 +55,26 @@ describe("requireStoreScope", () => {
     )
     expect(result.ok).toBe(true)
   })
+
+  it("denies A1 inventory officer submitting storeId=A2 for receive/adjust/ship/till", async () => {
+    const a1 = ctx({
+      storeId: "store-a1",
+      role: "pharmacy_inventory",
+      pharmacyRole: "pharmacy_inventory",
+    })
+    for (const attack of ["store-a2", "STORE_A2"]) {
+      const result = __test__.requireStoreScope(a1, attack, { required: true })
+      expect(result.ok).toBe(false)
+      if (result.ok) return
+      expect(result.response.status).toBe(403)
+      expect(await result.response.json()).toMatchObject({ code: "STORE_SCOPE_DENIED" })
+    }
+  })
+
+  it("allows the assigned store and tenant-wide owner", () => {
+    const a1 = ctx({ storeId: "store-a1", role: "pharmacy_inventory", pharmacyRole: "pharmacy_inventory" })
+    const owner = ctx({ storeId: null, isAdmin: true, role: "pharmacy_admin", pharmacyRole: "pharmacy_admin" })
+    expect(__test__.requireStoreScope(a1, "store-a1").ok).toBe(true)
+    expect(__test__.requireStoreScope(owner, "store-a2").ok).toBe(true)
+  })
 })

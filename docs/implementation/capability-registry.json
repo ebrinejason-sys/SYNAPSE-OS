@@ -61,7 +61,7 @@
       "mobile_support": true,
       "security_review": "partial",
       "clinical_review": "n/a",
-      "limitation": "POS refunds use reverse_pharmacy_sale (default quarantined). Legacy pharmacy_transactions refund still mutates product quantity only."
+      "limitation": "POS refunds use reverse_pharmacy_sale (default quarantined). Legacy order refunds change financial status only and do not restore sellable stock or create batches."
     },
     {
       "domain": "pharm",

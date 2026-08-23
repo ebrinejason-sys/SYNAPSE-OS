@@ -3,6 +3,11 @@
  * POS truth = pharmacy_pos_sales / pharmacy_pos_sale_items.
  * pharmacy_transactions remains order/legacy until migrated.
  */
+export const AUTHORITATIVE_SALE_LEDGER = "pharmacy_pos_sales" as const
+
+export function includeLegacyOrderRevenue(includeOrderTxs?: boolean): boolean {
+  return includeOrderTxs === true
+}
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export type LedgerSaleRow = {
@@ -62,7 +67,7 @@ export async function sumCompletedRevenue(params: {
 
   // Future financial truth is pharmacy_pos_sales. Legacy order txs are opt-in
   // so reports cannot double-count the same business sale.
-  if (params.includeOrderTxs === true) {
+  if (includeLegacyOrderRevenue(params.includeOrderTxs)) {
     let txQ = db
       .from("pharmacy_transactions")
       .select("net_amount")

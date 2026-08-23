@@ -120,6 +120,37 @@ if (transferColError && /column .* does not exist/i.test(transferColError.messag
 const anonKey = process.env.SYNAPSE_PHARM_LIVE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
 const jwtA = process.env.SYNAPSE_PHARM_LIVE_TENANT_A_JWT ?? ''
 const jwtB = process.env.SYNAPSE_PHARM_LIVE_TENANT_B_JWT ?? ''
+const bProduct = process.env.SYNAPSE_PHARM_LIVE_B_PRODUCT_ID ?? ''
+const bBatch = process.env.SYNAPSE_PHARM_LIVE_B_BATCH_ID ?? ''
+const bSale = process.env.SYNAPSE_PHARM_LIVE_B_SALE_ID ?? ''
+const bTransfer = process.env.SYNAPSE_PHARM_LIVE_B_TRANSFER_ID ?? ''
+const aProduct = process.env.SYNAPSE_PHARM_LIVE_A_PRODUCT_ID ?? ''
+const aSale = process.env.SYNAPSE_PHARM_LIVE_A_SALE_ID ?? ''
+const aTransfer = process.env.SYNAPSE_PHARM_LIVE_A_TRANSFER_ID ?? ''
+
+function clientFor(jwt) {
+  return createClient(url, anonKey, {
+    global: { headers: { Authorization: `Bearer ${jwt}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}
+
+async function expectHidden(user, table, id, label) {
+  if (!id) {
+    record(label, 'FAIL', `missing fixture id for ${table}`)
+    return
+  }
+  const { data, error } = await user.from(table).select('id').eq('id', id)
+  if (error && /permission|rls|policy/i.test(error.message ?? '')) {
+    record(label, 'PASS', 'policy denied')
+    return
+  }
+  if (error) {
+    record(label, 'FAIL', error.message)
+    return
+  }
+  record(label, (data ?? []).length === 0 ? 'PASS' : 'FAIL', (data ?? []).length ? 'foreign row visible' : '0 rows')
+}
 
 if (!anonKey || !jwtA || !jwtB) {
   record(
@@ -128,44 +159,65 @@ if (!anonKey || !jwtA || !jwtB) {
     'SYNAPSE_PHARM_LIVE_TENANT_A_JWT / B_JWT and anon key are required for isolation proof',
   )
 } else {
-  const userA = createClient(url, anonKey, {
-    global: { headers: { Authorization: `Bearer ${jwtA}` } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-  const userB = createClient(url, anonKey, {
-    global: { headers: { Authorization: `Bearer ${jwtB}` } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-  const tables = [
-    'pharmacy_products',
-    'pharmacy_pos_sales',
-    'pharmacy_product_batches',
-    'pharmacy_stock_transfers',
-  ]
-  for (const table of tables) {
-    const { data: rowsA, error: errA } = await userA.from(table).select('id, tenant_id').limit(20)
-    const { data: rowsB, error: errB } = await userB.from(table).select('id, tenant_id').limit(20)
-    if (errA || errB) {
-      record(`isolation:${table}`, 'FAIL', (errA ?? errB)?.message ?? 'query failed')
-      continue
-    }
-    const aTenants = new Set((rowsA ?? []).map((row) => row.tenant_id).filter(Boolean))
-    const bTenants = new Set((rowsB ?? []).map((row) => row.tenant_id).filter(Boolean))
-    const overlap = [...aTenants].some((id) => bTenants.has(id))
+  const userA = clientFor(jwtA)
+  const userB = clientFor(jwtB)
+
+  await expectHidden(userA, 'pharmacy_products', bProduct, 'attack:A-read-B-product')
+  await expectHidden(userA, 'pharmacy_product_batches', bBatch, 'attack:A-read-B-batch')
+  await expectHidden(userA, 'pharmacy_pos_sales', bSale, 'attack:A-read-B-sale')
+  await expectHidden(userA, 'pharmacy_stock_transfers', bTransfer, 'attack:A-read-B-transfer')
+  await expectHidden(userB, 'pharmacy_products', aProduct, 'attack:B-read-A-product')
+  await expectHidden(userB, 'pharmacy_pos_sales', aSale, 'attack:B-read-A-sale')
+  await expectHidden(userB, 'pharmacy_stock_transfers', aTransfer, 'attack:B-read-A-transfer')
+
+  if (bProduct) {
+    const { data, error } = await userA
+      .from('pharmacy_products')
+      .update({ name: 'cross-tenant-write' })
+      .eq('id', bProduct)
+      .select('id')
     record(
-      `isolation:${table}`,
-      overlap ? 'FAIL' : 'PASS',
-      overlap ? 'tenant ids overlapped in user-scoped reads' : '',
+      'attack:A-update-B-product',
+      error || !(data ?? []).length ? 'PASS' : 'FAIL',
+      error?.message ?? ((data ?? []).length ? 'update succeeded' : '0 rows'),
     )
+  } else {
+    record('attack:A-update-B-product', 'FAIL', 'missing SYNAPSE_PHARM_LIVE_B_PRODUCT_ID')
   }
 
-  const { error: shipDenied } = await userA.rpc('ship_pharmacy_stock_transfer', transferArgs)
-  if (!shipDenied) {
-    record('rpc-grant:authenticated-cannot-ship', 'FAIL', 'authenticated user executed privileged RPC')
-  } else if (/could not find the function/i.test(shipDenied.message ?? '')) {
-    record('rpc-grant:authenticated-cannot-ship', 'FAIL', 'function missing')
+  if (bSale) {
+    const { error } = await userA.rpc('reverse_pharmacy_sale', {
+      p_tenant_id: NIL,
+      p_sale_id: bSale,
+      p_actor_id: NIL,
+      p_reason: 'cross-tenant',
+      p_restore_as: 'quarantined',
+    })
+    record(
+      'attack:A-refund-B-sale',
+      error ? 'PASS' : 'FAIL',
+      error?.message ?? 'privileged RPC succeeded for client JWT',
+    )
   } else {
-    record('rpc-grant:authenticated-cannot-ship', 'PASS', 'direct client execute denied')
+    record('attack:A-refund-B-sale', 'FAIL', 'missing SYNAPSE_PHARM_LIVE_B_SALE_ID')
+  }
+
+  if (bTransfer) {
+    const { error: shipErr } = await userA.rpc('ship_pharmacy_stock_transfer', {
+      p_tenant_id: NIL,
+      p_transfer_id: bTransfer,
+      p_actor_id: NIL,
+    })
+    const { error: recvErr } = await userA.rpc('receive_pharmacy_stock_transfer', {
+      p_tenant_id: NIL,
+      p_transfer_id: bTransfer,
+      p_actor_id: NIL,
+    })
+    record('attack:A-ship-B-transfer', shipErr ? 'PASS' : 'FAIL', shipErr?.message ?? 'ship succeeded')
+    record('attack:A-receive-B-transfer', recvErr ? 'PASS' : 'FAIL', recvErr?.message ?? 'receive succeeded')
+  } else {
+    record('attack:A-ship-B-transfer', 'FAIL', 'missing SYNAPSE_PHARM_LIVE_B_TRANSFER_ID')
+    record('attack:A-receive-B-transfer', 'FAIL', 'missing SYNAPSE_PHARM_LIVE_B_TRANSFER_ID')
   }
 }
 
