@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { posOnlyReportTotals } from "@/lib/pos/report-authority"
 
 export async function GET(request: NextRequest) {
   try {
@@ -152,9 +153,19 @@ export async function GET(request: NextRequest) {
         profiles: null,
       })) as TxRow[]
 
-      const transactions = [...posTxs, ...orderTxs].sort(
+      // Financial authority is POS. Order txs must not inflate sales totals
+      // (a 100000 POS sale is 100000, not 200000).
+      const transactions = [...posTxs].sort(
         (a, b) => Date.parse(b.created_at) - Date.parse(a.created_at),
       )
+      const posMoney = posOnlyReportTotals(
+        posTxs.map((row) => ({
+          netAmount: row.net_amount ?? 0,
+          discount: row.discount ?? 0,
+          tax: row.tax ?? 0,
+        })),
+      )
+      void orderTxs
 
       const orderItems = (itemsResult.data ?? []) as unknown as ItemRow[]
       const posItems = ((posItemsResult.data ?? []) as Array<{
@@ -176,18 +187,13 @@ export async function GET(request: NextRequest) {
         pharmacy_products: i.pharmacy_products,
       })) as ItemRow[]
 
-      const items = [...posItems, ...orderItems]
+      const items = [...posItems]
+      void orderItems
 
       // Aggregate totals
-      let totalSalesAmt = 0
-      let totalDiscountAmt = 0
-      let totalTaxAmt = 0
-
-      for (const tx of transactions) {
-        totalSalesAmt += tx.net_amount ?? 0
-        totalDiscountAmt += tx.discount ?? 0
-        totalTaxAmt += tx.tax ?? 0
-      }
+      const totalSalesAmt = posMoney.totalSales
+      const totalDiscountAmt = posMoney.totalDiscount
+      const totalTaxAmt = posMoney.totalTax
 
       // Sales by payment method (JS aggregation — no groupBy in Supabase JS client)
       const paymentMethodMap = new Map<

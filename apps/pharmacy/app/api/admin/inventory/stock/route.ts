@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
+import { requireStoreScope } from "@/lib/pharmacy-context"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import {
   adjustPharmacyBatchStock,
@@ -38,7 +39,14 @@ export async function POST(request: NextRequest) {
       batchNumber?: string
       expiryDate?: string
       costPrice?: number
+      storeId?: string
     }
+
+    const scoped = requireStoreScope(
+      { ...auth, storeId: session.storeId ?? null },
+      body.storeId,
+    )
+    if (!scoped.ok) return scoped.response
 
     const { productId, quantity, type, reason, batchId, batchNumber, expiryDate, costPrice } = body
 
@@ -84,6 +92,7 @@ export async function POST(request: NextRequest) {
         expiryDate,
         costPrice: costPrice ?? null,
         receivedBy: session.user.id,
+        storeId: scoped.storeId,
         reason: adjReason,
       })
       if (error) return rpcFail(error)

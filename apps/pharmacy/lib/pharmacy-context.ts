@@ -54,6 +54,20 @@ export function requireStoreScope(
   return { ok: true, storeId: assigned }
 }
 
+/**
+ * Cashiers may close only their own till.
+ * Closing another cashier's till requires shift.approve_variance or admin.
+ */
+export function canCloseForeignTill(params: {
+  actorId: string
+  tillCashierId: string
+  canApproveVariance: boolean
+  isAdmin: boolean
+}): boolean {
+  if (params.actorId === params.tillCashierId) return true
+  return params.canApproveVariance || params.isAdmin
+}
+
 function domainFail(code: string, humanMessage: string): PharmacyApiAuthFailure {
   return {
     ok: false,
@@ -63,4 +77,4 @@ function domainFail(code: string, humanMessage: string): PharmacyApiAuthFailure 
   }
 }
 
-export const __test__ = { requireStoreScope }
+export const __test__ = { requireStoreScope, canCloseForeignTill }

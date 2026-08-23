@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { isPharmacyAdmin } from "@/lib/auth"
 import { requirePharmacyPermission } from "@/lib/api-auth"
+import { requireStoreScope } from "@/lib/pharmacy-context"
 import { gateFeature } from "@synapse/auth/features"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import {
@@ -41,6 +42,14 @@ export async function POST(request: NextRequest) {
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
+
+  const scoped = requireStoreScope(
+    { ...auth, storeId: session.storeId ?? null },
+    typeof (body as { storeId?: string }).storeId === "string"
+      ? (body as { storeId?: string }).storeId
+      : session.storeId,
+  )
+  if (!scoped.ok) return scoped.response
 
   const idempotencyKey = readIdempotencyKey(request, body as Record<string, unknown>)
   if (idempotencyKey) {

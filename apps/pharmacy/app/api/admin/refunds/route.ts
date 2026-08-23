@@ -4,6 +4,7 @@ import { mapRefund } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { reversePharmacySale } from "@synapse/db/inventory-rpc"
 import { attachSaleToTill } from "@/lib/pos/till-service"
+import { LEGACY_ORDER_REFUND_WARNING, planLegacyOrderRefund } from "@/lib/pos/legacy-refund"
 
 const db = () => supabaseAdmin as any
 
@@ -216,7 +217,8 @@ export async function POST(request: NextRequest) {
     }
     // notFound → try legacy pharmacy_transactions path below
 
-    // Legacy / order path — restore product qty only; never invent batches
+    // Legacy / order path — financial status only. Never restore sellable qty
+    // and never invent batches. Returned units stay non-sellable until received.
     const { data: transaction, error: fetchError } = await db()
       .from("pharmacy_transactions")
       .select(
@@ -264,24 +266,17 @@ export async function POST(request: NextRequest) {
             quantity: i.quantity,
           }))
 
-    let refundAmount = 0
-
-    for (const refundItem of itemsToRefund) {
-      const originalItem = (transaction.items as TransactionItemRow[]).find(
-        (i) => i.id === refundItem.id,
-      )
-      if (!originalItem) continue
-
-      const refundQty = Math.min(refundItem.quantity, originalItem.quantity)
-      refundAmount += originalItem.unit_price * refundQty
-
-      if (!originalItem.product_id) continue
-
-      // Legacy order txs are not POS sales. Do not bump product.quantity and
-      // do not fabricate batches. Returned units stay non-sellable until a
-      // pharmacist receives/quarantines them through inventory RPCs.
-      void refundQty
-    }
+    const plan = planLegacyOrderRefund(
+      (transaction.items as TransactionItemRow[]).map((item) => ({
+        id: item.id,
+        productId: item.product_id,
+        unitPrice: item.unit_price,
+        quantity: item.quantity,
+      })),
+      itemsToRefund,
+    )
+    const refundAmount = plan.refundAmount
+    void plan.stockMutations
 
     const existingNotes = (transaction as { notes: string | null }).notes ?? ""
     const { data: updatedTransaction, error: updateError } = await supabaseAdmin
@@ -321,8 +316,7 @@ export async function POST(request: NextRequest) {
       refundAmount,
       transaction: updatedTransaction,
       source: "order",
-      warning:
-        "Legacy order refund restored product quantity only. Units are not sellable until received onto a genuine batch.",
+      warning: LEGACY_ORDER_REFUND_WARNING,
     })
   } catch (error) {
     console.error("Process refund error:", error)

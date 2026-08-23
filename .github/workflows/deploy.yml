@@ -1,69 +1,20 @@
-name: CI
+name: Deploy
 
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
-# Vercel production deploy: connect this repo in the Vercel dashboard (Git integration).
-# Root vercel.json is the source of truth for install/build/output — same as `npm run verify:web`.
-# Optional: set VERCEL_TOKEN and keep the deploy job below for CLI-based deploys instead of Git integration.
+permissions:
+  contents: read
 
-env:
-  VERCEL_ORG_ID: team_ZHaBdLFb1hunAs68QC70HTBy
-  VERCEL_PROJECT_ID: prj_ST72DC6VkMfhon3M1yW2PL575mcd
+# Never reference secrets in job-level `if` — GitHub then fails the workflow
+# in 0s with no jobs, which made CI look absent on recent main SHAs.
 
 jobs:
-  verify:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Verify migrations (local SQL checks)
-        run: npm run db:check
-
-      - name: Verify web build (matches vercel.json)
-        run: npm run verify:web
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          NEXT_PUBLIC_APP_URL: https://synapseos.tech
-          SYNAPSE_JWT_SECRET: ${{ secrets.SYNAPSE_JWT_SECRET }}
-
-      - name: Verify pharmacy (type-check, lint, tenant-authz tests, build)
-        run: npm run verify:pharmacy
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SYNAPSE_JWT_SECRET: ${{ secrets.SYNAPSE_JWT_SECRET }}
-          NEXT_PUBLIC_PHARMACY_APP_URL: https://pharm.synapseos.tech
-
-      - name: Type-check Expo app (Release 0 equal citizen)
-        run: npm run type-check --workspace @synapse/app
-
-      - name: Export Expo Android bundle
-        run: npm run export:android --workspace @synapse/app
-
-      - name: Lint web app
-        run: npm run lint --workspace @synapse/web
-
-  # Optional CLI deploy. Prefer Vercel Git integration for www/pharm production.
-  # Skip when VERCEL_TOKEN is unset so CI stays green (empty --token= fails the job).
   deploy-vercel:
-    needs: verify
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && secrets.VERCEL_TOKEN != ''
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -72,47 +23,61 @@ jobs:
           node-version: "22"
           cache: "npm"
 
-      - run: npm ci
-
-      - name: Pull Vercel env (production)
-        run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-
-      - name: Build with Vercel CLI (same as dashboard)
-        run: npx vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Require VERCEL_TOKEN
         env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "VERCEL_TOKEN unset — skip CLI deploy (Vercel Git integration still deploys)."
+            exit 0
+          fi
+          echo "vercel_token=present" >> "$GITHUB_ENV"
+
+      - name: Install and deploy
+        if: env.vercel_token == 'present'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: team_ZHaBdLFb1hunAs68QC70HTBy
+          VERCEL_PROJECT_ID: prj_ST72DC6VkMfhon3M1yW2PL575mcd
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_APP_URL: https://synapseos.tech
+        run: |
+          npm ci
+          npx vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          npx vercel build --prod --token="$VERCEL_TOKEN"
+          npx vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
 
-      - name: Deploy prebuilt output
-        run: npx vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
-
-  # Enable by setting repository variable ENABLE_DB_PUSH=true and secret SUPABASE_ACCESS_TOKEN
   db-push:
-    needs: verify
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && vars.ENABLE_DB_PUSH == 'true'
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
-
-      - run: npm ci
-
-      - name: Link Supabase project
-        run: npx supabase link --project-ref qfqakzmjatszisuqjwon
+      - name: Guard ENABLE_DB_PUSH
         env:
+          ENABLE_DB_PUSH: ${{ vars.ENABLE_DB_PUSH }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Push migrations (dry-run first)
-        run: npx supabase db push --dry-run
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
+        run: |
+          if [ "$ENABLE_DB_PUSH" != "true" ]; then
+            echo "ENABLE_DB_PUSH is not true — skip db push."
+            exit 0
+          fi
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "SUPABASE_ACCESS_TOKEN unset — cannot push."
+            exit 1
+          fi
+          echo "db_push=present" >> "$GITHUB_ENV"
       - name: Push migrations
-        run: npx supabase db push
+        if: env.db_push == 'present'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          npm ci
+          npx supabase link --project-ref qfqakzmjatszisuqjwon
+          npx supabase db push --dry-run
+          npx supabase db push

@@ -215,12 +215,13 @@ export async function closeTill(params: {
   varianceReason?: string | null
   notes?: string | null
   closerId?: string
+  allowOtherCashier?: boolean
 }): Promise<{ ok: true; session: ReturnType<typeof presentTill> } | { ok: false; error: PharmacyDomainError }> {
   const row = await getSessionForCashier({
     tenantId: params.tenantId,
     cashierId: params.cashierId,
     sessionId: params.sessionId,
-    allowOtherCashier: Boolean(params.closerId && params.closerId !== params.cashierId),
+    allowOtherCashier: params.allowOtherCashier === true,
   })
   if (!row.ok) return row
   const verdict = validateClose({

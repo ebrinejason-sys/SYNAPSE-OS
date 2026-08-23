@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
+import { requireStoreScope } from "@/lib/pharmacy-context"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { logAudit } from "@synapse/db"
 
@@ -39,6 +40,12 @@ export async function POST(request: NextRequest) {
   if (!fromStoreId || !toStoreId || fromStoreId === toStoreId) {
     return NextResponse.json({ error: "fromStoreId and toStoreId must be different stores" }, { status: 400 })
   }
+  const scoped = requireStoreScope(
+    { ...auth, storeId: session.storeId ?? null },
+    fromStoreId,
+    { required: true },
+  )
+  if (!scoped.ok) return scoped.response
   if (items.length === 0) {
     return NextResponse.json({ error: "Transfer items are required" }, { status: 400 })
   }
