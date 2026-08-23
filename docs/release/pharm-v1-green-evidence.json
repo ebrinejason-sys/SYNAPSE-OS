@@ -1,5 +1,5 @@
 {
-  "commit": "418e868f347914d71c9af4dfdd1d18f05816884a",
+  "commit": "469dce0eafee22553ae8d2f619c738a89c670a12",
   "version": "1.3.0",
   "androidVersionCode": 7,
   "dbMigration": {
@@ -47,6 +47,6 @@
     "tenantIsolation": "Unit/store-scope tests exist. Live JWT isolation not executed.",
     "smokeTest": "docs/release/PHARMACY_PILOT_SMOKE.md still has blank operator boxes."
   },
-  "recordedAt": "2026-08-23T11:25:34.708Z",
+  "recordedAt": "2026-08-23T11:53:24.702Z",
   "note": "commit is git rev-parse HEAD at write time. Re-run every gate if this SHA changes."
 }
