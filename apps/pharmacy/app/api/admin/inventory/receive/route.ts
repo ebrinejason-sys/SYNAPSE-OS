@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
+import { requireStoreScope } from "@/lib/pharmacy-context"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { receivePharmacyStock, parsePharmacyRpcError } from "@synapse/db/inventory-rpc"
 
@@ -29,6 +30,12 @@ export async function POST(request: NextRequest) {
       reason?: string
     }
 
+    const scoped = requireStoreScope(
+      { ...auth, storeId: session.storeId ?? null },
+      body.storeId ?? session.storeId ?? null,
+    )
+    if (!scoped.ok) return scoped.response
+
     if (!body.productId || !body.batchNumber?.trim() || !body.quantity || !body.expiryDate) {
       return NextResponse.json(
         {
@@ -52,7 +59,7 @@ export async function POST(request: NextRequest) {
       supplierId: body.supplierId ?? null,
       supplierRef: body.supplierRef ?? null,
       purchaseOrderId: body.purchaseOrderId ?? null,
-      storeId: body.storeId ?? null,
+      storeId: scoped.storeId,
       reason: body.reason ?? "Stock received",
     })
 

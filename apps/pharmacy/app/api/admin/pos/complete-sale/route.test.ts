@@ -27,6 +27,10 @@ vi.mock("@synapse/auth/features", () => ({
   gateFeature: (...args: unknown[]) => gateFeature(...args),
 }))
 
+vi.mock("@/lib/pos/till-service", () => ({
+  attachSaleToTill: vi.fn().mockResolvedValue({ ok: true, sessionId: "till-1" }),
+}))
+
 vi.mock("@/lib/pos/idempotency", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/pos/idempotency")>()
   return {
@@ -99,6 +103,7 @@ function sessionAuth() {
       permissions: [],
       isImpersonation: false,
       impersonatorId: null,
+      storeId: null,
       profile: {
         tenant_id: "tenant-1",
         is_admin: false,
@@ -198,6 +203,7 @@ describe("POST /api/admin/pos/complete-sale", () => {
         p_cashier_id: "cashier-1",
         p_confirmed_by: "cashier-1",
         p_payment_method: "cash",
+        p_session_id: "till-1",
       }),
     )
     expect(storeSaleIdempotency).toHaveBeenCalledWith(

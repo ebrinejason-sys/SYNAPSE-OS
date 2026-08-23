@@ -18,6 +18,9 @@ import {
 import { buildStockError, type StructuredStockError } from "@synapse/db/inventory"
 import { pharmacyDispenseTimelineEvent } from "@synapse/db/timeline"
 import { publishTimelineEvent } from "@synapse/db/identity-persist"
+import { attachSaleToTill } from "@/lib/pos/till-service"
+import { httpStatusForPharmacyError } from "@synapse/db/errors"
+import { paymentStateForMethod } from "@synapse/db/cashier-session"
 
 /**
  * Complete a POS sale via live `complete_pharmacy_sale` RPC.
@@ -113,13 +116,37 @@ export async function POST(request: NextRequest) {
     rpcItems.push(validated.rpcItem)
   }
 
+  const saleAmount = rpcItems.reduce(
+    (sum, item) =>
+      sum +
+      Number(item.unit_price ?? 0) * Number(item.quantity ?? 0) -
+      Number(item.discount_amount ?? 0),
+    0,
+  )
+  const till = await attachSaleToTill({
+    tenantId,
+    cashierId,
+    paymentMethod,
+    amount: saleAmount,
+    kind: "sale",
+  })
+  if (!till.ok) {
+    return NextResponse.json(till.error, { status: httpStatusForPharmacyError(till.error.code) })
+  }
+  const paymentState = paymentStateForMethod({
+    method: paymentMethod,
+    offline: false,
+    providerConfirmed: paymentMethod.toLowerCase() === "cash",
+  })
+  void paymentState
+
   // Line discounts live on rpc items; p_discount_total must stay 0 or RPC double-counts.
   const { data, error } = await db.rpc("complete_pharmacy_sale", {
     p_tenant_id: tenantId,
     p_cashier_id: cashierId,
     p_items: rpcItems,
     p_payment_method: paymentMethod,
-    p_session_id: body.sessionId ?? null,
+    p_session_id: till.sessionId,
     p_cart_id: body.cartId ?? null,
     p_payment_ref: body.paymentRef ?? null,
     p_discount_total: 0,

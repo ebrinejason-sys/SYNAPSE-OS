@@ -33,6 +33,13 @@ export const PHARMACY_ERROR_CODES = [
   "TRANSFER_NOT_FOUND",
   "TRANSFER_EMPTY",
   "PAYMENT_STATE_INVALID",
+  "TILL_ALREADY_OPEN",
+  "TILL_NOT_OPEN",
+  "TILL_ALREADY_CLOSED",
+  "TILL_STATE_INVALID",
+  "TILL_VARIANCE_REQUIRES_REASON",
+  "RECALLED_BATCH",
+  "POS_APPEND_ONLY",
   "PERMISSION",
   "UNKNOWN",
 ] as const
@@ -69,6 +76,12 @@ const RECOMMENDED_ACTION: Partial<Record<PharmacyErrorCode, string>> = {
   OFFLINE_OPERATION_UNSUPPORTED: "This action is blocked while offline.",
   TRANSFER_STATE_INVALID: "Refresh the transfer. The current state cannot accept this action.",
   PAYMENT_STATE_INVALID: "Do not retry as a new payment. Inspect the existing payment status.",
+  TILL_ALREADY_OPEN: "Close the current till before opening another.",
+  TILL_NOT_OPEN: "Open a till session before selling or moving cash.",
+  TILL_ALREADY_CLOSED: "This till is already closed. Open a new session.",
+  TILL_VARIANCE_REQUIRES_REASON: "Enter a reason for the cash variance before closing.",
+  RECALLED_BATCH: "Do not sell a recalled batch.",
+  POS_APPEND_ONLY: "Completed sales cannot be edited. Refund or void instead.",
 }
 
 export function pharmacyDomainError(
@@ -110,6 +123,11 @@ export function httpStatusForPharmacyError(code: string): number {
     case "ALREADY_REFUNDED":
     case "TRANSFER_STATE_INVALID":
     case "PAYMENT_STATE_INVALID":
+    case "TILL_ALREADY_OPEN":
+    case "TILL_NOT_OPEN":
+    case "TILL_ALREADY_CLOSED":
+    case "TILL_VARIANCE_REQUIRES_REASON":
+    case "POS_APPEND_ONLY":
       return 409
     case "OFFLINE_STOCK_STALE":
     case "OFFLINE_OPERATION_UNSUPPORTED":

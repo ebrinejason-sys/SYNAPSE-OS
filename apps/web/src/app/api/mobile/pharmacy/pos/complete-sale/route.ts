@@ -112,6 +112,27 @@ export async function POST(req: NextRequest) {
     rpcItems.push(validated.rpcItem)
   }
 
+  const saleAmount = rpcItems.reduce(
+    (sum, item) =>
+      sum +
+      Number(item.unit_price ?? 0) * Number(item.quantity ?? 0) -
+      Number(item.discount_amount ?? 0),
+    0,
+  )
+  const { attachSaleToTill } = await import('@synapse/db/till-service')
+  const { httpStatusForPharmacyError } = await import('@synapse/db/errors')
+  const till = await attachSaleToTill({
+    tenantId: auth.tenantId,
+    cashierId: auth.userId,
+    paymentMethod,
+    amount: saleAmount,
+    kind: 'sale',
+    required: body.syncReplay !== true,
+  })
+  if (!till.ok) {
+    return NextResponse.json(till.error, { status: httpStatusForPharmacyError(till.error.code) })
+  }
+
   // Line discounts are already on each rpc item. Passing the same sum as
   // p_discount_total double-counts inside complete_pharmacy_sale.
   const { data, error } = await db().rpc('complete_pharmacy_sale', {
@@ -119,7 +140,7 @@ export async function POST(req: NextRequest) {
     p_cashier_id: auth.userId,
     p_items: rpcItems,
     p_payment_method: paymentMethod,
-    p_session_id: body.sessionId ?? null,
+    p_session_id: till.sessionId ?? body.sessionId ?? null,
     p_cart_id: body.cartId ?? null,
     p_payment_ref: body.paymentRef ?? null,
     p_discount_total: 0,

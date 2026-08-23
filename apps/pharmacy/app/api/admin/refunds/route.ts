@@ -3,6 +3,7 @@ import { requirePharmacyPermission } from "@/lib/api-auth"
 import { mapRefund } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { reversePharmacySale } from "@synapse/db/inventory-rpc"
+import { attachSaleToTill } from "@/lib/pos/till-service"
 
 const db = () => supabaseAdmin as any
 
@@ -192,6 +193,20 @@ export async function POST(request: NextRequest) {
       )
     }
     if ("ok" in posResult && posResult.ok) {
+      const { data: saleRow } = await db()
+        .from("pharmacy_pos_sales")
+        .select("payment_method, cashier_id")
+        .eq("id", id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle()
+      await attachSaleToTill({
+        tenantId,
+        cashierId: String(saleRow?.cashier_id ?? session.user.id),
+        paymentMethod: String(saleRow?.payment_method ?? "cash"),
+        amount: posResult.refundAmount,
+        kind: "refund",
+        required: false,
+      })
       return NextResponse.json({
         success: true,
         refundAmount: posResult.refundAmount,

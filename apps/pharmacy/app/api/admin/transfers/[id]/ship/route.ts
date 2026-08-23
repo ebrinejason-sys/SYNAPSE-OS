@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
+import { requireStoreScope } from "@/lib/pharmacy-context"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { shipPharmacyStockTransfer, type PharmacyRpcError } from "@synapse/db/inventory-rpc"
 import { logAudit } from "@synapse/db"
@@ -49,6 +50,12 @@ export async function POST(
     if (!transfer) {
       return NextResponse.json({ error: "Transfer not found" }, { status: 404 })
     }
+
+    const scoped = requireStoreScope(
+      { ...auth, storeId: session.storeId ?? null },
+      transfer.from_store_id,
+    )
+    if (!scoped.ok) return scoped.response
 
     const { data, error } = await shipPharmacyStockTransfer(db(), {
       tenantId,

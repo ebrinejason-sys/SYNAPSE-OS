@@ -20,6 +20,7 @@ export type PharmacySession = {
   pharmacyRole: string
   isImpersonation: boolean
   impersonatorId: string | null
+  storeId: string | null
   profile: { tenant_id: string; is_admin: boolean; full_name: string | null; first_name: string | null; last_name: string | null }
   user: { id: string; email: string }
 }
@@ -28,11 +29,12 @@ async function loadPharmacySettings(userId: string): Promise<{
   pharmacyRole: string | null
   permissions: string[]
   mustChangePassword: boolean | null
+  storeId: string | null
 }> {
   try {
     const { data } = await (supabaseAdmin as any)
       .from('pharmacy_user_settings')
-      .select('pharmacy_role, permissions, must_change_password')
+      .select('pharmacy_role, permissions, must_change_password, store_id')
       .eq('profile_id', userId)
       .maybeSingle()
 
@@ -40,9 +42,10 @@ async function loadPharmacySettings(userId: string): Promise<{
       pharmacyRole: (data?.pharmacy_role as string | null) ?? null,
       permissions: Array.isArray(data?.permissions) ? (data.permissions as string[]) : [],
       mustChangePassword: (data?.must_change_password as boolean | null) ?? null,
+      storeId: (data?.store_id as string | null) ?? null,
     }
   } catch {
-    return { pharmacyRole: null, permissions: [], mustChangePassword: null }
+    return { pharmacyRole: null, permissions: [], mustChangePassword: null, storeId: null }
   }
 }
 
@@ -73,6 +76,7 @@ async function toPharmacySession(ctx: SynapseContext): Promise<PharmacySession> 
     pharmacyRole,
     isImpersonation: ctx.isImpersonation,
     impersonatorId: ctx.impersonatorId,
+    storeId: settings.storeId,
     profile: {
       tenant_id: ctx.user.tenantId,
       is_admin: isAdmin,

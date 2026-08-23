@@ -126,6 +126,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         ...command.payload,
         idempotencyKey: command.commandId,
+        syncReplay: true,
       }),
     },
   )

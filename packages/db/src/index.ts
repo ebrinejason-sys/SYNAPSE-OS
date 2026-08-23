@@ -13,5 +13,8 @@ export * from "./offline";
 export * from "./sync-contract";
 export * from "./sync-runtime";
 export * from "./errors";
+export * from "./cashier-session";
+export * from "./offline-crypto";
+export * from "./audit-contract";
 export { logAudit, logPHIAccess } from './audit'
 export type { AuditEntry } from './audit'

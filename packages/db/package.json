@@ -21,7 +21,11 @@
     "./sync-contract": "./src/sync-contract.ts",
     "./sync-runtime": "./src/sync-runtime.ts",
     "./contracts": "./src/contracts.ts",
-    "./errors": "./src/errors.ts"
+    "./errors": "./src/errors.ts",
+    "./cashier-session": "./src/cashier-session.ts",
+    "./offline-crypto": "./src/offline-crypto.ts",
+    "./audit-contract": "./src/audit-contract.ts",
+    "./till-service": "./src/till-service.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",

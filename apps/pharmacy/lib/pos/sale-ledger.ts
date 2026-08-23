@@ -60,7 +60,9 @@ export async function sumCompletedRevenue(params: {
   )
   let count = posRows?.length ?? 0
 
-  if (params.includeOrderTxs !== false) {
+  // Future financial truth is pharmacy_pos_sales. Legacy order txs are opt-in
+  // so reports cannot double-count the same business sale.
+  if (params.includeOrderTxs === true) {
     let txQ = db
       .from("pharmacy_transactions")
       .select("net_amount")

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { reversePharmacySale } from '@synapse/db/inventory-rpc'
+import { attachSaleToTill } from '@synapse/db/till-service'
 import { canDo } from '../../../../../lib/capability-map'
 import {
   isMobileAuth,
@@ -111,11 +112,27 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  const refundAmount = Number((data as any)?.refund_amount ?? 0)
+  const { data: saleRow } = await db()
+    .from('pharmacy_pos_sales')
+    .select('payment_method, cashier_id')
+    .eq('id', saleId)
+    .eq('tenant_id', auth.tenantId)
+    .maybeSingle()
+  await attachSaleToTill({
+    tenantId: auth.tenantId,
+    cashierId: String(saleRow?.cashier_id ?? auth.userId),
+    paymentMethod: String(saleRow?.payment_method ?? 'cash'),
+    amount: refundAmount,
+    kind: 'refund',
+    required: false,
+  })
+
   return NextResponse.json({
     ok: true,
     saleId: (data as any)?.sale_id ?? saleId,
     receiptNumber: (data as any)?.receipt_number,
-    refundAmount: Number((data as any)?.refund_amount ?? 0),
+    refundAmount,
     restoreAs: (data as any)?.restore_as ?? restoreAs,
     status: (data as any)?.status ?? 'voided',
   })

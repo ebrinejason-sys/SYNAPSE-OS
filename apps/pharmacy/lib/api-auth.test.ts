@@ -41,6 +41,7 @@ function session(partial: Partial<PharmacySession> & Pick<PharmacySession, "role
     pharmacyRole: partial.pharmacyRole ?? partial.role,
     isImpersonation: false,
     impersonatorId: null,
+    storeId: partial.storeId ?? null,
     profile: {
       tenant_id: partial.tenantId,
       is_admin: partial.role === "pharmacy_admin" || partial.isAdmin === true,
