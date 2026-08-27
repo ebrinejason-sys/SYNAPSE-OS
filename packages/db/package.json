@@ -32,7 +32,8 @@
     "./simulation": "./src/simulation.ts",
     "./prescription-bridge": "./src/prescription-bridge.ts",
     "./identity-crosswalk": "./src/identity-crosswalk.ts",
-    "./edge-architecture": "./src/edge-architecture.ts"
+    "./edge-architecture": "./src/edge-architecture.ts",
+    "./overlay-journey": "./src/overlay-journey.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",

@@ -14,7 +14,11 @@ import {
 import {
   PathwayRuntime,
   SEPSIS_PATHWAY,
+  MALARIA_PATHWAY,
+  DKA_PATHWAY,
+  PNEUMONIA_PATHWAY,
   instantiateCarePlan,
+  type ClinicalPathwayDefinition,
   type PatientCarePlan,
 } from "./pathways"
 import {
@@ -255,7 +259,27 @@ export class SimulationEngine {
           this.runMalaria(run, rng, options)
           break
         case "pneumonia":
+          this.runNamedPathway(run, rng, options, PNEUMONIA_PATHWAY, {
+            type: "OPD",
+            chiefComplaint: "Cough, fever and fast breathing",
+            vitals: { temp: 38.4, hr: 110, sbp: 118, rr: 32, spo2: 89 },
+            loinc: "6690-2",
+            testName: "WBC",
+            value: "18.2",
+            medication: "Amoxicillin 500 mg PO",
+          })
+          break
         case "dka":
+          this.runNamedPathway(run, rng, options, DKA_PATHWAY, {
+            type: "EMERGENCY",
+            chiefComplaint: "Polyuria, vomiting and Kussmaul breathing",
+            vitals: { temp: 37.1, hr: 128, sbp: 98, rr: 28, spo2: 96 },
+            loinc: "2345-7",
+            testName: "Glucose",
+            value: "28.4",
+            medication: "Soluble insulin IV protocol",
+          })
+          break
         case "pharmacy-retail":
         case "stockout":
         case "insurance-claim":
@@ -567,6 +591,100 @@ export class SimulationEngine {
     })
     this.emit(run, "MedicationDispensed", "synapse-pharm", prescription.id, "dispense", {
       medicationDisplay: prescription.medicationDisplay,
+    })
+    this.activatePathway(run, rng, MALARIA_PATHWAY)
+  }
+
+  private runNamedPathway(
+    run: SimulationRun,
+    rng: () => number,
+    options: SimulationEngineOptions,
+    pathway: ClinicalPathwayDefinition,
+    input: {
+      type: SimulationEncounter["encounterType"]
+      chiefComplaint: string
+      vitals: Record<string, number>
+      loinc: string
+      testName: string
+      value: string
+      medication: string
+    },
+  ) {
+    this.registerPatient(run, rng, Math.floor(rng() * DEMO_NAMES.length))
+    this.startEncounter(run, rng, {
+      type: input.type,
+      chiefComplaint: input.chiefComplaint,
+      vitals: input.vitals,
+    })
+    this.activatePathway(run, rng, pathway)
+    const orderId = uuidFromRng(rng)
+    const accession = formatAccession("DEMO", Math.floor(rng() * 90000) + 1, options.now)
+    const order: LabOrder = {
+      id: orderId,
+      tenantId: run.tenantId,
+      patientId: run.patient!.id,
+      personId: run.patient!.personId,
+      encounterId: run.encounter!.id,
+      loincCode: input.loinc,
+      testName: input.testName,
+      urgency: "STAT",
+      status: "ORDERED",
+      orderedBy: options.actorId,
+      orderedAt: new Date().toISOString(),
+      isSynthetic: true,
+      simulationRunId: run.id,
+      correlationId: run.correlationId,
+    }
+    this.lab.createOrder(order)
+    this.lab.transition(order.id, "COLLECTION_PENDING")
+    this.lab.collect(order.id, accession, barcodeFromAccession(accession), uuidFromRng(rng))
+    this.lab.receive(order.id)
+    this.lab.enterResult({
+      resultId: uuidFromRng(rng),
+      orderId: order.id,
+      value: input.value,
+      sex: run.patient!.demographics.sex,
+    })
+    this.lab.verify(order.id, options.actorId)
+    this.lab.release(order.id)
+    run.labOrder = this.lab.getOrder(order.id)
+    run.prescription = {
+      id: uuidFromRng(rng),
+      tenantId: run.tenantId,
+      patientId: run.patient!.id,
+      encounterId: run.encounter!.id,
+      medicationDisplay: input.medication,
+      dose: "per protocol",
+      quantity: 1,
+      status: "dispensed",
+      prescriberId: options.actorId,
+      ...markers(run.id),
+    }
+    this.emit(run, "PrescriptionCreated", "synapse-os", run.prescription.id, "create", {
+      medicationDisplay: input.medication,
+    })
+    this.emit(run, "MedicationDispensed", "synapse-pharm", run.prescription.id, "dispense", {
+      medicationDisplay: input.medication,
+    })
+  }
+
+  private activatePathway(run: SimulationRun, rng: () => number, pathway: ClinicalPathwayDefinition) {
+    const plan = instantiateCarePlan({
+      id: uuidFromRng(rng),
+      tenantId: run.tenantId,
+      patientId: run.patient!.id,
+      personId: run.patient!.personId,
+      encounterId: run.encounter!.id,
+      pathway,
+      isSynthetic: true,
+      simulationRunId: run.id,
+      correlationId: run.correlationId,
+    })
+    this.pathways.start(plan)
+    run.carePlan = plan
+    this.emit(run, "ClinicalPathwayStarted", "synapse-pathways", plan.id, "start", {
+      pathwayId: pathway.id,
+      version: pathway.version,
     })
   }
 
