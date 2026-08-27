@@ -14,6 +14,7 @@ import {
   safeRows,
 } from "./_lib/platform-data";
 import { OverviewCommandCenter, type OverviewCommandCenterData } from "./_components/overview-command-center";
+import { PRODUCT_MANIFEST, overallPlatformHealth, statusLabel } from "@synapse/config/manifest";
 
 type TenantRow = {
   id?: string;
@@ -346,17 +347,13 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
       districts: new Set(tenants.map((t) => t.district).filter(Boolean)).size,
     },
     quickActions: [
-      { label: "Issue receipt", href: "/platform/receipts/new?kind=receipt", tone: "primary" },
+      { label: "Run sepsis scenario", href: "/platform/simulation", tone: "primary" },
+      { label: "Issue receipt", href: "/platform/receipts/new?kind=receipt" },
       { label: "Create invoice", href: "/platform/receipts/new?kind=invoice" },
       {
         label: pendingKyc > 0 ? `Review KYC (${pendingKyc})` : "Approvals",
         href: "/platform/approvals",
         tone: pendingKyc > 0 ? "primary" : "secondary",
-      },
-      {
-        label: pastDueCount > 0 ? `Past due (${pastDueCount})` : "Revenue & billing",
-        href: "/platform/billing",
-        tone: pastDueCount > 0 ? "primary" : "secondary",
       },
     ],
   };
@@ -365,5 +362,32 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
 export default async function PlatformOverviewPage() {
   await requirePlatformAdmin();
   const data = await getOverviewData();
-  return <OverviewCommandCenter data={data} />;
+  const overall = overallPlatformHealth(0);
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-[#E8B84B]/25 bg-[#E8B84B]/5 p-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#E8B84B]">SYNAPSE PLATFORM</p>
+            <h2 className="mt-1 text-xl font-bold text-primary-color">Overall status: {overall}</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-color">
+              Manifest {PRODUCT_MANIFEST.version}. Status is engineering truth, not a marketing uptime badge.
+            </p>
+          </div>
+          <Link href="/platform/simulation" className="rounded-xl bg-[#F97316] px-4 py-2 text-sm font-semibold text-black">
+            Open Simulation Lab
+          </Link>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {PRODUCT_MANIFEST.products.concat(PRODUCT_MANIFEST.platform.slice(0, 3)).map((item) => (
+            <Link key={item.id} href="/platform/registry" className="rounded-xl border border-subtle bg-surface px-3 py-2">
+              <p className="text-[10px] uppercase text-muted-color">{item.name}</p>
+              <p className="mt-1 text-xs font-medium text-primary-color">{statusLabel(item.status)}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
+      <OverviewCommandCenter data={data} />
+    </div>
+  );
 }

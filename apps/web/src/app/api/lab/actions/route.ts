@@ -1,0 +1,59 @@
+import { NextResponse } from "next/server"
+import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import { hasPlatformAdminAccess } from "@/lib/platform/auth"
+import { getSimulationEngine } from "@/lib/platform/simulation-runtime"
+
+export const dynamic = "force-dynamic"
+
+function canUseLab(role: string | undefined, email: string | null) {
+  return hasPlatformAdminAccess(role, email) || role === "lab_tech" || role === "lab_scientist" || role === "doctor"
+}
+
+export async function POST(request: Request) {
+  const user = await getCurrentUser()
+  if (!user || !canUseLab(user.role, user.email)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+  const orderId = String(body.orderId ?? "")
+  const action = String(body.action ?? "")
+  const engine = getSimulationEngine()
+  try {
+    if (action === "collect") {
+      const accession = String(body.accessionNumber ?? `DEMO-${Date.now()}`)
+      engine.lab.collect(orderId, accession, accession.replace(/[^A-Z0-9]/gi, ""), crypto.randomUUID())
+    } else if (action === "receive") {
+      engine.lab.receive(orderId)
+    } else if (action === "reject") {
+      engine.lab.reject(orderId, "other", String(body.reason ?? "rejected"))
+    } else if (action === "enter_result") {
+      engine.lab.enterResult({
+        resultId: crypto.randomUUID(),
+        orderId,
+        value: String(body.value ?? ""),
+        analyzer: typeof body.analyzer === "string" ? body.analyzer : "manual",
+      })
+    } else if (action === "verify") {
+      engine.lab.verify(orderId, user.id)
+    } else if (action === "release") {
+      engine.lab.release(orderId)
+    } else if (action === "acknowledge") {
+      engine.lab.acknowledgeCritical({
+        id: crypto.randomUUID(),
+        orderId,
+        acknowledgedBy: user.id,
+        note: String(body.note ?? "acknowledged"),
+      })
+    } else {
+      return NextResponse.json({ error: "Unknown action" }, { status: 400 })
+    }
+    const order = engine.lab.getOrder(orderId)
+    const result = engine.lab.snapshot().results.find((row) => row.labOrderId === orderId) ?? null
+    return NextResponse.json({ order, result })
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "lab_action_failed" },
+      { status: 400 },
+    )
+  }
+}
