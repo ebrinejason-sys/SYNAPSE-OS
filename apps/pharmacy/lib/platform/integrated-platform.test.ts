@@ -38,7 +38,8 @@ describe("product capability manifest", () => {
   it("does not advertise lab, FHIR, or imaging as live", () => {
     expect(getCapability("synapse-lab")?.status).toBe("development")
     expect(canAdvertiseAsLive(getCapability("synapse-lab")!.status)).toBe(false)
-    expect(PRODUCT_MANIFEST.integrations.find((item) => item.id === "fhir-r4")?.status).toBe("roadmap")
+    expect(PRODUCT_MANIFEST.integrations.find((item) => item.id === "fhir-r4")?.status).toBe("development")
+    expect(canAdvertiseAsLive("development")).toBe(false)
     expect(integrationLabel("roadmap")).toBe("ROADMAP")
     expect(statusLabel("operational_candidate")).toBe("Operational candidate")
   })
