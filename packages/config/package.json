@@ -8,6 +8,7 @@
     "./typescript": "./tsconfig.json",
     "./constants": "./src/constants.ts",
     "./capability": "./src/capability.ts",
+    "./manifest": "./src/product-manifest.ts",
     "./typography.css": "./typography.css"
   },
   "devDependencies": {

@@ -20,6 +20,8 @@ export const TIMELINE_EVENT_TYPES = [
   "imaging",
   "document",
   "registration",
+  "pathway",
+  "critical_result",
 ] as const
 
 export type TimelineEventType = (typeof TIMELINE_EVENT_TYPES)[number]

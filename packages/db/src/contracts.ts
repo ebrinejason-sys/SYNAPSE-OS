@@ -32,6 +32,12 @@ export { hasPurposeConsent } from "./consent"
 export type { TimelineEventInput } from "./timeline"
 export { assertTimelineSubject, pharmacyDispenseTimelineEvent } from "./timeline"
 
+export type { DomainEventEnvelope } from "./exchange"
+export { ExchangeOutbox } from "./exchange"
+export { LabWorkflow } from "./lab-workflow"
+export { PathwayRuntime, SEPSIS_PATHWAY } from "./pathways"
+export { SimulationEngine, assertDemoResetAllowed } from "./simulation"
+
 export type {
   SyncCommand,
   SyncEnvelope,

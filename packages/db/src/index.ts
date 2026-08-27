@@ -16,5 +16,12 @@ export * from "./errors";
 export * from "./cashier-session";
 export * from "./offline-crypto";
 export * from "./audit-contract";
+export * from "./exchange";
+export * from "./lab-workflow";
+export * from "./pathways";
+export * from "./simulation";
+export * from "./prescription-bridge";
+export * from "./identity-crosswalk";
+export * from "./edge-architecture";
 export { logAudit, logPHIAccess } from './audit'
 export type { AuditEntry } from './audit'

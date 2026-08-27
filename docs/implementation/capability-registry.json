@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-08-23",
+  "updated": "2026-08-27",
   "owner": "lead-architect",
   "status_values": ["OPERATIONAL", "PILOT_READY", "PARTIAL", "PLANNED"],
   "notes": "OPERATIONAL requires implementation + tests + security review + live/backend verification + failure-mode verification. Code existing is not enough.",
@@ -190,6 +190,65 @@
       "security_review": "n/a",
       "clinical_review": "n/a",
       "limitation": "Out of v1 GREEN scope."
+    },
+    {
+      "domain": "core",
+      "feature": "capability_manifest",
+      "status": "PARTIAL",
+      "owner": "lead-architect",
+      "tests": ["apps/pharmacy/lib/platform/integrated-platform.test.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a",
+      "limitation": "Shared manifest drives landing + admin. Not a live telemetry feed."
+    },
+    {
+      "domain": "core",
+      "feature": "domain_event_outbox",
+      "status": "PARTIAL",
+      "owner": "interop",
+      "tests": ["apps/pharmacy/lib/platform/integrated-platform.test.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a"
+    },
+    {
+      "domain": "lab",
+      "feature": "order_to_result_slice",
+      "status": "PARTIAL",
+      "owner": "diagnostics",
+      "tests": ["apps/pharmacy/lib/platform/integrated-platform.test.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "unreviewed",
+      "limitation": "Engine + demo worklist. Not a production LIMS. Live analyzer ingest still mock."
+    },
+    {
+      "domain": "pathways",
+      "feature": "adult_sepsis_demo",
+      "status": "PARTIAL",
+      "owner": "clinical-pathways",
+      "tests": ["apps/pharmacy/lib/platform/integrated-platform.test.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "unreviewed",
+      "limitation": "Teaching pathway. Not a licensed protocol. Clinician override required."
+    },
+    {
+      "domain": "core",
+      "feature": "simulation_lab",
+      "status": "PARTIAL",
+      "owner": "platform-ops",
+      "tests": ["apps/pharmacy/lib/platform/integrated-platform.test.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "unreviewed",
+      "clinical_review": "n/a",
+      "limitation": "In-process engine plus best-effort DB persist. Production reset is blocked."
     }
   ]
 }
