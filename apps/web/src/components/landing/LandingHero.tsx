@@ -6,13 +6,12 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
-  Download,
   FlaskConical,
   Pill,
   Shield,
   Stethoscope,
 } from 'lucide-react'
-import { AnimatedCounter } from './AnimatedCounter'
+import { PUBLIC_STORY, HEADLINE_METRICS } from '@synapse/config/manifest'
 import { AvatarCluster } from './AvatarCluster'
 import { LandingParticleField } from './LandingParticleField'
 import { BodyText, DisplayHeading, Eyebrow, LeadText } from '../typography'
@@ -36,16 +35,16 @@ const PREVIEW_CARDS = [
   },
   {
     icon: FlaskConical,
-    title: 'Lab & radiology',
-    metric: 'Order → result → alert',
-    detail: 'Instrument ingest, critical value flags',
+    title: 'Lab',
+    metric: 'Order → result → verify',
+    detail: 'First vertical slice in development',
     accent: 'var(--brand-gold)',
   },
   {
     icon: Pill,
     title: 'Pharmacy & revenue',
     metric: 'FEFO · POS · claims',
-    detail: 'Batch stock, receipts, insurer copilot',
+    detail: 'Batch stock and receipts. Offline checkout disabled.',
     accent: '#22C55E',
   },
 ]
@@ -87,8 +86,7 @@ export function LandingHero() {
             className="mb-6"
           >
             <DisplayHeading size="xl" className="landing-hero-title !max-w-none">
-              Unified records for{' '}
-              <span className="shimmer-text">hospitals</span>, pharmacy operations, and patient access.
+              {PUBLIC_STORY.heroTitle}
             </DisplayHeading>
           </motion.div>
 
@@ -98,10 +96,7 @@ export function LandingHero() {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="mb-8"
           >
-            <LeadText>
-              SynapseOS connects OPD, wards, laboratory, pharmacy POS, insurance claims, and telemedicine on
-              a single tenant, with Uganda Clinical Guidelines in the workflow and audit logs from day one.
-            </LeadText>
+            <LeadText>{PUBLIC_STORY.heroSupport}</LeadText>
           </motion.div>
 
           <motion.div
@@ -119,19 +114,16 @@ export function LandingHero() {
               Open live demo
               <ArrowRight className="h-4 w-4" />
             </a>
-            <a
-              href="/download/android"
-              className="landing-btn-secondary inline-flex items-center gap-2 px-6 py-3.5"
-            >
-              <Download className="h-4 w-4" style={{ color: 'var(--brand-teal)' }} />
-              Download Android APK
-            </a>
-            <Link
-              href="/apply"
-              className="landing-btn-secondary inline-flex items-center gap-2 px-6 py-3.5"
-            >
+            <Link href="/apply" className="landing-btn-secondary inline-flex items-center gap-2 px-6 py-3.5">
               <Building2 className="h-4 w-4" style={{ color: 'var(--brand-gold)' }} />
-              Apply for hospital pilot
+              Apply for pilot
+            </Link>
+            <a href="#pharm" className="landing-btn-secondary inline-flex items-center gap-2 px-6 py-3.5">
+              <Pill className="h-4 w-4" style={{ color: 'var(--brand-teal)' }} />
+              Get Synapse Pharm
+            </a>
+            <Link href="#platform" className="landing-btn-secondary inline-flex items-center gap-2 px-6 py-3.5">
+              Explore the platform
             </Link>
           </motion.div>
           <p className="mb-10 text-caption" style={{ color: 'var(--text-muted)' }}>
@@ -169,20 +161,11 @@ export function LandingHero() {
             transition={{ delay: 0.28 }}
             className="landing-stat-row grid grid-cols-2 gap-px sm:grid-cols-4"
           >
-            {[
-              { v: 20, suffix: '+', l: 'Department modules' },
-              { v: 150, suffix: '+', l: 'Clinical scores' },
-              { v: 120, suffix: '+', l: 'RLS-protected tables' },
-              { v: 3, suffix: '', l: 'Live products' },
-            ].map((stat) => (
-              <div key={stat.l} className="landing-stat-cell px-4 py-4">
-                <AnimatedCounter
-                  value={stat.v}
-                  suffix={stat.suffix}
-                  className="font-display text-heading-2 tabular-nums tracking-tight"
-                />
+            {HEADLINE_METRICS.map((stat) => (
+              <div key={stat.id} className="landing-stat-cell px-4 py-4">
+                <p className="font-display text-heading-2 tracking-tight">{stat.value}</p>
                 <p className="mt-1 text-caption leading-snug" style={{ color: 'var(--text-muted)' }}>
-                  {stat.l}
+                  {stat.label}
                 </p>
               </div>
             ))}

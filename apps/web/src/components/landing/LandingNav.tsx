@@ -7,6 +7,7 @@ import { SynapseLogo } from '../SynapseLogo'
 import { ThemeToggle } from '../ThemeToggle'
 
 const NAV = [
+  ['#platform', 'Platform'],
   ['#get-started', 'Get started'],
   ['#products', 'Products'],
   ['#pharm', 'Pharmacy'],

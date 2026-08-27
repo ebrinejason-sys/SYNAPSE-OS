@@ -11,6 +11,8 @@ import { LandingFooter } from '../components/landing/LandingFooter'
 import { SectionShell } from '../components/landing/SectionShell'
 import { Reveal } from '../components/landing/Reveal'
 import { ModuleGrid } from '../components/landing/ModuleGrid'
+import { ArchitectureVisual, ConnectedJourney, ProductPlatformSplit } from '../components/landing/PlatformStory'
+import { INTEGRATIONS } from '@synapse/config/manifest'
 import { Eyebrow, LeadText, SectionHeading } from '../components/typography'
 
 const MODULES = [
@@ -156,15 +158,15 @@ const PHARM_FEATURES = [
 
 type Cell = 'yes' | 'no' | 'partial'
 const COMPARE_ROWS: { feature: string; synapse: Cell; openmrs: Cell; slade: Cell; paper: Cell }[] = [
-  { feature: 'AI differential diagnosis (UCG-grounded)', synapse: 'yes', openmrs: 'no', slade: 'no', paper: 'no' },
-  { feature: 'Offline-first with sync', synapse: 'partial', openmrs: 'partial', slade: 'no', paper: 'yes' },
-  { feature: 'FHIR R4 resources', synapse: 'partial', openmrs: 'yes', slade: 'partial', paper: 'no' },
-  { feature: 'Insurance claim copilot', synapse: 'yes', openmrs: 'no', slade: 'partial', paper: 'no' },
-  { feature: 'ICD-11 coding on output', synapse: 'yes', openmrs: 'partial', slade: 'partial', paper: 'no' },
-  { feature: 'Uganda Clinical Guidelines in workflow', synapse: 'yes', openmrs: 'no', slade: 'yes', paper: 'no' },
-  { feature: 'Patient mobile app', synapse: 'yes', openmrs: 'no', slade: 'no', paper: 'no' },
+  { feature: 'AI differential diagnosis (UCG-grounded)', synapse: 'partial', openmrs: 'no', slade: 'no', paper: 'no' },
+  { feature: 'Offline-first with sync', synapse: 'no', openmrs: 'partial', slade: 'no', paper: 'yes' },
+  { feature: 'FHIR R4 resources', synapse: 'no', openmrs: 'yes', slade: 'partial', paper: 'no' },
+  { feature: 'Insurance claim copilot', synapse: 'partial', openmrs: 'no', slade: 'partial', paper: 'no' },
+  { feature: 'ICD-11 coding on output', synapse: 'partial', openmrs: 'partial', slade: 'partial', paper: 'no' },
+  { feature: 'Uganda Clinical Guidelines in workflow', synapse: 'partial', openmrs: 'no', slade: 'yes', paper: 'no' },
+  { feature: 'Patient mobile app', synapse: 'partial', openmrs: 'no', slade: 'no', paper: 'no' },
   { feature: 'Integrated pharmacy POS', synapse: 'yes', openmrs: 'no', slade: 'yes', paper: 'no' },
-  { feature: 'DHIS2 export pipeline', synapse: 'partial', openmrs: 'no', slade: 'no', paper: 'no' },
+  { feature: 'DHIS2 export pipeline', synapse: 'no', openmrs: 'no', slade: 'no', paper: 'no' },
 ]
 
 function CompareCell({ v }: { v: Cell }) {
@@ -173,19 +175,18 @@ function CompareCell({ v }: { v: Cell }) {
   return <span className="font-medium" style={{ color: 'var(--brand-gold)' }}>Partial</span>
 }
 
-const STANDARDS = [
-  { name: 'FHIR R4', detail: 'Roadmap — not a live production interoperability surface yet' },
-  { name: 'ICD-11', detail: 'Diagnosis and procedure coding on clinical output' },
-  { name: 'DHIS2', detail: 'Pilot/export path — production national pipeline in progress' },
-  { name: 'HL7 / ASTM', detail: 'Lab instrument messaging bridges (selected sites)' },
-  { name: 'DPPA 2019', detail: 'Uganda data protection baseline in product design' },
-]
+const STANDARDS = INTEGRATIONS.filter((item) =>
+  ['fhir-r4', 'icd-11', 'dhis2', 'hl7-astm'].includes(item.id),
+).map((item) => ({
+  name: item.name,
+  detail: `${item.status.toUpperCase()} — ${item.summary}`,
+}))
 
 const TRUST = [
   { title: 'Row-level security', desc: 'Tenant isolation on clinical tables via Postgres RLS' },
   { title: 'Audit trail', desc: 'Actor, timestamp, and action logged for sensitive operations' },
   { title: 'TLS in transit', desc: 'HTTPS for web, API, and admin surfaces' },
-  { title: 'Offline-capable', desc: 'Local server mode for wards when uplink drops' },
+  { title: 'Offline-capable', desc: 'Durable offline checkout is not claimed. Edge architecture is documented as roadmap.' },
   { title: 'Role-based access', desc: 'Doctor, nurse, pharmacist, billing, and admin roles' },
   { title: 'Session revocation', desc: 'Password reset and logout invalidate server-side sessions' },
 ]
@@ -196,6 +197,15 @@ export default function HomePage() {
       <LandingNav />
       <TrustMarquee />
       <LandingHero />
+      <SectionShell id="platform" label="One system" title="From registration to follow-up without restarting the story">
+        <ConnectedJourney />
+      </SectionShell>
+      <SectionShell label="Architecture" title="Products on a shared kernel" variant="surface">
+        <ArchitectureVisual />
+      </SectionShell>
+      <SectionShell label="Truth" title="Products versus platform capabilities">
+        <ProductPlatformSplit />
+      </SectionShell>
       <AudiencePaths />
 
       <SectionShell label="Context" title="Why hospitals need a single clinical record">
@@ -210,9 +220,9 @@ export default function HomePage() {
           </LeadText>
           <div className="space-y-4">
             {[
-              { title: 'Continuity', body: 'One patient record across OPD, ward, lab, pharmacy, and billing.' },
-              { title: 'Revenue', body: 'Fee schedules, invoicing, and insurer claim submission from signed encounters.' },
-              { title: 'Reporting', body: 'DHIS2 exports and SDG-mapped indicators from live clinical data.' },
+              { title: 'Continuity', body: 'One person identity across OPD, laboratory, pharmacy, and follow-up — when those modules are actually connected.' },
+              { title: 'Revenue', body: 'Pharmacy POS is the deepest commercial workflow. Hospital charge capture remains partial.' },
+              { title: 'Reporting', body: 'Public-health and DHIS2 exports are roadmap. We do not invent national coverage numbers.' },
             ].map((item) => (
               <div key={item.title} className="landing-card">
                 <p className="mb-1 text-sm font-semibold">{item.title}</p>
@@ -238,8 +248,7 @@ export default function HomePage() {
               SynapseOS
             </SectionHeading>
             <p className="mb-5 flex-1 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              Web HMIS: encounters, nursing, lab, radiology, theatre, finance, and admin. Each hospital runs on
-              its own tenant with role-based access.
+              Facility care delivery. Registration and OPD triage exist today; specialty modules are being completed through connected journeys rather than empty screens.
             </p>
             <Link href="/apply" className="inline-flex items-center gap-1 text-sm font-semibold transition-opacity group-hover:opacity-80" style={{ color: 'var(--brand-orange)' }}>
               Apply for deployment →
@@ -361,6 +370,32 @@ export default function HomePage() {
             </li>
           ))}
         </ol>
+      </SectionShell>
+
+      <SectionShell
+        id="lab-pathways"
+        label="Diagnostics & pathways"
+        title="Synapse Lab and clinician-controlled pathways"
+        variant="cool"
+      >
+        <div className="grid gap-6 lg:grid-cols-2">
+          <article className="landing-card !p-6">
+            <p className="text-xs uppercase tracking-widest" style={{ color: 'var(--brand-teal)' }}>Synapse Lab</p>
+            <h3 className="mt-2 font-display text-heading-3">Order → Specimen → Verify → Record</h3>
+            <p className="mt-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              The first complete laboratory slice is in development. AI does not release results. SYNAPSE is designed
+              to work with national LIS/LIMS efforts such as ALIS — it does not claim to replace them.
+            </p>
+          </article>
+          <article className="landing-card !p-6">
+            <p className="text-xs uppercase tracking-widest" style={{ color: 'var(--brand-gold)' }}>Synapse Pathways</p>
+            <h3 className="mt-2 font-display text-heading-3">Guideline → Pathway → Care plan</h3>
+            <p className="mt-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              The first demo pathway is adult suspected sepsis. Clinicians can override every recommendation. Overrides
+              are learning data only after governance — they never silently retrain clinical AI.
+            </p>
+          </article>
+        </div>
       </SectionShell>
 
       <SectionShell
