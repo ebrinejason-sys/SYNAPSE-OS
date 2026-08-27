@@ -22,6 +22,8 @@ type DemoResult = {
   suggested_workup: string[]
   clinical_note: string
   follow_up_questions?: string[]
+  ai_provider?: string
+  ai_model?: string
 }
 
 const CONF_COLOR = {
@@ -50,6 +52,12 @@ export function DemoWidget() {
 
   async function runDiagnosis(extraContext?: string) {
     if (!hasInput) return
+    const isRefine = Boolean(extraContext)
+    if (!isRefine) {
+      setRound(0)
+      setFollowUpAnswers({})
+      setResult(null)
+    }
     setLoading(true)
     setError('')
     try {
@@ -65,13 +73,13 @@ export function DemoWidget() {
           age: age ? Number(age) : undefined,
           sex,
           vitals: undefined,
-          requestFollowUp: round === 0,
+          requestFollowUp: !isRefine,
         }),
       })
       const data = await res.json() as DemoResult & { error?: string }
       if (!res.ok) throw new Error(data.error ?? 'Demo unavailable')
       setResult(data)
-      if (round === 0 && data.follow_up_questions?.length) {
+      if (!isRefine && data.follow_up_questions?.length) {
         setRound(1)
       } else {
         setRound(2)
@@ -210,6 +218,12 @@ export function DemoWidget() {
 
         {result && round >= 1 ? (
           <div className="space-y-4">
+            {result.ai_provider ? (
+              <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+                Powered by {result.ai_provider}
+                {result.ai_model ? ` · ${result.ai_model}` : ''}
+              </p>
+            ) : null}
             {result.clinical_note ? (
               <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{result.clinical_note}</p>
             ) : null}
