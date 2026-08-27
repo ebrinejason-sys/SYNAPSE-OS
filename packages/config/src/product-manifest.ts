@@ -19,8 +19,8 @@
  * - incident             — currently degraded
  */
 
-export const MANIFEST_VERSION = "2026.08.27"
-export const MANIFEST_UPDATED = "2026-08-27"
+export const MANIFEST_VERSION = "2026.08.28"
+export const MANIFEST_UPDATED = "2026-08-28"
 
 export const CAPABILITY_STATUSES = [
   "operational",
@@ -160,9 +160,10 @@ export const PLATFORM_CAPABILITIES: CapabilityRecord[] = [
     summary: "Versioned domain-event contracts and outbox. Not a national HIE.",
     owner: "interop",
     publicClaim: "Interoperability and event-exchange layer.",
-    limitation: "Internal event bus for the connected journey. FHIR resource handlers remain 501 placeholders.",
+    limitation:
+      "Internal event bus plus an adapter SDK with simulation connectors. Live eAFYA/ALIS/UgandaEMR contracts are not claimed.",
     environments: ["demo"],
-    tests: ["packages/interop/src/events.ts"],
+    tests: ["packages/interop/src/events.ts", "packages/interop/src/adapters/sdk.ts"],
     telemetry: "not_connected",
   }),
   cap({
@@ -186,10 +187,11 @@ export const PLATFORM_CAPABILITIES: CapabilityRecord[] = [
     kind: "platform",
     status: "development",
     projectStatus: "DEVELOPMENT",
-    summary: "Versioned guideline → pathway → care-plan engine. First demo pathway: adult sepsis.",
+    summary: "Versioned guideline → pathway → care-plan engine. Catalog: adult sepsis, malaria, DKA, pneumonia.",
     owner: "clinical-pathways",
     publicClaim: "Guideline-driven clinical workflows with clinician override.",
-    limitation: "One implemented pathway (sepsis). Not an autonomous treatment engine. AI does not sign or release.",
+    limitation:
+      "Four teaching pathways. Not an autonomous treatment engine. AI may recommend activation; a clinician must start the plan.",
     environments: ["demo"],
     tests: ["packages/db/src/pathways.ts"],
     telemetry: "not_connected",
@@ -198,14 +200,16 @@ export const PLATFORM_CAPABILITIES: CapabilityRecord[] = [
     id: "synapse-intelligence",
     name: "Synapse Intelligence",
     kind: "platform",
-    status: "prototype",
+    status: "development",
     projectStatus: "DEVELOPMENT",
-    summary: "Experimental Gemini features and an unused reasoning layer. Advisory only.",
+    summary:
+      "Governed intelligence kernel wrapping the existing reasoning engine. Advisory copilots share one schema. Not autonomous.",
     owner: "intelligence",
     publicClaim: "Governed AI and analytics. Clinician remains in control.",
-    limitation: "Not safe for autonomous diagnosis, lab release, or dispensing. Provenance and evaluation incomplete.",
+    limitation:
+      "AI never signs diagnoses, releases lab results, dispenses drugs, or submits claims. ICD codes must be resolved by the terminology service. Live evaluation harness is not deployed.",
     environments: ["demo"],
-    tests: [],
+    tests: ["packages/interop/src/intelligence/kernel.ts", "apps/pharmacy/lib/platform/project-golden.test.ts"],
     telemetry: "not_connected",
   }),
   cap({
@@ -290,7 +294,7 @@ export const SURFACES: CapabilityRecord[] = [
     summary: "Next.js route handlers across web and pharmacy. FHIR advertised resources return 501.",
     owner: "platform-ops",
     publicClaim: "Application and integration APIs.",
-    limitation: "CapabilityStatement currently over-advertises. Unimplemented FHIR is classified roadmap.",
+    limitation: "FHIR CapabilityStatement must list only implemented resources. Unimplemented types stay 501.",
     environments: ["production", "demo"],
     tests: [],
     telemetry: "not_connected",
@@ -332,17 +336,20 @@ export const INTEGRATIONS: IntegrationRecord[] = [
     id: "fhir-r4",
     name: "FHIR R4",
     standard: "HL7 FHIR R4",
-    status: "roadmap",
-    summary: "Canonical TypeScript contracts exist. HTTP handlers return 501 OperationOutcome.",
-    limitation: "Do not claim FHIR compliance. CapabilityStatement is a mock.",
+    status: "development",
+    summary:
+      "Flagship resource mappers and tenant-authorized HTTP handlers exist. CapabilityStatement lists only implemented types.",
+    limitation: "Not a certified FHIR server. Live tenant round-trip is not proven. Immunization remains unimplemented.",
   },
   {
     id: "icd-11",
     name: "ICD-11",
     standard: "WHO ICD-11",
     status: "development",
-    summary: "Encounter diagnoses store icd11_code. Coding UI is incomplete.",
-    limitation: "Not a certified ICD-11 terminology service.",
+    summary:
+      "Terminology service targets WHO ICD-11 MMS 2026-01 with a local cache. AI proposals are terms, not codes.",
+    limitation:
+      "WHO API credentials are optional; cache/fixtures operate when the API is unavailable. Not a certified coding product until live WHO + clinician UI proof.",
   },
   {
     id: "loinc",
@@ -388,22 +395,22 @@ export const INTEGRATIONS: IntegrationRecord[] = [
     id: "alis",
     name: "ALIS",
     status: "roadmap",
-    summary: "Designed as a future LIS adapter, not a replacement claim.",
+    summary: "Designed as a future LIS adapter. Simulation adapter exists. Not an ALIS replacement.",
     limitation: "No live connection.",
   },
   {
     id: "ugandaemr",
     name: "UgandaEMR",
     status: "roadmap",
-    summary: "Identifier namespace reserved on the person crosswalk.",
+    summary: "Identifier namespace reserved. OpenMRS/UgandaEMR simulation adapter exists.",
     limitation: "No live OpenMRS/UgandaEMR sync.",
   },
   {
     id: "eafya",
     name: "eAFYA",
     status: "roadmap",
-    summary: "Named in the interoperability roadmap only.",
-    limitation: "No adapter.",
+    summary: "Named in the interoperability roadmap. Simulation adapter exists for overlay-mode tests.",
+    limitation: "No live adapter. Do not claim a Ministry integration.",
   },
   {
     id: "irrds",
@@ -416,7 +423,7 @@ export const INTEGRATIONS: IntegrationRecord[] = [
     id: "insurers",
     name: "Insurers",
     status: "development",
-    summary: "Internal invoices/claims concepts and an insurance copilot prototype.",
+    summary: "Insurance copilot with eligibility, coverage, draft claims, scrubber, denial and appeal. Advisory only.",
     limitation: "No live payer gateway. Auto-submit is not operational.",
   },
   {
@@ -474,11 +481,11 @@ export const CLINICAL_JOURNEY_STEPS = [
 ] as const
 
 export const PUBLIC_STORY = {
-  heroTitle: "Healthcare should work as one system.",
+  heroTitle: "Intelligence for the entire care journey.",
   heroSupport:
-    "SYNAPSE connects clinical care, laboratories, pharmacies, patients and health operations through one interoperable health platform designed for African care environments.",
+    "SYNAPSE is the intelligence, clinical orchestration and interoperability layer that can run a facility, sit beside an existing EMR, or connect fragmented systems — without pretending national integrations are live.",
   philosophy:
-    "A configurable, offline-capable healthcare operating platform connecting care delivery, diagnostics, medicines, patients, financing and public-health systems through a shared identity and interoperability layer.",
+    "Keep eAFYA. Connect SYNAPSE. Or run Synapse OS natively. Identity, consent, audit, clinical reasoning, ICD-11, pathways, lab, pharmacy and claims share one kernel.",
   ctas: [
     { id: "explore", label: "Explore the platform", href: "#platform" },
     { id: "demo", label: "Open live demo", href: "https://demo.synapseos.tech" },
