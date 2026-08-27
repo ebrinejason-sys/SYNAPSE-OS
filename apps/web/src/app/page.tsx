@@ -11,7 +11,9 @@ import { LandingFooter } from '../components/landing/LandingFooter'
 import { SectionShell } from '../components/landing/SectionShell'
 import { Reveal } from '../components/landing/Reveal'
 import { ModuleGrid } from '../components/landing/ModuleGrid'
-import { ArchitectureVisual, ConnectedJourney, ProductPlatformSplit } from '../components/landing/PlatformStory'
+import { ArchitectureVisual, ConnectedJourney, DeploymentModes, ProductPlatformSplit } from '../components/landing/PlatformStory'
+import { COMPARISON_MATRIX } from '@synapse/config/comparison'
+import type { ComparisonCell } from '@synapse/config/gates'
 import { INTEGRATIONS } from '@synapse/config/manifest'
 import { Eyebrow, LeadText, SectionHeading } from '../components/typography'
 
@@ -156,18 +158,7 @@ const PHARM_FEATURES = [
   'Staff roles & cashier sessions',
 ]
 
-type Cell = 'yes' | 'no' | 'partial'
-const COMPARE_ROWS: { feature: string; synapse: Cell; openmrs: Cell; slade: Cell; paper: Cell }[] = [
-  { feature: 'AI differential diagnosis (UCG-grounded)', synapse: 'partial', openmrs: 'no', slade: 'no', paper: 'no' },
-  { feature: 'Offline-first with sync', synapse: 'no', openmrs: 'partial', slade: 'no', paper: 'yes' },
-  { feature: 'FHIR R4 resources', synapse: 'no', openmrs: 'yes', slade: 'partial', paper: 'no' },
-  { feature: 'Insurance claim copilot', synapse: 'partial', openmrs: 'no', slade: 'partial', paper: 'no' },
-  { feature: 'ICD-11 coding on output', synapse: 'partial', openmrs: 'partial', slade: 'partial', paper: 'no' },
-  { feature: 'Uganda Clinical Guidelines in workflow', synapse: 'partial', openmrs: 'no', slade: 'yes', paper: 'no' },
-  { feature: 'Patient mobile app', synapse: 'partial', openmrs: 'no', slade: 'no', paper: 'no' },
-  { feature: 'Integrated pharmacy POS', synapse: 'yes', openmrs: 'no', slade: 'yes', paper: 'no' },
-  { feature: 'DHIS2 export pipeline', synapse: 'no', openmrs: 'no', slade: 'no', paper: 'no' },
-]
+type Cell = ComparisonCell
 
 function CompareCell({ v }: { v: Cell }) {
   if (v === 'yes') return <span className="font-medium" style={{ color: 'var(--brand-teal)' }}>Yes</span>
@@ -202,6 +193,9 @@ export default function HomePage() {
       </SectionShell>
       <SectionShell label="Architecture" title="Products on a shared kernel" variant="surface">
         <ArchitectureVisual />
+      </SectionShell>
+      <SectionShell label="Deploy" title="Native, overlay, or network">
+        <DeploymentModes />
       </SectionShell>
       <SectionShell label="Truth" title="Products versus platform capabilities">
         <ProductPlatformSplit />
@@ -569,6 +563,10 @@ export default function HomePage() {
       </SectionShell>
 
       <SectionShell id="compare" label="Comparison" title="SynapseOS vs common alternatives">
+        <LeadText className="mb-8 max-w-2xl">
+          Synapse cells are computed from capability gates. A cell cannot become Yes because someone edited this page.
+          Live evidence is still required before GREEN.
+        </LeadText>
         <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid var(--border-edge)' }}>
           <table className="w-full text-sm">
             <thead>
@@ -591,8 +589,8 @@ export default function HomePage() {
               </tr>
             </thead>
             <tbody>
-              {COMPARE_ROWS.map((row, i) => (
-                <tr key={row.feature} style={{ background: i % 2 ? 'var(--bg-elevated)' : 'var(--bg-base)' }}>
+              {COMPARISON_MATRIX.map((row, i) => (
+                <tr key={row.id} style={{ background: i % 2 ? 'var(--bg-elevated)' : 'var(--bg-base)' }}>
                   <td className="p-3" style={{ color: 'var(--text-secondary)' }}>
                     {row.feature}
                   </td>

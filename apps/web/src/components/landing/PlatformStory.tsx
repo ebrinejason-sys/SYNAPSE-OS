@@ -1,6 +1,7 @@
 'use client'
 
-import { CLINICAL_JOURNEY_STEPS, PLATFORM_CAPABILITIES, PRODUCTS, statusLabel } from '@synapse/config/manifest'
+import { CLINICAL_JOURNEY_STEPS, PLATFORM_CAPABILITIES, PRODUCTS } from '@synapse/config/manifest'
+import { DEPLOYMENT_MODES, POSITIONING } from '@synapse/config/deployment-modes'
 import { StatusBadge } from '../StatusBadge'
 import { Eyebrow, SectionHeading } from '../typography'
 
@@ -31,13 +32,13 @@ export function ConnectedJourney() {
 export function ArchitectureVisual() {
   const layers = [
     { label: 'Patients / Professionals / Facilities', tone: 'var(--text-secondary)' },
-    { label: 'SYNAPSE PRODUCTS — OS · Pharm · App', tone: 'var(--brand-orange)' },
-    { label: 'SYNAPSE CORE — identity, consent, audit', tone: 'var(--brand-gold)' },
-    { label: 'SYNAPSE EXCHANGE — versioned events', tone: 'var(--brand-teal)' },
-    { label: 'Clinical · Lab · Pharm · Imaging · Pathways · Finance', tone: 'var(--text-primary)' },
-    { label: 'Shared longitudinal record', tone: 'var(--text-primary)' },
-    { label: 'Analytics / AI / Epidemiology', tone: 'var(--text-secondary)' },
-    { label: 'External health systems', tone: 'var(--text-muted)' },
+    { label: 'MODE 1 Native — OS · Lab · Pharm · App', tone: 'var(--brand-orange)' },
+    { label: 'MODE 2 Overlay — eAFYA · UgandaEMR · ALIS · other EMRs', tone: 'var(--brand-gold)' },
+    { label: 'MODE 3 Network — HIE / labs / pharmacies / national systems', tone: 'var(--brand-teal)' },
+    { label: 'SYNAPSE EXCHANGE — adapters, never undocumented production APIs', tone: 'var(--brand-teal)' },
+    { label: 'SYNAPSE INTELLIGENCE — reasoning, ICD-11, pathways, claims', tone: 'var(--text-primary)' },
+    { label: 'SYNAPSE CORE — identity, consent, audit, timeline', tone: 'var(--text-primary)' },
+    { label: 'Longitudinal patient record · FHIR representation', tone: 'var(--text-secondary)' },
   ]
   return (
     <div className="mx-auto max-w-3xl space-y-2">
@@ -50,6 +51,33 @@ export function ArchitectureVisual() {
           {layer.label}
         </div>
       ))}
+    </div>
+  )
+}
+
+export function DeploymentModes() {
+  return (
+    <div>
+      <p className="mb-6 max-w-2xl text-sm" style={{ color: 'var(--text-secondary)' }}>
+        {POSITIONING.differentiator} {POSITIONING.notAClaim}
+      </p>
+      <div className="grid gap-4 md:grid-cols-3">
+        {DEPLOYMENT_MODES.map((mode) => (
+          <article key={mode.id} className="landing-card !p-5">
+            <p className="font-mono text-[10px] uppercase tracking-wide text-[var(--brand-gold)]">Mode {mode.id}</p>
+            <h3 className="mt-2 text-lg font-semibold">{mode.name}</h3>
+            <p className="mt-1 text-sm font-medium" style={{ color: 'var(--brand-orange)' }}>
+              {mode.headline}
+            </p>
+            <p className="mt-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              {mode.summary}
+            </p>
+            <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+              {mode.examples.join(' · ')}
+            </p>
+          </article>
+        ))}
+      </div>
     </div>
   )
 }

@@ -17,12 +17,12 @@ import { LandingParticleField } from './LandingParticleField'
 import { BodyText, DisplayHeading, Eyebrow, LeadText } from '../typography'
 
 const COMPLIANCE = [
-  'ICD-11 coding',
+  'ICD-11 2026 (development)',
   'DPPA 2019 aligned',
   'Postgres RLS',
   'Clinician-in-the-loop AI',
   'Audit logging',
-  'FHIR roadmap',
+  'FHIR flagship (development)',
 ]
 
 const PREVIEW_CARDS = [
@@ -50,8 +50,8 @@ const PREVIEW_CARDS = [
 ]
 
 const LIVE_SURFACES = [
-  { label: 'AI diagnostic demo', href: 'https://demo.synapseos.tech', status: 'Live' },
-  { label: 'Pharmacy POS', href: 'https://pharm.synapseos.tech', status: 'Live' },
+  { label: 'AI diagnostic demo', href: 'https://demo.synapseos.tech', status: 'Demo' },
+  { label: 'Pharmacy POS', href: 'https://pharm.synapseos.tech', status: 'Candidate' },
   { label: 'Android APK', href: '/download/android', status: 'Download' },
   { label: 'Personal health app', href: 'https://app.synapseos.tech', status: 'Sign up' },
 ]

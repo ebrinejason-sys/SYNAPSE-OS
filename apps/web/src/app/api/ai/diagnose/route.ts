@@ -1,101 +1,98 @@
-import { GoogleGenAI } from "@google/genai";
-import { NextRequest, NextResponse } from "next/server";
-import { checkRateLimit, rateLimiters } from "../../../../lib/rate-limit";
-import { createServiceClient } from "../../../../lib/supabase/server";
-import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { NextRequest, NextResponse } from "next/server"
+import { checkRateLimit, rateLimiters } from "../../../../lib/rate-limit"
+import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import {
+  assertCallerCannotSupplyTenant,
+  authorizePacketTenant,
+  buildRecommendation,
+  stripInventedIcdCodes,
+  type PatientContextPacket,
+} from "@synapse/interop"
+import { generateDifferential } from "@/lib/reasoning/ai"
 
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!user.tenantId) return NextResponse.json({ error: "Tenant context required" }, { status: 403 })
 
-  const ip = req.headers.get("x-forwarded-for") ?? "unknown";
-  const { success } = await checkRateLimit(rateLimiters.ai, ip);
+  const ip = req.headers.get("x-forwarded-for") ?? "unknown"
+  const { success } = await checkRateLimit(rateLimiters.ai, ip)
   if (!success) {
-    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 })
   }
 
-  const body = await req.json() as {
-    chiefComplaint: string;
-    vitals?: {
-      temperature_c?: number;
-      heart_rate?: number;
-      bp_systolic?: number;
-      bp_diastolic?: number;
-      spo2?: number;
-      respiratory_rate?: number;
-    };
-    age?: number;
-    sex?: string;
-    encounterId?: string;
-    tenantId?: string;
-  };
-  const { chiefComplaint, vitals, age, sex, encounterId, tenantId } = body;
-
-  if (!chiefComplaint) {
-    return NextResponse.json({ error: "chiefComplaint is required" }, { status: 400 });
+  const body = (await req.json()) as {
+    chiefComplaint?: string
+    vitals?: PatientContextPacket["vitals"]
+    age?: number
+    sex?: string
+    encounterId?: string
+    tenantId?: string
+    history?: string[]
+    examination?: string[]
+    medications?: string[]
+    allergies?: string[]
+    laboratory?: PatientContextPacket["laboratory"]
   }
 
-  const vitalsText = vitals
-    ? `Temp: ${vitals.temperature_c ?? "?"}°C, HR: ${vitals.heart_rate ?? "?"}, BP: ${vitals.bp_systolic ?? "?"}/${vitals.bp_diastolic ?? "?"}, SpO2: ${vitals.spo2 ?? "?"}%, RR: ${vitals.respiratory_rate ?? "?"}`
-    : "not recorded";
-
-  const prompt = `You are a clinical decision support AI for hospitals in Uganda and East Africa.
-
-Patient: ${age ?? "?"} year old ${sex ?? "unknown"}
-Chief Complaint: "${chiefComplaint}"
-Vitals: ${vitalsText}
-
-Return ONLY valid JSON. No markdown. No preamble.
-{
-  "differentials": [
-    {
-      "condition": "string",
-      "icd11_code": "string or null",
-      "confidence": "high|medium|low",
-      "rationale": "one sentence",
-      "key_features": "brief distinguishing features"
-    }
-  ],
-  "suggested_workup": ["test name"],
-  "red_flags": ["flag"],
-  "clinical_note": "one sentence summary",
-  "ucg_reference": "Uganda Clinical Guidelines reference if applicable or null"
-}
-
-Rules:
-- Max 5 differentials, ranked by probability
-- Prioritise East African endemic diseases: malaria, typhoid, TB, HIV, brucellosis, sickle cell, viral haemorrhagic fevers, schistosomiasis
-- Consider resource-limited setting: prefer tests available at district hospital level
-- Apply Uganda Clinical Guidelines (UCG) where applicable`;
-
-  const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-  const result = await genAI.models.generateContent({
-    model: "gemini-2.0-flash",
-    contents: prompt,
-  });
-
-  const text = (result.text ?? "")
-    .replace(/```json\n?/g, "")
-    .replace(/```\n?/g, "")
-    .trim();
-
-  let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    assertCallerCannotSupplyTenant(body.tenantId, user.tenantId)
   } catch {
-    return NextResponse.json({ error: "AI returned invalid JSON", raw: text }, { status: 502 });
+    return NextResponse.json({ error: "Caller-supplied tenantId is not accepted" }, { status: 403 })
   }
 
-  if (encounterId && tenantId) {
-    const supabase = createServiceClient();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from("encounters") as any)
-      .update({
-        metadata: { ai_differential: parsed, ai_generated_at: new Date().toISOString() },
-      })
-      .eq("id", encounterId)
-      .eq("tenant_id", tenantId);
+  if (!body.chiefComplaint) {
+    return NextResponse.json({ error: "chiefComplaint is required" }, { status: 400 })
   }
 
-  return NextResponse.json(parsed);
+  const packet: PatientContextPacket = {
+    patientId: "session",
+    tenantId: user.tenantId,
+    encounterId: body.encounterId ?? null,
+    clinicianId: user.id,
+    demographics: { age: body.age ?? null, sex: body.sex ?? null },
+    presentingComplaint: body.chiefComplaint,
+    history: body.history,
+    examination: body.examination,
+    vitals: body.vitals,
+    medications: body.medications,
+    allergies: body.allergies,
+    laboratory: body.laboratory,
+  }
+  authorizePacketTenant(packet, user.tenantId)
+
+  const proposal = await generateDifferential({
+    chiefComplaint: body.chiefComplaint,
+    evidence: [],
+    age: body.age,
+    sex: body.sex,
+    vitals: body.vitals
+      ? {
+          temperature_c: Number(body.vitals.temperature_c ?? body.vitals.temp),
+          heart_rate: Number(body.vitals.heart_rate ?? body.vitals.hr),
+          bp_systolic: Number(body.vitals.bp_systolic ?? body.vitals.sbp),
+          bp_diastolic: Number(body.vitals.bp_diastolic ?? body.vitals.dbp),
+          spo2: Number(body.vitals.spo2),
+        }
+      : undefined,
+  })
+
+  const recommendations = proposal.hypotheses.map((hypothesis, index) =>
+    buildRecommendation({
+      id: `rec-${index + 1}`,
+      task: "clinical_copilot",
+      packet,
+      proposal: stripInventedIcdCodes(hypothesis),
+      model: "gemini-2.0-flash",
+    }),
+  )
+
+  return NextResponse.json({
+    recommendations,
+    suggestedWorkup: proposal.suggestedWorkup,
+    redFlags: proposal.redFlags,
+    clinicalNote: proposal.clinicalNote,
+    ucgReference: proposal.ucgReference,
+    promptVersion: recommendations[0]?.provenance.promptVersion ?? null,
+  })
 }

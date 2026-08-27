@@ -77,7 +77,8 @@ Rules:
 - Prioritise East African endemic diseases: malaria, typhoid, TB, HIV, brucellosis, sickle cell, VHF, schistosomiasis
 - Consider resource-limited district-hospital setting
 - Apply Uganda Clinical Guidelines (UCG) where applicable
-- priorProbability should reflect endemic prevalence in Uganda`
+- Do NOT invent ICD-11 codes. Always set icd11Code and icd11Uri to null.
+- A separate terminology service will resolve codes after the clinician selects a term.`
 
   const genAI = getGenAI()
   const result = await genAI.models.generateContent({
@@ -104,8 +105,8 @@ Rules:
     harmIfMissed:     Math.max(0,     Math.min(1,     Number(h.harmIfMissed)     || 0.5)),
     confidence:       Math.max(0,     Math.min(1,     Number(h.confidence)       || 0.5)),
     cantMiss:         Boolean(h.cantMiss),
-    icd11Code:        h.icd11Code ?? null,
-    icd11Uri:         h.icd11Uri ?? null,
+    icd11Code:        null,
+    icd11Uri:         null,
     evidenceImpacts:  (h.evidenceImpacts ?? []).map(ei => ({
       evidenceDescription: ei.evidenceDescription,
       likelihoodRatio:     Math.max(0.01, Number(ei.likelihoodRatio) || 1),
