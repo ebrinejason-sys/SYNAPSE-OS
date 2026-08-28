@@ -18,8 +18,8 @@ const settingsGroups = [
     title: "AI Configuration",
     icon: Bot,
     items: [
-      ["Gemini", "GEMINI_API_KEY", Boolean(process.env.GEMINI_API_KEY)],
-      ["OpenRouter fallback", "OPENROUTER_API_KEY", Boolean(process.env.OPENROUTER_API_KEY)],
+      ["Gemini fallback", "GEMINI_API_KEY", Boolean(process.env.GEMINI_API_KEY)],
+      ["OpenRouter (clinical demo)", "OPENROUTER_API_KEY", Boolean(process.env.OPENROUTER_API_KEY)],
       ["DeepSeek fallback", "DEEPSEEK_API_KEY", Boolean(process.env.DEEPSEEK_API_KEY)],
     ],
   },

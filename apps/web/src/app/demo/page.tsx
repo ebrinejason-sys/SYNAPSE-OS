@@ -76,8 +76,8 @@ const CONFIDENCE_COLOR: { [K in "high" | "medium" | "low"]: { bg: string; text: 
 const DEFAULT_AI_BADGE = { label: "AI Model", color: "#F97316" };
 const AI_BADGE: Record<string, { label: string; color: string }> = {
   gemini:     { label: "Gemini 2.0 Flash",         color: "#4285F4" },
-  deepseek:   { label: "DeepSeek via OpenRouter",   color: "#7C3AED" },
-  openrouter: { label: "OpenRouter",                color: "#F97316" },
+  deepseek:   { label: "DeepSeek",                  color: "#7C3AED" },
+  openrouter: { label: "OpenRouter (free)",         color: "#F97316" },
 };
 
 const VITALS_KEYS = ["temperature_c", "heart_rate", "bp_systolic", "bp_diastolic", "spo2"] as const;
