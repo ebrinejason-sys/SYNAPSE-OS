@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "../../../../lib/supabase/server";
-import { getCurrentUser } from "../../../../lib/auth/getCurrentUser";
+import { requirePlatformAdminApi } from "../../../../lib/platform/auth";
 import { provisionVercelProjectDomain } from "../../../../lib/vercel-domains";
 import { logPlatformEvent } from "../../../platform/_lib/platform-data";
 import { sendPharmacyCredentialsEmail } from "../../../../lib/resend";
@@ -69,10 +69,8 @@ async function insertTenantWithFallback(supabaseAdmin: ReturnType<typeof createS
 }
 
 export async function GET(request: Request) {
-  const actor = await getCurrentUser();
-  if (!actor || actor.role !== "platform_admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requirePlatformAdminApi();
+  if (!auth.ok) return auth.response;
 
   const slug = slugify(new URL(request.url).searchParams.get("slug") ?? "");
   if (!slug) {
@@ -86,10 +84,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const actor = await getCurrentUser();
-  if (!actor || actor.role !== "platform_admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requirePlatformAdminApi();
+  if (!auth.ok) return auth.response;
+  const actor = auth.profile;
   const actorId = actor.id;
 
   const body = await request.json();

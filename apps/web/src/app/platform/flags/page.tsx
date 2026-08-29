@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { Flag, History, Save } from "lucide-react";
 import { createServiceClient } from "../../../lib/supabase/server";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
-import { FEATURE_KEYS, formatDateTime, safeRows } from "../_lib/platform-data";
+import { FEATURE_KEYS, formatDateTime, logPlatformEvent, safeRows } from "../_lib/platform-data";
 
 type TenantRow = {
   id?: string;
@@ -58,12 +58,13 @@ async function saveFeatureFlag(formData: FormData) {
     { onConflict: "tenant_id,feature_key" }
   );
 
-  await (supabaseAdmin as any).from("audit_logs").insert({
-    actor_id: profile.id,
+  await logPlatformEvent({
+    actorId: profile.id,
     action: isEnabled ? "feature_flag.enabled" : "feature_flag.disabled",
-    entity_type: "feature_flag",
-    entity_id: tenantId || featureKey,
-    metadata: { feature_key: featureKey, tenant_id: tenantId || null },
+    entityType: "feature_flag",
+    entityId: tenantId || featureKey,
+    tenantId: tenantId || null,
+    metadata: { feature_key: featureKey, tenant_id: tenantId || null, is_enabled: isEnabled, notes: notes || null },
   });
 }
 

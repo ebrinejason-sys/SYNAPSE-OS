@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "../../../../../lib/supabase/server";
-import { getCurrentUser } from "../../../../../lib/auth/getCurrentUser";
+import { requirePlatformAdminApi } from "../../../../../lib/platform/auth";
 import { logPlatformEvent } from "../../../../platform/_lib/platform-data";
 
 export async function POST(request: NextRequest) {
-  const actor = await getCurrentUser();
-  if (!actor || actor.role !== "platform_admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requirePlatformAdminApi();
+  if (!auth.ok) return auth.response;
+  const actor = auth.profile;
 
   const body = await request.formData().catch(() => null);
   const profileId = body ? String(body.get("profile_id") ?? "").trim() : "";

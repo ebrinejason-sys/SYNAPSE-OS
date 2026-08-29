@@ -301,28 +301,35 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
     health: [
       {
         label: "Database",
-        value: dbHealth.ok ? `${dbHealth.latencyMs}ms` : "Unreachable",
+        value: dbHealth.ok ? `OPERATIONAL · ${dbHealth.latencyMs}ms` : "OUTAGE",
         status: dbHealth.ok ? (dbHealth.latencyMs < 500 ? "green" : "amber") : "red",
       },
       {
         label: "Auth",
-        value: process.env.NEXT_PUBLIC_SUPABASE_URL ? "Operational" : "Missing config",
-        status: process.env.NEXT_PUBLIC_SUPABASE_URL ? "green" : "red",
+        value: process.env.NEXT_PUBLIC_SUPABASE_URL
+          ? "CONFIGURED · no live probe"
+          : "NOT_CONFIGURED",
+        status: process.env.NEXT_PUBLIC_SUPABASE_URL ? "amber" : "red",
       },
       {
         label: "Email (Resend)",
-        value: process.env.RESEND_API_KEY ? "Connected" : "Not configured",
-        status: process.env.RESEND_API_KEY ? "green" : "amber",
+        value: process.env.RESEND_API_KEY ? "CONFIGURED · no delivery probe" : "NOT_CONFIGURED",
+        status: process.env.RESEND_API_KEY ? "amber" : "amber",
       },
       {
         label: "Payments",
-        value: process.env.FLUTTERWAVE_SECRET_KEY || process.env.STRIPE_SECRET_KEY ? "Configured" : "Pending",
-        status: process.env.FLUTTERWAVE_SECRET_KEY || process.env.STRIPE_SECRET_KEY ? "green" : "amber",
+        value:
+          process.env.FLUTTERWAVE_SECRET_KEY || process.env.STRIPE_SECRET_KEY
+            ? "CONFIGURED · no charge probe"
+            : "NOT_CONFIGURED",
+        status: process.env.FLUTTERWAVE_SECRET_KEY || process.env.STRIPE_SECRET_KEY ? "amber" : "amber",
       },
       {
         label: "Deploy",
-        value: process.env.VERCEL ? "Vercel live" : "Local / unknown",
-        status: process.env.VERCEL ? "green" : "amber",
+        value: process.env.VERCEL
+          ? "CONFIGURED · SHA drift not wired"
+          : "NO_TELEMETRY · not on Vercel runtime",
+        status: "amber",
       },
     ],
     activity,

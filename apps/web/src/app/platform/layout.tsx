@@ -122,7 +122,7 @@ const SIDEBAR_SECTIONS: NavSection[] = [
       { href: "/platform/database", label: "Database", icon: DatabaseZap },
       { href: "/platform/deployments", label: "Deployments", icon: GitBranch },
       { href: "/platform/mobile", label: "Mobile Builds", icon: MonitorSmartphone },
-      { href: "/platform/health", label: "Speed Insights", icon: Gauge },
+      { href: "/platform/health", label: "Platform Health", icon: Gauge },
       { href: "/platform/settings", label: "Settings", icon: Settings },
     ],
   },

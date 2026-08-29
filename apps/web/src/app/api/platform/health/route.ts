@@ -1,27 +1,29 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "../../../../lib/supabase/server";
-import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { requirePlatformAdminApi } from "../../../../lib/platform/auth";
+import { checkDatabaseLatency } from "../../../platform/_lib/platform-data";
 
 export const dynamic = "force-dynamic";
 
-async function isPlatformAdmin(userId: string) {
-  const supabaseAdmin = createServiceClient();
-  const { data } = await (supabaseAdmin as any)
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .maybeSingle();
-  return data?.role === "platform_admin";
+type ProbeStatus =
+  | "OPERATIONAL"
+  | "DEGRADED"
+  | "OUTAGE"
+  | "CONFIGURED"
+  | "NOT_CONFIGURED"
+  | "NO_TELEMETRY";
+
+function probe(status: ProbeStatus, detail: string, extra: Record<string, unknown> = {}) {
+  return { status, detail, ...extra };
 }
 
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user || !(await isPlatformAdmin(user.id))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requirePlatformAdminApi();
+  if (!auth.ok) return auth.response;
 
   try {
     const supabaseAdmin = createServiceClient();
+    const dbHealth = await checkDatabaseLatency();
 
     const [{ data: aiRows }, { count: conflicts }] = await Promise.all([
       (supabaseAdmin as any)
@@ -35,37 +37,58 @@ export async function GET() {
         .eq("resolved", false),
     ]);
 
-    const successRate = (aiRows ?? []).length
-      ? Math.round(((aiRows ?? []).filter((row: any) => row.success).length / (aiRows ?? []).length) * 100)
-      : 100;
+    const aiSample = aiRows ?? [];
+    const aiSuccessRate = aiSample.length
+      ? Math.round((aiSample.filter((row: { success?: boolean }) => row.success).length / aiSample.length) * 100)
+      : null;
+
+    const dbStatus: ProbeStatus = !dbHealth.ok
+      ? "OUTAGE"
+      : dbHealth.latencyMs < 500
+        ? "OPERATIONAL"
+        : "DEGRADED";
 
     return NextResponse.json({
+      database: probe(dbStatus, dbHealth.ok ? `${dbHealth.latencyMs}ms latency` : "Unreachable", {
+        latencyMs: dbHealth.latencyMs,
+      }),
       supabase: {
-        dbSize: "-",
-        activeConnections: 0,
-        lastMigration: "See migration history",
-        rlsCoverage: "134/134",
+        connectivity: probe(dbStatus, dbHealth.ok ? "Tenant probe succeeded" : "Tenant probe failed"),
+        dbSize: probe("NO_TELEMETRY", "Size metrics not wired to provider API"),
+        activeConnections: probe("NO_TELEMETRY", "Connection count not available"),
+        lastMigration: probe("NO_TELEMETRY", "Migration registry not yet in control plane"),
+        rlsCoverage: probe("NO_TELEMETRY", "Do not treat static counts as live RLS proof"),
       },
-      vercel: {
-        latestDeployment: process.env.VERCEL_TOKEN ? "Token configured" : "No Vercel token configured",
-      },
-      resend: {
-        recentStatuses: process.env.RESEND_API_KEY
-          ? ["Connected", "Delivery checks available"]
-          : ["No Resend API key", "Delivery checks unavailable"],
-      },
-      ai: {
-        lastLatencyMs: (aiRows ?? [])[0]?.latency_ms ?? 0,
-        successRate,
-      },
-      sync: {
-        unresolvedConflicts: conflicts ?? 0,
-      },
+      vercel: process.env.VERCEL_TOKEN
+        ? probe("CONFIGURED", "Token present — deployment list not yet wired")
+        : probe("NOT_CONFIGURED", "No VERCEL_TOKEN — cannot read deployments"),
+      resend: process.env.RESEND_API_KEY
+        ? probe("CONFIGURED", "API key present — delivery probe not yet wired")
+        : probe("NOT_CONFIGURED", "No RESEND_API_KEY"),
+      ai:
+        aiSample.length === 0
+          ? probe("NO_TELEMETRY", "No recent ai_call_logs rows")
+          : probe(
+              (aiSuccessRate ?? 0) >= 90 ? "OPERATIONAL" : (aiSuccessRate ?? 0) >= 70 ? "DEGRADED" : "OUTAGE",
+              `Last ${aiSample.length} calls · ${aiSuccessRate}% success · ${aiSample[0]?.latency_ms ?? "—"}ms last latency`,
+              {
+                lastLatencyMs: aiSample[0]?.latency_ms ?? null,
+                successRate: aiSuccessRate,
+                sampleSize: aiSample.length,
+              }
+            ),
+      sync: probe(
+        (conflicts ?? 0) > 0 ? "DEGRADED" : "OPERATIONAL",
+        `${conflicts ?? 0} unresolved sync conflicts`,
+        { unresolvedConflicts: conflicts ?? 0 }
+      ),
     });
   } catch (error) {
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Unknown platform health failure",
+        code: "LIVE_PROBE_FAILED",
+        message: error instanceof Error ? error.message : "Unknown platform health failure",
+        request_id: crypto.randomUUID(),
       },
       { status: 500 }
     );

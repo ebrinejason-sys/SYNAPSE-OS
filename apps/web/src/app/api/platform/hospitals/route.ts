@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "../../../../lib/supabase/server";
-import { getCurrentUser } from "../../../../lib/auth/getCurrentUser";
+import { requirePlatformAdminApi } from "../../../../lib/platform/auth";
 import { logPlatformEvent } from "../../../platform/_lib/platform-data";
 
 const DEFAULT_DEPARTMENTS = ["Administration", "Front Desk", "Pharmacy", "Lab", "Finance"];
@@ -59,10 +59,8 @@ async function insertTenantWithFallback(supabaseAdmin: ReturnType<typeof createS
 }
 
 export async function GET(request: Request) {
-  const actor = await getCurrentUser();
-  if (!actor || actor.role !== "platform_admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requirePlatformAdminApi();
+  if (!auth.ok) return auth.response;
 
   const url = new URL(request.url);
   const slug = url.searchParams.get("slug");
@@ -81,10 +79,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const actor = await getCurrentUser();
-  if (!actor || actor.role !== "platform_admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requirePlatformAdminApi();
+  if (!auth.ok) return auth.response;
+  const actor = auth.profile;
 
   const body = await request.json();
   const supabaseAdmin = createServiceClient();
