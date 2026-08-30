@@ -2,7 +2,7 @@ import type { Config } from "tailwindcss"
 import { synapseFontFamily, synapseFontSize } from "@synapse/config/tailwind"
 
 const config: Config = {
-  darkMode: "class",
+  darkMode: ["selector", '[data-theme="dark"]'],
   content: [
     "./pages/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",

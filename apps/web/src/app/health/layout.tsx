@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { SynapseLogo } from '../../components/SynapseLogo'
 import { ModeSwitcher } from '../../components/ModeSwitcher'
+import { ThemeToggle } from '../../components/ThemeToggle'
 
 const NAV = [
   { href: '/health/dashboard', label: 'Home', icon: LayoutDashboard },
@@ -35,6 +36,7 @@ export default function HealthLayout({ children }: { children: React.ReactNode }
       >
         <SynapseLogo size="sm" />
         <div className="flex items-center gap-2">
+          <ThemeToggle size="sm" />
           <Droplets className="h-4 w-4" style={{ color: 'var(--brand-orange)' }} />
           <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Health</span>
           <ModeSwitcher />

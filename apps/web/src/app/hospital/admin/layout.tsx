@@ -14,6 +14,7 @@ import {
   Users,
 } from 'lucide-react'
 import { SynapseLogo } from '../../../components/SynapseLogo'
+import { ThemeToggle } from '../../../components/ThemeToggle'
 
 const NAV = [
   { href: '/hospital/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -68,7 +69,10 @@ export default function HospitalAdminLayout({ children }: { children: React.Reac
               )
             })}
           </nav>
-          <div className="pt-4 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+          <div className="pt-4 border-t space-y-2" style={{ borderColor: 'var(--border-subtle)' }}>
+            <div className="px-2">
+              <ThemeToggle />
+            </div>
             <button
               type="button"
               onClick={handleSignOut}
@@ -86,7 +90,10 @@ export default function HospitalAdminLayout({ children }: { children: React.Reac
             style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}
           >
             <SynapseLogo size="xs" />
-            <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Hospital Admin</span>
+            <div className="flex items-center gap-2">
+              <ThemeToggle size="sm" />
+              <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Hospital Admin</span>
+            </div>
           </header>
           <main className="flex-1 p-4 pb-24 lg:pb-6 lg:p-6">{children}</main>
         </section>

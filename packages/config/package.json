@@ -12,6 +12,7 @@
     "./gates": "./src/capability-gates.ts",
     "./comparison": "./src/comparison-matrix.ts",
     "./deployment-modes": "./src/deployment-modes.ts",
+    "./theme": "./src/theme.ts",
     "./typography.css": "./typography.css"
   },
   "devDependencies": {

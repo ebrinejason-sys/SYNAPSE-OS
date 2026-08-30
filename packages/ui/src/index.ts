@@ -1,4 +1,6 @@
 export { cn } from "./utils"
+export { SynapseThemeProvider, SYNAPSE_THEME_STORAGE_KEY } from "./theme-provider"
+export { SynapseThemeToggle } from "./theme-toggle"
 export {
   palettes,
   contrastRatio,

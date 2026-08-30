@@ -8,7 +8,7 @@ import {
   Settings, LogOut, Menu, X, UserCheck, ClipboardList,
   MessageSquare, Activity, Truck, FileText, BarChart3,
   RotateCcw, Wifi, WifiOff, CalendarClock, WalletCards, BrainCircuit,
-  Sun, Moon, CreditCard, UserCircle, Building2,
+  CreditCard, UserCircle, Building2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NotificationBell } from "@/components/ui/notification-bell"
@@ -17,7 +17,7 @@ import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { usePharmacySession } from "@/hooks/use-pharmacy-session"
 import { sessionHasCapability } from "@/lib/capabilities"
-import { SkipLink } from "@synapse/ui"
+import { SkipLink, SynapseThemeToggle } from "@synapse/ui"
 
 export const dynamic = "force-dynamic"
 
@@ -84,35 +84,6 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const router = useRouter()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
-  const [isDark, setIsDark] = useState(true)
-
-  useEffect(() => {
-    const stored = localStorage.getItem("pharm-theme")
-    const dark = stored ? stored === "dark" : true
-    setIsDark(dark)
-    applyTheme(dark)
-  }, [])
-
-  const applyTheme = (dark: boolean) => {
-    const html = document.documentElement
-    if (dark) {
-      html.classList.add("dark")
-      html.classList.remove("light")
-      html.setAttribute("data-theme", "dark")
-    } else {
-      html.classList.remove("dark")
-      html.classList.add("light")
-      html.setAttribute("data-theme", "light")
-    }
-  }
-
-  const toggleTheme = () => {
-    const next = !isDark
-    setIsDark(next)
-    applyTheme(next)
-    localStorage.setItem("pharm-theme", next ? "dark" : "light")
-  }
-
   useEffect(() => {
     setIsOnline(navigator.onLine)
     const onOnline = () => setIsOnline(true)
@@ -323,17 +294,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
               <span>{isOnline ? "Online" : "Offline"}</span>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={toggleTheme}
-              className="text-muted-foreground hover:text-foreground"
-              title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            >
-              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
+            <SynapseThemeToggle size="sm" />
             <NotificationBell />
             <div className="hidden md:flex flex-col items-end">
               <span className="text-sm font-medium text-foreground">{displayName}</span>

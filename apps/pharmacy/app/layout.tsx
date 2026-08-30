@@ -1,5 +1,7 @@
 import type { Metadata } from "next"
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google"
+import { synapseThemeFoucScript } from "@synapse/config/theme"
+import { SynapseThemeProvider } from "@synapse/ui"
 import "@synapse/config/typography.css"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
@@ -31,8 +33,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      data-theme="dark"
-      className={`dark scroll-smooth ${plexSans.variable} ${plexMono.variable}`}
+      className={`scroll-smooth ${plexSans.variable} ${plexMono.variable}`}
       suppressHydrationWarning
     >
       <head>
@@ -42,12 +43,12 @@ export default function RootLayout({
         <meta name="theme-color" content="#F97316" />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){var d=document.documentElement,t=localStorage.getItem('pharm-theme')||'dark';d.setAttribute('data-theme',t);if(t==='dark'){d.classList.add('dark');d.classList.remove('light');}else{d.classList.remove('dark');d.classList.add('light');}})();`,
+            __html: synapseThemeFoucScript({ syncDarkLightClass: true }),
           }}
         />
       </head>
       <body className="font-sans antialiased bg-background text-foreground">
-        {children}
+        <SynapseThemeProvider>{children}</SynapseThemeProvider>
         <Toaster />
       </body>
     </html>
