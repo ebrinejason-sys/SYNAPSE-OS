@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { hashPassword, revokeAllUserSessions, validatePasswordStrength } from "@synapse/auth";
 import { supabaseAdmin } from "@synapse/db/admin";
@@ -69,9 +70,11 @@ export async function invitePlatformMember(formData: FormData) {
     }
   } else {
     const nameParts = fullName.split(" ");
+    const profileId = randomUUID();
     const { data: created, error: createErr } = await db
       .from("profiles")
       .insert({
+        id: profileId,
         email,
         full_name: fullName,
         first_name: nameParts[0] ?? fullName,
