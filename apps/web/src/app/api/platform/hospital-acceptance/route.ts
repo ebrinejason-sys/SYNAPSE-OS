@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       startedAt: new Date(started).toISOString(),
       completedAt: new Date().toISOString(),
       durationMs: result.durationMs,
-      status: result.status === "NOT_IMPLEMENTED" ? "NOT_CONFIGURED" : result.status,
+      status: result.status === "PARTIAL" ? "NOT_CONFIGURED" : result.status === "NOT_IMPLEMENTED" ? "NOT_CONFIGURED" : result.status,
       error: result.steps.find((s) => s.error)?.error ?? null,
       evidence: {
         journeyId: result.journeyId,
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
       steps: result.steps.map((s) => ({
         id: s.id,
         label: s.label,
-        status: s.status === "NOT_IMPLEMENTED" ? "NOT_CONFIGURED" as const : s.status,
+        status: (s.status === "PARTIAL" || s.status === "NOT_IMPLEMENTED" ? "NOT_CONFIGURED" : s.status) as "PASS" | "FAIL" | "BLOCKED" | "SKIPPED" | "NOT_CONFIGURED",
         durationMs: s.durationMs,
         evidence: s.evidence,
         error: s.error,

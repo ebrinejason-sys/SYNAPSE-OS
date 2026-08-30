@@ -4,6 +4,7 @@
  */
 
 import { ExchangeOutbox, type RecordDomainEventInput } from "./exchange"
+import type { DomainEventType } from "@synapse/interop"
 
 export const TASK_STATUSES = [
   "REQUESTED",
@@ -117,15 +118,12 @@ const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   FAILED: [],
 }
 
-function taskEventType(taskType: TaskType, status: TaskStatus): string | null {
+function taskEventType(taskType: TaskType, status: TaskStatus): DomainEventType | null {
   if (status !== "REQUESTED" && status !== "COMPLETED") return null
-  const map: Partial<Record<TaskType, { created: string; completed: string }>> = {
+  const map: Partial<Record<TaskType, { created: DomainEventType; completed: DomainEventType }>> = {
     lab_order: { created: "LabOrderCreated", completed: "LabResultReleased" },
     prescription: { created: "PrescriptionCreated", completed: "MedicationDispensed" },
     imaging_order: { created: "ImagingOrderCreated", completed: "ImagingReportFinalized" },
-    admission: { created: "PatientAdmitted", completed: "PatientAdmitted" },
-    transfer: { created: "PatientTransferred", completed: "PatientTransferred" },
-    discharge: { created: "PatientDischarged", completed: "PatientDischarged" },
     referral: { created: "ReferralCreated", completed: "ReferralCompleted" },
     billing: { created: "InvoiceCreated", completed: "PaymentRecorded" },
     insurance_claim: { created: "ClaimSubmitted", completed: "ClaimPaid" },
@@ -201,9 +199,9 @@ export class WorkQueue {
         actorId: task.requesterId ?? undefined,
         source: "synapse-os",
         aggregateId: task.id,
+        action: "task.created",
         correlationId: task.correlationId ?? task.id,
         causationId: task.causationId ?? undefined,
-        idempotencyKey: task.idempotencyKey ?? `task:${task.id}`,
         payload: {
           task_id: task.id,
           task_type: task.taskType,
@@ -211,8 +209,10 @@ export class WorkQueue {
           title: task.title,
           is_synthetic: task.isSynthetic,
         },
+        isSynthetic: task.isSynthetic,
+        simulationRunId: task.simulationRunId ?? null,
       }
-      this.outbox.record(event)
+      this.outbox.append(event)
     }
 
     return { ok: true, task, event }
@@ -254,17 +254,19 @@ export class WorkQueue {
           actorId: opts?.actorId ?? task.assignedTo ?? undefined,
           source: "synapse-os",
           aggregateId: task.id,
+          action: "task.completed",
           correlationId: task.correlationId ?? task.id,
           causationId: task.id,
-          idempotencyKey: `task-complete:${task.id}`,
           payload: {
             task_id: task.id,
             task_type: task.taskType,
             result_summary: task.resultSummary,
             is_synthetic: task.isSynthetic,
           },
+          isSynthetic: task.isSynthetic,
+          simulationRunId: task.simulationRunId ?? null,
         }
-        this.outbox.record(event)
+        this.outbox.append(event)
       }
     }
 

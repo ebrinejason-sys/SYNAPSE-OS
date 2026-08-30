@@ -59,11 +59,12 @@ jobs:
         run: npm run lint --workspace @synapse/web
 
   # Optional CLI deploy. Prefer Vercel Git integration for www/pharm production.
-  # Skip when VERCEL_TOKEN is unset so CI stays green (empty --token= fails the job).
+  # Enable with repository variable ENABLE_VERCEL_CLI_DEPLOY=true and secret VERCEL_TOKEN.
+  # Note: secrets cannot be referenced in job-level `if` — use a repo variable gate instead.
   deploy-vercel:
     needs: verify
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && secrets.VERCEL_TOKEN != ''
+    if: github.ref == 'refs/heads/main' && vars.ENABLE_VERCEL_CLI_DEPLOY == 'true'
     steps:
       - uses: actions/checkout@v4
 

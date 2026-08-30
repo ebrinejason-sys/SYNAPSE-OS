@@ -62,11 +62,13 @@ export default async function DeploymentsPage() {
       <section className="rounded-xl border border-subtle bg-surface p-4">
         <h2 className="text-sm font-semibold text-primary-color">Credential status</h2>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {[
-            ["GITHUB_TOKEN / GH_TOKEN", truth.githubMain.status !== "NOT_CONFIGURED"],
-            ["VERCEL_TOKEN + VERCEL_PROJECT_ID", truth.vercelDeployments.status !== "NOT_CONFIGURED"],
-            ["VERCEL_GIT_COMMIT_SHA", Boolean(truth.processDeploy.sha)],
-          ].map(([label, ok]) => (
+          {(
+            [
+              ["GITHUB_TOKEN / GH_TOKEN", truth.githubMain.status !== "NOT_CONFIGURED"],
+              ["VERCEL_TOKEN + VERCEL_PROJECT_ID", truth.vercelDeployments.status !== "NOT_CONFIGURED"],
+              ["VERCEL_GIT_COMMIT_SHA", Boolean(truth.processDeploy.sha)],
+            ] as const
+          ).map(([label, ok]) => (
             <p key={label} className="text-sm text-secondary-color">
               <span className={ok ? "text-emerald-300" : "text-red-300"}>{ok ? "✓" : "✗"}</span> {label}
             </p>

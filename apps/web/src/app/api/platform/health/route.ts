@@ -95,7 +95,13 @@ export async function GET() {
             { deployments: truth.vercelDeployments.deployments }
           ),
       github: probe(
-        truth.githubMain.status === "HEALTHY" ? "CONFIGURED" : truth.githubMain.status,
+        truth.githubMain.status === "HEALTHY"
+          ? "CONFIGURED"
+          : truth.githubMain.status === "NOT_CONFIGURED"
+            ? "NOT_CONFIGURED"
+            : truth.githubMain.status === "UNKNOWN"
+              ? "NO_TELEMETRY"
+              : "FAILED",
         truth.githubMain.detail,
         { shortSha: truth.githubMain.shortSha }
       ),

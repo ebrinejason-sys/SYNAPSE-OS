@@ -1,6 +1,6 @@
 import "server-only";
 
-import { PRODUCT_MANIFEST, statusLabel } from "@synapse/config/manifest";
+import { PRODUCT_MANIFEST, statusLabel, integrationLabel } from "@synapse/config/manifest";
 import {
   ICD11_RELEASE,
   searchIcd11,
@@ -379,7 +379,7 @@ function manifestStatus(id: string, fallback = "NOT IN MANIFEST"): string {
   const platform = PRODUCT_MANIFEST.platform.find((item) => item.id === id);
   if (platform) return statusLabel(platform.status).toUpperCase().replace(/\s+/g, "_");
   const integration = PRODUCT_MANIFEST.integrations.find((item) => item.id === id);
-  if (integration) return statusLabel(integration.status).toUpperCase().replace(/\s+/g, "_");
+  if (integration) return integrationLabel(integration.status).toUpperCase().replace(/\s+/g, "_");
   return fallback;
 }
 
