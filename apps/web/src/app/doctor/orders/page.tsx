@@ -5,12 +5,23 @@ import { useSearchParams } from 'next/navigation'
 
 type LabOrder = { id: string; test_name: string; loinc_code: string; workflow_status?: string; status?: string }
 type Prescription = { id: string; medication_display: string; dose: string | null; quantity: number; status: string }
+type TimelineEvent = {
+  id: string
+  event_type: string
+  title: string
+  summary: string | null
+  event_date: string
+  severity: string | null
+  tags: string[] | null
+}
 
 function DoctorOrdersInner() {
   const searchParams = useSearchParams()
   const encounterId = searchParams.get('encounterId') ?? ''
   const [labOrders, setLabOrders] = useState<LabOrder[]>([])
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([])
+  const [invoiceTotal, setInvoiceTotal] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -18,8 +29,10 @@ function DoctorOrdersInner() {
     Promise.all([
       fetch(`/api/opd/lab-orders?encounter_id=${encounterId}`, { credentials: 'include' }),
       fetch(`/api/opd/prescriptions?encounter_id=${encounterId}`, { credentials: 'include' }),
+      fetch(`/api/hospital/timeline/encounter/${encounterId}`, { credentials: 'include' }),
+      fetch(`/api/hospital/billing/encounter/${encounterId}`, { credentials: 'include' }),
     ])
-      .then(async ([labRes, rxRes]) => {
+      .then(async ([labRes, rxRes, timelineRes, billingRes]) => {
         if (!labRes.ok || !rxRes.ok) {
           setError('Unable to load orders for this encounter.')
           return
@@ -28,6 +41,14 @@ function DoctorOrdersInner() {
         const rxData = await rxRes.json()
         setLabOrders(labData.orders ?? [])
         setPrescriptions(rxData.prescriptions ?? [])
+        if (timelineRes.ok) {
+          const tl = await timelineRes.json()
+          setTimeline(tl.events ?? [])
+        }
+        if (billingRes.ok) {
+          const bill = await billingRes.json()
+          setInvoiceTotal(bill.invoice?.total_amount ?? null)
+        }
       })
       .catch(() => setError('Unable to load orders.'))
   }, [encounterId])
@@ -69,6 +90,25 @@ function DoctorOrdersInner() {
             </li>
           ))}
           {prescriptions.length === 0 ? <p className="text-xs text-gray-500">No prescriptions.</p> : null}
+        </ul>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-sm font-semibold uppercase text-gray-400">Encounter timeline</h2>
+        {invoiceTotal != null ? (
+          <p className="mt-2 text-xs text-emerald-300">Draft invoice total: UGX {invoiceTotal.toLocaleString()}</p>
+        ) : null}
+        <ul className="mt-3 space-y-2">
+          {timeline.map((ev) => (
+            <li key={ev.id} className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm">
+              <p className="font-medium">{ev.title}</p>
+              {ev.summary ? <p className="text-xs text-gray-400">{ev.summary}</p> : null}
+              <p className="mt-1 text-[10px] uppercase text-gray-500">
+                {ev.event_type} · {new Date(ev.event_date).toLocaleString()}
+              </p>
+            </li>
+          ))}
+          {timeline.length === 0 ? <p className="text-xs text-gray-500">No timeline events yet.</p> : null}
         </ul>
       </section>
     </main>

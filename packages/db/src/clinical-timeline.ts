@@ -242,3 +242,66 @@ export async function publishClinicalTimelineBestEffort(
     return null
   }
 }
+
+export function edTriageTimelineEvent(params: {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  encounterId: string
+  chiefComplaint: string
+  clinicalStage: string
+  arrivalMode?: string | null
+  createdBy?: string | null
+}): TimelineEventInput {
+  return {
+    tenantId: params.tenantId,
+    hospitalId: params.hospitalId,
+    patientId: params.patientId,
+    eventType: "consultation",
+    title: `ED triage · ${params.clinicalStage}`,
+    summary: params.chiefComplaint,
+    sourceTable: "encounters",
+    sourceId: params.encounterId,
+    provenance: "PROVIDER_VERIFIED",
+    payload: {
+      encounterId: params.encounterId,
+      clinicalStage: params.clinicalStage,
+      arrivalMode: params.arrivalMode ?? "walk_in",
+      department: "emergency",
+    },
+    tags: ["emergency", "triage", params.clinicalStage.toLowerCase()],
+    severity: params.clinicalStage === "RED" ? "critical" : null,
+    createdBy: params.createdBy ?? null,
+  }
+}
+
+export function edBayAssignedTimelineEvent(params: {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  encounterId: string
+  bayId: string
+  bayName: string
+  locationType?: string | null
+  createdBy?: string | null
+}): TimelineEventInput {
+  return {
+    tenantId: params.tenantId,
+    hospitalId: params.hospitalId,
+    patientId: params.patientId,
+    eventType: "admission",
+    title: `ED bay assigned · ${params.bayName}`,
+    summary: params.locationType ?? "bay",
+    sourceTable: "facility_locations",
+    sourceId: params.bayId,
+    provenance: "PROVIDER_VERIFIED",
+    payload: {
+      encounterId: params.encounterId,
+      bayId: params.bayId,
+      bayName: params.bayName,
+      department: "emergency",
+    },
+    tags: ["emergency", "bay"],
+    createdBy: params.createdBy ?? null,
+  }
+}

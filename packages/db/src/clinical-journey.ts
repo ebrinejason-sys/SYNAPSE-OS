@@ -87,6 +87,99 @@ export function recordEncounterOpened(input: EncounterOpenedInput): EncounterOpe
   }
 }
 
+export type EdTriagePlacedInput = {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  encounterId: string
+  requesterId: string
+  chiefComplaint: string
+  clinicalStage: "RED" | "YELLOW" | "GREEN"
+  arrivalMode?: "walk_in" | "ambulance" | "referral"
+  isSynthetic?: boolean
+  simulationRunId?: string | null
+  queue?: WorkQueue
+}
+
+export type EdTriagePlacedResult = {
+  queue: WorkQueue
+  correlationId: string
+  edTask: DepartmentTask
+  eventsEmitted: number
+}
+
+function edPriorityFromStage(stage: EdTriagePlacedInput["clinicalStage"]): DepartmentTask["priority"] {
+  if (stage === "RED") return "STAT"
+  if (stage === "YELLOW") return "URGENT"
+  return "ROUTINE"
+}
+
+/** Emergency triage — EncounterStarted + emergency department task. */
+export function recordEdTriagePlaced(input: EdTriagePlacedInput): EdTriagePlacedResult {
+  const queue = input.queue ?? new WorkQueue()
+  const correlationId = input.encounterId
+  const isSynthetic = input.isSynthetic ?? false
+  const priority = edPriorityFromStage(input.clinicalStage)
+
+  queue.outbox.append({
+    eventType: "EncounterStarted",
+    tenantId: input.tenantId,
+    facilityId: input.hospitalId,
+    patientId: input.patientId,
+    encounterId: input.encounterId,
+    actorId: input.requesterId,
+    source: "synapse-os",
+    aggregateId: input.encounterId,
+    action: "ed.triage",
+    correlationId,
+    payload: {
+      encounter_id: input.encounterId,
+      patient_id: input.patientId,
+      chief_complaint: input.chiefComplaint,
+      clinical_stage: input.clinicalStage,
+      department: "emergency",
+      arrival_mode: input.arrivalMode ?? "walk_in",
+    },
+    isSynthetic,
+    simulationRunId: input.simulationRunId ?? null,
+  })
+
+  const edTask = queue.create({
+    tenantId: input.tenantId,
+    hospitalId: input.hospitalId,
+    patientId: input.patientId,
+    encounterId: input.encounterId,
+    requesterId: input.requesterId,
+    ownerDepartment: "emergency",
+    ownerRole: input.clinicalStage === "RED" ? "doctor" : "nurse",
+    taskType: "triage",
+    priority,
+    title: `ED ${input.clinicalStage}: ${input.chiefComplaint}`,
+    description: `Emergency triage · ${input.arrivalMode ?? "walk_in"}`,
+    sourceResource: "encounters",
+    sourceId: input.encounterId,
+    correlationId,
+    idempotencyKey: `encounters:${input.encounterId}:ed-triage`,
+    metadata: {
+      clinical_stage: input.clinicalStage,
+      arrival_mode: input.arrivalMode ?? "walk_in",
+    },
+    isSynthetic,
+    simulationRunId: input.simulationRunId ?? undefined,
+  })
+
+  if (!edTask.ok) {
+    throw new Error(edTask.error)
+  }
+
+  return {
+    queue,
+    correlationId,
+    edTask: edTask.task,
+    eventsEmitted: queue.outbox.list({ correlationId }).length,
+  }
+}
+
 /** Snapshot tasks/events for an encounter within a tenant work queue. */
 export function getEncounterJourneySnapshot(queue: WorkQueue, tenantId: string, encounterId: string) {
   const correlationId = encounterId

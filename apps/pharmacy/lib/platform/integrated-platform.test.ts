@@ -53,6 +53,7 @@ import {
   recordAdmissionPlaced,
   recordEncounterSigned,
   recordEncounterAmended,
+  recordEdTriagePlaced,
 } from "@synapse/db/clinical-journey"
 import {
   encounterOpenedTimelineEvent,
@@ -530,7 +531,7 @@ describe("hospital acceptance seed", () => {
     const hospital = seedHospital({ seed: HOSPITAL_CANONICAL_SEED, actorId: "test-admin" })
     const matrix = buildDepartmentMatrix(hospital)
     const emergency = matrix.find((d) => d.code === "emergency")
-    expect(emergency?.status).toBe("NOT_IMPLEMENTED")
+    expect(emergency?.status).toBe("PARTIAL")
     const lab = matrix.find((d) => d.code === "laboratory")
     expect(lab?.status).toBe("PARTIAL")
   })
@@ -720,6 +721,26 @@ describe("clinical journey — admission placed", () => {
     expect(result.admissionTask.ownerDepartment).toBe("inpatient")
     const events = result.queue.outbox.list({ correlationId: result.correlationId })
     expect(events.some((e) => e.event_type === "PatientAdmitted")).toBe(true)
+  })
+})
+
+describe("clinical journey — ED triage placed", () => {
+  it("emits EncounterStarted and routes emergency triage task", () => {
+    const encounterId = crypto.randomUUID()
+    const result = recordEdTriagePlaced({
+      tenantId: crypto.randomUUID(),
+      hospitalId: crypto.randomUUID(),
+      patientId: crypto.randomUUID(),
+      encounterId,
+      requesterId: crypto.randomUUID(),
+      chiefComplaint: "Road traffic injury",
+      clinicalStage: "RED",
+      arrivalMode: "ambulance",
+    })
+    expect(result.edTask.ownerDepartment).toBe("emergency")
+    expect(result.edTask.priority).toBe("STAT")
+    const events = result.queue.outbox.list({ correlationId: encounterId })
+    expect(events.some((e) => e.event_type === "EncounterStarted")).toBe(true)
   })
 })
 

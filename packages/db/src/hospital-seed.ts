@@ -59,7 +59,7 @@ export const HOSPITAL_DEPARTMENTS: HospitalDepartmentDef[] = [
   { code: "reception", name: "Reception / Registration / Medical Records", deptType: "administrative", moduleKey: "registration", classification: "PARTIAL" },
   { code: "triage", name: "Triage", deptType: "clinical", moduleKey: "opd", classification: "PARTIAL" },
   { code: "opd", name: "Outpatient Department", deptType: "clinical", moduleKey: "opd", classification: "PARTIAL" },
-  { code: "emergency", name: "Emergency Department", deptType: "clinical", moduleKey: "emergency", classification: "NOT_IMPLEMENTED" },
+  { code: "emergency", name: "Emergency Department", deptType: "clinical", moduleKey: "emergency", classification: "PARTIAL" },
   { code: "medicine", name: "General Medicine", deptType: "clinical", moduleKey: "clinical", classification: "PARTIAL" },
   { code: "surgery", name: "General Surgery", deptType: "clinical", moduleKey: "clinical", classification: "NOT_IMPLEMENTED" },
   { code: "paediatrics", name: "Paediatrics", deptType: "clinical", moduleKey: "immunization", classification: "NOT_IMPLEMENTED" },

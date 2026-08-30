@@ -85,7 +85,7 @@ const DEPT_API_MAP: Record<string, string[]> = {
   reception: ["POST /api/patients/register", "GET /api/patients/search"],
   triage: ["POST /api/opd/triage"],
   opd: ["GET /api/opd/queue", "POST /api/opd/triage"],
-  emergency: ["POST /api/opd/triage"],
+  emergency: ["POST /api/emergency/triage", "GET /api/emergency/queue", "POST /api/emergency/assign-bay"],
   medicine: ["GET /api/copilot/encounter", "POST /api/ai/diagnose"],
   laboratory: ["GET /api/lab/worklist", "POST /api/lab/actions"],
   pharmacy: ["GET /api/pharmacy/inventory", "POST /api/pharmacy/interactions"],
@@ -143,10 +143,10 @@ export function buildDepartmentMatrix(snapshot?: HospitalSeedSnapshot): Departme
 
     const functional = baseStatus
     const rbac = hasStaff ? (baseStatus === "NOT_IMPLEMENTED" ? "NOT_IMPLEMENTED" : "PARTIAL") : "NOT_IMPLEMENTED"
-    const events = ["reception", "triage", "opd", "laboratory", "pharmacy"].includes(dept.code)
+    const events = ["reception", "triage", "opd", "emergency", "laboratory", "pharmacy"].includes(dept.code)
       ? (dept.code === "laboratory" || dept.code === "pharmacy" ? "PARTIAL" : "PARTIAL")
       : "NOT_IMPLEMENTED"
-    const e2e = dept.code === "laboratory" || dept.code === "opd" || dept.code === "pharmacy"
+    const e2e = dept.code === "laboratory" || dept.code === "opd" || dept.code === "pharmacy" || dept.code === "emergency"
       ? "PARTIAL"
       : baseStatus
 

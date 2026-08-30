@@ -32,7 +32,7 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 | ID | Department | Workflow | Current | Expected | Root cause | Fix | Complexity |
 |---|---|---|---|---|---|---|---|
 | P1-006 | All | Task routing | Fragmented queues | Unified WorkQueue | **FIXED** — /api/hospital/tasks | Extend timeline publishers for all handoffs | M |
-| P1-007 | Clinical | Timeline | Projection helpers | Full journey in one timeline | **PARTIAL** — lab release + dispense + amend publishers | Extend timeline publishers for all handoffs | M |
+| P1-007 | Clinical | Timeline | Projection helpers | Full journey in one timeline | **PARTIAL** — encounter timeline API + doctor orders UI | Extend timeline publishers for all handoffs | M |
 | P1-008 | Billing | Clinical→charge | No bridge | Service event → invoice | **PARTIAL** — clinical-charge + encounter invoice API | Clinical activity charge service | L |
 
 ## P1 — Clinical usability
@@ -41,7 +41,7 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 |---|---|---|---|---|---|
 | P1-009 | OPD | Doctor workspace | 10 placeholder pages | Functional queue + encounter | **PARTIAL** — /doctor/queue + /doctor/orders wired | Build /os/[slug]/clinical or fix /doctor/queue | L |
 | P1-010 | Nursing | Ward list | Placeholder | Observations + tasks | **PARTIAL** — /nurse/ward + vitals API | Build nurse workspace in /os/[slug] | L |
-| P1-011 | Emergency | ED flow | NOT_IMPLEMENTED | Rapid reg → triage → resus | Build ED vertical slice | XL |
+| P1-011 | Emergency | ED flow | NOT_IMPLEMENTED | Rapid reg → triage → resus | **PARTIAL** — /emergency/triage + APIs | Build ED vertical slice | XL |
 
 ## P2 — Operational
 
