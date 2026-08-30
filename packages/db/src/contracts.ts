@@ -45,6 +45,16 @@ export { SimulationEngine, assertDemoResetAllowed } from "./simulation"
 export { WorkQueue, routeClinicalOrder, TASK_STATUSES, TASK_TYPES } from "./work-queue"
 export type { DepartmentTask, CreateTaskInput, TaskStatus, TaskType, TaskPriority } from "./work-queue"
 export {
+  departmentTaskToRow,
+  rowToDepartmentTask,
+  persistDepartmentTaskBestEffort,
+  persistDomainEventsBestEffort,
+  persistWorkQueueArtifactsBestEffort,
+} from "./work-queue-persist"
+export type { DbClient } from "./work-queue-persist"
+export { recordEncounterOpened, getEncounterJourneySnapshot, createProductionWorkQueue } from "./clinical-journey"
+export type { EncounterOpenedInput, EncounterOpenedResult } from "./clinical-journey"
+export {
   seedHospital,
   resetHospital,
   reseedHospital,

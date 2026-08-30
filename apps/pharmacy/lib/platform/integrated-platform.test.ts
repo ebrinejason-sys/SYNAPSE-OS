@@ -46,6 +46,8 @@ import {
   HOSPITAL_CANONICAL_SEED,
 } from "@synapse/db/hospital-seed"
 import { WorkQueue, routeClinicalOrder } from "@synapse/db/work-queue"
+import { recordEncounterOpened } from "@synapse/db/clinical-journey"
+import { departmentTaskToRow, rowToDepartmentTask } from "@synapse/db/work-queue-persist"
 import { buildDepartmentMatrix } from "@synapse/db/hospital-acceptance"
 
 describe("product capability manifest", () => {
@@ -557,6 +559,39 @@ describe("work queue routing", () => {
     if (first.ok && second.ok) {
       expect(first.task.id).toBe(second.task.id)
     }
+  })
+})
+
+describe("clinical journey — encounter opened", () => {
+  it("emits EncounterCreated and triage task under one correlation id", () => {
+    const encounterId = crypto.randomUUID()
+    const result = recordEncounterOpened({
+      tenantId: crypto.randomUUID(),
+      hospitalId: crypto.randomUUID(),
+      patientId: crypto.randomUUID(),
+      encounterId,
+      requesterId: crypto.randomUUID(),
+      chiefComplaint: "fever and chills",
+    })
+    expect(result.correlationId).toBe(encounterId)
+    expect(result.triageTask.taskType).toBe("triage")
+    expect(result.queue.outbox.list({ correlationId: encounterId }).some((e) => e.event_type === "EncounterCreated")).toBe(true)
+  })
+
+  it("persists department task row shape for Postgres", () => {
+    const encounterId = crypto.randomUUID()
+    const { triageTask } = recordEncounterOpened({
+      tenantId: crypto.randomUUID(),
+      hospitalId: crypto.randomUUID(),
+      patientId: crypto.randomUUID(),
+      encounterId,
+      requesterId: crypto.randomUUID(),
+      chiefComplaint: "cough",
+    })
+    const row = departmentTaskToRow(triageTask)
+    const restored = rowToDepartmentTask(row)
+    expect(restored.id).toBe(triageTask.id)
+    expect(restored.correlationId).toBe(encounterId)
   })
 })
 

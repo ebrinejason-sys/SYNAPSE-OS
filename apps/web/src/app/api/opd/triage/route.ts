@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
+import { recordEncounterOpened } from '@synapse/db/clinical-journey'
+import { persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../lib/hospital-shared'
 import { requireHospitalStaffContext, triageSchema } from '../../../../lib/hospital-dept'
 
@@ -68,17 +70,48 @@ export async function POST(req: NextRequest) {
     newValue: { patient_id, chief_complaint, clinical_stage },
   })
 
+  let journeyWarnings: string[] = []
+  try {
+    const journey = recordEncounterOpened({
+      tenantId: ctx.tenantId,
+      hospitalId: ctx.hospitalId,
+      patientId: patient_id,
+      encounterId: encounter.id as string,
+      requesterId: ctx.userId,
+      chiefComplaint: chief_complaint,
+    })
+    const persist = await persistWorkQueueArtifactsBestEffort(db, {
+      tasks: [journey.triageTask],
+      events: journey.queue.outbox.list({ correlationId: journey.correlationId }),
+    })
+    if (persist.errors.length) {
+      journeyWarnings = persist.errors
+      console.warn('[opd/triage] workqueue persist partial', persist)
+    }
+  } catch (error) {
+    console.warn('[opd/triage] clinical journey step failed (encounter still saved)', error)
+  }
+
   const { notifyClinicalQueue } = await import('@synapse/auth/mobile-push')
   notifyClinicalQueue({
     tenantId: ctx.tenantId,
     chiefComplaint: chief_complaint,
   })
 
-  const response: { encounterId: string; vitalsRecorded?: boolean } = {
+  const response: {
+    encounterId: string
+    correlationId: string
+    vitalsRecorded?: boolean
+    journeyWarnings?: string[]
+  } = {
     encounterId: encounter.id,
+    correlationId: encounter.id as string,
   }
   if (hasVitals && !vitalsRecorded) {
     response.vitalsRecorded = false
+  }
+  if (journeyWarnings.length) {
+    response.journeyWarnings = journeyWarnings
   }
 
   return NextResponse.json(response, { status: 201 })
