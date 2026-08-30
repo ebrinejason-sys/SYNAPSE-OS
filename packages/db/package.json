@@ -38,6 +38,8 @@
     "./work-queue": "./src/work-queue.ts",
     "./work-queue-persist": "./src/work-queue-persist.ts",
     "./clinical-journey": "./src/clinical-journey.ts",
+    "./lab-order-persist": "./src/lab-order-persist.ts",
+    "./prescription-persist": "./src/prescription-persist.ts",
     "./hospital-seed": "./src/hospital-seed.ts",
     "./hospital-acceptance": "./src/hospital-acceptance.ts"
   },

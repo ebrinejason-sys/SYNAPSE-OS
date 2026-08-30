@@ -20,3 +20,32 @@ export const triageSchema = z.object({
   temperature_c: z.coerce.number().min(30).max(43).optional(),
   spo2: z.coerce.number().min(50).max(100).optional(),
 })
+
+export const labOrderCreateSchema = z.object({
+  encounter_id: z.string().uuid(),
+  patient_id: z.string().uuid(),
+  loinc_code: z.string().min(1).max(40),
+  test_name: z.string().min(1).max(500),
+  urgency: z.enum(['STAT', 'URGENT', 'ROUTINE']).optional(),
+  care_plan_id: z.string().uuid().optional(),
+  person_id: z.string().uuid().optional(),
+})
+
+export const prescriptionCreateSchema = z.object({
+  encounter_id: z.string().uuid(),
+  patient_id: z.string().uuid(),
+  medication_display: z.string().min(1).max(500),
+  dose: z.string().min(1).max(2000),
+  quantity: z.coerce.number().positive(),
+  unit: z.string().min(1).max(40).default('unit'),
+  care_plan_id: z.string().uuid().optional(),
+  person_id: z.string().uuid().optional(),
+  pharmacy_tenant_id: z.string().uuid().optional(),
+})
+
+export const hospitalDispenseSchema = z.object({
+  prescription_id: z.string().uuid(),
+  product_id: z.string().uuid(),
+  pharmacy_tenant_id: z.string().uuid(),
+  payment_method: z.string().min(1).max(40).default('cash'),
+})

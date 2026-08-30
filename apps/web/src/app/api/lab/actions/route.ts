@@ -2,6 +2,9 @@ import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { hasPlatformAdminAccess } from "@/lib/platform/auth"
 import { getSimulationEngine } from "@/lib/platform/simulation-runtime"
+import { requireHospitalStaffContext } from "@/lib/hospital-dept"
+import { isContextError, requireHospitalCapability, gateHospitalModule } from "@/lib/hospital-shared"
+import { executeHospitalLabAction } from "@/lib/hospital-lab-db"
 
 export const dynamic = "force-dynamic"
 
@@ -14,42 +17,81 @@ export async function POST(request: Request) {
   if (!user || !canUseLab(user.role, user.email)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
+
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const orderId = String(body.orderId ?? "")
   const action = String(body.action ?? "")
-  const engine = getSimulationEngine()
-  try {
-    if (action === "collect") {
-      const accession = String(body.accessionNumber ?? `DEMO-${Date.now()}`)
-      engine.lab.collect(orderId, accession, accession.replace(/[^A-Z0-9]/gi, ""), crypto.randomUUID())
-    } else if (action === "receive") {
-      engine.lab.receive(orderId)
-    } else if (action === "reject") {
-      engine.lab.reject(orderId, "other", String(body.reason ?? "rejected"))
-    } else if (action === "enter_result") {
-      engine.lab.enterResult({
-        resultId: crypto.randomUUID(),
-        orderId,
-        value: String(body.value ?? ""),
-        analyzer: typeof body.analyzer === "string" ? body.analyzer : "manual",
-      })
-    } else if (action === "verify") {
-      engine.lab.verify(orderId, user.id)
-    } else if (action === "release") {
-      engine.lab.release(orderId)
-    } else if (action === "acknowledge") {
-      engine.lab.acknowledgeCritical({
-        id: crypto.randomUUID(),
-        orderId,
-        acknowledgedBy: user.id,
-        note: String(body.note ?? "acknowledged"),
-      })
-    } else {
-      return NextResponse.json({ error: "Unknown action" }, { status: 400 })
+
+  if (hasPlatformAdminAccess(user.role, user.email)) {
+    const engine = getSimulationEngine()
+    try {
+      if (action === "collect") {
+        const accession = String(body.accessionNumber ?? `DEMO-${Date.now()}`)
+        engine.lab.collect(orderId, accession, accession.replace(/[^A-Z0-9]/gi, ""), crypto.randomUUID())
+      } else if (action === "receive") {
+        engine.lab.receive(orderId)
+      } else if (action === "reject") {
+        engine.lab.reject(orderId, "other", String(body.reason ?? "rejected"))
+      } else if (action === "enter_result") {
+        engine.lab.enterResult({
+          resultId: crypto.randomUUID(),
+          orderId,
+          value: String(body.value ?? ""),
+          analyzer: typeof body.analyzer === "string" ? body.analyzer : "manual",
+        })
+      } else if (action === "verify") {
+        engine.lab.verify(orderId, user.id)
+      } else if (action === "release") {
+        engine.lab.release(orderId)
+      } else if (action === "acknowledge") {
+        engine.lab.acknowledgeCritical({
+          id: crypto.randomUUID(),
+          orderId,
+          acknowledgedBy: user.id,
+          note: String(body.note ?? "acknowledged"),
+        })
+      } else {
+        return NextResponse.json({ error: "Unknown action" }, { status: 400 })
+      }
+      const order = engine.lab.getOrder(orderId)
+      const result = engine.lab.snapshot().results.find((row) => row.labOrderId === orderId) ?? null
+      return NextResponse.json({ order, result, source: "simulation" })
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "lab_action_failed" },
+        { status: 400 },
+      )
     }
-    const order = engine.lab.getOrder(orderId)
-    const result = engine.lab.snapshot().results.find((row) => row.labOrderId === orderId) ?? null
-    return NextResponse.json({ order, result })
+  }
+
+  const ctx = await requireHospitalStaffContext()
+  if (isContextError(ctx)) return ctx
+
+  const cap =
+    action === "verify" || action === "release"
+      ? await requireHospitalCapability(ctx, "result", "verify", "lab")
+      : await requireHospitalCapability(ctx, "result", "enter", "lab")
+  if (cap) return cap
+
+  const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, "lab")
+  if (moduleBlock) return moduleBlock
+
+  try {
+    const outcome = await executeHospitalLabAction({
+      ctx,
+      orderId,
+      action,
+      actorId: ctx.userId,
+      extra: body,
+    })
+    const response: {
+      order: typeof outcome.order
+      result: typeof outcome.result
+      source: string
+      warnings?: string[]
+    } = { order: outcome.order, result: outcome.result, source: "database" }
+    if (outcome.warnings.length) response.warnings = outcome.warnings
+    return NextResponse.json(response)
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "lab_action_failed" },

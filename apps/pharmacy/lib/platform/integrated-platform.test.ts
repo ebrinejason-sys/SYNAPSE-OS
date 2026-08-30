@@ -46,8 +46,10 @@ import {
   HOSPITAL_CANONICAL_SEED,
 } from "@synapse/db/hospital-seed"
 import { WorkQueue, routeClinicalOrder } from "@synapse/db/work-queue"
-import { recordEncounterOpened } from "@synapse/db/clinical-journey"
+import { recordEncounterOpened, recordLabOrderPlaced, recordPrescriptionPlaced } from "@synapse/db/clinical-journey"
 import { departmentTaskToRow, rowToDepartmentTask } from "@synapse/db/work-queue-persist"
+import { labOrderToRow, rowToLabOrder } from "@synapse/db/lab-order-persist"
+import { clinicalPrescriptionToRow, rowToClinicalPrescription } from "@synapse/db/prescription-persist"
 import { buildDepartmentMatrix } from "@synapse/db/hospital-acceptance"
 
 describe("product capability manifest", () => {
@@ -591,6 +593,96 @@ describe("clinical journey — encounter opened", () => {
     const row = departmentTaskToRow(triageTask)
     const restored = rowToDepartmentTask(row)
     expect(restored.id).toBe(triageTask.id)
+    expect(restored.correlationId).toBe(encounterId)
+  })
+})
+
+describe("clinical journey — lab order placed", () => {
+  it("emits synapse-lab LabOrderCreated and routes laboratory task without duplicate task event", () => {
+    const encounterId = crypto.randomUUID()
+    const orderId = crypto.randomUUID()
+    const result = recordLabOrderPlaced({
+      tenantId: crypto.randomUUID(),
+      hospitalId: crypto.randomUUID(),
+      patientId: crypto.randomUUID(),
+      encounterId,
+      requesterId: crypto.randomUUID(),
+      loincCode: MALARIA_PF_ANTIGEN_LOINC,
+      testName: MALARIA_PF_ANTIGEN_TEST_NAME,
+      urgency: "URGENT",
+      orderId,
+    })
+    expect(result.order.id).toBe(orderId)
+    expect(result.labTask.taskType).toBe("lab_order")
+    expect(result.labTask.sourceResource).toBe("lab_orders")
+    expect(result.labTask.sourceId).toBe(orderId)
+    const events = result.queue.outbox.list({ correlationId: encounterId })
+    const labCreated = events.filter((e) => e.event_type === "LabOrderCreated")
+    expect(labCreated).toHaveLength(1)
+    expect(labCreated[0]?.source).toBe("synapse-lab")
+    expect(labCreated[0]?.payload.order_id).toBe(orderId)
+  })
+
+  it("persists lab_orders row shape for Postgres", () => {
+    const encounterId = crypto.randomUUID()
+    const { order } = recordLabOrderPlaced({
+      tenantId: crypto.randomUUID(),
+      hospitalId: crypto.randomUUID(),
+      patientId: crypto.randomUUID(),
+      encounterId,
+      requesterId: crypto.randomUUID(),
+      loincCode: "58413-6",
+      testName: "Malaria Pf antigen",
+    })
+    const row = labOrderToRow(order)
+    const restored = rowToLabOrder(row)
+    expect(restored.id).toBe(order.id)
+    expect(restored.loincCode).toBe("58413-6")
+    expect(restored.correlationId).toBe(encounterId)
+  })
+})
+
+describe("clinical journey — prescription placed", () => {
+  it("emits PrescriptionCreated and routes pharmacy task without duplicate task event", () => {
+    const encounterId = crypto.randomUUID()
+    const prescriptionId = crypto.randomUUID()
+    const result = recordPrescriptionPlaced({
+      tenantId: crypto.randomUUID(),
+      hospitalId: crypto.randomUUID(),
+      patientId: crypto.randomUUID(),
+      encounterId,
+      requesterId: crypto.randomUUID(),
+      medicationDisplay: "Artemether/lumefantrine 80/480 mg",
+      dose: "4 tablets at 0, 8, 24, 36, 48, 60 hours",
+      quantity: 24,
+      prescriptionId,
+    })
+    expect(result.prescription.id).toBe(prescriptionId)
+    expect(result.pharmacyTask.taskType).toBe("prescription")
+    expect(result.pharmacyTask.sourceResource).toBe("clinical_prescriptions")
+    const events = result.queue.outbox.list({ correlationId: encounterId })
+    const created = events.filter((e) => e.event_type === "PrescriptionCreated")
+    expect(created).toHaveLength(1)
+    expect(created[0]?.source).toBe("synapse-os")
+    expect(created[0]?.payload.prescription_id).toBe(prescriptionId)
+  })
+
+  it("persists clinical_prescriptions row shape for Postgres", () => {
+    const encounterId = crypto.randomUUID()
+    const { prescription } = recordPrescriptionPlaced({
+      tenantId: crypto.randomUUID(),
+      hospitalId: crypto.randomUUID(),
+      patientId: crypto.randomUUID(),
+      encounterId,
+      requesterId: crypto.randomUUID(),
+      medicationDisplay: "Paracetamol 500mg",
+      dose: "1g TDS",
+      quantity: 30,
+    })
+    const row = clinicalPrescriptionToRow(prescription)
+    const restored = rowToClinicalPrescription(row)
+    expect(restored.id).toBe(prescription.id)
+    expect(restored.medicationDisplay).toBe("Paracetamol 500mg")
     expect(restored.correlationId).toBe(encounterId)
   })
 })

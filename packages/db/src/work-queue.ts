@@ -102,6 +102,10 @@ export type CreateTaskInput = {
   metadata?: Record<string, unknown>
   isSynthetic?: boolean
   simulationRunId?: string
+  /** When set, domain events use this aggregate id (e.g. lab_orders.id) instead of task.id */
+  domainEventAggregateId?: string
+  /** Skip task.created domain event (caller emits authoritative event separately) */
+  suppressDomainEvent?: boolean
 }
 
 type TransitionResult =
@@ -189,7 +193,7 @@ export class WorkQueue {
 
     const eventType = taskEventType(task.taskType, "REQUESTED")
     let event: RecordDomainEventInput | undefined
-    if (eventType) {
+    if (eventType && !input.suppressDomainEvent) {
       event = {
         eventType,
         tenantId: task.tenantId,
@@ -198,7 +202,7 @@ export class WorkQueue {
         encounterId: task.encounterId ?? undefined,
         actorId: task.requesterId ?? undefined,
         source: "synapse-os",
-        aggregateId: task.id,
+        aggregateId: input.domainEventAggregateId ?? task.id,
         action: "task.created",
         correlationId: task.correlationId ?? task.id,
         causationId: task.causationId ?? undefined,
@@ -340,6 +344,7 @@ export function routeClinicalOrder(
     sourceId: string
     isSynthetic?: boolean
     simulationRunId?: string
+    suppressTaskDomainEvent?: boolean
   },
 ): TransitionResult {
   const deptMap: Record<string, { department: string; taskType: TaskType }> = {
@@ -367,6 +372,8 @@ export function routeClinicalOrder(
     sourceId: order.sourceId,
     correlationId: order.correlationId,
     idempotencyKey: `${order.sourceResource}:${order.sourceId}:${route.taskType}`,
+    domainEventAggregateId: order.sourceId,
+    suppressDomainEvent: order.suppressTaskDomainEvent,
     isSynthetic: order.isSynthetic,
     simulationRunId: order.simulationRunId,
   })
