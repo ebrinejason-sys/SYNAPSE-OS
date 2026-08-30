@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { recordAdmissionPlaced } from '@synapse/db/clinical-journey'
 import { persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
+import { admissionTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
+import { publishTimelineEvent } from '@synapse/db/identity-persist'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../lib/hospital-shared'
 import { requireHospitalStaffContext, admissionCreateSchema } from '../../../../lib/hospital-dept'
 
@@ -120,6 +122,19 @@ export async function POST(req: NextRequest) {
       events: journey.queue.outbox.list({ correlationId: journey.correlationId }),
     })
     if (persistQueue.errors.length) journeyWarnings.push(...persistQueue.errors)
+    void publishClinicalTimelineBestEffort(
+      publishTimelineEvent,
+      admissionTimelineEvent({
+        tenantId: ctx.tenantId,
+        hospitalId: ctx.hospitalId,
+        patientId: patient_id,
+        admissionId,
+        bedId: bed_id,
+        ward: bed.ward ?? null,
+        reason,
+        createdBy: ctx.userId,
+      }),
+    )
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Admission journey failed' },

@@ -56,3 +56,14 @@ export const admissionCreateSchema = z.object({
   reason: z.string().min(1).max(2000),
   encounter_id: z.string().uuid().optional(),
 })
+
+export const vitalsRecordSchema = z.object({
+  encounter_id: z.string().uuid(),
+  patient_id: z.string().uuid(),
+  bp_systolic: z.coerce.number().min(50).max(300).optional(),
+  bp_diastolic: z.coerce.number().min(20).max(200).optional(),
+  heart_rate: z.coerce.number().min(20).max(250).optional(),
+  respiratory_rate: z.coerce.number().min(5).max(60).optional(),
+  temperature_c: z.coerce.number().min(30).max(43).optional(),
+  spo2: z.coerce.number().min(50).max(100).optional(),
+})

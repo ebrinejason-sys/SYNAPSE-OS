@@ -46,7 +46,18 @@ import {
   HOSPITAL_CANONICAL_SEED,
 } from "@synapse/db/hospital-seed"
 import { WorkQueue, routeClinicalOrder } from "@synapse/db/work-queue"
-import { recordEncounterOpened, recordLabOrderPlaced, recordPrescriptionPlaced, recordAdmissionPlaced, recordEncounterSigned } from "@synapse/db/clinical-journey"
+import {
+  recordEncounterOpened,
+  recordLabOrderPlaced,
+  recordPrescriptionPlaced,
+  recordAdmissionPlaced,
+  recordEncounterSigned,
+} from "@synapse/db/clinical-journey"
+import {
+  encounterOpenedTimelineEvent,
+  labOrderTimelineEvent,
+  admissionTimelineEvent,
+} from "@synapse/db/clinical-timeline"
 import { departmentTaskToRow, rowToDepartmentTask } from "@synapse/db/work-queue-persist"
 import { labOrderToRow, rowToLabOrder } from "@synapse/db/lab-order-persist"
 import { clinicalPrescriptionToRow, rowToClinicalPrescription } from "@synapse/db/prescription-persist"
@@ -719,6 +730,41 @@ describe("clinical journey — encounter signed", () => {
     })
     expect(result.correlationId).toBe(encounterId)
     expect(result.queue.outbox.list({ correlationId: encounterId }).some((e) => e.event_type === "EncounterSigned")).toBe(true)
+  })
+})
+
+describe("clinical timeline publishers", () => {
+  it("builds encounter, lab, and admission timeline events with patient subject", () => {
+    const tenantId = crypto.randomUUID()
+    const patientId = crypto.randomUUID()
+    const enc = encounterOpenedTimelineEvent({
+      tenantId,
+      hospitalId: crypto.randomUUID(),
+      patientId,
+      encounterId: crypto.randomUUID(),
+      chiefComplaint: "fever",
+    })
+    expect(enc.eventType).toBe("consultation")
+    expect(enc.patientId).toBe(patientId)
+    const lab = labOrderTimelineEvent({
+      tenantId,
+      hospitalId: crypto.randomUUID(),
+      patientId,
+      orderId: crypto.randomUUID(),
+      encounterId: crypto.randomUUID(),
+      testName: "Malaria Pf antigen",
+      loincCode: "58413-6",
+    })
+    expect(lab.tags).toContain("malaria")
+    const adm = admissionTimelineEvent({
+      tenantId,
+      hospitalId: crypto.randomUUID(),
+      patientId,
+      admissionId: crypto.randomUUID(),
+      bedId: crypto.randomUUID(),
+      reason: "Observation",
+    })
+    expect(adm.eventType).toBe("admission")
   })
 })
 

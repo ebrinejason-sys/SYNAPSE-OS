@@ -86,10 +86,12 @@ const DIRECT_GRANTS: Record<string, readonly CapTuple[]> = {
     ['insurance',    'policy',  'read'],
     ['insurance',    'claim',   'read'],
   ],
-
-  // insurance_officer inherits claims_officer (no direct extra grants)
-  // platform_admin: all capabilities (bypasses all checks)
 }
+
+const HOSPITAL_MODULES = new Set([
+  'opd', 'ipd', 'lab', 'dispensing', 'ward', 'radiology', 'maternity', 'theatre',
+  'emergency', 'immunization', 'registration', 'clinical', 'mortuary', 'billing', 'claims',
+])
 
 const ROLE_INHERITANCE: Record<string, string> = {
   doctor:                 'clinical_officer',
@@ -115,7 +117,7 @@ export function canDo(
   resource: string,
   action:   string,
 ): boolean {
-  if (role === 'platform_admin') return true
+  if (role === 'platform_admin' && !HOSPITAL_MODULES.has(module)) return true
   if (role === 'hospital_admin') {
     const grants = DIRECT_GRANTS['hospital_admin'] ?? []
     if (grants.some(([m, res, a]) => m === module && res === resource && a === action)) return true

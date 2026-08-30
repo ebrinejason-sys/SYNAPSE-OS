@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { recordEncounterOpened } from '@synapse/db/clinical-journey'
 import { persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
+import { encounterOpenedTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
+import { publishTimelineEvent } from '@synapse/db/identity-persist'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../lib/hospital-shared'
 import { requireHospitalStaffContext, triageSchema } from '../../../../lib/hospital-dept'
 
@@ -88,6 +90,17 @@ export async function POST(req: NextRequest) {
       journeyWarnings = persist.errors
       console.warn('[opd/triage] workqueue persist partial', persist)
     }
+    void publishClinicalTimelineBestEffort(
+      publishTimelineEvent,
+      encounterOpenedTimelineEvent({
+        tenantId: ctx.tenantId,
+        hospitalId: ctx.hospitalId,
+        patientId: patient_id,
+        encounterId: encounter.id as string,
+        chiefComplaint: chief_complaint,
+        createdBy: ctx.userId,
+      }),
+    )
   } catch (error) {
     console.warn('[opd/triage] clinical journey step failed (encounter still saved)', error)
   }

@@ -18,8 +18,9 @@ export async function requireCapability(
   action:       string,
   facilityType = 'any',
 ): Promise<void> {
-  // platform_admin holds all capabilities
-  if (payload.role === 'platform_admin') return
+  // Platform operators bypass only non-hospital capability checks (P0-003).
+  const isPlatformOperator = payload.role === 'platform_admin' || payload.role === 'superadmin'
+  if (isPlatformOperator && facilityType !== 'hospital') return
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any

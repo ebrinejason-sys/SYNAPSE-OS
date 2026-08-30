@@ -8,7 +8,7 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 |---|---|---|---|---|---|---|---|
 | P0-001 | Pharmacy | Dispense | Manual insert as dispensed, skips verification | Verify → dispense → inventory decrement | **PARTIAL** — /api/hospital/pharmacy/dispense + updated UI | Route through WorkQueue + authoritative inventory RPC | M |
 | P0-002 | Clinical | Signed notes | No immutability | Signed docs cannot silently change | **PARTIAL** — sign API + is_signed columns | Add signed_at + amendment trail | M |
-| P0-003 | Security | Platform admin | Role bypass in capability.ts | No automatic clinical superuser | Hardcoded bypass | Scope bypass to platform ops only | S |
+| P0-003 | Security | Platform admin | Role bypass in capability.ts | No automatic clinical superuser | **FIXED** — hospital facilityType enforced | Scope bypass to platform ops only | S |
 
 ## P0 — Security
 
@@ -32,7 +32,7 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 | ID | Department | Workflow | Current | Expected | Root cause | Fix | Complexity |
 |---|---|---|---|---|---|---|---|
 | P1-006 | All | Task routing | Fragmented queues | Unified WorkQueue | **FIXED** — /api/hospital/tasks | Extend timeline publishers for all handoffs | M |
-| P1-007 | Clinical | Timeline | Projection helpers | Full journey in one timeline | Partial publishers | Extend timeline publishers for all handoffs | M |
+| P1-007 | Clinical | Timeline | Projection helpers | Full journey in one timeline | **PARTIAL** — clinical-timeline publishers on handoffs | Extend timeline publishers for all handoffs | M |
 | P1-008 | Billing | Clinical→charge | No bridge | Service event → invoice | billing_invoices unused | Clinical activity charge service | L |
 
 ## P1 — Clinical usability
@@ -40,7 +40,7 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 | ID | Department | Workflow | Current | Expected | Fix | Complexity |
 |---|---|---|---|---|---|
 | P1-009 | OPD | Doctor workspace | 10 placeholder pages | Functional queue + encounter | **PARTIAL** — /doctor/queue + /doctor/orders wired | Build /os/[slug]/clinical or fix /doctor/queue | L |
-| P1-010 | Nursing | Ward list | Placeholder | Observations + tasks | Build nurse workspace in /os/[slug] | L |
+| P1-010 | Nursing | Ward list | Placeholder | Observations + tasks | **PARTIAL** — /nurse/ward + vitals API | Build nurse workspace in /os/[slug] | L |
 | P1-011 | Emergency | ED flow | NOT_IMPLEMENTED | Rapid reg → triage → resus | Build ED vertical slice | XL |
 
 ## P2 — Operational

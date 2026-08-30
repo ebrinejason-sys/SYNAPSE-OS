@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { recordLabOrderPlaced } from '@synapse/db/clinical-journey'
 import { persistLabOrderBestEffort } from '@synapse/db/lab-order-persist'
+import { labOrderTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
+import { publishTimelineEvent } from '@synapse/db/identity-persist'
 import { persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../lib/hospital-shared'
 import { requireHospitalStaffContext, labOrderCreateSchema } from '../../../../lib/hospital-dept'
@@ -114,6 +116,19 @@ export async function POST(req: NextRequest) {
     if (journeyWarnings.length) {
       console.warn('[opd/lab-orders] journey persist partial', journeyWarnings)
     }
+    void publishClinicalTimelineBestEffort(
+      publishTimelineEvent,
+      labOrderTimelineEvent({
+        tenantId: ctx.tenantId,
+        hospitalId: ctx.hospitalId,
+        patientId: patient_id,
+        orderId,
+        encounterId: encounter_id,
+        testName: test_name,
+        loincCode: loinc_code,
+        createdBy: ctx.userId,
+      }),
+    )
   } catch (error) {
     console.warn('[opd/lab-orders] clinical journey step failed', error)
     return NextResponse.json(

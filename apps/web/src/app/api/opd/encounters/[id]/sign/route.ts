@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { recordEncounterSigned } from '@synapse/db/clinical-journey'
 import { persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
+import { encounterSignedTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
+import { publishTimelineEvent } from '@synapse/db/identity-persist'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../../lib/hospital-shared'
 import { requireHospitalStaffContext } from '../../../../../lib/hospital-dept'
 
@@ -65,6 +67,16 @@ export async function POST(
       tasks: [],
       events: journey.queue.outbox.list({ correlationId: encounterId }),
     })
+    void publishClinicalTimelineBestEffort(
+      publishTimelineEvent,
+      encounterSignedTimelineEvent({
+        tenantId: ctx.tenantId,
+        hospitalId: ctx.hospitalId,
+        patientId: encounter.patient_id,
+        encounterId,
+        signedBy: ctx.userId,
+      }),
+    )
   } catch (error) {
     console.warn('[opd/encounters/sign] event persist failed', error)
   }
