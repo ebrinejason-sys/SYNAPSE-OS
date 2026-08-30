@@ -29,6 +29,15 @@ type HealthItem = {
   label: string;
   value: string;
   status: "green" | "amber" | "red";
+  href?: string;
+};
+
+export type ProductionTruthCard = {
+  label: string;
+  value: string;
+  status: "green" | "amber" | "red" | "slate";
+  href: string;
+  detail?: string;
 };
 
 type ActivityItem = {
@@ -59,6 +68,7 @@ type ApplicationPreview = {
 export type OverviewCommandCenterData = {
   metrics: Metric[];
   health: HealthItem[];
+  productionTruth: ProductionTruthCard[];
   activity: ActivityItem[];
   attentionItems: AttentionItem[];
   attentionTotal: number;
@@ -86,10 +96,11 @@ const SUB_STAGES = [
   { key: "suspended", label: "Suspended", tone: "text-red-300", dot: "bg-red-400" },
 ] as const;
 
-function healthDot(status: HealthItem["status"]) {
+function truthDot(status: ProductionTruthCard["status"]) {
   if (status === "green") return "bg-green-400";
   if (status === "amber") return "bg-amber-400";
-  return "bg-red-400";
+  if (status === "red") return "bg-red-400";
+  return "bg-slate-500";
 }
 
 function activityIcon(kind: ActivityItem["kind"]) {
@@ -187,25 +198,54 @@ export function OverviewCommandCenter({ data }: { data: OverviewCommandCenterDat
         ))}
       </section>
 
+      <section className="rounded-xl border border-[#F97316]/25 bg-[#F97316]/5 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold text-primary-color">Production truth</h2>
+            <p className="text-xs text-muted-color">Live probes — never env-as-green</p>
+          </div>
+          <Link href="/platform/deployments" className="text-xs font-medium text-[#F97316] hover:underline">
+            Deployments →
+          </Link>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {data.productionTruth.map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="rounded-lg border border-subtle bg-base px-3 py-2.5 transition hover:border-[#F97316]/30"
+            >
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 shrink-0 rounded-full ${truthDot(item.status)}`} aria-hidden />
+                <p className="text-[10px] uppercase tracking-wide text-muted-color">{item.label}</p>
+              </div>
+              <p className="mt-1 truncate text-xs font-semibold text-primary-color">{item.value}</p>
+              {item.detail ? <p className="mt-0.5 truncate text-[10px] text-muted-color">{item.detail}</p> : null}
+            </Link>
+          ))}
+        </div>
+      </section>
+
       <section className="rounded-xl border border-subtle bg-surface p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-primary-color">Network health</h2>
           <Link href="/platform/health" className="text-xs font-medium text-[#F97316] hover:underline">
-            Speed Insights →
+            Platform Health →
           </Link>
         </div>
         <div className="flex flex-wrap gap-3">
           {data.health.map((item) => (
-            <div
+            <Link
               key={item.label}
-              className="inline-flex min-w-[140px] flex-1 items-center gap-2 rounded-lg border border-subtle bg-base px-3 py-2"
+              href={item.href ?? "/platform/health"}
+              className="inline-flex min-w-[140px] flex-1 items-center gap-2 rounded-lg border border-subtle bg-base px-3 py-2 transition hover:border-[#F97316]/25"
             >
-              <span className={`h-2 w-2 shrink-0 rounded-full ${healthDot(item.status)}`} aria-hidden />
+              <span className={`h-2 w-2 shrink-0 rounded-full ${truthDot(item.status)}`} aria-hidden />
               <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-wide text-muted-color">{item.label}</p>
                 <p className="truncate text-xs font-medium text-primary-color">{item.value}</p>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </section>

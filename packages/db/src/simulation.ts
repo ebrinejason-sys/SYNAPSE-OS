@@ -14,7 +14,6 @@ import {
 import {
   PathwayRuntime,
   SEPSIS_PATHWAY,
-  MALARIA_PATHWAY,
   DKA_PATHWAY,
   PNEUMONIA_PATHWAY,
   instantiateCarePlan,
@@ -26,6 +25,7 @@ import {
   toTimelineInsert,
   type TimelineEventInput,
 } from "./timeline"
+import { executeMalariaGoldenJourney } from "./malaria-golden-journey"
 
 export const SYNTHETIC_CLASSIFICATION = "synthetic" as const
 
@@ -414,6 +414,10 @@ export class SimulationEngine {
       isCritical: verified.isCritical,
     })
     this.lab.release(order.id)
+    this.emit(run, "LabResultReleased", "synapse-lab", verified.id, "release", {
+      value: verified.resultValue,
+      accession,
+    })
     this.pushTimeline(
       run,
       "laboratory",
@@ -536,63 +540,32 @@ export class SimulationEngine {
   }
 
   private runMalaria(run: SimulationRun, rng: () => number, options: SimulationEngineOptions) {
-    this.registerPatient(run, rng, 1)
-    this.startEncounter(run, rng, {
-      type: "OPD",
-      chiefComplaint: "Fever, chills, and headache for 3 days",
-      vitals: { temp: 38.6, hr: 102, sbp: 118, rr: 20, spo2: 97 },
-    })
-    const orderId = uuidFromRng(rng)
-    const accession = formatAccession("DEMO", Math.floor(rng() * 90000) + 1, options.now)
-    const order: LabOrder = {
-      id: orderId,
+    const result = executeMalariaGoldenJourney({
       tenantId: run.tenantId,
-      patientId: run.patient!.id,
-      personId: run.patient!.personId,
-      encounterId: run.encounter!.id,
-      loincCode: "58413-6",
-      testName: "Malaria Pf antigen",
-      urgency: "URGENT",
-      status: "ORDERED",
-      orderedBy: options.actorId,
-      orderedAt: new Date().toISOString(),
-      isSynthetic: true,
-      simulationRunId: run.id,
+      clinicianId: options.actorId,
+      seed: options.seed,
+      outbox: this.outbox,
+      lab: this.lab,
+      pathways: this.pathways,
+      runId: run.id,
       correlationId: run.correlationId,
+      rng,
+      now: options.now,
+      skipRunLifecycleEvents: true,
+    })
+    if (result.entities) {
+      run.patient = result.entities.patient as SimulationPatient
+      run.encounter = result.entities.encounter as SimulationEncounter
+      run.carePlan = result.entities.carePlan
+      run.labOrder = result.entities.labOrder
+      run.prescription = result.entities.prescription as SimulationPrescription
+      run.dispense = result.entities.dispense as SimulationDispense
+      run.timeline.push(...result.entities.timeline)
     }
-    this.lab.createOrder(order)
-    this.lab.transition(order.id, "COLLECTION_PENDING")
-    this.lab.collect(order.id, accession, barcodeFromAccession(accession), uuidFromRng(rng))
-    this.lab.receive(order.id)
-    this.lab.enterResult({
-      resultId: uuidFromRng(rng),
-      orderId: order.id,
-      value: "Positive",
-      sex: run.patient!.demographics.sex,
-    })
-    this.lab.verify(order.id, options.actorId)
-    this.lab.release(order.id)
-    run.labOrder = this.lab.getOrder(order.id)
-    const prescription: SimulationPrescription = {
-      id: uuidFromRng(rng),
-      tenantId: run.tenantId,
-      patientId: run.patient!.id,
-      encounterId: run.encounter!.id,
-      medicationDisplay: "Artemether/lumefantrine 80/480 mg",
-      dose: "4 tablets at 0, 8, 24, 36, 48, 60 hours",
-      quantity: 24,
-      status: "dispensed",
-      prescriberId: options.actorId,
-      ...markers(run.id),
+    if (result.status === "FAIL") {
+      run.notes.push(result.error ?? "malaria_golden_journey_failed")
+      throw new Error(result.error ?? "MALARIA_GOLDEN_JOURNEY_FAILED")
     }
-    run.prescription = prescription
-    this.emit(run, "PrescriptionCreated", "synapse-os", prescription.id, "create", {
-      medicationDisplay: prescription.medicationDisplay,
-    })
-    this.emit(run, "MedicationDispensed", "synapse-pharm", prescription.id, "dispense", {
-      medicationDisplay: prescription.medicationDisplay,
-    })
-    this.activatePathway(run, rng, MALARIA_PATHWAY)
   }
 
   private runNamedPathway(

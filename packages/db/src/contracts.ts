@@ -30,11 +30,16 @@ export type { ConsentRecord, ConsentPurpose } from "./consent"
 export { hasPurposeConsent } from "./consent"
 
 export type { TimelineEventInput } from "./timeline"
-export { assertTimelineSubject, pharmacyDispenseTimelineEvent } from "./timeline"
+export { assertTimelineSubject, pharmacyDispenseTimelineEvent, labResultToTimelineEvent } from "./timeline"
 
 export type { DomainEventEnvelope } from "./exchange"
 export { ExchangeOutbox } from "./exchange"
-export { LabWorkflow } from "./lab-workflow"
+export {
+  LabWorkflow,
+  runMalariaLabSlice,
+  MALARIA_PF_ANTIGEN_LOINC,
+  MALARIA_LAB_SLICE_EVENTS,
+} from "./lab-workflow"
 export { PathwayRuntime, SEPSIS_PATHWAY } from "./pathways"
 export { SimulationEngine, assertDemoResetAllowed } from "./simulation"
 

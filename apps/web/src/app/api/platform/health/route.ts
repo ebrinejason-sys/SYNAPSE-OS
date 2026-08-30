@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "../../../../lib/supabase/server";
 import { requirePlatformAdminApi } from "../../../../lib/platform/auth";
-import { checkDatabaseLatency } from "../../../platform/_lib/platform-data";
+import { getProductionTruth } from "../../../../lib/platform/production-truth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,9 @@ type ProbeStatus =
   | "OUTAGE"
   | "CONFIGURED"
   | "NOT_CONFIGURED"
-  | "NO_TELEMETRY";
+  | "NO_TELEMETRY"
+  | "HEALTHY"
+  | "FAILED";
 
 function probe(status: ProbeStatus, detail: string, extra: Record<string, unknown> = {}) {
   return { status, detail, ...extra };
@@ -23,7 +25,7 @@ export async function GET() {
 
   try {
     const supabaseAdmin = createServiceClient();
-    const dbHealth = await checkDatabaseLatency();
+    const truth = await getProductionTruth();
 
     const [{ data: aiRows }, { count: conflicts }] = await Promise.all([
       (supabaseAdmin as any)
@@ -42,26 +44,79 @@ export async function GET() {
       ? Math.round((aiSample.filter((row: { success?: boolean }) => row.success).length / aiSample.length) * 100)
       : null;
 
-    const dbStatus: ProbeStatus = !dbHealth.ok
-      ? "OUTAGE"
-      : dbHealth.latencyMs < 500
-        ? "OPERATIONAL"
-        : "DEGRADED";
+    const prodDeploy = truth.vercelDeployments.deployments[0];
 
     return NextResponse.json({
-      database: probe(dbStatus, dbHealth.ok ? `${dbHealth.latencyMs}ms latency` : "Unreachable", {
-        latencyMs: dbHealth.latencyMs,
+      checkedAt: truth.checkedAt,
+      productionTruth: {
+        githubMain: {
+          status: truth.githubMain.status,
+          shortSha: truth.githubMain.shortSha,
+          detail: truth.githubMain.detail,
+        },
+        processDeploy: truth.processDeploy,
+        shaComparison: truth.shaComparison,
+        synapseProduction: prodDeploy
+          ? {
+              status: truth.vercelDeployments.status,
+              shortSha: prodDeploy.shortSha,
+              match: truth.shaComparison.status,
+              detail: truth.vercelDeployments.detail,
+            }
+          : {
+              status: truth.vercelDeployments.status,
+              shortSha: null,
+              match: truth.shaComparison.status,
+              detail: truth.vercelDeployments.detail,
+            },
+        database: truth.database,
+        openRouter: truth.openRouter,
+        icd11: truth.icd11,
+        modules: truth.modules,
+      },
+      database: probe(truth.database.status, truth.database.detail, {
+        latencyMs: truth.database.latencyMs,
       }),
       supabase: {
-        connectivity: probe(dbStatus, dbHealth.ok ? "Tenant probe succeeded" : "Tenant probe failed"),
+        connectivity: probe(
+          truth.database.status,
+          truth.database.status === "OUTAGE" ? "Tenant probe failed" : "Tenant probe succeeded"
+        ),
         dbSize: probe("NO_TELEMETRY", "Size metrics not wired to provider API"),
         activeConnections: probe("NO_TELEMETRY", "Connection count not available"),
         lastMigration: probe("NO_TELEMETRY", "Migration registry not yet in control plane"),
-        rlsCoverage: probe("NO_TELEMETRY", "Do not treat static counts as live RLS proof"),
+        rlsCoverage: probe("NO_TELEMETRY", "Live RLS proof not available — do not treat static counts as coverage"),
       },
-      vercel: process.env.VERCEL_TOKEN
-        ? probe("CONFIGURED", "Token present — deployment list not yet wired")
-        : probe("NOT_CONFIGURED", "No VERCEL_TOKEN — cannot read deployments"),
+      vercel: truth.vercelDeployments.status === "NOT_CONFIGURED"
+        ? probe("NOT_CONFIGURED", truth.vercelDeployments.detail)
+        : probe(
+            truth.vercelDeployments.status === "HEALTHY" ? "CONFIGURED" : "NO_TELEMETRY",
+            truth.vercelDeployments.detail,
+            { deployments: truth.vercelDeployments.deployments }
+          ),
+      github: probe(
+        truth.githubMain.status === "HEALTHY" ? "CONFIGURED" : truth.githubMain.status,
+        truth.githubMain.detail,
+        { shortSha: truth.githubMain.shortSha }
+      ),
+      openRouter: probe(
+        truth.openRouter.status === "HEALTHY"
+          ? "OPERATIONAL"
+          : truth.openRouter.status === "NOT_CONFIGURED"
+            ? "NOT_CONFIGURED"
+            : "OUTAGE",
+        truth.openRouter.detail,
+        { latencyMs: truth.openRouter.latencyMs ?? null }
+      ),
+      icd11: probe(
+        truth.icd11.status === "HEALTHY" || truth.icd11.status === "CONFIGURED_CACHE_ONLY"
+          ? "CONFIGURED"
+          : truth.icd11.status === "NOT_CONFIGURED"
+            ? "NOT_CONFIGURED"
+            : "DEGRADED",
+        truth.icd11.detail,
+        { source: truth.icd11.source, release: truth.icd11.release }
+      ),
       resend: process.env.RESEND_API_KEY
         ? probe("CONFIGURED", "API key present — delivery probe not yet wired")
         : probe("NOT_CONFIGURED", "No RESEND_API_KEY"),

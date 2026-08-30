@@ -13,8 +13,9 @@ import {
   safeCount,
   safeRows,
 } from "./_lib/platform-data";
-import { OverviewCommandCenter, type OverviewCommandCenterData } from "./_components/overview-command-center";
+import { OverviewCommandCenter, type OverviewCommandCenterData, type ProductionTruthCard } from "./_components/overview-command-center";
 import { PRODUCT_MANIFEST, overallPlatformHealth, statusLabel } from "@synapse/config/manifest";
+import { getProductionTruth } from "../../lib/platform/production-truth";
 
 type TenantRow = {
   id?: string;
@@ -62,10 +63,45 @@ function sumWindow(values: number[], start: number, end: number) {
   return values.slice(start, end).reduce((sum, value) => sum + value, 0);
 }
 
+function truthCardStatus(
+  kind: "db" | "openrouter" | "icd11" | "sha" | "github" | "module",
+  value: string
+): ProductionTruthCard["status"] {
+  const upper = value.toUpperCase();
+  if (kind === "db") {
+    if (upper.includes("OPERATIONAL")) return "green";
+    if (upper.includes("DEGRADED")) return "amber";
+    return "red";
+  }
+  if (kind === "openrouter") {
+    if (upper.includes("HEALTHY")) return "green";
+    if (upper.includes("NOT_CONFIGURED")) return "slate";
+    return "red";
+  }
+  if (kind === "icd11") {
+    if (upper.includes("HEALTHY")) return "green";
+    if (upper.includes("CACHE")) return "amber";
+    if (upper.includes("NOT_CONFIGURED")) return "slate";
+    return "amber";
+  }
+  if (kind === "sha") {
+    if (upper.includes("MATCH")) return "green";
+    if (upper.includes("BEHIND")) return "amber";
+    return "slate";
+  }
+  if (kind === "github") {
+    if (upper.includes("HEALTHY")) return "green";
+    if (upper.includes("NOT_CONFIGURED")) return "slate";
+    return "amber";
+  }
+  return "slate";
+}
+
 async function getOverviewData(): Promise<OverviewCommandCenterData> {
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
 
   const [
+    productionTruth,
     dbHealth,
     activeFacilities,
     totalUsers,
@@ -84,6 +120,7 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
     onboardingRows,
     openTicketRows,
   ] = await Promise.all([
+    getProductionTruth(),
     checkDatabaseLatency(),
     safeCount("tenants", [["status", "active"]]),
     safeCount("profiles"),
@@ -255,6 +292,59 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
       district: row.location ?? "—",
     }));
 
+  const prodDeploy = productionTruth.vercelDeployments.deployments[0];
+
+  const productionTruthCards: ProductionTruthCard[] = [
+    {
+      label: "GitHub main",
+      value: productionTruth.githubMain.shortSha ?? productionTruth.githubMain.status,
+      status: truthCardStatus("github", productionTruth.githubMain.status),
+      href: "/platform/deployments",
+      detail: productionTruth.githubMain.detail,
+    },
+    {
+      label: "Synapse OS Production",
+      value: prodDeploy?.shortSha ?? productionTruth.vercelDeployments.status,
+      status: truthCardStatus("sha", productionTruth.shaComparison.status),
+      href: "/platform/deployments",
+      detail: `${productionTruth.shaComparison.status} · ${productionTruth.vercelDeployments.detail}`,
+    },
+    {
+      label: "Admin process",
+      value: productionTruth.processDeploy.shortSha ?? "NO SHA",
+      status: productionTruth.processDeploy.sha ? "amber" : "slate",
+      href: "/platform/deployments",
+      detail: productionTruth.processDeploy.detail,
+    },
+    {
+      label: "Database",
+      value: `${productionTruth.database.status} · ${productionTruth.database.latencyMs}ms`,
+      status: truthCardStatus("db", productionTruth.database.status),
+      href: "/platform/health",
+      detail: productionTruth.database.detail,
+    },
+    {
+      label: "OpenRouter",
+      value: productionTruth.openRouter.status,
+      status: truthCardStatus("openrouter", productionTruth.openRouter.status),
+      href: "/platform/intelligence",
+      detail: productionTruth.openRouter.detail,
+    },
+    {
+      label: "WHO ICD-11",
+      value: productionTruth.icd11.status,
+      status: truthCardStatus("icd11", productionTruth.icd11.status),
+      href: "/platform/icd11",
+      detail: productionTruth.icd11.detail,
+    },
+    ...productionTruth.modules.map((mod) => ({
+      label: mod.label,
+      value: mod.status,
+      status: "slate" as const,
+      href: mod.href,
+    })),
+  ];
+
   return {
     metrics: [
       {
@@ -303,35 +393,34 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
         label: "Database",
         value: dbHealth.ok ? `OPERATIONAL · ${dbHealth.latencyMs}ms` : "OUTAGE",
         status: dbHealth.ok ? (dbHealth.latencyMs < 500 ? "green" : "amber") : "red",
+        href: "/platform/health",
       },
       {
-        label: "Auth",
-        value: process.env.NEXT_PUBLIC_SUPABASE_URL
-          ? "CONFIGURED · no live probe"
-          : "NOT_CONFIGURED",
-        status: process.env.NEXT_PUBLIC_SUPABASE_URL ? "amber" : "red",
+        label: "OpenRouter",
+        value: productionTruth.openRouter.detail,
+        status: productionTruth.openRouter.status === "HEALTHY" ? "green" : productionTruth.openRouter.status === "NOT_CONFIGURED" ? "red" : "amber",
+        href: "/platform/intelligence",
       },
       {
-        label: "Email (Resend)",
-        value: process.env.RESEND_API_KEY ? "CONFIGURED · no delivery probe" : "NOT_CONFIGURED",
-        status: process.env.RESEND_API_KEY ? "amber" : "amber",
+        label: "ICD-11",
+        value: productionTruth.icd11.detail,
+        status: productionTruth.icd11.status === "HEALTHY" ? "green" : productionTruth.icd11.status === "NOT_CONFIGURED" ? "red" : "amber",
+        href: "/platform/icd11",
       },
       {
-        label: "Payments",
-        value:
-          process.env.FLUTTERWAVE_SECRET_KEY || process.env.STRIPE_SECRET_KEY
-            ? "CONFIGURED · no charge probe"
-            : "NOT_CONFIGURED",
-        status: process.env.FLUTTERWAVE_SECRET_KEY || process.env.STRIPE_SECRET_KEY ? "amber" : "amber",
+        label: "Deploy drift",
+        value: productionTruth.shaComparison.detail,
+        status: productionTruth.shaComparison.status === "MATCH" ? "green" : productionTruth.shaComparison.status === "BEHIND" ? "amber" : "amber",
+        href: "/platform/deployments",
       },
       {
-        label: "Deploy",
-        value: process.env.VERCEL
-          ? "CONFIGURED · SHA drift not wired"
-          : "NO_TELEMETRY · not on Vercel runtime",
+        label: "Test Center",
+        value: "Run golden journeys",
         status: "amber",
+        href: "/platform/test-center",
       },
     ],
+    productionTruth: productionTruthCards,
     activity,
     attentionItems,
     attentionTotal,

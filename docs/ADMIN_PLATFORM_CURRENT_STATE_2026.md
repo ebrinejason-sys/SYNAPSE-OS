@@ -333,9 +333,9 @@ Final success tests remain unanswered until evidence exists:
 
 ---
 
-## 13. Wave A progress (started 2026-08-29)
+## 13. Wave A–D progress (2026-08-29)
 
-Landed in working tree after this audit (not yet a release claim):
+### Wave A (security / API auth)
 
 | Change | Status |
 |---|---|
@@ -347,4 +347,20 @@ Landed in working tree after this audit (not yet a release claim):
 | Nav label “Speed Insights” → “Platform Health” | Done |
 | Platform search uses `.ilike` (no raw `.or()` interpolation) | Done |
 | Fine-grained RBAC roles / MFA session assurance / four-eyes | **Not started** |
-| Universal Test Center | **Not started** |
+
+### Wave B–D (today — production truth + test center)
+
+| Change | Status |
+|---|---|
+| `apps/web/src/lib/platform/production-truth.ts` — GitHub SHA, process SHA, Vercel deployments, DB latency, OpenRouter models probe, ICD-11 cache/WHO probe, manifest module readiness | Done |
+| Command Center **Production truth** panel with linked cards | Done |
+| `/api/platform/health` includes production-truth probes; RLS stays `NO_TELEMETRY` | Done |
+| `/platform/test-center` + malaria golden journey API | Done |
+| `/platform/icd11` + `/api/platform/icd11/probe` | Done |
+| `/platform/intelligence` + synthetic malaria eval via `buildRecommendation` | Done |
+| Nav: Test Center, Intelligence, ICD-11 | Done |
+| `docs/PLATFORM_TEST_CENTER.md` | Done |
+| `platform_test_runs` DB migration | **Optional / not applied** — in-memory + audit_log used |
+| Fine-grained RBAC / four-eyes | **Not started** |
+
+**Blocked without tokens:** GitHub main SHA (`GITHUB_TOKEN`), Vercel deployment list (`VERCEL_TOKEN` + `VERCEL_PROJECT_ID`), OpenRouter HEALTHY (`OPENROUTER_API_KEY` + live models endpoint), WHO ICD-11 live search (`WHO_ICD_CLIENT_ID` + `WHO_ICD_CLIENT_SECRET`). Local ICD-11 cache works without WHO credentials.

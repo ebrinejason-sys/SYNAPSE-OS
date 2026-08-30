@@ -91,6 +91,69 @@ export function pharmacyDispenseTimelineEvent(params: {
   }
 }
 
+/**
+ * Clinical-return timeline event for a verified (or released) lab result.
+ * Used by malaria golden journey / pathway consumers (Agent 2).
+ */
+export function labResultToTimelineEvent(params: {
+  tenantId: string
+  personId?: string | null
+  patientId?: string | null
+  hospitalId?: string | null
+  siteId?: string | null
+  resultId: string
+  orderId?: string | null
+  testName: string
+  loincCode: string
+  resultValue: string
+  flag?: string | null
+  isAbnormal?: boolean
+  isCritical?: boolean
+  accessionNumber?: string | null
+  verifiedBy?: string | null
+  verifiedAt?: string | null
+  createdBy?: string | null
+}): TimelineEventInput {
+  const abnormal = params.isAbnormal || params.isCritical || (params.flag != null && params.flag !== "N")
+  const title = abnormal
+    ? `${params.testName} · ${params.resultValue} (${params.flag ?? "A"})`
+    : `${params.testName} · ${params.resultValue}`
+  return {
+    personId: params.personId ?? null,
+    patientId: params.patientId ?? null,
+    tenantId: params.tenantId,
+    hospitalId: params.hospitalId ?? null,
+    siteId: params.siteId ?? null,
+    eventType: params.isCritical ? "critical_result" : "laboratory",
+    title,
+    summary: [
+      params.loincCode,
+      params.accessionNumber ? `accession ${params.accessionNumber}` : null,
+      params.verifiedBy ? `verified by ${params.verifiedBy}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    eventDate: params.verifiedAt ?? new Date().toISOString(),
+    severity: params.isCritical ? "critical" : abnormal ? "abnormal" : null,
+    sourceTable: "lab_results",
+    sourceId: params.resultId,
+    provenance: "LAB_VERIFIED",
+    payload: {
+      resultId: params.resultId,
+      orderId: params.orderId ?? null,
+      loincCode: params.loincCode,
+      testName: params.testName,
+      resultValue: params.resultValue,
+      flag: params.flag ?? null,
+      isAbnormal: Boolean(params.isAbnormal),
+      isCritical: Boolean(params.isCritical),
+      accessionNumber: params.accessionNumber ?? null,
+    },
+    tags: ["laboratory", "lab_result", ...(params.loincCode === "58413-6" ? ["malaria"] : [])],
+    createdBy: params.createdBy ?? params.verifiedBy ?? null,
+  }
+}
+
 export function toTimelineInsert(event: TimelineEventInput): Record<string, unknown> {
   assertTimelineSubject(event)
   return {

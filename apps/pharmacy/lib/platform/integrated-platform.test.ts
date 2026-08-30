@@ -11,7 +11,12 @@ import {
   LabWorkflow,
   canTransitionLabStatus,
   interpretResult,
+  runMalariaLabSlice,
+  MALARIA_PF_ANTIGEN_LOINC,
+  MALARIA_PF_ANTIGEN_TEST_NAME,
+  MALARIA_LAB_SLICE_EVENTS,
 } from "@synapse/db/lab-workflow"
+import { labResultToTimelineEvent } from "@synapse/db/timeline"
 import {
   PathwayRuntime,
   SEPSIS_PATHWAY,
@@ -173,7 +178,9 @@ describe("lab workflow", () => {
     lab.receive("o2")
     lab.enterResult({ resultId: "r", orderId: "o2", value: "1.1" })
     lab.verify("o2", "v")
-    expect(() => lab.enterResult({ resultId: "r2", orderId: "o2", value: "9" })).toThrow(/LAB_ILLEGAL_TRANSITION/)
+    expect(() => lab.enterResult({ resultId: "r2", orderId: "o2", value: "9" })).toThrow(
+      /LAB_RESULT_LOCKED|LAB_ILLEGAL_TRANSITION/,
+    )
   })
 
   it("rejects a specimen with a reason", () => {
@@ -196,6 +203,108 @@ describe("lab workflow", () => {
     lab.collect("o3", "B", "B", "s")
     lab.reject("o3", "hemolyzed", "gross hemolysis")
     expect(lab.getOrder("o3").status).toBe("REJECTED")
+  })
+})
+
+describe("malaria lab vertical slice", () => {
+  it("PASSes Positive Pf antigen through order→release with correlated events", () => {
+    const slice = runMalariaLabSlice({
+      tenantId: "t-malaria",
+      patientId: "p-malaria",
+      personId: "person-1",
+      encounterId: "e-malaria",
+      orderedBy: "clinician-1",
+      verifierId: "lab-tech-1",
+      correlationId: "corr-malaria-lab",
+      accessionSeq: 42,
+      value: "Positive",
+      sex: "F",
+      ageYears: 28,
+    })
+    expect(slice.result.resultValue).toBe("Positive")
+    expect(slice.result.isAbnormal).toBe(true)
+    expect(slice.result.flag).toBe("A")
+    expect(slice.result.status).toBe("final")
+    expect(slice.result.provenance).toBe("LAB_VERIFIED")
+    expect(slice.order.status).toBe("RELEASED")
+    expect(slice.order.loincCode).toBe(MALARIA_PF_ANTIGEN_LOINC)
+    expect(slice.accession).toMatch(/^DEMO-\d{8}-00042$/)
+    expect(slice.statuses).toEqual([
+      "ORDERED",
+      "COLLECTED",
+      "RECEIVED",
+      "VERIFICATION_PENDING",
+      "VERIFIED",
+      "RELEASED",
+    ])
+    expect(slice.events.map((e) => e.eventType)).toEqual([...MALARIA_LAB_SLICE_EVENTS])
+    expect(slice.events.every((e) => e.correlationId === "corr-malaria-lab")).toBe(true)
+
+    const timeline = labResultToTimelineEvent({
+      tenantId: slice.order.tenantId,
+      personId: slice.order.personId,
+      patientId: slice.order.patientId,
+      resultId: slice.result.id,
+      orderId: slice.order.id,
+      testName: slice.result.testName,
+      loincCode: slice.result.loincCode,
+      resultValue: slice.result.resultValue,
+      flag: slice.result.flag,
+      isAbnormal: slice.result.isAbnormal,
+      accessionNumber: slice.accession,
+      verifiedBy: slice.result.verifiedBy,
+      verifiedAt: slice.result.verifiedAt,
+    })
+    expect(timeline.eventType).toBe("laboratory")
+    expect(timeline.tags).toContain("malaria")
+    expect(timeline.provenance).toBe("LAB_VERIFIED")
+  })
+
+  it("throws on illegal transitions with a clear error", () => {
+    const lab = new LabWorkflow()
+    lab.createOrder({
+      id: "o-illegal",
+      tenantId: "t1",
+      patientId: "p1",
+      encounterId: "e1",
+      loincCode: MALARIA_PF_ANTIGEN_LOINC,
+      testName: MALARIA_PF_ANTIGEN_TEST_NAME,
+      urgency: "URGENT",
+      status: "ORDERED",
+      orderedBy: "doc",
+      orderedAt: new Date().toISOString(),
+      isSynthetic: true,
+      correlationId: "c-illegal",
+    })
+    expect(() => lab.transition("o-illegal", "VERIFIED")).toThrow(/LAB_ILLEGAL_TRANSITION:ORDERED->VERIFIED/)
+    expect(() => lab.verify("o-illegal", "lab-tech")).toThrow(/LAB_VERIFY_REFUSED/)
+    expect(() => lab.verify("o-illegal", "ai-copilot")).toThrow(/LAB_AI_CANNOT_VERIFY/)
+  })
+
+  it("requires amend() — verified Positive cannot be silently overwritten", () => {
+    const slice = runMalariaLabSlice({
+      tenantId: "t1",
+      patientId: "p1",
+      encounterId: "e1",
+      orderedBy: "doc",
+      verifierId: "lab-tech",
+      correlationId: "c-lock",
+      orderId: "o-lock",
+      resultId: "r-lock",
+    })
+    expect(() =>
+      slice.lab.enterResult({ resultId: "r-overwrite", orderId: "o-lock", value: "Negative" }),
+    ).toThrow(/LAB_RESULT_LOCKED/)
+    const amended = slice.lab.amend({
+      amendmentId: "a-1",
+      orderId: "o-lock",
+      newValue: "Negative",
+      reason: "Repeat RDT after QC review",
+      amendedBy: "lab-tech",
+    })
+    expect(amended.result.version).toBe(2)
+    expect(amended.result.status).toBe("amended")
+    expect(amended.amendment.previousValue).toBe("Positive")
   })
 })
 

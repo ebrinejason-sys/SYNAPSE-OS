@@ -30,6 +30,12 @@ import {
 import { PATHWAY_CATALOG } from "@synapse/db/pathways"
 import { SimulationEngine } from "@synapse/db/simulation"
 import { runOverlayGoldenJourney } from "@synapse/db/overlay-journey"
+import {
+  evaluateGoldenJourneyStatus,
+  executeMalariaGoldenJourney,
+  runMalariaGoldenJourney,
+  type MalariaGoldenJourneyResult,
+} from "@synapse/db/malaria-golden-journey"
 
 const ROOT = resolve(__dirname, "../../../..")
 
@@ -234,5 +240,78 @@ describe("pathways and overlay journey", () => {
     expect(result.fhirObservationResourceType).toBe("Observation")
     expect(result.events).toContain("PatientRegistered")
     expect(result.events).toContain("LabResultVerified")
+  })
+})
+
+describe("malaria golden journey", () => {
+  const tenantId = "00000000-0000-4000-8000-000000000001"
+  const clinicianId = "clinician-golden-1"
+
+  function assertNoInventedIcd(result: MalariaGoldenJourneyResult) {
+    const serialized = JSON.stringify(result.steps)
+    expect(serialized).not.toContain("ZZZZ")
+    expect(serialized).not.toContain("FAKECODE")
+  }
+
+  it("returns PASS with single correlationId and all critical steps PASS", () => {
+    const result = executeMalariaGoldenJourney({ tenantId, clinicianId, seed: 20260829 })
+    expect(result.status).toBe("PASS")
+    expect(result.correlationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    )
+    expect(result.patient?.synapseId).toMatch(/^SYN-UG-/)
+    for (const step of [
+      "patient_registration",
+      "encounter_open",
+      "history_vitals",
+      "intelligence_recommendation",
+      "icd11_lookup",
+      "diagnosis_confirmed",
+      "pathway_started",
+      "lab_ordered",
+      "specimen_workflow",
+      "lab_result_released",
+      "pathway_result_received",
+      "prescription_created",
+      "pharm_dispense",
+      "patient_timeline",
+      "fhir_export",
+    ]) {
+      const evidence = result.steps.find((row) => row.step === step)
+      expect(evidence?.status, step).toBe("PASS")
+    }
+    assertNoInventedIcd(result)
+  })
+
+  it("never treats SKIPPED as overall PASS", () => {
+    const result = executeMalariaGoldenJourney({ tenantId, clinicianId, seed: 20260830 })
+    const skippedCritical = result.steps.map((row) =>
+      row.step === "fhir_export" ? { ...row, status: "SKIPPED" as const } : row,
+    )
+    expect(evaluateGoldenJourneyStatus(skippedCritical)).toBe("FAIL")
+    expect(result.status).toBe("PASS")
+  })
+
+  it("async API matches sync executor", async () => {
+    const result = await runMalariaGoldenJourney({ tenantId, clinicianId, seed: 20260831 })
+    expect(result.status).toBe("PASS")
+  })
+
+  it("aligns opd-malaria simulation with golden journey events", () => {
+    const engine = new SimulationEngine()
+    const run = engine.run({
+      seed: 20260829,
+      scenario: "opd-malaria",
+      tenantId,
+      tenantClassification: "demo",
+      actorId: clinicianId,
+    })
+    const events = engine.outbox.list({ correlationId: run.correlationId })
+    expect(run.status).toBe("completed")
+    expect(run.carePlan?.pathwayId).toBe("pathway.malaria")
+    expect(events.some((row) => row.event_type === "LabResultVerified")).toBe(true)
+    expect(events.some((row) => row.event_type === "ClinicalPathwayCompleted")).toBe(true)
+    expect(events.some((row) => row.event_type === "MedicationDispensed")).toBe(true)
+    expect(events.every((row) => row.correlation_id === run.correlationId)).toBe(true)
   })
 })

@@ -9,6 +9,11 @@ import {
   type SimulationRun,
 } from "@synapse/db/simulation"
 import { createServiceClient } from "@/lib/supabase/server"
+import {
+  executeMalariaGoldenJourney,
+  runMalariaGoldenJourney,
+  type MalariaGoldenJourneyResult,
+} from "@synapse/db/malaria-golden-journey"
 
 type MemoryTenant = {
   id: string
@@ -281,5 +286,52 @@ export async function persistRunBestEffort(run: SimulationRun): Promise<void> {
     }
   } catch {
     // Persistence is best-effort until the migration is applied in each environment.
+  }
+}
+
+export function runMalariaGoldenJourneyForPlatform(params: {
+  tenantId: string
+  clinicianId: string
+  seed?: number
+}): MalariaGoldenJourneyResult {
+  const engine = getSimulationEngine()
+  return executeMalariaGoldenJourney({
+    ...params,
+    outbox: engine.outbox,
+    lab: engine.lab,
+    pathways: engine.pathways,
+  })
+}
+
+export async function persistGoldenJourneyBestEffort(result: MalariaGoldenJourneyResult): Promise<void> {
+  try {
+    const db = createServiceClient() as any
+    const events = getSimulationEngine().outbox.list({ correlationId: result.correlationId })
+    if (!events.length) return
+    await db.from("synapse_domain_events").insert(
+      events.map((event) => ({
+        event_id: event.event_id,
+        event_type: event.event_type,
+        version: event.version,
+        tenant_id: event.tenant_id,
+        facility_id: event.facility_id,
+        actor_id: event.actor_id,
+        patient_id: event.patient_id,
+        person_id: event.person_id,
+        encounter_id: event.encounter_id,
+        occurred_at: event.timestamp,
+        correlation_id: event.correlation_id,
+        causation_id: event.causation_id,
+        payload: event.payload,
+        source: event.source,
+        idempotency_key: event.idempotency_key,
+        is_synthetic: true,
+        simulation_run_id: result.runId,
+        status: event.status,
+        retry_count: event.retry_count,
+      })),
+    )
+  } catch {
+    // Best-effort until migration is applied.
   }
 }

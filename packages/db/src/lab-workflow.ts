@@ -2,7 +2,12 @@
  * Synapse Lab order → result state machine.
  * Reuses lab_orders / lab_specimens / lab_results concepts. Never silently
  * overwrites a verified result. AI is not a verifier.
+ *
+ * Malaria golden-journey LOINC: 58413-6 (Pf antigen).
  */
+
+export const MALARIA_PF_ANTIGEN_LOINC = "58413-6" as const
+export const MALARIA_PF_ANTIGEN_TEST_NAME = "Malaria Pf antigen" as const
 
 export const LAB_ORDER_STATUSES = [
   "ORDERED",
@@ -196,7 +201,12 @@ export function canTransitionLabStatus(from: LabOrderStatus, to: LabOrderStatus)
 
 export function assertLabTransition(from: LabOrderStatus, to: LabOrderStatus): void {
   if (!canTransitionLabStatus(from, to)) {
-    throw new Error(`LAB_ILLEGAL_TRANSITION:${from}->${to}`)
+    const allowed = ALLOWED[from]
+    const hint =
+      allowed.length === 0
+        ? `${from} is terminal`
+        : `allowed next: ${allowed.join(", ")}`
+    throw new Error(`LAB_ILLEGAL_TRANSITION:${from}->${to} (${hint})`)
   }
 }
 
@@ -337,6 +347,10 @@ export class LabWorkflow {
   }
 
   collect(orderId: string, accessionNumber: string, barcode: string, specimenId: string): LabOrder {
+    const order = this.getOrder(orderId)
+    if (order.status === "ORDERED") {
+      this.transition(orderId, "COLLECTION_PENDING")
+    }
     return this.transition(orderId, "COLLECTED", { accessionNumber, barcode, specimenId })
   }
 
@@ -345,6 +359,7 @@ export class LabWorkflow {
     if (order.status === "COLLECTED") this.transition(orderId, "IN_TRANSIT")
     const current = this.getOrder(orderId)
     if (current.status === "IN_TRANSIT") return this.transition(orderId, "RECEIVED")
+    if (current.status === "RECEIVED") return current
     return this.transition(orderId, "RECEIVED")
   }
 
@@ -361,8 +376,29 @@ export class LabWorkflow {
     ageYears?: number | null
   }): { order: LabOrder; result: LabResult } {
     const order = this.getOrder(params.orderId)
+    const existing = this.results.find((row) => row.labOrderId === params.orderId)
+    if (existing && (existing.status === "final" || existing.status === "amended")) {
+      throw new Error("LAB_RESULT_LOCKED:verified results require amend()")
+    }
+    if (
+      order.status === "VERIFIED" ||
+      order.status === "RELEASED" ||
+      order.status === "AMENDED" ||
+      order.status === "RESULT_ENTERED" ||
+      order.status === "VERIFICATION_PENDING"
+    ) {
+      throw new Error(
+        `LAB_RESULT_LOCKED:cannot enter result while status is ${order.status}; use amend() after verification`,
+      )
+    }
     if (order.status === "RECEIVED") this.transition(order.id, "PROCESSING")
-    if (this.getOrder(order.id).status === "PROCESSING") this.transition(order.id, "RESULT_ENTERED")
+    const processing = this.getOrder(order.id)
+    if (processing.status !== "PROCESSING") {
+      throw new Error(
+        `LAB_ENTER_REFUSED:expected PROCESSING (after RECEIVED), got ${processing.status}`,
+      )
+    }
+    this.transition(order.id, "RESULT_ENTERED")
     const interp = interpretResult({
       loincCode: order.loincCode,
       value: params.value,
@@ -389,13 +425,35 @@ export class LabWorkflow {
       provenance: "SYSTEM_GENERATED",
       isSynthetic: order.isSynthetic,
     }
-    this.results.push(result)
+    if (existing) {
+      Object.assign(existing, result)
+    } else {
+      this.results.push(result)
+    }
     this.transition(order.id, "VERIFICATION_PENDING")
-    return { order: this.getOrder(order.id), result }
+    return { order: this.getOrder(order.id), result: this.results.find((row) => row.labOrderId === order.id)! }
   }
 
+  /**
+   * Human lab verification only. There is intentionally no AI / model path.
+   * Accepts RESULT_ENTERED or VERIFICATION_PENDING; refuses every other status.
+   */
   verify(orderId: string, verifierId: string, at = new Date().toISOString()): LabResult {
+    if (!verifierId || verifierId.trim().length === 0) {
+      throw new Error("LAB_VERIFIER_REQUIRED:human verifierId is mandatory")
+    }
+    if (/^(ai[_-]|model|copilot|assistant)/i.test(verifierId.trim())) {
+      throw new Error("LAB_AI_CANNOT_VERIFY:AI actors cannot verify lab results")
+    }
     const order = this.getOrder(orderId)
+    if (order.status !== "RESULT_ENTERED" && order.status !== "VERIFICATION_PENDING") {
+      throw new Error(
+        `LAB_VERIFY_REFUSED:expected RESULT_ENTERED or VERIFICATION_PENDING, got ${order.status}`,
+      )
+    }
+    if (order.status === "RESULT_ENTERED") {
+      this.transition(order.id, "VERIFICATION_PENDING")
+    }
     this.transition(order.id, "VERIFIED")
     const result = this.results.find((row) => row.labOrderId === orderId)
     if (!result) throw new Error("LAB_RESULT_NOT_FOUND")
@@ -490,5 +548,194 @@ export class LabWorkflow {
       amendments: [...this.amendments],
       acknowledgements: [...this.acknowledgements],
     }
+  }
+}
+
+/** Domain events emitted along the malaria lab vertical slice (correlation_id required). */
+export const MALARIA_LAB_SLICE_EVENTS = [
+  "LabOrderCreated",
+  "SpecimenCollected",
+  "SpecimenReceived",
+  "LabResultEntered",
+  "LabResultVerified",
+  "LabResultReleased",
+] as const
+
+export type MalariaLabSliceEventType = (typeof MALARIA_LAB_SLICE_EVENTS)[number]
+
+export type MalariaLabSliceEvent = {
+  eventType: MalariaLabSliceEventType
+  action: string
+  aggregateId: string
+  correlationId: string
+  payload: Record<string, unknown>
+}
+
+export type MalariaLabSliceInput = {
+  tenantId: string
+  patientId: string
+  personId?: string | null
+  encounterId: string
+  carePlanId?: string | null
+  orderedBy: string
+  verifierId: string
+  correlationId: string
+  orderId?: string
+  resultId?: string
+  specimenId?: string
+  accessionSeq?: number
+  tenantCode?: string
+  /** Default "Positive" for Pf antigen golden journey. */
+  value?: string
+  isSynthetic?: boolean
+  simulationRunId?: string | null
+  now?: Date
+  sex?: "M" | "F" | "I" | "U" | null
+  ageYears?: number | null
+  /** Optional existing workflow instance (Agent 2 can share one LabWorkflow). */
+  lab?: LabWorkflow
+}
+
+export type MalariaLabSliceResult = {
+  lab: LabWorkflow
+  order: LabOrder
+  result: LabResult
+  accession: string
+  barcode: string
+  statuses: LabOrderStatus[]
+  events: MalariaLabSliceEvent[]
+}
+
+/**
+ * Order → Collect → Receive → Enter Positive → Verify → Release.
+ * Pure in-memory slice for Agent 2's `runMalariaGoldenJourney` and unit tests.
+ * Callers emit `events` via ExchangeOutbox with the same correlationId.
+ */
+export function runMalariaLabSlice(input: MalariaLabSliceInput): MalariaLabSliceResult {
+  if (!input.correlationId?.trim()) {
+    throw new Error("LAB_CORRELATION_REQUIRED")
+  }
+  const lab = input.lab ?? new LabWorkflow()
+  const now = input.now ?? new Date()
+  const orderId = input.orderId ?? crypto.randomUUID()
+  const resultId = input.resultId ?? crypto.randomUUID()
+  const specimenId = input.specimenId ?? crypto.randomUUID()
+  const accession = formatAccession(input.tenantCode ?? "DEMO", input.accessionSeq ?? 1, now)
+  const barcode = barcodeFromAccession(accession)
+  const value = input.value ?? "Positive"
+  const statuses: LabOrderStatus[] = []
+
+  const order = lab.createOrder({
+    id: orderId,
+    tenantId: input.tenantId,
+    patientId: input.patientId,
+    personId: input.personId ?? null,
+    encounterId: input.encounterId,
+    carePlanId: input.carePlanId ?? null,
+    loincCode: MALARIA_PF_ANTIGEN_LOINC,
+    testName: MALARIA_PF_ANTIGEN_TEST_NAME,
+    urgency: "URGENT",
+    status: "ORDERED",
+    orderedBy: input.orderedBy,
+    orderedAt: now.toISOString(),
+    isSynthetic: input.isSynthetic ?? true,
+    simulationRunId: input.simulationRunId ?? null,
+    correlationId: input.correlationId,
+  })
+  statuses.push(order.status)
+
+  const events: MalariaLabSliceEvent[] = [
+    {
+      eventType: "LabOrderCreated",
+      action: "create",
+      aggregateId: order.id,
+      correlationId: input.correlationId,
+      payload: {
+        loincCode: order.loincCode,
+        testName: order.testName,
+        urgency: order.urgency,
+      },
+    },
+  ]
+
+  lab.collect(order.id, accession, barcode, specimenId)
+  statuses.push(lab.getOrder(order.id).status)
+  events.push({
+    eventType: "SpecimenCollected",
+    action: "collect",
+    aggregateId: order.id,
+    correlationId: input.correlationId,
+    payload: { accession, barcode, specimenId },
+  })
+
+  lab.receive(order.id)
+  statuses.push(lab.getOrder(order.id).status)
+  events.push({
+    eventType: "SpecimenReceived",
+    action: "receive",
+    aggregateId: order.id,
+    correlationId: input.correlationId,
+    payload: { accession },
+  })
+
+  const entered = lab.enterResult({
+    resultId,
+    orderId: order.id,
+    value,
+    sex: input.sex,
+    ageYears: input.ageYears,
+  })
+  statuses.push(lab.getOrder(order.id).status)
+  events.push({
+    eventType: "LabResultEntered",
+    action: "enter",
+    aggregateId: entered.result.id,
+    correlationId: input.correlationId,
+    payload: {
+      value: entered.result.resultValue,
+      flag: entered.result.flag,
+      isAbnormal: entered.result.isAbnormal,
+      loincCode: entered.result.loincCode,
+    },
+  })
+
+  const verified = lab.verify(order.id, input.verifierId, now.toISOString())
+  statuses.push(lab.getOrder(order.id).status)
+  events.push({
+    eventType: "LabResultVerified",
+    action: "verify",
+    aggregateId: verified.id,
+    correlationId: input.correlationId,
+    payload: {
+      value: verified.resultValue,
+      flag: verified.flag,
+      isAbnormal: verified.isAbnormal,
+      verifiedBy: verified.verifiedBy,
+      provenance: verified.provenance,
+    },
+  })
+
+  const released = lab.release(order.id, now.toISOString())
+  statuses.push(lab.getOrder(order.id).status)
+  events.push({
+    eventType: "LabResultReleased",
+    action: "release",
+    aggregateId: released.id,
+    correlationId: input.correlationId,
+    payload: {
+      value: released.resultValue,
+      releasedAt: released.releasedAt,
+      accession,
+    },
+  })
+
+  return {
+    lab,
+    order: lab.getOrder(order.id),
+    result: released,
+    accession,
+    barcode,
+    statuses,
+    events,
   }
 }

@@ -135,6 +135,41 @@ export async function safeCount(table: string, filters: Array<[string, unknown]>
   }
 }
 
+/**
+ * Like safeCount, but distinguishes missing tables from empty tables.
+ * Missing / misconfigured → `{ status: "NOT_CONFIGURED", count: null }`.
+ * Present (even with 0 rows) → `{ status: "OK", count: number }`.
+ */
+export async function safeConfiguredCount(
+  table: string,
+  filters: Array<[string, unknown]> = [],
+): Promise<{ status: "OK" | "NOT_CONFIGURED"; count: number | null; detail?: string }> {
+  try {
+    let query = platformAdminClient().from(table).select("id", { count: "exact", head: true });
+    for (const [column, value] of filters) {
+      query = query.eq(column, value);
+    }
+    const result = (await query) as QueryResult<null>;
+    if (result.error) {
+      const message = result.error.message ?? "query_failed";
+      const missing =
+        /does not exist|Could not find the table|schema cache|PGRST205|42P01/i.test(message) ||
+        /relation .* does not exist/i.test(message);
+      if (missing) {
+        return { status: "NOT_CONFIGURED", count: null, detail: message };
+      }
+      return { status: "NOT_CONFIGURED", count: null, detail: message };
+    }
+    return { status: "OK", count: result.count ?? 0 };
+  } catch (err) {
+    return {
+      status: "NOT_CONFIGURED",
+      count: null,
+      detail: err instanceof Error ? err.message : "unreachable",
+    };
+  }
+}
+
 export async function safeRows<T extends Record<string, unknown>>(
   table: string,
   columns = "*",
