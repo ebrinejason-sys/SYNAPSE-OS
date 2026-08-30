@@ -126,6 +126,46 @@ async function hasSynapseSession(request: NextRequest): Promise<{ valid: boolean
     return { valid: false }
   }
 }
+async function hasPlatformControlPlaneAccess(
+  userId: string,
+  profileRole: string | undefined,
+  email: string | undefined
+): Promise<boolean> {
+  if (profileRole === "platform_admin" || profileRole === "platform_observer" || profileRole === "superadmin") {
+    return true;
+  }
+  if (
+    email &&
+    ADMIN_EMAILS.length > 0 &&
+    ADMIN_EMAILS.includes(email.toLowerCase())
+  ) {
+    return true;
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseKey) return false;
+
+  try {
+    const url = new URL(`${supabaseUrl}/rest/v1/platform_memberships`);
+    url.searchParams.set("user_id", `eq.${userId}`);
+    url.searchParams.set("status", "eq.ACTIVE");
+    url.searchParams.set("select", "id,expires_at");
+    url.searchParams.set("limit", "1");
+    const response = await fetch(url, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+      cache: "no-store",
+    });
+    if (!response.ok) return false;
+    const [row] = (await response.json()) as { id?: string; expires_at?: string | null }[];
+    if (!row?.id) return false;
+    if (row.expires_at && new Date(row.expires_at) < new Date()) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function isTenantActive(tenantId: string) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -207,7 +247,7 @@ export async function middleware(request: NextRequest) {
   // ── ADMIN subdomain: email-gated ──────────────────────────────────
   if (subdomain === "admin") {
     // Invite redemption is public — don't rewrite or gate it
-    if (pathname.startsWith("/invite/")) {
+    if (pathname.startsWith("/invite/") || pathname.startsWith("/platform/invite/")) {
       return NextResponse.next();
     }
 
@@ -217,7 +257,8 @@ export async function middleware(request: NextRequest) {
     const isAuthPage =
       platformPath === "/platform/login" ||
       platformPath === "/platform/mfa" ||
-      platformPath === "/platform/mfa-verify";
+      platformPath === "/platform/mfa-verify" ||
+      platformPath.startsWith("/platform/invite/");
 
     const { valid: synapseValid } = await hasSynapseSession(request)
 
@@ -226,12 +267,12 @@ export async function middleware(request: NextRequest) {
       if (token) {
         try {
           const payload = await verifyToken(token);
-          const emailAllow =
-            ADMIN_EMAILS.length > 0 &&
-            typeof payload.email === "string" &&
-            ADMIN_EMAILS.includes(payload.email.toLowerCase());
-          // Always require platform_admin (or ADMIN_EMAILS allow-list when configured)
-          if (payload.role !== "platform_admin" && !emailAllow) {
+          const allowed = await hasPlatformControlPlaneAccess(
+            payload.sub,
+            payload.role,
+            typeof payload.email === "string" ? payload.email : undefined
+          );
+          if (!allowed) {
             const url = request.nextUrl.clone();
             url.pathname = "/platform/login";
             url.searchParams.set("error", "unauthorized");

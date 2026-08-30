@@ -104,8 +104,24 @@ export async function getContext(
   const isImpersonation = tokenPayload.is_impersonation === true
   const impersonatorId = tokenPayload.impersonator_id ?? null
 
-  // Platform admins are not scoped to a tenant
-  if (profile.role === 'platform_admin' || profile.role === 'superadmin') {
+  // Platform admins and control-plane members are not scoped to a tenant
+  const { data: platformMembership } = await (supabaseAdmin as any)
+    .from('platform_memberships')
+    .select('platform_role, status, expires_at')
+    .eq('user_id', profile.id as string)
+    .eq('status', 'ACTIVE')
+    .maybeSingle()
+
+  const platformMembershipActive =
+    platformMembership &&
+    (!platformMembership.expires_at || new Date(platformMembership.expires_at as string) > new Date())
+
+  if (
+    profile.role === 'platform_admin' ||
+    profile.role === 'superadmin' ||
+    profile.role === 'platform_observer' ||
+    platformMembershipActive
+  ) {
     return {
       user,
       tenant: {

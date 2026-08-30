@@ -57,8 +57,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
   }
 
-  // platform_admin: if MFA is already enrolled, skip OTP and go straight to TOTP
-  if (profile.role === 'platform_admin') {
+  const { data: suspendedMembership } = await db
+    .from('platform_memberships')
+    .select('status')
+    .eq('user_id', profile.id as string)
+    .in('status', ['SUSPENDED', 'REVOKED'])
+    .maybeSingle()
+
+  if (suspendedMembership) {
+    return NextResponse.json({ error: 'Platform access has been suspended or revoked.' }, { status: 403 })
+  }
+
+  const { data: platformMembership } = await db
+    .from('platform_memberships')
+    .select('platform_role, status, mfa_required')
+    .eq('user_id', profile.id as string)
+    .eq('status', 'ACTIVE')
+    .maybeSingle()
+
+  const isControlPlaneUser =
+    profile.role === 'platform_admin' ||
+    profile.role === 'platform_observer' ||
+    Boolean(platformMembership)
+
+  if (isControlPlaneUser) {
     const { data: enrollment } = await db
       .from('mfa_enrollments')
       .select('id')

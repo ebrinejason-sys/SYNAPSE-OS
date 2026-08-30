@@ -140,6 +140,11 @@ export default function PlatformLoginPage() {
               className="w-full bg-[#111117] border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[#F97316] text-white"
             />
             {error && <p className="text-red-400 text-sm">{error}</p>}
+            <div className="text-right">
+              <a href="/forgot-password" className="text-xs text-[#E8B84B] hover:text-[#F97316]">
+                Forgot password?
+              </a>
+            </div>
             <button
               type="submit"
               disabled={loading}

@@ -46,6 +46,7 @@ export type FacilityType = typeof FACILITY_TYPES[number]
 
 export const ALL_ROLES = [
   'platform_admin',
+  'platform_observer',
   'hospital_admin','doctor','nurse','clinical_officer',
   'pharmacist','pharmacy_admin','pharmacy_cashier','pharmacy_store_manager',
   'lab_scientist','lab_admin',

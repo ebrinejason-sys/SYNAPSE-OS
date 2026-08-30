@@ -120,10 +120,17 @@ const SIDEBAR_SECTIONS: NavSection[] = [
     ],
   },
   {
+    caption: "Governance",
+    items: [
+      { href: "/platform/performance", label: "Stakeholder Performance", icon: TrendingUp },
+      { href: "/platform/access", label: "Platform Access", icon: ShieldCheck },
+      { href: "/platform/audit-log", label: "Audit Log", icon: ClipboardList },
+    ],
+  },
+  {
     caption: "System",
     items: [
       { href: "/platform/security", label: "Sessions & Security", icon: ShieldCheck },
-      { href: "/platform/audit-log", label: "Audit Log", icon: ClipboardList },
       { href: "/platform/flags", label: "Feature Flags", icon: Flag },
       { href: "/platform/dhis2", label: "DHIS2 Exports", icon: DatabaseZap },
       { href: "/platform/database", label: "Database", icon: DatabaseZap },
