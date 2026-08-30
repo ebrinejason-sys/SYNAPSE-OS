@@ -490,7 +490,7 @@ describe("hospital acceptance seed", () => {
     const b = seedHospital({ seed: HOSPITAL_CANONICAL_SEED, actorId: "test-admin" })
     expect(a.tenantId).toBe(b.tenantId)
     expect(a.departments).toHaveLength(27)
-    expect(a.locations).toHaveLength(28)
+    expect(a.locations).toHaveLength(27)
     expect(a.staff).toHaveLength(33)
     expect(a.patients).toHaveLength(10)
     expect(a.slug).toBe(HOSPITAL_CANONICAL_SLUG)
