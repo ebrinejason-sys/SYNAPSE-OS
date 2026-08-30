@@ -57,6 +57,24 @@ describe("completeOpenRouterChat", () => {
     assert.deepEqual(captured.body?.response_format, { type: "json_object" });
   });
 
+  it("caps fallback models to OpenRouter limit of 3", async () => {
+    let captured: { body?: Record<string, unknown> } = {};
+    await completeOpenRouterChat({
+      apiKey: "sk-or-test",
+      messages: [{ role: "user", content: "hello" }],
+      models: ["m1", "m2", "m3", "m4", "m5", "m6"],
+      fetchImpl: async (_url, init) => {
+        captured = { body: JSON.parse(String(init?.body)) };
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: "ok" } }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      },
+    });
+    assert.equal(captured.body?.model, "m1");
+    assert.deepEqual(captured.body?.models, ["m2", "m3", "m4"]);
+  });
+
   it("reads reasoning field when content is empty", async () => {
     const result = await completeOpenRouterChat({
       apiKey: "sk-or-test",

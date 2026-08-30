@@ -1,13 +1,14 @@
 export const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 
+/** OpenRouter allows 1 primary model + up to 3 entries in the `models` fallback array. */
+export const OPENROUTER_MAX_MODELS = 4;
+
 /** Free models that reliably return structured JSON for the clinical demo. */
 export const DEFAULT_OPENROUTER_FREE_MODELS = [
   "google/gemma-4-31b-it:free",
   "google/gemma-4-26b-a4b-it:free",
   "openrouter/free",
   "minimax/minimax-m2.7:free",
-  "z-ai/glm-5.2:free",
-  "nvidia/nemotron-3-super-120b-a12b:free",
 ] as const;
 
 export type OpenRouterChatSuccess = {
@@ -95,7 +96,7 @@ export async function completeOpenRouterChat(options: {
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
 }): Promise<OpenRouterChatResult> {
-  const models = uniqueModels(options.models);
+  const models = uniqueModels(options.models).slice(0, OPENROUTER_MAX_MODELS);
   if (models.length === 0) {
     return { ok: false, status: 400, message: "no OpenRouter models configured" };
   }
