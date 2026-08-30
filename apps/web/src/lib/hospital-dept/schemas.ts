@@ -49,3 +49,10 @@ export const hospitalDispenseSchema = z.object({
   pharmacy_tenant_id: z.string().uuid(),
   payment_method: z.string().min(1).max(40).default('cash'),
 })
+
+export const admissionCreateSchema = z.object({
+  patient_id: z.string().uuid(),
+  bed_id: z.string().uuid(),
+  reason: z.string().min(1).max(2000),
+  encounter_id: z.string().uuid().optional(),
+})

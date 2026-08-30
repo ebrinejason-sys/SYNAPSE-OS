@@ -7,7 +7,7 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 | ID | Department | Workflow | Current | Expected | Root cause | Fix | Complexity |
 |---|---|---|---|---|---|---|---|
 | P0-001 | Pharmacy | Dispense | Manual insert as dispensed, skips verification | Verify → dispense → inventory decrement | **PARTIAL** — /api/hospital/pharmacy/dispense + updated UI | Route through WorkQueue + authoritative inventory RPC | M |
-| P0-002 | Clinical | Signed notes | No immutability | Signed docs cannot silently change | No signed-state on encounters/notes | Add signed_at + amendment trail | M |
+| P0-002 | Clinical | Signed notes | No immutability | Signed docs cannot silently change | **PARTIAL** — sign API + is_signed columns | Add signed_at + amendment trail | M |
 | P0-003 | Security | Platform admin | Role bypass in capability.ts | No automatic clinical superuser | Hardcoded bypass | Scope bypass to platform ops only | S |
 
 ## P0 — Security
@@ -25,13 +25,13 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 | P1-002 | OPD | Doctor orders | No lab orders from UI | Lab task in WorkQueue | **FIXED** — /api/opd/lab-orders + encounter UI | work-queue.ts | Wire routeClinicalOrder in encounter API | M |
 | P1-003 | OPD | Prescription | No pharmacy queue | Pharmacy task created | **FIXED** — /api/opd/prescriptions | work-queue.ts | Wire prescription → department_tasks | M |
 | P1-004 | Lab | Worklist UI | Simulation only | Production DB worklist | **FIXED** — /api/lab/worklist DB branch | lab/orders page | Connect to lab_orders + WorkQueue | L |
-| P1-005 | Inpatient | Admission | Admin beds only | Admit → assign bed → encounter | No admission service | — | Build admission workflow + events | L |
+| P1-005 | Inpatient | Admission | Admin beds only | Admit → assign bed → encounter | **FIXED** — /api/ipd/admissions | — | Build admission workflow + events | L |
 
 ## P1 — Interconnectivity
 
 | ID | Department | Workflow | Current | Expected | Root cause | Fix | Complexity |
 |---|---|---|---|---|---|---|---|
-| P1-006 | All | Task routing | Fragmented queues | Unified WorkQueue | No abstraction existed | **CREATED** work-queue.ts — needs wiring | M |
+| P1-006 | All | Task routing | Fragmented queues | Unified WorkQueue | **FIXED** — /api/hospital/tasks | Extend timeline publishers for all handoffs | M |
 | P1-007 | Clinical | Timeline | Projection helpers | Full journey in one timeline | Partial publishers | Extend timeline publishers for all handoffs | M |
 | P1-008 | Billing | Clinical→charge | No bridge | Service event → invoice | billing_invoices unused | Clinical activity charge service | L |
 
@@ -39,7 +39,7 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 
 | ID | Department | Workflow | Current | Expected | Fix | Complexity |
 |---|---|---|---|---|---|
-| P1-009 | OPD | Doctor workspace | 10 placeholder pages | Functional queue + encounter | Build /os/[slug]/clinical or fix /doctor/queue | L |
+| P1-009 | OPD | Doctor workspace | 10 placeholder pages | Functional queue + encounter | **PARTIAL** — /doctor/queue + /doctor/orders wired | Build /os/[slug]/clinical or fix /doctor/queue | L |
 | P1-010 | Nursing | Ward list | Placeholder | Observations + tasks | Build nurse workspace in /os/[slug] | L |
 | P1-011 | Emergency | ED flow | NOT_IMPLEMENTED | Rapid reg → triage → resus | Build ED vertical slice | XL |
 

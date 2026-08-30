@@ -46,7 +46,7 @@ import {
   HOSPITAL_CANONICAL_SEED,
 } from "@synapse/db/hospital-seed"
 import { WorkQueue, routeClinicalOrder } from "@synapse/db/work-queue"
-import { recordEncounterOpened, recordLabOrderPlaced, recordPrescriptionPlaced } from "@synapse/db/clinical-journey"
+import { recordEncounterOpened, recordLabOrderPlaced, recordPrescriptionPlaced, recordAdmissionPlaced, recordEncounterSigned } from "@synapse/db/clinical-journey"
 import { departmentTaskToRow, rowToDepartmentTask } from "@synapse/db/work-queue-persist"
 import { labOrderToRow, rowToLabOrder } from "@synapse/db/lab-order-persist"
 import { clinicalPrescriptionToRow, rowToClinicalPrescription } from "@synapse/db/prescription-persist"
@@ -684,6 +684,41 @@ describe("clinical journey — prescription placed", () => {
     expect(restored.id).toBe(prescription.id)
     expect(restored.medicationDisplay).toBe("Paracetamol 500mg")
     expect(restored.correlationId).toBe(encounterId)
+  })
+})
+
+describe("clinical journey — admission placed", () => {
+  it("emits PatientAdmitted and routes inpatient admission task", () => {
+    const admissionId = crypto.randomUUID()
+    const result = recordAdmissionPlaced({
+      tenantId: crypto.randomUUID(),
+      hospitalId: crypto.randomUUID(),
+      patientId: crypto.randomUUID(),
+      bedId: crypto.randomUUID(),
+      requesterId: crypto.randomUUID(),
+      reason: "Malaria with danger signs",
+      admissionId,
+    })
+    expect(result.admissionId).toBe(admissionId)
+    expect(result.admissionTask.taskType).toBe("admission")
+    expect(result.admissionTask.ownerDepartment).toBe("inpatient")
+    const events = result.queue.outbox.list({ correlationId: result.correlationId })
+    expect(events.some((e) => e.event_type === "PatientAdmitted")).toBe(true)
+  })
+})
+
+describe("clinical journey — encounter signed", () => {
+  it("emits EncounterSigned under encounter correlation id", () => {
+    const encounterId = crypto.randomUUID()
+    const result = recordEncounterSigned({
+      tenantId: crypto.randomUUID(),
+      hospitalId: crypto.randomUUID(),
+      patientId: crypto.randomUUID(),
+      encounterId,
+      signerId: crypto.randomUUID(),
+    })
+    expect(result.correlationId).toBe(encounterId)
+    expect(result.queue.outbox.list({ correlationId: encounterId }).some((e) => e.event_type === "EncounterSigned")).toBe(true)
   })
 })
 

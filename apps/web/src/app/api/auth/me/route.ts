@@ -36,6 +36,16 @@ export async function GET() {
     if (!profile) return NextResponse.json({ user: null }, { status: 401 })
     if (!isAccountActivated(profile)) return NextResponse.json({ user: null }, { status: 401 })
 
+    let tenantSlug: string | null = null
+    if (profile.tenant_id) {
+      const { data: tenant } = await db
+        .from('tenants')
+        .select('slug, default_subdomain')
+        .eq('id', profile.tenant_id)
+        .maybeSingle()
+      tenantSlug = tenant?.slug ?? tenant?.default_subdomain ?? null
+    }
+
     return NextResponse.json({
       user: {
         id:        profile.id,
@@ -45,6 +55,7 @@ export async function GET() {
         lastName:  profile.last_name,
         role:      profile.role,
         tenantId:  profile.tenant_id,
+        tenantSlug,
         hospitalId: profile.hospital_id,
         departmentId: profile.department_id,
         isAdmin:   profile.is_admin,

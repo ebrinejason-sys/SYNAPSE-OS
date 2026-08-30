@@ -319,3 +319,132 @@ export function recordPrescriptionPlaced(input: PrescriptionPlacedInput): Prescr
     eventsEmitted: queue.outbox.list({ correlationId }).length,
   }
 }
+
+export type AdmissionPlacedInput = {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  bedId: string
+  requesterId: string
+  reason: string
+  encounterId?: string | null
+  ward?: string | null
+  correlationId?: string
+  admissionId?: string
+  isSynthetic?: boolean
+  simulationRunId?: string | null
+  queue?: WorkQueue
+}
+
+export type AdmissionPlacedResult = {
+  queue: WorkQueue
+  admissionId: string
+  admissionTask: DepartmentTask
+  correlationId: string
+  eventsEmitted: number
+}
+
+/** Admit patient to inpatient: PatientAdmitted + inpatient department task. */
+export function recordAdmissionPlaced(input: AdmissionPlacedInput): AdmissionPlacedResult {
+  const queue = input.queue ?? new WorkQueue()
+  const admissionId = input.admissionId ?? crypto.randomUUID()
+  const correlationId = input.correlationId ?? input.encounterId ?? admissionId
+  const isSynthetic = input.isSynthetic ?? false
+
+  queue.outbox.append({
+    eventType: "PatientAdmitted",
+    tenantId: input.tenantId,
+    facilityId: input.hospitalId,
+    patientId: input.patientId,
+    encounterId: input.encounterId ?? undefined,
+    actorId: input.requesterId,
+    source: "synapse-os",
+    aggregateId: admissionId,
+    action: "admit",
+    correlationId,
+    payload: {
+      admission_id: admissionId,
+      bed_id: input.bedId,
+      reason: input.reason,
+      ward: input.ward ?? null,
+      is_synthetic: isSynthetic,
+    },
+    isSynthetic,
+    simulationRunId: input.simulationRunId ?? null,
+  })
+
+  const routed = routeClinicalOrder(queue, {
+    orderType: "admission",
+    tenantId: input.tenantId,
+    hospitalId: input.hospitalId,
+    patientId: input.patientId,
+    encounterId: input.encounterId ?? admissionId,
+    requesterId: input.requesterId,
+    correlationId,
+    title: `Admission: ${input.reason}`,
+    priority: "URGENT",
+    sourceResource: "hospital_beds",
+    sourceId: input.bedId,
+    isSynthetic,
+    simulationRunId: input.simulationRunId ?? undefined,
+    suppressTaskDomainEvent: true,
+  })
+
+  if (!routed.ok) {
+    throw new Error(routed.error)
+  }
+
+  return {
+    queue,
+    admissionId,
+    admissionTask: routed.task,
+    correlationId,
+    eventsEmitted: queue.outbox.list({ correlationId }).length,
+  }
+}
+
+export type EncounterSignedInput = {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  encounterId: string
+  signerId: string
+  queue?: WorkQueue
+}
+
+export type EncounterSignedResult = {
+  queue: WorkQueue
+  correlationId: string
+  eventsEmitted: number
+}
+
+/** Sign encounter note — emits EncounterSigned (immutable after DB update). */
+export function recordEncounterSigned(input: EncounterSignedInput): EncounterSignedResult {
+  const queue = input.queue ?? new WorkQueue()
+  const correlationId = input.encounterId
+
+  queue.outbox.append({
+    eventType: "EncounterSigned",
+    tenantId: input.tenantId,
+    facilityId: input.hospitalId,
+    patientId: input.patientId,
+    encounterId: input.encounterId,
+    actorId: input.signerId,
+    source: "synapse-os",
+    aggregateId: input.encounterId,
+    action: "sign",
+    correlationId,
+    payload: {
+      encounter_id: input.encounterId,
+      signed_by: input.signerId,
+    },
+    isSynthetic: false,
+    simulationRunId: null,
+  })
+
+  return {
+    queue,
+    correlationId,
+    eventsEmitted: queue.outbox.list({ correlationId }).length,
+  }
+}
