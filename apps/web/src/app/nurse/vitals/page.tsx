@@ -46,10 +46,10 @@ export default function NurseVitalsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-synapse-950 text-white p-8">
+    <main className="min-h-screen bg-base text-primary-color p-8">
       <div className="mx-auto max-w-lg">
         <h1 className="font-display text-2xl">Record Vitals</h1>
-        <p className="mt-2 text-sm text-gray-400">Blocked on signed encounters.</p>
+        <p className="mt-2 text-sm text-muted-color">Blocked on signed encounters.</p>
         <form onSubmit={submit} className="mt-6 space-y-3">
           <input
             required

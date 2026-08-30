@@ -55,60 +55,60 @@ function DoctorOrdersInner() {
 
   if (!encounterId) {
     return (
-      <main className="min-h-screen bg-synapse-950 text-white p-8">
+      <main className="min-h-screen bg-base text-primary-color p-8">
         <h1 className="font-display text-2xl">Clinical Orders</h1>
-        <p className="mt-2 text-gray-400">Select a patient from the queue to view orders.</p>
+        <p className="mt-2 text-muted-color">Select a patient from the queue to view orders.</p>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-synapse-950 text-white p-8">
+    <main className="min-h-screen bg-base text-primary-color p-8">
       <h1 className="font-display text-2xl">Clinical Orders</h1>
-      <p className="mt-2 text-sm text-gray-400">Encounter {encounterId.slice(0, 8)}…</p>
+      <p className="mt-2 text-sm text-muted-color">Encounter {encounterId.slice(0, 8)}…</p>
       {error ? <p className="mt-4 text-amber-300 text-sm">{error}</p> : null}
 
       <section className="mt-8">
-        <h2 className="text-sm font-semibold uppercase text-gray-400">Lab orders</h2>
+        <h2 className="text-sm font-semibold uppercase text-muted-color">Lab orders</h2>
         <ul className="mt-3 space-y-2">
           {labOrders.map((o) => (
-            <li key={o.id} className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm">
+            <li key={o.id} className="rounded-xl border border-subtle bg-surface p-3 text-sm">
               {o.test_name} · {o.loinc_code} · {o.workflow_status ?? o.status}
             </li>
           ))}
-          {labOrders.length === 0 ? <p className="text-xs text-gray-500">No lab orders.</p> : null}
+          {labOrders.length === 0 ? <p className="text-xs text-muted-color">No lab orders.</p> : null}
         </ul>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-sm font-semibold uppercase text-gray-400">Prescriptions</h2>
+        <h2 className="text-sm font-semibold uppercase text-muted-color">Prescriptions</h2>
         <ul className="mt-3 space-y-2">
           {prescriptions.map((rx) => (
-            <li key={rx.id} className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm">
+            <li key={rx.id} className="rounded-xl border border-subtle bg-surface p-3 text-sm">
               {rx.medication_display} · qty {rx.quantity} · {rx.status}
-              {rx.dose ? <span className="block text-xs text-gray-400">{rx.dose}</span> : null}
+              {rx.dose ? <span className="block text-xs text-muted-color">{rx.dose}</span> : null}
             </li>
           ))}
-          {prescriptions.length === 0 ? <p className="text-xs text-gray-500">No prescriptions.</p> : null}
+          {prescriptions.length === 0 ? <p className="text-xs text-muted-color">No prescriptions.</p> : null}
         </ul>
       </section>
 
       <section className="mt-8">
-        <h2 className="text-sm font-semibold uppercase text-gray-400">Encounter timeline</h2>
+        <h2 className="text-sm font-semibold uppercase text-muted-color">Encounter timeline</h2>
         {invoiceTotal != null ? (
           <p className="mt-2 text-xs text-emerald-300">Draft invoice total: UGX {invoiceTotal.toLocaleString()}</p>
         ) : null}
         <ul className="mt-3 space-y-2">
           {timeline.map((ev) => (
-            <li key={ev.id} className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm">
+            <li key={ev.id} className="rounded-xl border border-subtle bg-surface p-3 text-sm">
               <p className="font-medium">{ev.title}</p>
-              {ev.summary ? <p className="text-xs text-gray-400">{ev.summary}</p> : null}
-              <p className="mt-1 text-[10px] uppercase text-gray-500">
+              {ev.summary ? <p className="text-xs text-muted-color">{ev.summary}</p> : null}
+              <p className="mt-1 text-[10px] uppercase text-muted-color">
                 {ev.event_type} · {new Date(ev.event_date).toLocaleString()}
               </p>
             </li>
           ))}
-          {timeline.length === 0 ? <p className="text-xs text-gray-500">No timeline events yet.</p> : null}
+          {timeline.length === 0 ? <p className="text-xs text-muted-color">No timeline events yet.</p> : null}
         </ul>
       </section>
     </main>
@@ -117,7 +117,7 @@ function DoctorOrdersInner() {
 
 export default function DoctorOrdersPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-synapse-950 text-white p-8">Loading…</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-base text-primary-color p-8">Loading…</div>}>
       <DoctorOrdersInner />
     </Suspense>
   )

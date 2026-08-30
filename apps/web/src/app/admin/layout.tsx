@@ -7,6 +7,7 @@ import {
   Stethoscope, UserRound, Users, Wallet,
 } from 'lucide-react'
 import { SynapseLogo } from '../../components/SynapseLogo'
+import { ThemeToggle } from '../../components/ThemeToggle'
 
 const NAV = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -66,7 +67,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               )
             })}
           </nav>
-          <div className="pt-4 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+          <div className="pt-4 border-t space-y-2" style={{ borderColor: 'var(--border-subtle)' }}>
+            <div className="flex items-center justify-between px-2">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Theme</span>
+              <ThemeToggle />
+            </div>
             <button
               type="button"
               onClick={handleSignOut}
@@ -87,6 +92,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             <SynapseLogo size="xs" />
             <div className="flex items-center gap-2">
+              <ThemeToggle />
               <Stethoscope className="h-4 w-4" style={{ color: 'var(--brand-orange)' }} />
               <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Admin</span>
             </div>

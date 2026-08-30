@@ -54,6 +54,31 @@
   --conf-high:     #22C55E;
   --conf-med:      #EAB308;
   --conf-low:      #EF4444;
+
+  /* Shadcn-compatible HSL tokens (used by Tailwind semantic utilities) */
+  --background: 240 10% 3%;
+  --foreground: 240 5% 96%;
+  --card: 240 8% 7%;
+  --card-foreground: 240 5% 96%;
+  --popover: 240 8% 9%;
+  --popover-foreground: 240 5% 96%;
+  --primary: 24 95% 53%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 6% 12%;
+  --secondary-foreground: 240 5% 90%;
+  --muted: 240 6% 14%;
+  --muted-foreground: 240 4% 65%;
+  --accent: 40 77% 57%;
+  --accent-foreground: 240 10% 4%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 6% 18%;
+  --input: 240 6% 18%;
+  --ring: 24 95% 53%;
+  --radius: 0.75rem;
+
+  --synapse-border: var(--border-edge);
+  color-scheme: dark;
 }
 
 [data-theme="light"] {
@@ -103,9 +128,42 @@
   --hero-glow:      rgba(217, 94, 0, 0.10);
   --hero-glow-gold: rgba(168, 100, 0, 0.06);
   --shimmer-base:   rgba(0, 0, 0, 0.03);
+
+  /* Shadcn-compatible HSL tokens — light */
+  --background: 210 17% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 24 100% 50%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 25% 94%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 20% 96%;
+  --muted-foreground: 215 16% 35%;
+  --accent: 40 90% 50%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 84% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 20% 88%;
+  --input: 214 20% 88%;
+  --ring: 24 100% 50%;
+
+  color-scheme: light;
 }
 
 @layer utilities {
+  .clinical-page {
+    @apply min-h-screen bg-base text-primary-color;
+  }
+  .clinical-card {
+    @apply rounded-2xl border border-subtle bg-surface;
+  }
+  .clinical-panel {
+    @apply rounded-xl border border-subtle bg-elevated;
+  }
+
   .bg-base     { background-color: var(--bg-base); }
   .bg-surface  { background-color: var(--bg-surface); }
   .bg-elevated { background-color: var(--bg-elevated); }

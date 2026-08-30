@@ -4,6 +4,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import "@synapse/config/typography.css";
 import "./globals.css";
+import { ThemeProvider } from "../components/ThemeProvider";
 
 /** Shared with pharmacy — IBM Plex Sans (UI + display) · IBM Plex Mono (data). */
 const plexSans = IBM_Plex_Sans({
@@ -58,12 +59,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* FOUC prevention — sets data-theme before first paint */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){var t=localStorage.getItem('synapse-theme');if(!t)t=window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark';document.documentElement.setAttribute('data-theme',t)})()`,
+            __html: `(function(){try{var k='synapse-theme';var t=localStorage.getItem(k);if(!t||t==='system'){t=window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})()`,
           }}
         />
       </head>
-      <body className="font-sans antialiased">
-        {children}
+      <body className="min-h-screen bg-base font-sans text-primary-color antialiased">
+        <ThemeProvider>{children}</ThemeProvider>
         <Analytics />
         <SpeedInsights />
       </body>

@@ -48,27 +48,27 @@ export default function LabOrdersPage() {
   }
 
   return (
-    <main className="min-h-screen bg-synapse-950 p-8 text-white">
+    <main className="clinical-page p-8">
       <h1 className="font-display text-2xl">Synapse Lab worklist</h1>
-      <p className="mt-2 max-w-2xl text-sm text-gray-400">
+      <p className="mt-2 max-w-2xl text-sm text-muted-color">
         Order → collection → receipt → result → verification. Verified results are never silently overwritten.
         AI cannot release laboratory results.
       </p>
       {error ? <p className="mt-4 text-sm text-amber-300">{error}</p> : null}
       {orders.length === 0 ? (
-        <p className="mt-8 text-sm text-gray-500">
+        <p className="mt-8 text-sm text-muted-color">
           No open lab orders. Place orders from an OPD encounter or run the sepsis simulation from Platform Control Center.
         </p>
       ) : (
         <ul className="mt-8 space-y-3">
           {orders.map((order) => (
-            <li key={order.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <li key={order.id} className="rounded-2xl border border-subtle bg-surface p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-medium">
                     {order.testName} · {order.loincCode}
                   </p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-muted-color">
                     {order.patientName ?? "Synthetic patient"} · {order.synapseId ?? ""} · {order.status} · {order.urgency}
                   </p>
                   {order.accessionNumber ? (
@@ -76,15 +76,15 @@ export default function LabOrdersPage() {
                   ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" className="rounded-lg border border-white/15 px-3 py-1 text-xs" onClick={() => act(order.id, "collect")}>
+                  <button type="button" className="rounded-lg border border-edge px-3 py-1 text-xs" onClick={() => act(order.id, "collect")}>
                     Collect
                   </button>
-                  <button type="button" className="rounded-lg border border-white/15 px-3 py-1 text-xs" onClick={() => act(order.id, "receive")}>
+                  <button type="button" className="rounded-lg border border-edge px-3 py-1 text-xs" onClick={() => act(order.id, "receive")}>
                     Receive
                   </button>
                   <button
                     type="button"
-                    className="rounded-lg border border-white/15 px-3 py-1 text-xs"
+                    className="rounded-lg border border-edge px-3 py-1 text-xs"
                     onClick={() => act(order.id, "enter_result", { value })}
                   >
                     Enter result
@@ -94,12 +94,12 @@ export default function LabOrdersPage() {
                   </button>
                 </div>
               </div>
-              <label className="mt-3 block text-xs text-gray-500">
+              <label className="mt-3 block text-xs text-muted-color">
                 Result value
                 <input
                   value={value}
                   onChange={(event) => setValue(event.target.value)}
-                  className="ml-2 rounded border border-white/10 bg-black/40 px-2 py-1 text-white"
+                  className="ml-2 rounded border border-subtle bg-elevated px-2 py-1 text-primary-color"
                 />
               </label>
             </li>

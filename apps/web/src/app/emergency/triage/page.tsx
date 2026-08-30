@@ -131,16 +131,16 @@ export default function EmergencyTriagePage() {
   }
 
   return (
-    <main className="min-h-screen bg-synapse-950 text-white p-8">
+    <main className="min-h-screen bg-base text-primary-color p-8">
       <div className="mx-auto max-w-5xl">
         <h1 className="font-display text-2xl">Emergency Triage</h1>
-        <p className="mt-2 text-sm text-gray-400">
+        <p className="mt-2 text-sm text-muted-color">
           Rapid registration → triage → bay assignment (production WorkQueue path).
         </p>
         {error ? <p className="mt-4 text-sm text-amber-300">{error}</p> : null}
 
-        <section className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-6">
-          <h2 className="text-sm font-semibold uppercase text-gray-400">New arrival</h2>
+        <section className="mt-8 rounded-2xl border border-subtle bg-surface p-6">
+          <h2 className="text-sm font-semibold uppercase text-muted-color">New arrival</h2>
           <div className="mt-4 flex flex-wrap gap-3">
             <button
               type="button"
@@ -158,7 +158,7 @@ export default function EmergencyTriagePage() {
               }}
             />
             {patient ? (
-              <p className="mt-2 text-sm text-gray-300">
+              <p className="mt-2 text-sm text-secondary-color">
                 Selected: {patient.fullName} {patient.mrn ? `(${patient.mrn})` : ''}
               </p>
             ) : null}
@@ -167,7 +167,7 @@ export default function EmergencyTriagePage() {
             value={complaint}
             onChange={(e) => setComplaint(e.target.value)}
             placeholder="Chief complaint"
-            className="mt-4 w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm"
+            className="mt-4 w-full rounded-xl border border-subtle bg-black/20 p-3 text-sm"
             rows={3}
           />
           <div className="mt-4 flex flex-wrap gap-3">
@@ -183,7 +183,7 @@ export default function EmergencyTriagePage() {
                       : level === 'YELLOW'
                         ? 'bg-amber-500/30 text-amber-200'
                         : 'bg-emerald-500/30 text-emerald-200'
-                    : 'border border-white/10 text-gray-400'
+                    : 'border border-subtle text-muted-color'
                 }`}
               >
                 {level}
@@ -192,7 +192,7 @@ export default function EmergencyTriagePage() {
             <select
               value={arrivalMode}
               onChange={(e) => setArrivalMode(e.target.value as typeof arrivalMode)}
-              className="rounded-lg border border-white/10 bg-transparent px-3 py-1 text-xs"
+              className="rounded-lg border border-subtle bg-transparent px-3 py-1 text-xs"
             >
               <option value="walk_in">Walk-in</option>
               <option value="ambulance">Ambulance</option>
@@ -210,19 +210,19 @@ export default function EmergencyTriagePage() {
         </section>
 
         <section className="mt-10">
-          <h2 className="text-sm font-semibold uppercase text-gray-400">Today&apos;s ED queue</h2>
+          <h2 className="text-sm font-semibold uppercase text-muted-color">Today&apos;s ED queue</h2>
           <ul className="mt-4 space-y-3">
             {queue.map((row) => (
-              <li key={row.encounterId} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <li key={row.encounterId} className="rounded-2xl border border-subtle bg-surface p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-medium">
                       {row.fullName}{' '}
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-muted-color">
                         {row.clinicalStage ?? '—'} · {row.bayCode ?? 'unassigned'}
                       </span>
                     </p>
-                    <p className="text-sm text-gray-300">{row.chiefComplaint}</p>
+                    <p className="text-sm text-secondary-color">{row.chiefComplaint}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {bays
@@ -243,7 +243,7 @@ export default function EmergencyTriagePage() {
               </li>
             ))}
             {queue.length === 0 ? (
-              <p className="text-sm text-gray-500">No ED encounters today.</p>
+              <p className="text-sm text-muted-color">No ED encounters today.</p>
             ) : null}
           </ul>
         </section>

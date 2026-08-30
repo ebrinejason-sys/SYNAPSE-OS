@@ -61,23 +61,23 @@ export default function DoctorQueuePage() {
   }
 
   return (
-    <main className="min-h-screen bg-synapse-950 text-white p-8">
+    <main className="min-h-screen bg-base text-primary-color p-8">
       <div className="mx-auto max-w-4xl">
         <h1 className="font-display text-2xl">OPD Patient Queue</h1>
-        <p className="mt-2 text-sm text-gray-400">
+        <p className="mt-2 text-sm text-muted-color">
           Today&apos;s encounters for your hospital tenant — sign notes and place orders from here.
         </p>
         {error ? <p className="mt-4 text-sm text-amber-300">{error}</p> : null}
         <ul className="mt-8 space-y-3">
           {queue.map((row) => (
-            <li key={row.encounterId} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <li key={row.encounterId} className="rounded-2xl border border-subtle bg-surface p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-medium">{row.fullName}</p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-muted-color">
                     {row.mrn ?? 'No MRN'} · {row.status} · {row.clinicalStage ?? 'unclassified'}
                   </p>
-                  <p className="mt-1 text-sm text-gray-300">{row.chiefComplaint ?? 'No complaint'}</p>
+                  <p className="mt-1 text-sm text-secondary-color">{row.chiefComplaint ?? 'No complaint'}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {tenantSlug ? (
@@ -145,7 +145,7 @@ export default function DoctorQueuePage() {
             </li>
           ))}
           {queue.length === 0 && !error ? (
-            <p className="text-sm text-gray-500">No open encounters today.</p>
+            <p className="text-sm text-muted-color">No open encounters today.</p>
           ) : null}
         </ul>
       </div>

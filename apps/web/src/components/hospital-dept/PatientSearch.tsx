@@ -49,17 +49,17 @@ export function PatientSearch({ onSelect }: PatientSearchProps) {
         value={query}
         onChange={(e) => search(e.target.value)}
         placeholder="Search by name or MRN"
-        className="rounded border border-[var(--synapse-border)] bg-transparent px-3 py-2 text-sm"
+        className="rounded border border-edge bg-transparent px-3 py-2 text-sm text-primary-color"
       />
       {loading && <p className="text-xs opacity-60">Searching…</p>}
       {results.length > 0 && (
-        <ul className="flex flex-col divide-y divide-[var(--synapse-border)] rounded border border-[var(--synapse-border)]">
+        <ul className="flex flex-col divide-y divide-[var(--border-subtle)] rounded border border-edge">
           {results.map((p) => (
             <li key={p.id}>
               <button
                 type="button"
                 onClick={() => onSelect({ id: p.id, fullName: p.full_name, mrn: p.mrn })}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-white/5"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-surface"
               >
                 {p.full_name} {p.mrn ? `(${p.mrn})` : ''}
               </button>

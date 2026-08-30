@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { ThemeToggle } from './ThemeToggle'
 
 const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs))
 
@@ -124,9 +125,10 @@ export function AppSidebar({ children }: { children: React.ReactNode }) {
           <button type="button" className="lg:hidden text-muted-foreground hover:text-foreground p-1 mr-2" onClick={() => setOpen(true)}>
             <Menu className="h-5 w-5" />
           </button>
-          <span className="text-sm font-semibold text-foreground truncate">
+          <span className="text-sm font-semibold text-foreground truncate flex-1">
             {NAV_GROUPS.flatMap(g => g.items).find(item => pathname === item.href || pathname.startsWith(item.href + '/'))?.name ?? 'Synapse OS'}
           </span>
+          <ThemeToggle />
         </header>
 
         <main className="flex-1 p-4 pb-20 lg:p-6 lg:pb-6">
