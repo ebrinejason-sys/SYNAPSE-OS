@@ -2,8 +2,8 @@
  * Persist LabWorkflow orders to public.lab_orders (legacy status + workflow_status).
  */
 
-import type { LabOrder } from "./lab-workflow.ts"
-import { persistableLabOrderStatus } from "./lab-workflow.ts"
+import type { LabOrder } from "./lab-workflow"
+import { persistableLabOrderStatus } from "./lab-workflow"
 
 export type DbClient = {
   from(table: string): {

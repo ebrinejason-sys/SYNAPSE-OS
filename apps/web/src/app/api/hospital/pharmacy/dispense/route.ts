@@ -7,8 +7,8 @@ import { persistDomainEventsBestEffort } from '@synapse/db/work-queue-persist'
 import { appendClinicalChargeBestEffort, recordInvoiceCreatedEvent } from '@synapse/db/clinical-charge'
 import { medicationDispensedTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
-import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../lib/hospital-shared'
-import { requireHospitalStaffContext, hospitalDispenseSchema } from '../../../../lib/hospital-dept'
+import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '@/lib/hospital-shared'
+import { requireHospitalStaffContext, hospitalDispenseSchema } from '@/lib/hospital-dept'
 
 export const dynamic = 'force-dynamic'
 

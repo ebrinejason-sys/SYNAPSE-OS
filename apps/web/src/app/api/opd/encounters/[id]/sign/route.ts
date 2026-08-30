@@ -4,8 +4,8 @@ import { recordEncounterSigned } from '@synapse/db/clinical-journey'
 import { persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
 import { encounterSignedTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
-import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../../lib/hospital-shared'
-import { requireHospitalStaffContext } from '../../../../../lib/hospital-dept'
+import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '@/lib/hospital-shared'
+import { requireHospitalStaffContext } from '@/lib/hospital-dept'
 
 export const dynamic = 'force-dynamic'
 

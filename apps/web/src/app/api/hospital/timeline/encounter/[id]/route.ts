@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { isContextError, requireHospitalCapability, gateHospitalModule } from '../../../../../lib/hospital-shared'
-import { requireHospitalStaffContext } from '../../../../../lib/hospital-dept'
+import { isContextError, requireHospitalCapability, gateHospitalModule } from '@/lib/hospital-shared'
+import { requireHospitalStaffContext } from '@/lib/hospital-dept'
 
 export const dynamic = 'force-dynamic'
 

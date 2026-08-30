@@ -3,10 +3,10 @@
  * Production APIs call these after durable writes (encounters, orders, etc.).
  */
 
-import { ExchangeOutbox } from "./exchange.ts"
-import { LabWorkflow, type LabOrder } from "./lab-workflow.ts"
-import { createPrescription, type ClinicalPrescription } from "./prescription-bridge.ts"
-import { WorkQueue, routeClinicalOrder, type DepartmentTask } from "./work-queue.ts"
+import { ExchangeOutbox } from "./exchange"
+import { LabWorkflow, type LabOrder } from "./lab-workflow"
+import { createPrescription, type ClinicalPrescription } from "./prescription-bridge"
+import { WorkQueue, routeClinicalOrder, type DepartmentTask } from "./work-queue"
 
 export type EncounterOpenedInput = {
   tenantId: string

@@ -2,7 +2,7 @@
  * Timeline publishers for hospital clinical handoffs (P1-007).
  */
 
-import type { TimelineEventInput } from "./timeline.ts"
+import type { TimelineEventInput } from "./timeline"
 
 export function encounterOpenedTimelineEvent(params: {
   tenantId: string

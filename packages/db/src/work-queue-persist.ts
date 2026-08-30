@@ -4,7 +4,7 @@
  */
 
 import type { OutboxRecord } from "@synapse/interop"
-import { toDomainEventInsert } from "./exchange.ts"
+import { toDomainEventInsert } from "./exchange"
 import type { DepartmentTask } from "./work-queue.ts"
 
 export type DbClient = {
