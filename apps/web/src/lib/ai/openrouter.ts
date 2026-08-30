@@ -1,12 +1,13 @@
 export const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-/** Official free router, then specific :free models if the router is busy. */
+/** Free models that reliably return structured JSON for the clinical demo. */
 export const DEFAULT_OPENROUTER_FREE_MODELS = [
-  "openrouter/free",
   "google/gemma-4-31b-it:free",
-  "nvidia/nemotron-3-super-120b-a12b:free",
-  "z-ai/glm-5.2:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "openrouter/free",
   "minimax/minimax-m2.7:free",
+  "z-ai/glm-5.2:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
 ] as const;
 
 export type OpenRouterChatSuccess = {
@@ -68,12 +69,19 @@ type OpenRouterChoice = {
 
 function choiceContent(json: { choices?: OpenRouterChoice[]; model?: string }): string {
   const message = json.choices?.[0]?.message;
-  const content = message?.content;
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content.map((part) => (typeof part?.text === "string" ? part.text : "")).join("");
+  if (!message) return "";
+
+  let content = "";
+  const rawContent = message.content;
+  if (typeof rawContent === "string") {
+    content = rawContent;
+  } else if (Array.isArray(rawContent)) {
+    content = rawContent.map((part) => (typeof part?.text === "string" ? part.text : "")).join("");
   }
-  return "";
+
+  const reasoning = typeof message.reasoning === "string" ? message.reasoning : "";
+  // Free reasoning models often leave `content` empty and put the answer in `reasoning`.
+  return (content.trim() || reasoning.trim());
 }
 
 export async function completeOpenRouterChat(options: {
@@ -163,6 +171,9 @@ export function publicOpenRouterError(failure: OpenRouterChatFailure): string {
   }
   if (failure.status === 504) {
     return "Clinical AI timed out. Please try again.";
+  }
+  if (failure.message) {
+    return failure.message;
   }
   return "OpenRouter did not return a usable response.";
 }

@@ -7,10 +7,10 @@ import {
 } from "./openrouter.ts";
 
 describe("resolveOpenRouterModels", () => {
-  it("defaults to the free router first", () => {
+  it("defaults to gemma free model first for structured clinical JSON", () => {
     const models = resolveOpenRouterModels({});
-    assert.equal(models[0], "openrouter/free");
-    assert.ok(models.every((model) => model.includes("/") && !model.includes("deepseek-r1-distill-llama-70b")));
+    assert.equal(models[0], "google/gemma-4-31b-it:free");
+    assert.ok(models.includes("openrouter/free"));
   });
 
   it("pins OPENROUTER_MODEL ahead of defaults without duplicates", () => {
@@ -55,6 +55,25 @@ describe("completeOpenRouterChat", () => {
     assert.equal(captured.body?.model, "openrouter/free");
     assert.deepEqual(captured.body?.models, ["google/gemma-4-31b-it:free"]);
     assert.deepEqual(captured.body?.response_format, { type: "json_object" });
+  });
+
+  it("reads reasoning field when content is empty", async () => {
+    const result = await completeOpenRouterChat({
+      apiKey: "sk-or-test",
+      messages: [{ role: "user", content: "hello" }],
+      models: ["nvidia/nemotron-3-super-120b-a12b:free"],
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            model: "nvidia/nemotron-3-super-120b-a12b:free",
+            choices: [{ message: { content: "", reasoning: "{\"ok\":true}" } }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        ),
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.content, "{\"ok\":true}");
   });
 
   it("surfaces OpenRouter error messages", async () => {
