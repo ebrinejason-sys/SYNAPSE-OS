@@ -1,103 +1,157 @@
 ﻿'use client'
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FlaskConical, CheckCircle } from 'lucide-react'
-import { createClient } from '../../../lib/supabase/client'
+
+type PrescriptionRow = {
+  id: string
+  medication_display: string
+  dose: string | null
+  quantity: number
+  unit: string
+  status: string
+  encounter_id: string | null
+}
 
 export default function PharmacyDispensePage() {
-  const [form, setForm] = useState({
-    patient_name: '',
-    drug_name: '',
-    quantity: '',
-    instructions: '',
-    prescribed_by: '',
-  })
+  const [prescriptions, setPrescriptions] = useState<PrescriptionRow[]>([])
+  const [prescriptionId, setPrescriptionId] = useState('')
+  const [productId, setProductId] = useState('')
+  const [pharmacyTenantId, setPharmacyTenantId] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('cash')
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
+  const [loadError, setLoadError] = useState('')
+
+  useEffect(() => {
+    fetch('/api/opd/prescriptions?status=active', { credentials: 'include' })
+      .then(async (res) => {
+        if (!res.ok) {
+          setLoadError('Unable to load clinical prescriptions.')
+          return
+        }
+        const data = (await res.json()) as { prescriptions: PrescriptionRow[] }
+        setPrescriptions(data.prescriptions ?? [])
+      })
+      .catch(() => setLoadError('Unable to load clinical prescriptions.'))
+  }, [])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.drug_name.trim() || !form.quantity.trim()) {
-      setError('Drug name and quantity are required.')
+    if (!prescriptionId || !productId || !pharmacyTenantId) {
+      setError('Prescription, product ID, and pharmacy tenant ID are required.')
       return
     }
     setSaving(true)
     setError('')
-    const supabase = createClient()
-    const meRes = await fetch('/api/auth/me')
-    const { user } = meRes.ok ? await meRes.json() : { user: null }
-    if (!user) { setSaving(false); return }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = supabase as any
-    const { data: profile } = await sb.from('profiles').select('hospital_id').eq('id', user.id).single() as { data: { hospital_id: string } | null }
-    if (!profile?.hospital_id) { setSaving(false); return }
-
-    const { error: dbErr } = await sb.from('dispense_requests').insert({
-      hospital_id: profile.hospital_id,
-      patient_name: form.patient_name || null,
-      drug_name: form.drug_name,
-      quantity: parseInt(form.quantity),
-      instructions: form.instructions || null,
-      prescribed_by: form.prescribed_by || null,
-      status: 'dispensed',
-      dispensed_at: new Date().toISOString(),
-      dispensed_by: user.id,
+    const res = await fetch('/api/hospital/pharmacy/dispense', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        prescription_id: prescriptionId,
+        product_id: productId,
+        pharmacy_tenant_id: pharmacyTenantId,
+        payment_method: paymentMethod,
+      }),
     })
-
+    const data = await res.json()
     setSaving(false)
-    if (dbErr) {
-      setError('Failed to record dispense.')
-    } else {
-      setDone(true)
-      setForm({ patient_name: '', drug_name: '', quantity: '', instructions: '', prescribed_by: '' })
-      setTimeout(() => setDone(false), 3000)
+    if (!res.ok) {
+      setError(typeof data.error === 'string' ? data.error : 'Dispense failed.')
+      return
     }
+    setDone(true)
+    setPrescriptionId('')
+    setProductId('')
+    setTimeout(() => setDone(false), 3000)
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Record Dispense</h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Log a drug dispensed to a patient</p>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Clinical Dispense</h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+          Verify and dispense via authoritative inventory (complete_pharmacy_sale)
+        </p>
       </div>
 
       {done && (
         <div className="flex items-center gap-3 rounded-2xl p-4"
           style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
           <CheckCircle className="h-5 w-5" style={{ color: '#22C55E' }} />
-          <p className="text-sm font-semibold" style={{ color: '#22C55E' }}>Dispense recorded successfully.</p>
+          <p className="text-sm font-semibold" style={{ color: '#22C55E' }}>Dispense recorded and inventory decremented.</p>
         </div>
       )}
 
-      {error && (
-        <p className="text-sm" style={{ color: '#EF4444' }}>{error}</p>
+      {(error || loadError) && (
+        <p className="text-sm" style={{ color: '#EF4444' }}>{error || loadError}</p>
       )}
 
       <form onSubmit={submit} className="space-y-4 max-w-lg">
-        {[
-          { key: 'patient_name', label: 'Patient Name', placeholder: 'Full name (optional)', required: false },
-          { key: 'drug_name', label: 'Drug Name *', placeholder: 'e.g. Amoxicillin 500mg', required: true },
-          { key: 'quantity', label: 'Quantity *', placeholder: 'e.g. 21 tablets', required: true },
-          { key: 'instructions', label: 'Instructions', placeholder: 'e.g. Take 1 tablet 3x daily with food', required: false },
-          { key: 'prescribed_by', label: 'Prescribed By', placeholder: "Doctor's name", required: false },
-        ].map(field => (
-          <div key={field.key}>
-            <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--text-primary)' }}>
-              {field.label}
-            </label>
-            <input
-              type="text"
-              value={form[field.key as keyof typeof form]}
-              onChange={e => setForm(prev => ({ ...prev, [field.key]: e.target.value }))}
-              placeholder={field.placeholder}
-              required={field.required}
-              className="w-full rounded-xl px-4 py-2.5 text-sm outline-none"
-              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)', color: 'var(--text-primary)' }}
-            />
-          </div>
-        ))}
+        <div>
+          <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--text-primary)' }}>
+            Clinical prescription *
+          </label>
+          <select
+            value={prescriptionId}
+            onChange={(e) => setPrescriptionId(e.target.value)}
+            required
+            className="w-full rounded-xl px-4 py-2.5 text-sm outline-none"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)', color: 'var(--text-primary)' }}
+          >
+            <option value="">Select prescription…</option>
+            {prescriptions.map((rx) => (
+              <option key={rx.id} value={rx.id}>
+                {rx.medication_display} · qty {rx.quantity} · {rx.status}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--text-primary)' }}>
+            Pharmacy product ID *
+          </label>
+          <input
+            type="text"
+            value={productId}
+            onChange={(e) => setProductId(e.target.value)}
+            placeholder="UUID from pharmacy catalog"
+            required
+            className="w-full rounded-xl px-4 py-2.5 text-sm outline-none"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)', color: 'var(--text-primary)' }}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--text-primary)' }}>
+            Pharmacy tenant ID *
+          </label>
+          <input
+            type="text"
+            value={pharmacyTenantId}
+            onChange={(e) => setPharmacyTenantId(e.target.value)}
+            placeholder="Linked Pharm POS tenant UUID"
+            required
+            className="w-full rounded-xl px-4 py-2.5 text-sm outline-none"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)', color: 'var(--text-primary)' }}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--text-primary)' }}>
+            Payment method
+          </label>
+          <select
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+            className="w-full rounded-xl px-4 py-2.5 text-sm outline-none"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-edge)', color: 'var(--text-primary)' }}
+          >
+            <option value="cash">Cash</option>
+            <option value="mobile_money">Mobile money</option>
+          </select>
+        </div>
 
         <button
           type="submit"
@@ -106,7 +160,7 @@ export default function PharmacyDispensePage() {
           style={{ background: 'var(--brand-orange)', color: '#07070A' }}
         >
           <FlaskConical className="h-4 w-4" />
-          {saving ? 'Saving…' : 'Record Dispense'}
+          {saving ? 'Dispensing…' : 'Dispense via POS authority'}
         </button>
       </form>
     </div>

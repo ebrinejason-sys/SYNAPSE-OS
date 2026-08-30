@@ -1,4 +1,5 @@
 -- OPD prescription capabilities for hospital clinical journey (Step 4)
+-- Self-contained: does not depend on _grant_hospital_cap helper.
 
 INSERT INTO capabilities (module, resource, action, description)
 SELECT v.module, v.resource, v.action, v.description
@@ -13,10 +14,17 @@ WHERE NOT EXISTS (
   WHERE c.module = v.module AND c.resource = v.resource AND c.action = v.action
 );
 
-SELECT _grant_hospital_cap('doctor', 'hospital', 'opd', 'prescription', 'create');
-SELECT _grant_hospital_cap('doctor', 'hospital', 'opd', 'prescription', 'read');
-SELECT _grant_hospital_cap('clinical_officer', 'hospital', 'opd', 'prescription', 'create');
-SELECT _grant_hospital_cap('clinical_officer', 'hospital', 'opd', 'prescription', 'read');
-SELECT _grant_hospital_cap('pharmacist', 'hospital', 'dispensing', 'prescription', 'verify');
-SELECT _grant_hospital_cap('pharmacist', 'hospital', 'dispensing', 'prescription', 'dispense');
-SELECT _grant_hospital_cap('pharmacist', 'hospital', 'opd', 'prescription', 'read');
+INSERT INTO role_capabilities (role, facility_type, capability_id)
+SELECT g.role, g.facility_type, c.id
+FROM (VALUES
+  ('doctor',           'hospital', 'opd',         'prescription', 'create'),
+  ('doctor',           'hospital', 'opd',         'prescription', 'read'),
+  ('clinical_officer', 'hospital', 'opd',         'prescription', 'create'),
+  ('clinical_officer', 'hospital', 'opd',         'prescription', 'read'),
+  ('pharmacist',       'hospital', 'dispensing',  'prescription', 'verify'),
+  ('pharmacist',       'hospital', 'dispensing',  'prescription', 'dispense'),
+  ('pharmacist',       'hospital', 'opd',         'prescription', 'read')
+) AS g(role, facility_type, module, resource, action)
+JOIN capabilities c
+  ON c.module = g.module AND c.resource = g.resource AND c.action = g.action
+ON CONFLICT (role, facility_type, capability_id) DO NOTHING;

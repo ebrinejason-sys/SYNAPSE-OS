@@ -21,7 +21,7 @@ export default function LabOrdersPage() {
   async function refresh() {
     const res = await fetch("/api/lab/worklist", { cache: "no-store" })
     if (!res.ok) {
-      setError("Sign in as a platform admin or laboratory user to load the worklist.")
+      setError("Sign in as hospital lab staff or platform admin to load the worklist.")
       return
     }
     const data = (await res.json()) as { orders: Order[] }
@@ -57,7 +57,7 @@ export default function LabOrdersPage() {
       {error ? <p className="mt-4 text-sm text-amber-300">{error}</p> : null}
       {orders.length === 0 ? (
         <p className="mt-8 text-sm text-gray-500">
-          No orders in this process. Run the sepsis scenario from the Platform Control Center Simulation Lab first.
+          No open lab orders. Place orders from an OPD encounter or run the sepsis simulation from Platform Control Center.
         </p>
       ) : (
         <ul className="mt-8 space-y-3">

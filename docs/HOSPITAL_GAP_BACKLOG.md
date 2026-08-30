@@ -6,7 +6,7 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 
 | ID | Department | Workflow | Current | Expected | Root cause | Fix | Complexity |
 |---|---|---|---|---|---|---|---|
-| P0-001 | Pharmacy | Dispense | Manual insert as dispensed, skips verification | Verify → dispense → inventory decrement | `/pharmacy/dispense` bypasses queue | Route through WorkQueue + authoritative inventory RPC | M |
+| P0-001 | Pharmacy | Dispense | Manual insert as dispensed, skips verification | Verify → dispense → inventory decrement | **PARTIAL** — /api/hospital/pharmacy/dispense + updated UI | Route through WorkQueue + authoritative inventory RPC | M |
 | P0-002 | Clinical | Signed notes | No immutability | Signed docs cannot silently change | No signed-state on encounters/notes | Add signed_at + amendment trail | M |
 | P0-003 | Security | Platform admin | Role bypass in capability.ts | No automatic clinical superuser | Hardcoded bypass | Scope bypass to platform ops only | S |
 
@@ -22,9 +22,9 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 | ID | Department | Workflow | Current | Expected | Root cause | Files | Fix | Complexity |
 |---|---|---|---|---|---|---|---|
 | P1-001 | OPD | Encounter save | Was 410 API | Triage creates encounter | Retired endpoint | encounters/new/page.tsx | **FIXED** — uses /api/opd/triage | S |
-| P1-002 | OPD | Doctor orders | No lab orders from UI | Lab task in WorkQueue | No routing | work-queue.ts | Wire routeClinicalOrder in encounter API | M |
-| P1-003 | OPD | Prescription | No pharmacy queue | Pharmacy task created | No routing | work-queue.ts | Wire prescription → department_tasks | M |
-| P1-004 | Lab | Worklist UI | Simulation only | Production DB worklist | lab/orders uses SimulationEngine | lab/orders page | Connect to lab_orders + WorkQueue | L |
+| P1-002 | OPD | Doctor orders | No lab orders from UI | Lab task in WorkQueue | **FIXED** — /api/opd/lab-orders + encounter UI | work-queue.ts | Wire routeClinicalOrder in encounter API | M |
+| P1-003 | OPD | Prescription | No pharmacy queue | Pharmacy task created | **FIXED** — /api/opd/prescriptions | work-queue.ts | Wire prescription → department_tasks | M |
+| P1-004 | Lab | Worklist UI | Simulation only | Production DB worklist | **FIXED** — /api/lab/worklist DB branch | lab/orders page | Connect to lab_orders + WorkQueue | L |
 | P1-005 | Inpatient | Admission | Admin beds only | Admit → assign bed → encounter | No admission service | — | Build admission workflow + events | L |
 
 ## P1 — Interconnectivity

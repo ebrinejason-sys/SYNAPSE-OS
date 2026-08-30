@@ -47,6 +47,12 @@ function NewEncounterInner() {
   const [selectedDx, setSelectedDx] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [encounterId, setEncounterId] = useState<string | null>(null);
+  const [orderStatus, setOrderStatus] = useState<string | null>(null);
+  const [rxMedication, setRxMedication] = useState("Artemether/lumefantrine 80/480 mg");
+  const [rxDose, setRxDose] = useState("4 tablets at 0, 8, 24, 36, 48, 60 hours");
+  const [rxQty, setRxQty] = useState("24");
+  const [rxStatus, setRxStatus] = useState<string | null>(null);
 
   async function runAI() {
     if (!complaint.trim()) return;
@@ -91,11 +97,53 @@ function NewEncounterInner() {
         }),
       });
       if (res.ok) {
-        router.push(`/os/${params.slug}/patients/${patientId}`);
+        const data = (await res.json()) as { encounterId?: string };
+        if (data.encounterId) setEncounterId(data.encounterId);
+        else router.push(`/os/${params.slug}/patients/${patientId}`);
       }
     } finally {
       setSaving(false);
     }
+  }
+
+  async function orderMalariaLab() {
+    if (!encounterId || !patientId) return;
+    setOrderStatus("Placing lab order…");
+    const res = await fetch("/api/opd/lab-orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        encounter_id: encounterId,
+        patient_id: patientId,
+        loinc_code: "58413-6",
+        test_name: "Malaria Pf antigen",
+        urgency: "URGENT",
+      }),
+    });
+    const data = await res.json();
+    setOrderStatus(res.ok ? `Lab order placed (${data.orderId})` : String(data.error ?? "Lab order failed"));
+  }
+
+  async function placePrescription() {
+    if (!encounterId || !patientId) return;
+    setRxStatus("Placing prescription…");
+    const res = await fetch("/api/opd/prescriptions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        encounter_id: encounterId,
+        patient_id: patientId,
+        medication_display: rxMedication,
+        dose: rxDose,
+        quantity: Number(rxQty),
+      }),
+    });
+    const data = await res.json();
+    setRxStatus(res.ok ? `Prescription placed (${data.prescriptionId})` : String(data.error ?? "Prescription failed"));
+  }
+
+  function finishEncounter() {
+    router.push(`/os/${params.slug}/patients/${patientId}`);
   }
 
   return (
@@ -222,11 +270,57 @@ function NewEncounterInner() {
           )}
           <button
             onClick={saveEncounter}
-            disabled={saving || !complaint.trim() || !patientId}
+            disabled={saving || !complaint.trim() || !patientId || Boolean(encounterId)}
             className="w-full bg-[#00D4AA] text-[#060D1A] font-bold py-3 rounded-xl disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Complete Encounter"}
+            {saving ? "Saving..." : encounterId ? "Encounter saved" : "Complete Encounter"}
           </button>
+          {encounterId ? (
+            <div className="space-y-3 pt-2 border-t border-slate-800">
+              <p className="text-xs text-emerald-400">Encounter {encounterId.slice(0, 8)}… — place orders below</p>
+              <button
+                type="button"
+                onClick={orderMalariaLab}
+                className="w-full rounded-lg border border-indigo-500/40 bg-indigo-500/10 py-2 text-xs font-semibold text-indigo-300"
+              >
+                Order Malaria Pf antigen (58413-6)
+              </button>
+              {orderStatus ? <p className="text-xs text-slate-400">{orderStatus}</p> : null}
+              <input
+                value={rxMedication}
+                onChange={(e) => setRxMedication(e.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-[#060D1A] px-3 py-2 text-xs"
+                placeholder="Medication"
+              />
+              <input
+                value={rxDose}
+                onChange={(e) => setRxDose(e.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-[#060D1A] px-3 py-2 text-xs"
+                placeholder="Dose"
+              />
+              <input
+                value={rxQty}
+                onChange={(e) => setRxQty(e.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-[#060D1A] px-3 py-2 text-xs"
+                placeholder="Quantity"
+              />
+              <button
+                type="button"
+                onClick={placePrescription}
+                className="w-full rounded-lg border border-amber-500/40 bg-amber-500/10 py-2 text-xs font-semibold text-amber-300"
+              >
+                Place prescription
+              </button>
+              {rxStatus ? <p className="text-xs text-slate-400">{rxStatus}</p> : null}
+              <button
+                type="button"
+                onClick={finishEncounter}
+                className="w-full rounded-lg border border-slate-600 py-2 text-xs text-slate-300"
+              >
+                Done — return to patient
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
