@@ -4,6 +4,9 @@ import { ExchangeOutbox } from '@synapse/db/exchange'
 import { verifyPrescription, dispensePrescription } from '@synapse/db/prescription-bridge'
 import { rowToClinicalPrescription, persistClinicalPrescriptionBestEffort } from '@synapse/db/prescription-persist'
 import { persistDomainEventsBestEffort } from '@synapse/db/work-queue-persist'
+import { appendClinicalChargeBestEffort, recordInvoiceCreatedEvent } from '@synapse/db/clinical-charge'
+import { medicationDispensedTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
+import { publishTimelineEvent } from '@synapse/db/identity-persist'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../lib/hospital-shared'
 import { requireHospitalStaffContext, hospitalDispenseSchema } from '../../../../lib/hospital-dept'
 
@@ -185,6 +188,45 @@ export async function POST(req: NextRequest) {
     }
 
     await persistDomainEventsBestEffort(db, outbox.list({ correlationId: dispensed.rx.correlationId }))
+
+    const charge = await appendClinicalChargeBestEffort(db, {
+      tenantId: ctx.tenantId,
+      patientId: dispensed.rx.patientId,
+      encounterId: dispensed.rx.encounterId,
+      itemName: `Dispense · ${dispensed.rx.medicationDisplay}`,
+      unitPrice: Number(product.price ?? 0),
+      qty: dispensed.rx.quantity,
+      sourceTable: 'pharmacy_dispense',
+      sourceId: prescription_id,
+      createdBy: ctx.userId,
+    })
+    if (charge.ok && charge.result.created) {
+      const invoiceOutbox = recordInvoiceCreatedEvent({
+        tenantId: ctx.tenantId,
+        hospitalId: ctx.hospitalId,
+        patientId: dispensed.rx.patientId,
+        encounterId: dispensed.rx.encounterId,
+        invoiceId: charge.result.invoiceId,
+        totalAmount: charge.result.totalAmount,
+        actorId: ctx.userId,
+      })
+      await persistDomainEventsBestEffort(db, invoiceOutbox.list({ correlationId: dispensed.rx.correlationId }))
+    }
+
+    void publishClinicalTimelineBestEffort(
+      publishTimelineEvent,
+      medicationDispensedTimelineEvent({
+        tenantId: ctx.tenantId,
+        hospitalId: ctx.hospitalId,
+        patientId: dispensed.rx.patientId,
+        prescriptionId: dispensed.rx.id,
+        encounterId: dispensed.rx.encounterId,
+        medicationDisplay: dispensed.rx.medicationDisplay,
+        quantity: dispensed.rx.quantity,
+        saleId,
+        dispensedBy: ctx.userId,
+      }),
+    )
 
     await logHospitalAudit({
       ctx,

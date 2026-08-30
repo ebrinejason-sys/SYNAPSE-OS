@@ -4,7 +4,8 @@ import { recordLabOrderPlaced } from '@synapse/db/clinical-journey'
 import { persistLabOrderBestEffort } from '@synapse/db/lab-order-persist'
 import { labOrderTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
-import { persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
+import { appendClinicalChargeBestEffort, recordInvoiceCreatedEvent, resolveServicePrice } from '@synapse/db/clinical-charge'
+import { persistDomainEventsBestEffort, persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../lib/hospital-shared'
 import { requireHospitalStaffContext, labOrderCreateSchema } from '../../../../lib/hospital-dept'
 
@@ -129,6 +130,32 @@ export async function POST(req: NextRequest) {
         createdBy: ctx.userId,
       }),
     )
+
+    const unitPrice = await resolveServicePrice(db, ctx.tenantId, 'lab', test_name)
+    const charge = await appendClinicalChargeBestEffort(db, {
+      tenantId: ctx.tenantId,
+      patientId: patient_id,
+      encounterId: encounter_id,
+      itemName: `Lab · ${test_name}`,
+      unitPrice,
+      sourceTable: 'lab_orders',
+      sourceId: orderId,
+      createdBy: ctx.userId,
+    })
+    if (!charge.ok) {
+      journeyWarnings.push(charge.error)
+    } else if (charge.result.created) {
+      const outbox = recordInvoiceCreatedEvent({
+        tenantId: ctx.tenantId,
+        hospitalId: ctx.hospitalId,
+        patientId: patient_id,
+        encounterId: encounter_id,
+        invoiceId: charge.result.invoiceId,
+        totalAmount: charge.result.totalAmount,
+        actorId: ctx.userId,
+      })
+      await persistDomainEventsBestEffort(db, outbox.list({ correlationId: encounter_id }))
+    }
   } catch (error) {
     console.warn('[opd/lab-orders] clinical journey step failed', error)
     return NextResponse.json(

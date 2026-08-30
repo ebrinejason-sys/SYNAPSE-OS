@@ -140,6 +140,97 @@ export function encounterSignedTimelineEvent(params: {
   }
 }
 
+export function encounterAmendedTimelineEvent(params: {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  encounterId: string
+  amendmentId: string
+  fieldName: string
+  reason: string
+  amendedBy: string
+}): TimelineEventInput {
+  return {
+    tenantId: params.tenantId,
+    hospitalId: params.hospitalId,
+    patientId: params.patientId,
+    eventType: "document",
+    title: `Encounter amended · ${params.fieldName.replace(/_/g, " ")}`,
+    summary: params.reason,
+    sourceTable: "encounter_amendments",
+    sourceId: params.amendmentId,
+    provenance: "PROVIDER_VERIFIED",
+    payload: {
+      encounterId: params.encounterId,
+      amendmentId: params.amendmentId,
+      fieldName: params.fieldName,
+    },
+    tags: ["encounter", "amendment"],
+    createdBy: params.amendedBy,
+  }
+}
+
+export function labResultReleasedTimelineEvent(params: {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  orderId: string
+  encounterId: string
+  testName: string
+  resultValue: string
+  releasedBy?: string | null
+}): TimelineEventInput {
+  return {
+    tenantId: params.tenantId,
+    hospitalId: params.hospitalId,
+    patientId: params.patientId,
+    eventType: "laboratory",
+    title: `Lab result released · ${params.testName}`,
+    summary: params.resultValue,
+    sourceTable: "lab_orders",
+    sourceId: params.orderId,
+    provenance: "LAB_VERIFIED",
+    payload: {
+      orderId: params.orderId,
+      encounterId: params.encounterId,
+      resultValue: params.resultValue,
+    },
+    tags: ["laboratory", "lab_result", "released"],
+    createdBy: params.releasedBy ?? null,
+  }
+}
+
+export function medicationDispensedTimelineEvent(params: {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  prescriptionId: string
+  encounterId: string
+  medicationDisplay: string
+  quantity: number
+  saleId?: string | null
+  dispensedBy?: string | null
+}): TimelineEventInput {
+  return {
+    tenantId: params.tenantId,
+    hospitalId: params.hospitalId,
+    patientId: params.patientId,
+    eventType: "prescription",
+    title: `Medication dispensed · ${params.medicationDisplay}`,
+    summary: `Qty ${params.quantity}${params.saleId ? ` · sale ${params.saleId}` : ""}`,
+    sourceTable: "clinical_prescriptions",
+    sourceId: params.prescriptionId,
+    provenance: "PROVIDER_VERIFIED",
+    payload: {
+      prescriptionId: params.prescriptionId,
+      encounterId: params.encounterId,
+      saleId: params.saleId ?? null,
+    },
+    tags: ["prescription", "dispensed"],
+    createdBy: params.dispensedBy ?? null,
+  }
+}
+
 export async function publishClinicalTimelineBestEffort(
   publish: (event: TimelineEventInput) => Promise<string | null>,
   event: TimelineEventInput,

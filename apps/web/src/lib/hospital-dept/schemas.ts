@@ -67,3 +67,9 @@ export const vitalsRecordSchema = z.object({
   temperature_c: z.coerce.number().min(30).max(43).optional(),
   spo2: z.coerce.number().min(50).max(100).optional(),
 })
+
+export const encounterAmendSchema = z.object({
+  field: z.enum(['chief_complaint', 'clinical_stage', 'clinical_note']),
+  new_value: z.string().min(1).max(4000),
+  reason: z.string().min(3).max(2000),
+})

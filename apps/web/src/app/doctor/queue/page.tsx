@@ -104,6 +104,42 @@ export default function DoctorQueuePage() {
                       {signingId === row.encounterId ? 'Signing…' : 'Sign note'}
                     </button>
                   ) : null}
+                  {row.status === 'signed' ? (
+                    <button
+                      type="button"
+                      disabled={signingId === row.encounterId}
+                      onClick={async () => {
+                        const newValue = window.prompt('Amended chief complaint:')
+                        if (!newValue?.trim()) return
+                        const reason = window.prompt('Amendment reason (required):')
+                        if (!reason?.trim()) return
+                        setSigningId(row.encounterId)
+                        try {
+                          const res = await fetch(`/api/opd/encounters/${row.encounterId}/amend`, {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              field: 'chief_complaint',
+                              new_value: newValue.trim(),
+                              reason: reason.trim(),
+                            }),
+                          })
+                          if (!res.ok) {
+                            const data = await res.json().catch(() => ({}))
+                            setError(typeof data.error === 'string' ? data.error : 'Amend failed')
+                            return
+                          }
+                          await loadQueue()
+                        } finally {
+                          setSigningId(null)
+                        }
+                      }}
+                      className="rounded-lg border border-violet-500/40 px-3 py-1 text-xs text-violet-300 disabled:opacity-50"
+                    >
+                      Amend note
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </li>

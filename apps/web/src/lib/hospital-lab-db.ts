@@ -5,6 +5,8 @@
 import { supabaseAdmin } from '@synapse/db/admin'
 import { LabWorkflow, type LabOrder, type LabResult } from '@synapse/db/lab-workflow'
 import { rowToLabOrder, persistLabOrderBestEffort } from '@synapse/db/lab-order-persist'
+import { labResultReleasedTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
+import { publishTimelineEvent } from '@synapse/db/identity-persist'
 import type { HospitalContext } from './hospital-shared'
 
 type DbClient = typeof supabaseAdmin
@@ -142,6 +144,22 @@ export async function executeHospitalLabAction(params: {
       .eq('source_id', params.orderId)
       .eq('task_type', 'lab_order')
     if (error) warnings.push(error.message)
+
+    if (result) {
+      void publishClinicalTimelineBestEffort(
+        publishTimelineEvent,
+        labResultReleasedTimelineEvent({
+          tenantId: params.ctx.tenantId,
+          hospitalId: params.ctx.hospitalId,
+          patientId: updated.patientId,
+          orderId: params.orderId,
+          encounterId: updated.encounterId,
+          testName: updated.testName,
+          resultValue: result.resultValue,
+          releasedBy: params.actorId,
+        }),
+      )
+    }
   }
 
   if (!result) {

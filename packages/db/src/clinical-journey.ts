@@ -448,3 +448,57 @@ export function recordEncounterSigned(input: EncounterSignedInput): EncounterSig
     eventsEmitted: queue.outbox.list({ correlationId }).length,
   }
 }
+
+export type EncounterAmendedInput = {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  encounterId: string
+  amendmentId: string
+  fieldName: "chief_complaint" | "clinical_stage" | "clinical_note"
+  previousValue: string
+  newValue: string
+  reason: string
+  amendedBy: string
+  queue?: WorkQueue
+}
+
+export type EncounterAmendedResult = {
+  queue: WorkQueue
+  correlationId: string
+  eventsEmitted: number
+}
+
+/** Record encounter amendment — emits EncounterAmended after authoritative DB RPC. */
+export function recordEncounterAmended(input: EncounterAmendedInput): EncounterAmendedResult {
+  const queue = input.queue ?? new WorkQueue()
+  const correlationId = input.encounterId
+
+  queue.outbox.append({
+    eventType: "EncounterAmended",
+    tenantId: input.tenantId,
+    facilityId: input.hospitalId,
+    patientId: input.patientId,
+    encounterId: input.encounterId,
+    actorId: input.amendedBy,
+    source: "synapse-os",
+    aggregateId: input.encounterId,
+    action: "amend",
+    correlationId,
+    payload: {
+      amendment_id: input.amendmentId,
+      field_name: input.fieldName,
+      previous_value: input.previousValue,
+      new_value: input.newValue,
+      reason: input.reason,
+    },
+    isSynthetic: false,
+    simulationRunId: null,
+  })
+
+  return {
+    queue,
+    correlationId,
+    eventsEmitted: queue.outbox.list({ correlationId }).length,
+  }
+}

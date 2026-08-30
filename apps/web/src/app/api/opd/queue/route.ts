@@ -32,7 +32,7 @@ export async function GET() {
     .eq('is_deleted', false)
     .gte('visit_date', todayStart.toISOString())
     .lt('visit_date', tomorrowStart.toISOString())
-    .in('status', ['open', 'in_progress', 'completed'])
+    .in('status', ['open', 'in_progress', 'completed', 'signed'])
     .order('visit_date', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

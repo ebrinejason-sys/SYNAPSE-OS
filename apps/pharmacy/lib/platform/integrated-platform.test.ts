@@ -52,12 +52,17 @@ import {
   recordPrescriptionPlaced,
   recordAdmissionPlaced,
   recordEncounterSigned,
+  recordEncounterAmended,
 } from "@synapse/db/clinical-journey"
 import {
   encounterOpenedTimelineEvent,
   labOrderTimelineEvent,
   admissionTimelineEvent,
+  labResultReleasedTimelineEvent,
+  medicationDispensedTimelineEvent,
+  encounterAmendedTimelineEvent,
 } from "@synapse/db/clinical-timeline"
+import { recordInvoiceCreatedEvent } from "@synapse/db/clinical-charge"
 import { departmentTaskToRow, rowToDepartmentTask } from "@synapse/db/work-queue-persist"
 import { labOrderToRow, rowToLabOrder } from "@synapse/db/lab-order-persist"
 import { clinicalPrescriptionToRow, rowToClinicalPrescription } from "@synapse/db/prescription-persist"
@@ -733,6 +738,49 @@ describe("clinical journey — encounter signed", () => {
   })
 })
 
+describe("clinical journey — encounter amended", () => {
+  it("emits EncounterAmended with field trail payload", () => {
+    const encounterId = crypto.randomUUID()
+    const result = recordEncounterAmended({
+      tenantId: crypto.randomUUID(),
+      hospitalId: crypto.randomUUID(),
+      patientId: crypto.randomUUID(),
+      encounterId,
+      amendmentId: crypto.randomUUID(),
+      fieldName: "chief_complaint",
+      previousValue: "fever",
+      newValue: "fever and rigors",
+      reason: "Patient clarified symptom onset",
+      amendedBy: crypto.randomUUID(),
+    })
+    const events = result.queue.outbox.list({ correlationId: encounterId })
+    expect(events.some((e) => e.event_type === "EncounterAmended")).toBe(true)
+    const amended = events.find((e) => e.event_type === "EncounterAmended")
+    expect(amended?.payload).toMatchObject({
+      field_name: "chief_complaint",
+      previous_value: "fever",
+      new_value: "fever and rigors",
+    })
+  })
+})
+
+describe("clinical charge bridge", () => {
+  it("emits InvoiceCreated for new encounter invoice", () => {
+    const encounterId = crypto.randomUUID()
+    const invoiceId = crypto.randomUUID()
+    const outbox = recordInvoiceCreatedEvent({
+      tenantId: crypto.randomUUID(),
+      hospitalId: crypto.randomUUID(),
+      patientId: crypto.randomUUID(),
+      encounterId,
+      invoiceId,
+      totalAmount: 15000,
+      actorId: crypto.randomUUID(),
+    })
+    expect(outbox.list({ correlationId: encounterId }).some((e) => e.event_type === "InvoiceCreated")).toBe(true)
+  })
+})
+
 describe("clinical timeline publishers", () => {
   it("builds encounter, lab, and admission timeline events with patient subject", () => {
     const tenantId = crypto.randomUUID()
@@ -765,6 +813,37 @@ describe("clinical timeline publishers", () => {
       reason: "Observation",
     })
     expect(adm.eventType).toBe("admission")
+    const released = labResultReleasedTimelineEvent({
+      tenantId,
+      hospitalId: crypto.randomUUID(),
+      patientId,
+      orderId: crypto.randomUUID(),
+      encounterId: crypto.randomUUID(),
+      testName: "Malaria Pf antigen",
+      resultValue: "Positive",
+    })
+    expect(released.tags).toContain("released")
+    const dispensed = medicationDispensedTimelineEvent({
+      tenantId,
+      hospitalId: crypto.randomUUID(),
+      patientId,
+      prescriptionId: crypto.randomUUID(),
+      encounterId: crypto.randomUUID(),
+      medicationDisplay: "Artemether/Lumefantrine",
+      quantity: 24,
+    })
+    expect(dispensed.tags).toContain("dispensed")
+    const amended = encounterAmendedTimelineEvent({
+      tenantId,
+      hospitalId: crypto.randomUUID(),
+      patientId,
+      encounterId: crypto.randomUUID(),
+      amendmentId: crypto.randomUUID(),
+      fieldName: "chief_complaint",
+      reason: "Clarified history",
+      amendedBy: crypto.randomUUID(),
+    })
+    expect(amended.tags).toContain("amendment")
   })
 })
 
