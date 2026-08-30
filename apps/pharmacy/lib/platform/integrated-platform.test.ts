@@ -38,6 +38,15 @@ import { addAlias, createCrosswalk, facilityMrn } from "@synapse/db/identity-cro
 import { shouldAutoMerge } from "@synapse/db/mpi"
 import { localMrnIdentifier } from "@synapse/db/identity"
 import { describeEdgeReadiness } from "@synapse/db/edge-architecture"
+import {
+  seedHospital,
+  resetHospital,
+  reseedHospital,
+  HOSPITAL_CANONICAL_SLUG,
+  HOSPITAL_CANONICAL_SEED,
+} from "@synapse/db/hospital-seed"
+import { WorkQueue, routeClinicalOrder } from "@synapse/db/work-queue"
+import { buildDepartmentMatrix } from "@synapse/db/hospital-acceptance"
 
 describe("product capability manifest", () => {
   it("does not advertise lab, FHIR, or imaging as live", () => {
@@ -471,6 +480,83 @@ describe("simulation engine", () => {
     const a = mulberry32(20260829)
     const b = mulberry32(20260829)
     expect(uuidFromRng(a)).toBe(uuidFromRng(b))
+  })
+})
+
+describe("hospital acceptance seed", () => {
+  it("seeds SYNAPSE INTEGRATED REGIONAL HOSPITAL deterministically", () => {
+    resetHospital(HOSPITAL_CANONICAL_SLUG)
+    const a = seedHospital({ seed: HOSPITAL_CANONICAL_SEED, actorId: "test-admin" })
+    const b = seedHospital({ seed: HOSPITAL_CANONICAL_SEED, actorId: "test-admin" })
+    expect(a.tenantId).toBe(b.tenantId)
+    expect(a.departments).toHaveLength(27)
+    expect(a.locations).toHaveLength(28)
+    expect(a.staff).toHaveLength(33)
+    expect(a.patients).toHaveLength(10)
+    expect(a.slug).toBe(HOSPITAL_CANONICAL_SLUG)
+    expect(a.isSynthetic).toBe(true)
+  })
+
+  it("reseed produces fresh deterministic ids", () => {
+    resetHospital(HOSPITAL_CANONICAL_SLUG)
+    const first = seedHospital({ seed: HOSPITAL_CANONICAL_SEED, actorId: "test-admin" })
+    const second = reseedHospital({ seed: HOSPITAL_CANONICAL_SEED, actorId: "test-admin" })
+    expect(second.tenantId).toBe(first.tenantId)
+    expect(second.patients[0]?.key).toBe("A")
+  })
+
+  it("department matrix is honest about NOT_IMPLEMENTED departments", () => {
+    resetHospital(HOSPITAL_CANONICAL_SLUG)
+    const hospital = seedHospital({ seed: HOSPITAL_CANONICAL_SEED, actorId: "test-admin" })
+    const matrix = buildDepartmentMatrix(hospital)
+    const emergency = matrix.find((d) => d.code === "emergency")
+    expect(emergency?.status).toBe("NOT_IMPLEMENTED")
+    const lab = matrix.find((d) => d.code === "laboratory")
+    expect(lab?.status).toBe("PARTIAL")
+  })
+})
+
+describe("work queue routing", () => {
+  it("routes lab orders to laboratory department", () => {
+    const queue = new WorkQueue()
+    const result = routeClinicalOrder(queue, {
+      orderType: "lab",
+      tenantId: "t1",
+      patientId: "p1",
+      encounterId: "e1",
+      requesterId: "doc1",
+      correlationId: "corr-1",
+      title: "CBC",
+      sourceResource: "lab_orders",
+      sourceId: "lo1",
+      isSynthetic: true,
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.task.ownerDepartment).toBe("laboratory")
+      expect(result.task.taskType).toBe("lab_order")
+    }
+  })
+
+  it("deduplicates via idempotency key", () => {
+    const queue = new WorkQueue()
+    const params = {
+      orderType: "prescription" as const,
+      tenantId: "t1",
+      patientId: "p1",
+      encounterId: "e1",
+      requesterId: "doc1",
+      correlationId: "corr-1",
+      title: "Artemether",
+      sourceResource: "clinical_prescriptions",
+      sourceId: "rx1",
+    }
+    const first = routeClinicalOrder(queue, params)
+    const second = routeClinicalOrder(queue, params)
+    expect(first.ok && second.ok).toBe(true)
+    if (first.ok && second.ok) {
+      expect(first.task.id).toBe(second.task.id)
+    }
   })
 })
 

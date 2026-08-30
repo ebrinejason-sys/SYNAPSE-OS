@@ -73,28 +73,29 @@ function NewEncounterInner() {
   }
 
   async function saveEncounter() {
+    if (!patientId) return;
     setSaving(true);
-    const res = await fetch("/api/encounters", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        patientId: patientId || undefined,
-        chiefComplaint: complaint,
-        clinicalStage: selectedDx ?? null,
-        metadata: aiResult ? { ai_differential: aiResult } : undefined,
-        vitals: {
+    try {
+      const res = await fetch("/api/opd/triage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_id: patientId,
+          chief_complaint: complaint,
+          clinical_stage: selectedDx ?? undefined,
           temperature_c: temperature ? Number(temperature) : undefined,
           heart_rate: heartRate ? Number(heartRate) : undefined,
           bp_systolic: bpSystolic ? Number(bpSystolic) : undefined,
           bp_diastolic: bpDiastolic ? Number(bpDiastolic) : undefined,
           spo2: spo2 ? Number(spo2) : undefined,
-        },
-      }),
-    });
-    if (res.ok) {
-      router.push(`/os/${params.slug}/patients${patientId ? `/${patientId}` : ""}`);
+        }),
+      });
+      if (res.ok) {
+        router.push(`/os/${params.slug}/patients/${patientId}`);
+      }
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   return (
@@ -216,9 +217,12 @@ function NewEncounterInner() {
               </ul>
             </div>
           )}
+          {!patientId && (
+            <p className="text-xs text-amber-400">Select a patient before saving the encounter.</p>
+          )}
           <button
             onClick={saveEncounter}
-            disabled={saving || !complaint.trim()}
+            disabled={saving || !complaint.trim() || !patientId}
             className="w-full bg-[#00D4AA] text-[#060D1A] font-bold py-3 rounded-xl disabled:opacity-50"
           >
             {saving ? "Saving..." : "Complete Encounter"}

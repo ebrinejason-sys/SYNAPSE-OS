@@ -34,7 +34,10 @@
     "./identity-crosswalk": "./src/identity-crosswalk.ts",
     "./edge-architecture": "./src/edge-architecture.ts",
     "./overlay-journey": "./src/overlay-journey.ts",
-    "./malaria-golden-journey": "./src/malaria-golden-journey.ts"
+    "./malaria-golden-journey": "./src/malaria-golden-journey.ts",
+    "./work-queue": "./src/work-queue.ts",
+    "./hospital-seed": "./src/hospital-seed.ts",
+    "./hospital-acceptance": "./src/hospital-acceptance.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",

@@ -42,6 +42,23 @@ export {
 } from "./lab-workflow"
 export { PathwayRuntime, SEPSIS_PATHWAY } from "./pathways"
 export { SimulationEngine, assertDemoResetAllowed } from "./simulation"
+export { WorkQueue, routeClinicalOrder, TASK_STATUSES, TASK_TYPES } from "./work-queue"
+export type { DepartmentTask, CreateTaskInput, TaskStatus, TaskType, TaskPriority } from "./work-queue"
+export {
+  seedHospital,
+  resetHospital,
+  reseedHospital,
+  inspectHospital,
+  getHospitalSeed,
+  getHospitalWorkQueue,
+  HOSPITAL_CANONICAL_SLUG,
+  HOSPITAL_CANONICAL_SEED,
+  HOSPITAL_CANONICAL_NAME,
+  HOSPITAL_DEPARTMENTS,
+  HOSPITAL_LOCATIONS,
+  HOSPITAL_STAFF_ROLES,
+  HOSPITAL_TEST_PATIENTS,
+} from "./hospital-seed"
 
 export type {
   SyncCommand,
