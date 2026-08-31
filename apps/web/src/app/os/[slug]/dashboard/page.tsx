@@ -55,27 +55,45 @@ export default async function DashboardPage({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Link
           href={`/os/${slug}/patients`}
-          className="bg-[#0D1B2E] border border-slate-800 hover:border-[#00D4AA]/40 rounded-xl p-5 transition-colors block"
+          className="clinical-card block p-5 transition-colors hover:border-emerald-500/40"
         >
-          <p className="text-[#00D4AA] font-semibold mb-1">Patients →</p>
-          <p className="text-slate-400 text-sm">Search and manage patient records</p>
+          <p className="font-semibold text-emerald-400 mb-1">Patients →</p>
+          <p className="text-muted-color text-sm">Register and search patients</p>
+        </Link>
+        <Link
+          href={`/os/${slug}/clinical/queue`}
+          className="clinical-card block p-5 transition-colors hover:border-indigo-400/40"
+        >
+          <p className="font-semibold text-indigo-400 mb-1">OPD queue →</p>
+          <p className="text-muted-color text-sm">Today&apos;s encounters and sign/amend</p>
         </Link>
         <Link
           href={`/os/${slug}/encounters/new`}
-          className="bg-[#0D1B2E] border border-slate-800 hover:border-indigo-400/40 rounded-xl p-5 transition-colors block"
+          className="clinical-card block p-5 transition-colors hover:border-teal-400/40"
         >
-          <p className="text-indigo-400 font-semibold mb-1">New Encounter →</p>
-          <p className="text-slate-400 text-sm">Start a clinical encounter with AI assist</p>
+          <p className="font-semibold text-teal-400 mb-1">New encounter →</p>
+          <p className="text-muted-color text-sm">Triage, orders, and prescriptions</p>
         </Link>
         <Link
-          href={`/os/${slug}/migrate`}
-          className="bg-[#0D1B2E] border border-slate-800 hover:border-amber-400/40 rounded-xl p-5 transition-colors block"
+          href={`/os/${slug}/clinical/tasks`}
+          className="clinical-card block p-5 transition-colors hover:border-amber-400/40"
         >
-          <p className="text-amber-400 font-semibold mb-1">Import Data →</p>
-          <p className="text-slate-400 text-sm">Migrate patients from CSV or OpenMRS</p>
+          <p className="font-semibold text-amber-400 mb-1">Department tasks →</p>
+          <p className="text-muted-color text-sm">WorkQueue handoffs across departments</p>
+        </Link>
+        <Link href="/lab/orders" className="clinical-card block p-5 transition-colors hover:border-sky-400/40">
+          <p className="font-semibold text-sky-400 mb-1">Lab worklist →</p>
+          <p className="text-muted-color text-sm">Collect, result, verify (production DB path)</p>
+        </Link>
+        <Link
+          href={`/os/${slug}/clinical/dispense`}
+          className="clinical-card block p-5 transition-colors hover:border-orange-400/40"
+        >
+          <p className="font-semibold text-orange-400 mb-1">Pharmacy dispense →</p>
+          <p className="text-muted-color text-sm">Verify Rx and decrement inventory</p>
         </Link>
       </div>
     </div>

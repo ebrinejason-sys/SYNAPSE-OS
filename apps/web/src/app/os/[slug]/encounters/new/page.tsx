@@ -49,8 +49,11 @@ function NewEncounterInner() {
   const [saving, setSaving] = useState(false);
   const [encounterId, setEncounterId] = useState<string | null>(null);
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
-  const [rxMedication, setRxMedication] = useState("Artemether/lumefantrine 80/480 mg");
-  const [rxDose, setRxDose] = useState("4 tablets at 0, 8, 24, 36, 48, 60 hours");
+  const [labTestName, setLabTestName] = useState("Complete blood count");
+  const [labLoinc, setLabLoinc] = useState("718-7");
+  const [labUrgency, setLabUrgency] = useState("ROUTINE");
+  const [rxMedication, setRxMedication] = useState("Paracetamol 500mg");
+  const [rxDose, setRxDose] = useState("1g every 6 hours as needed");
   const [rxQty, setRxQty] = useState("24");
   const [rxStatus, setRxStatus] = useState<string | null>(null);
 
@@ -106,7 +109,7 @@ function NewEncounterInner() {
     }
   }
 
-  async function orderMalariaLab() {
+  async function orderLab() {
     if (!encounterId || !patientId) return;
     setOrderStatus("Placing lab order…");
     const res = await fetch("/api/opd/lab-orders", {
@@ -115,9 +118,9 @@ function NewEncounterInner() {
       body: JSON.stringify({
         encounter_id: encounterId,
         patient_id: patientId,
-        loinc_code: "58413-6",
-        test_name: "Malaria Pf antigen",
-        urgency: "URGENT",
+        loinc_code: labLoinc,
+        test_name: labTestName,
+        urgency: labUrgency,
       }),
     });
     const data = await res.json();
@@ -143,12 +146,14 @@ function NewEncounterInner() {
   }
 
   function finishEncounter() {
-    router.push(`/os/${params.slug}/patients/${patientId}`);
+    router.push(
+      `/os/${params.slug}/clinical/orders?encounterId=${encounterId}&patientId=${patientId}`,
+    );
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-xl font-bold mb-6">New Encounter</h1>
+    <div className="clinical-page mx-auto max-w-6xl p-6">
+      <h1 className="font-display text-xl font-bold mb-6">New encounter</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Col 1: Vitals + Complaint */}
@@ -278,30 +283,51 @@ function NewEncounterInner() {
           {encounterId ? (
             <div className="space-y-3 pt-2 border-t border-slate-800">
               <p className="text-xs text-emerald-400">Encounter {encounterId.slice(0, 8)}… — place orders below</p>
+              <input
+                value={labTestName}
+                onChange={(e) => setLabTestName(e.target.value)}
+                className="w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-xs text-primary-color"
+                placeholder="Lab test name"
+              />
+              <input
+                value={labLoinc}
+                onChange={(e) => setLabLoinc(e.target.value)}
+                className="w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-xs text-primary-color"
+                placeholder="LOINC code"
+              />
+              <select
+                value={labUrgency}
+                onChange={(e) => setLabUrgency(e.target.value)}
+                className="w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-xs text-primary-color"
+              >
+                <option value="ROUTINE">Routine</option>
+                <option value="URGENT">Urgent</option>
+                <option value="STAT">STAT</option>
+              </select>
               <button
                 type="button"
-                onClick={orderMalariaLab}
+                onClick={orderLab}
                 className="w-full rounded-lg border border-indigo-500/40 bg-indigo-500/10 py-2 text-xs font-semibold text-indigo-300"
               >
-                Order Malaria Pf antigen (58413-6)
+                Place lab order
               </button>
               {orderStatus ? <p className="text-xs text-slate-400">{orderStatus}</p> : null}
               <input
                 value={rxMedication}
                 onChange={(e) => setRxMedication(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-[#060D1A] px-3 py-2 text-xs"
+                className="w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-xs text-primary-color"
                 placeholder="Medication"
               />
               <input
                 value={rxDose}
                 onChange={(e) => setRxDose(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-[#060D1A] px-3 py-2 text-xs"
+                className="w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-xs text-primary-color"
                 placeholder="Dose"
               />
               <input
                 value={rxQty}
                 onChange={(e) => setRxQty(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-[#060D1A] px-3 py-2 text-xs"
+                className="w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-xs text-primary-color"
                 placeholder="Quantity"
               />
               <button
@@ -317,7 +343,7 @@ function NewEncounterInner() {
                 onClick={finishEncounter}
                 className="w-full rounded-lg border border-slate-600 py-2 text-xs text-slate-300"
               >
-                Done — return to patient
+                Done — view orders & timeline
               </button>
             </div>
           ) : null}

@@ -39,8 +39,8 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 
 | ID | Department | Workflow | Current | Expected | Fix | Complexity |
 |---|---|---|---|---|---|
-| P1-009 | OPD | Doctor workspace | 10 placeholder pages | Functional queue + encounter | **PARTIAL** — /doctor/queue + /doctor/orders wired | Build /os/[slug]/clinical or fix /doctor/queue | L |
-| P1-010 | Nursing | Ward list | Placeholder | Observations + tasks | **PARTIAL** — /nurse/ward + vitals API | Build nurse workspace in /os/[slug] | L |
+| P1-009 | OPD | Doctor workspace | 10 placeholder pages | Functional queue + encounter | **PARTIAL** — `/os/[slug]/clinical/*` canonical shell + `/doctor/*` redirects | Expand encounter workspace depth | L |
+| P1-010 | Nursing | Ward list | Placeholder | Observations + tasks | **PARTIAL** — `/nurse/ward` + vitals API | Build nurse workspace in `/os/[slug]` | L |
 | P1-011 | Emergency | ED flow | NOT_IMPLEMENTED | Rapid reg → triage → resus | **PARTIAL** — /emergency/triage + APIs | Build ED vertical slice | XL |
 
 ## P2 — Operational

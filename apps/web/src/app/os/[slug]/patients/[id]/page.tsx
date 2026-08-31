@@ -89,9 +89,17 @@ export default async function PatientDetailPage({
                       {e.visit_date ? new Date(e.visit_date).toLocaleDateString() : "—"}
                     </p>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">
-                    {e.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/os/${slug}/clinical/orders?encounterId=${e.id}&patientId=${id}`}
+                      className="text-xs text-indigo-300 hover:text-indigo-200"
+                    >
+                      Orders
+                    </Link>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">
+                      {e.status}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

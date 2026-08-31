@@ -2,6 +2,14 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { resolveTenant } from "../../../lib/tenant";
 import { SynapseLogo } from "../../../components/SynapseLogo";
+import Link from "next/link";
+
+const CLINICAL_LINKS = (slug: string) => [
+  { href: `/os/${slug}/clinical/queue`, label: "OPD queue" },
+  { href: `/os/${slug}/clinical/tasks`, label: "Tasks" },
+  { href: `/lab/orders`, label: "Lab worklist" },
+  { href: `/os/${slug}/clinical/dispense`, label: "Dispense" },
+];
 
 export default async function PortalLayout({
   children,
@@ -19,18 +27,31 @@ export default async function PortalLayout({
     redirect("https://synapseos.tech?e=unknown-hospital");
   }
 
+  const clinical = CLINICAL_LINKS(slug);
+
   return (
-    <div data-tenant={tenant.hospitalId} className="min-h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-      <header className="px-6 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-edge)' }}>
+    <div data-tenant={tenant.hospitalId} className="min-h-screen bg-base text-primary-color">
+      <header className="flex items-center justify-between border-b border-subtle px-6 py-3">
         <div className="flex items-center gap-3">
           <SynapseLogo size="sm" />
-          <span style={{ color: 'var(--border-strong)' }}>|</span>
-          <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{tenant.hospitalName}</span>
+          <span className="text-muted-color">|</span>
+          <span className="text-sm font-medium text-secondary-color">{tenant.hospitalName}</span>
         </div>
-        <nav className="flex items-center gap-4 text-sm">
-          <a href={`/os/${slug}/dashboard`} className="text-slate-400 hover:text-white">Dashboard</a>
-          <a href={`/os/${slug}/patients`} className="text-slate-400 hover:text-white">Patients</a>
-          <a href={`/os/${slug}/migrate`} className="text-slate-400 hover:text-white">Import</a>
+        <nav className="flex flex-wrap items-center gap-4 text-sm">
+          <Link href={`/os/${slug}/dashboard`} className="text-muted-color hover:text-primary-color">
+            Dashboard
+          </Link>
+          <Link href={`/os/${slug}/patients`} className="text-muted-color hover:text-primary-color">
+            Patients
+          </Link>
+          {clinical.map(({ href, label }) => (
+            <Link key={href} href={href} className="text-muted-color hover:text-primary-color">
+              {label}
+            </Link>
+          ))}
+          <Link href={`/os/${slug}/migrate`} className="text-muted-color hover:text-primary-color">
+            Import
+          </Link>
         </nav>
       </header>
       <main>{children}</main>
