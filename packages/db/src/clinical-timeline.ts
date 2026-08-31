@@ -305,3 +305,34 @@ export function edBayAssignedTimelineEvent(params: {
     createdBy: params.createdBy ?? null,
   }
 }
+
+export function paymentRecordedTimelineEvent(params: {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  encounterId: string
+  amount: number
+  receiptNumber: string
+  paymentMethod: string
+  createdBy?: string | null
+}): TimelineEventInput {
+  return {
+    tenantId: params.tenantId,
+    hospitalId: params.hospitalId,
+    patientId: params.patientId,
+    eventType: "billing",
+    title: "Payment recorded",
+    summary: `${params.paymentMethod} · UGX ${params.amount.toLocaleString()} · ${params.receiptNumber}`,
+    sourceTable: "billing_payments",
+    sourceId: params.receiptNumber,
+    provenance: "PROVIDER_VERIFIED",
+    payload: {
+      encounterId: params.encounterId,
+      amount: params.amount,
+      receiptNumber: params.receiptNumber,
+      paymentMethod: params.paymentMethod,
+    },
+    tags: ["billing", "payment"],
+    createdBy: params.createdBy ?? null,
+  }
+}

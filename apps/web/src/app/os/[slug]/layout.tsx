@@ -6,6 +6,7 @@ import Link from "next/link";
 
 const CLINICAL_LINKS = (slug: string) => [
   { href: `/os/${slug}/clinical/queue`, label: "OPD queue" },
+  { href: `/os/${slug}/clinical/orders`, label: "Billing" },
   { href: `/os/${slug}/clinical/tasks`, label: "Tasks" },
   { href: `/lab/orders`, label: "Lab worklist" },
   { href: `/os/${slug}/clinical/dispense`, label: "Dispense" },

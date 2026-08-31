@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { isContextError, requireHospitalCapability, gateHospitalModule } from '../../../../../../lib/hospital-shared'
-import { requireHospitalStaffContext } from '../../../../../../lib/hospital-dept'
+import { isContextError, requireHospitalCapability, gateHospitalModule } from '@/lib/hospital-shared'
+import { requireHospitalStaffContext } from '@/lib/hospital-dept'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,5 +47,15 @@ export async function GET(
 
   if (lineError) return NextResponse.json({ error: lineError.message }, { status: 500 })
 
-  return NextResponse.json({ invoice, lineItems: lineItems ?? [] })
+  const { data: payments, error: payError } = await db
+    .from('billing_payments')
+    .select('id, amount, currency, payment_method, payment_ref, receipt_number, created_at')
+    .eq('tenant_id', ctx.tenantId)
+    .eq('invoice_id', invoice.id)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: true })
+
+  if (payError) return NextResponse.json({ error: payError.message }, { status: 500 })
+
+  return NextResponse.json({ invoice, lineItems: lineItems ?? [], payments: payments ?? [] })
 }

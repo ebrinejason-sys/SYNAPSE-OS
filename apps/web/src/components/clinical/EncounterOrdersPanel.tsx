@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 
 type LabOrder = {
@@ -26,6 +26,27 @@ type TimelineEvent = {
   severity: string | null
   tags: string[] | null
 }
+type LineItem = {
+  id: string
+  item_name: string
+  unit_price: number
+  qty: number
+  total_price: number | null
+}
+type PaymentRow = {
+  id: string
+  amount: number
+  payment_method: string
+  receipt_number: string | null
+  created_at: string
+}
+type Invoice = {
+  id: string
+  status: string
+  total_amount: number
+  paid_amount: number
+  invoice_number: string | null
+}
 
 type EncounterOrdersPanelProps = {
   slug: string
@@ -37,37 +58,85 @@ export function EncounterOrdersPanel({ slug, encounterId, patientId }: Encounter
   const [labOrders, setLabOrders] = useState<LabOrder[]>([])
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [timeline, setTimeline] = useState<TimelineEvent[]>([])
-  const [invoiceTotal, setInvoiceTotal] = useState<number | null>(null)
+  const [invoice, setInvoice] = useState<Invoice | null>(null)
+  const [lineItems, setLineItems] = useState<LineItem[]>([])
+  const [payments, setPayments] = useState<PaymentRow[]>([])
+  const [payAmount, setPayAmount] = useState('')
+  const [payMethod, setPayMethod] = useState('cash')
+  const [payStatus, setPayStatus] = useState<string | null>(null)
+  const [paying, setPaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!encounterId) return
-    Promise.all([
+    const [labRes, rxRes, timelineRes, billingRes] = await Promise.all([
       fetch(`/api/opd/lab-orders?encounter_id=${encounterId}`, { credentials: 'include' }),
       fetch(`/api/opd/prescriptions?encounter_id=${encounterId}`, { credentials: 'include' }),
       fetch(`/api/hospital/timeline/encounter/${encounterId}`, { credentials: 'include' }),
       fetch(`/api/hospital/billing/encounter/${encounterId}`, { credentials: 'include' }),
     ])
-      .then(async ([labRes, rxRes, timelineRes, billingRes]) => {
-        if (!labRes.ok || !rxRes.ok) {
-          setError('Unable to load orders for this encounter.')
-          return
-        }
-        const labData = await labRes.json()
-        const rxData = await rxRes.json()
-        setLabOrders(labData.orders ?? [])
-        setPrescriptions(rxData.prescriptions ?? [])
-        if (timelineRes.ok) {
-          const tl = await timelineRes.json()
-          setTimeline(tl.events ?? [])
-        }
-        if (billingRes.ok) {
-          const bill = await billingRes.json()
-          setInvoiceTotal(bill.invoice?.total_amount ?? null)
-        }
-      })
-      .catch(() => setError('Unable to load orders.'))
+    if (!labRes.ok || !rxRes.ok) {
+      setError('Unable to load orders for this encounter.')
+      return
+    }
+    const labData = await labRes.json()
+    const rxData = await rxRes.json()
+    setLabOrders(labData.orders ?? [])
+    setPrescriptions(rxData.prescriptions ?? [])
+    setError(null)
+    if (timelineRes.ok) {
+      const tl = await timelineRes.json()
+      setTimeline(tl.events ?? [])
+    }
+    if (billingRes.ok) {
+      const bill = await billingRes.json()
+      setInvoice(bill.invoice ?? null)
+      setLineItems(bill.lineItems ?? [])
+      setPayments(bill.payments ?? [])
+      const total = Number(bill.invoice?.total_amount ?? 0)
+      const paid = Number(bill.invoice?.paid_amount ?? 0)
+      const balance = Math.max(0, total - paid)
+      if (balance > 0) {
+        setPayAmount((prev) => (prev ? prev : String(balance)))
+      }
+    }
   }, [encounterId])
+
+  useEffect(() => {
+    load().catch(() => setError('Unable to load orders.'))
+  }, [load])
+
+  async function collectPayment(e: React.FormEvent) {
+    e.preventDefault()
+    const amount = Number(payAmount)
+    if (!amount || amount <= 0) return
+    setPaying(true)
+    setPayStatus(null)
+    const idempotencyKey = `encounter-pay:${encounterId}:${amount}:${payMethod}`
+    const res = await fetch(`/api/hospital/billing/encounter/${encounterId}/pay`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount,
+        payment_method: payMethod,
+        idempotency_key: idempotencyKey,
+      }),
+    })
+    const data = await res.json()
+    setPaying(false)
+    if (!res.ok) {
+      setPayStatus(typeof data.error === 'string' ? data.error : 'Payment failed')
+      return
+    }
+    setPayStatus(`Receipt ${data.payment?.receiptNumber ?? 'recorded'} · status ${data.payment?.status ?? 'paid'}`)
+    await load()
+  }
+
+  const balanceDue =
+    invoice != null
+      ? Math.max(0, Number(invoice.total_amount ?? 0) - Number(invoice.paid_amount ?? 0))
+      : null
 
   if (!encounterId) {
     return (
@@ -86,7 +155,7 @@ export function EncounterOrdersPanel({ slug, encounterId, patientId }: Encounter
       <Link href={`/os/${slug}/clinical/queue`} className="text-xs text-muted-color hover:text-primary-color">
         ← OPD queue
       </Link>
-      <h1 className="mt-2 font-display text-2xl">Clinical orders & timeline</h1>
+      <h1 className="mt-2 font-display text-2xl">Clinical orders & billing</h1>
       <p className="mt-2 text-sm text-muted-color">Encounter {encounterId.slice(0, 8)}…</p>
       {error ? <p className="mt-4 text-sm text-amber-300">{error}</p> : null}
 
@@ -109,6 +178,77 @@ export function EncounterOrdersPanel({ slug, encounterId, patientId }: Encounter
           Pharmacy dispense
         </Link>
       </div>
+
+      <section className="mt-8">
+        <h2 className="text-sm font-semibold uppercase text-muted-color">Invoice</h2>
+        {!invoice ? (
+          <p className="mt-2 text-xs text-muted-color">No invoice yet — charges appear when orders are placed.</p>
+        ) : (
+          <div className="clinical-card mt-3 p-4 text-sm">
+            <p>
+              {invoice.invoice_number ?? invoice.id.slice(0, 8)} · {invoice.status}
+            </p>
+            <p className="mt-1 text-muted-color">
+              Total UGX {Number(invoice.total_amount).toLocaleString()} · Paid UGX{' '}
+              {Number(invoice.paid_amount).toLocaleString()}
+              {balanceDue != null ? ` · Balance UGX ${balanceDue.toLocaleString()}` : null}
+            </p>
+            <ul className="mt-3 space-y-1 text-xs text-secondary-color">
+              {lineItems.map((line) => (
+                <li key={line.id}>
+                  {line.item_name} · {line.qty} × UGX {Number(line.unit_price).toLocaleString()}
+                </li>
+              ))}
+            </ul>
+            {balanceDue != null && balanceDue > 0 ? (
+              <form onSubmit={collectPayment} className="mt-4 flex flex-wrap items-end gap-2">
+                <label className="text-xs text-muted-color">
+                  Amount (UGX)
+                  <input
+                    type="number"
+                    min={1}
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(e.target.value)}
+                    className="mt-1 block w-32 rounded-lg border border-subtle bg-surface px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-muted-color">
+                  Method
+                  <select
+                    value={payMethod}
+                    onChange={(e) => setPayMethod(e.target.value)}
+                    className="mt-1 block rounded-lg border border-subtle bg-surface px-2 py-1.5 text-sm"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="mobile_money">Mobile money</option>
+                    <option value="card">Card</option>
+                    <option value="bank_transfer">Bank transfer</option>
+                  </select>
+                </label>
+                <button
+                  type="submit"
+                  disabled={paying}
+                  className="rounded-lg px-4 py-2 text-xs font-semibold disabled:opacity-50"
+                  style={{ background: 'var(--brand-orange)', color: '#07070A' }}
+                >
+                  {paying ? 'Collecting…' : 'Collect payment'}
+                </button>
+              </form>
+            ) : null}
+            {payStatus ? <p className="mt-2 text-xs text-emerald-300">{payStatus}</p> : null}
+            {payments.length > 0 ? (
+              <ul className="mt-4 space-y-1 border-t border-subtle pt-3 text-xs">
+                {payments.map((p) => (
+                  <li key={p.id}>
+                    {p.receipt_number ?? p.id.slice(0, 8)} · UGX {Number(p.amount).toLocaleString()} ·{' '}
+                    {p.payment_method}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        )}
+      </section>
 
       <section className="mt-8">
         <h2 className="text-sm font-semibold uppercase text-muted-color">Lab orders</h2>
@@ -137,9 +277,6 @@ export function EncounterOrdersPanel({ slug, encounterId, patientId }: Encounter
 
       <section className="mt-8">
         <h2 className="text-sm font-semibold uppercase text-muted-color">Encounter timeline</h2>
-        {invoiceTotal != null ? (
-          <p className="mt-2 text-xs text-emerald-300">Draft invoice total: UGX {invoiceTotal.toLocaleString()}</p>
-        ) : null}
         <ul className="mt-3 space-y-2">
           {timeline.map((ev) => (
             <li key={ev.id} className="clinical-card p-3 text-sm">

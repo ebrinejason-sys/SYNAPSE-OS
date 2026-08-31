@@ -87,6 +87,14 @@ export const edTriageSchema = z.object({
   spo2: z.coerce.number().min(50).max(100).optional(),
 })
 
+export const encounterPaymentSchema = z.object({
+  amount: z.coerce.number().positive(),
+  payment_method: z.enum(['cash', 'mobile_money', 'card', 'bank_transfer']).default('cash'),
+  payment_ref: z.string().max(120).optional(),
+  idempotency_key: z.string().max(120).optional(),
+  notes: z.string().max(500).optional(),
+})
+
 export const edAssignBaySchema = z.object({
   encounter_id: z.string().uuid(),
   patient_id: z.string().uuid(),

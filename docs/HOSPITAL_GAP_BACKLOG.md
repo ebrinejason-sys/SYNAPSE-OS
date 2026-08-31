@@ -33,7 +33,7 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 |---|---|---|---|---|---|---|---|
 | P1-006 | All | Task routing | Fragmented queues | Unified WorkQueue | **FIXED** — /api/hospital/tasks | Extend timeline publishers for all handoffs | M |
 | P1-007 | Clinical | Timeline | Projection helpers | Full journey in one timeline | **PARTIAL** — encounter timeline API + doctor orders UI | Extend timeline publishers for all handoffs | M |
-| P1-008 | Billing | Clinical→charge | No bridge | Service event → invoice | **PARTIAL** — clinical-charge + encounter invoice API | Clinical activity charge service | L |
+| P1-008 | Billing | Clinical→charge | No bridge | Service event → invoice | **PARTIAL** — charge bridge + payment collection API/UI | Partial payments + insurance linkage | L |
 
 ## P1 — Clinical usability
 
@@ -72,3 +72,4 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 | P1-006 | WorkQueue.list returns tasks filtered by department |
 | P0-001 | Dispense decrements inventory via complete_pharmacy_sale or hospital equivalent; idempotent retry does not double-decrement |
 | P0-004 | CI fails when SUPABASE_* missing; cross-tenant encounter/patient queries return null |
+| P1-008 | Charge creates draft invoice; POST pay updates paid_amount; idempotent payment key |

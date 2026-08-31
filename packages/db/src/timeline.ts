@@ -22,6 +22,7 @@ export const TIMELINE_EVENT_TYPES = [
   "registration",
   "pathway",
   "critical_result",
+  "billing",
 ] as const
 
 export type TimelineEventType = (typeof TIMELINE_EVENT_TYPES)[number]

@@ -42,6 +42,7 @@
     "./prescription-persist": "./src/prescription-persist.ts",
     "./clinical-timeline": "./src/clinical-timeline.ts",
     "./clinical-charge": "./src/clinical-charge.ts",
+    "./clinical-payment": "./src/clinical-payment.ts",
     "./hospital-seed": "./src/hospital-seed.ts",
     "./hospital-acceptance": "./src/hospital-acceptance.ts"
   },
