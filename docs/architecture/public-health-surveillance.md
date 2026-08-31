@@ -27,6 +27,8 @@ contact follow-up, field notes, resource requirements, bulletin generation, DHIS
 **Privacy:** protect exact household locations; use privacy-preserving map aggregation except for
 authorised investigation roles. Synthetic tenants never export to real DHIS2.
 
+See also: [dhis2-export.md](./dhis2-export.md) for Phase 0–1 aggregate DataValueSet pipeline.
+
 ## Migration shape (additive)
 `surveillance_signals` (state machine + inputs above), `surveillance_rules` (versioned config),
 `outbreak_confirmations` (role-gated), and a proper `surveillance_reports` DDL (currently RLS-only,

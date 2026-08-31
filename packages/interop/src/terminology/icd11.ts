@@ -88,6 +88,11 @@ export function lookupStem(code: string, cache: Icd11Entity[] = ICD11_SEED_CACHE
   return cache.find((item) => item.stemCode === stem) ?? null
 }
 
+/** True only when the stem exists in the terminology cache — never invent codes. */
+export function isKnownIcd11Stem(code: string, cache: Icd11Entity[] = ICD11_SEED_CACHE): boolean {
+  return lookupStem(code, cache) != null
+}
+
 export function confirmIcd11Selection(params: {
   entity: Icd11Entity
   selectedBy: "clinician"

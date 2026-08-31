@@ -31,6 +31,8 @@ export type ClinicianDecision = "ACCEPT" | "MODIFY" | "REJECT" | "DEFER"
 export type PatientContextPacket = {
   patientId: string
   tenantId: string
+  /** Facility scope for public-health aggregation (never exported raw) */
+  facilityId?: string | null
   encounterId?: string | null
   clinicianId: string
   demographics?: { age?: number | null; sex?: string | null; display?: string }
@@ -39,6 +41,8 @@ export type PatientContextPacket = {
   examination?: string[]
   vitals?: Record<string, number | string | undefined>
   previousDiagnoses?: string[]
+  /** Clinician-verified ICD-11 only — used for aggregate public-health counts */
+  confirmedDiagnoses?: Array<{ stemCode: string; title?: string; verified: boolean }>
   medications?: string[]
   allergies?: string[]
   laboratory?: Array<{ test: string; value: string; flag?: string }>
@@ -46,6 +50,15 @@ export type PatientContextPacket = {
   previousEncounters?: string[]
   activePathwayId?: string | null
   insuranceContext?: { planName?: string | null; covered?: boolean }
+  /** Village / parish / sub-county — for surveillance locality, never raw-exported */
+  locality?: {
+    village?: string | null
+    parish?: string | null
+    subCounty?: string | null
+    district?: string | null
+  } | null
+  /** Period grain for rollup (YYYYMM / YYYYMMDD) — set by export builder, not UI */
+  aggregatePeriod?: string | null
   guidelineContext?: string | null
 }
 

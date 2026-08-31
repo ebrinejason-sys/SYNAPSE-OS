@@ -85,6 +85,7 @@ const DIRECT_GRANTS: Record<string, readonly CapTuple[]> = {
     ['subscription', 'billing', 'read'],
     ['insurance',    'policy',  'read'],
     ['insurance',    'claim',   'read'],
+    ['public_health', 'export_aggregate', 'write'],
   ],
 }
 

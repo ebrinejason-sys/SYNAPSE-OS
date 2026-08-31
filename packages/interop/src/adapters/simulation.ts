@@ -4,6 +4,7 @@
 
 import type { CanonicalPerson } from "../canonical"
 import type { AdapterResult } from "../adapter"
+import { createDhis2Adapter, type RecordedDhis2Call } from "./dhis2"
 import {
   applyNetworkFault,
   defaultReconcile,
@@ -105,7 +106,7 @@ export function createSimulationAdapter(
     openmrs: { name: "Mock OpenMRS", system: "openmrs", caps: ["pullPatients", "mapInbound"] },
     alis: { name: "Mock ALIS", system: "alis", caps: ["pullResults", "pushOrder"] },
     labexpert: { name: "Mock LabExpert", system: "labexpert", caps: ["pullResults"] },
-    dhis2: { name: "Mock DHIS2", system: "dhis2", caps: ["mapOutbound"] },
+    dhis2: { name: "Mock DHIS2", system: "dhis2", caps: ["mapOutbound", "pushDataValueSet", "healthCheck"] },
     insurer: { name: "Mock Insurer", system: "insurer", caps: ["mapOutbound"] },
   }
   const spec = catalog[kind]
@@ -125,8 +126,15 @@ export function createSimulationAdapter(
   )
 }
 
+/** Dedicated DHIS2 simulation adapter (records payloads, never networks). */
+export function createDhis2SimulationAdapter(): ReturnType<typeof createDhis2Adapter> {
+  return createDhis2Adapter({ mode: "simulation", baseUrl: null, auth: { type: "none" } })
+}
+
 export function createSimulationAdapterSet(fault: NetworkFault = "none"): SynapseAdapter[] {
   return (["eafya", "ugandaemr", "alis", "labexpert", "dhis2", "insurer"] as const).map((kind) =>
     createSimulationAdapter(kind, fault),
   )
 }
+
+export type { RecordedDhis2Call }

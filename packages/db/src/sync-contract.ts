@@ -21,6 +21,8 @@ export const SYNC_COMMAND_TYPES = [
   "pharmacy.stock.transfer.v1",
   "pharmacy.sale.reverse.v1",
   "identity.person.register.v1",
+  /** Facility-side queued aggregate export; payload must already be privacy-gated */
+  "public_health.dhis2_export.v1",
 ] as const
 
 export type SyncCommandType = (typeof SYNC_COMMAND_TYPES)[number]
@@ -30,6 +32,7 @@ export const SYNC_AGGREGATE_TYPES = [
   "pharmacy_batch",
   "pharmacy_transfer",
   "person",
+  "dhis2_export_job",
 ] as const
 
 export type SyncAggregateType = (typeof SYNC_AGGREGATE_TYPES)[number]
