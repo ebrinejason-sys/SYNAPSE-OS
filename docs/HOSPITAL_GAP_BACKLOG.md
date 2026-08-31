@@ -6,7 +6,7 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 
 | ID | Department | Workflow | Current | Expected | Root cause | Fix | Complexity |
 |---|---|---|---|---|---|---|---|
-| P0-001 | Pharmacy | Dispense | Manual insert as dispensed, skips verification | Verify → dispense → inventory decrement | **PARTIAL** — /api/hospital/pharmacy/dispense + updated UI | Route through WorkQueue + authoritative inventory RPC | M |
+| P0-001 | Pharmacy | Dispense | Manual insert as dispensed, skips verification | Verify → dispense → inventory decrement | **PARTIAL** — dispense API + `complete_pharmacy_sale` + WorkQueue complete; CI idempotency + bridge unit tests added | Operator UI path + full integration test through hospital dispense route | M |
 | P0-002 | Clinical | Signed notes | No immutability | Signed docs cannot silently change | **FIXED** — amendment RPC + trail + trigger guard | Add signed_at + amendment trail | M |
 | P0-003 | Security | Platform admin | Role bypass in capability.ts | No automatic clinical superuser | **FIXED** — hospital facilityType enforced | Scope bypass to platform ops only | S |
 
@@ -14,7 +14,7 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 
 | ID | Department | Workflow | Current | Expected | Root cause | Fix | Complexity |
 |---|---|---|---|---|---|---|---|
-| P0-004 | All | Tenant isolation | RLS exists | Fail closed on cross-tenant | **PARTIAL** — DB isolation test (skips without env) | Add cross-tenant access tests | S |
+| P0-004 | All | Tenant isolation | RLS exists | Fail closed on cross-tenant | **PARTIAL** — isolation tests fail CI if Supabase secrets missing; integration runs when configured | Expand coverage to tasks/billing tables | S |
 | P0-005 | Synthetic | Reset guard | In-memory guard | Production reset impossible | **FIXED** — DB trigger on hospital_seed_registry | Add DB trigger/check on hospital_seed_registry | S |
 
 ## P1 — Broken core workflow
@@ -70,4 +70,5 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 | P1-004 | /lab/orders shows orders from lab_orders table for tenant |
 | P1-005 | Admission emits PatientAdmitted + assigns hospital_beds.current_patient_id |
 | P1-006 | WorkQueue.list returns tasks filtered by department |
-| P0-001 | Dispense decrements inventory via complete_pharmacy_sale or hospital equivalent |
+| P0-001 | Dispense decrements inventory via complete_pharmacy_sale or hospital equivalent; idempotent retry does not double-decrement |
+| P0-004 | CI fails when SUPABASE_* missing; cross-tenant encounter/patient queries return null |

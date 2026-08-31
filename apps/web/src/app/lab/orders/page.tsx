@@ -57,7 +57,7 @@ export default function LabOrdersPage() {
       {error ? <p className="mt-4 text-sm text-amber-300">{error}</p> : null}
       {orders.length === 0 ? (
         <p className="mt-8 text-sm text-muted-color">
-          No open lab orders. Place orders from an OPD encounter or run the sepsis simulation from Platform Control Center.
+          No open lab orders. Place orders from an OPD encounter (/os/[slug]) — hospital lab staff see production worklist rows here.
         </p>
       ) : (
         <ul className="mt-8 space-y-3">

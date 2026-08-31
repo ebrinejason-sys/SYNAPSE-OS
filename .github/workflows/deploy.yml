@@ -39,9 +39,10 @@ jobs:
           NEXT_PUBLIC_APP_URL: https://synapseos.tech
           SYNAPSE_JWT_SECRET: ${{ secrets.SYNAPSE_JWT_SECRET }}
 
-      - name: Verify pharmacy (type-check, lint, tenant-authz tests, build)
+      - name: Verify pharmacy (type-check, lint, tenant-authz + spine safety tests, build)
         run: npm run verify:pharmacy
         env:
+          CI: "true"
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}

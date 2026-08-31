@@ -7,8 +7,7 @@ import {
   MALARIA_PF_ANTIGEN_LOINC,
   MALARIA_PF_ANTIGEN_TEST_NAME,
 } from "@synapse/db/lab-workflow"
-
-const hasDb = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_URL)
+import { hasDb } from "./test-db-guard"
 
 describe.skipIf(!hasDb)("malaria golden journey — Postgres OPD triage → lab order", () => {
   let tenantId: string
