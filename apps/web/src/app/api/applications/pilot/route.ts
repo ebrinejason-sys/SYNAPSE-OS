@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '../../../../lib/supabase/server'
+import { createServiceClient } from '../../../../lib/supabase/server'
 import { resend, NOTIFY_EMAILS, FROM_EMAIL, FROM_NAME, brandedEmail } from '../../../../lib/resend'
 
 export async function POST(req: NextRequest) {
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'name, email, and hospital_name are required' }, { status: 400 })
   }
 
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { error: insertError } = await (supabase as any).from('hospital_leads').upsert(
     {
       contact_name: name,

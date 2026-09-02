@@ -148,15 +148,48 @@ export default function TestCenterPage() {
         title="Universal Test Center"
         description="Module readiness with honest PASS / FAIL / NOT_CONFIGURED status. SKIPPED is not a pass. Golden journeys produce correlation IDs and step evidence."
         actions={
-          <button
-            type="button"
-            disabled={busy}
-            onClick={runMalariaGolden}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#F97316] px-5 py-2.5 text-sm font-bold text-black transition hover:opacity-90 disabled:opacity-50"
-          >
-            <Play className="h-4 w-4" />
-            {busy ? "Running…" : "Run Malaria Golden Journey"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true)
+                setError(null)
+                try {
+                  const res = await fetch("/api/platform/test-center/hospital-onboarding", { method: "POST" })
+                  const data = await res.json()
+                  if (!res.ok) throw new Error(data.message ?? data.error ?? "onboarding_suite_failed")
+                  setSelectedRun({
+                    testRunId: data.testRunId,
+                    module: "hospital-onboarding",
+                    status: data.status,
+                    durationMs: data.durationMs,
+                    correlationId: data.correlationId,
+                    completedAt: new Date().toISOString(),
+                    steps: data.steps,
+                  })
+                  await refresh()
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "onboarding_suite_failed")
+                } finally {
+                  setBusy(false)
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-[#00D4AA]/40 bg-[#00D4AA]/10 px-5 py-2.5 text-sm font-bold text-[#00D4AA] transition hover:bg-[#00D4AA]/20 disabled:opacity-50"
+            >
+              <FlaskConical className="h-4 w-4" />
+              {busy ? "Running…" : "Run Hospital Onboarding"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={runMalariaGolden}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#F97316] px-5 py-2.5 text-sm font-bold text-black transition hover:opacity-90 disabled:opacity-50"
+            >
+              <Play className="h-4 w-4" />
+              {busy ? "Running…" : "Run Malaria Golden Journey"}
+            </button>
+          </div>
         }
       />
 

@@ -310,6 +310,18 @@ export const CAPABILITY_GATES: CapabilityGate[] = [
         passed: true,
       },
       {
+        id: "clinical-rollup-hook",
+        description: "EncounterSigned → monthly diagnosis rollup enqueue",
+        evidence: "packages/db/src/dhis2-export.ts scheduleDhis2RollupAfterEncounterSign",
+        passed: true,
+      },
+      {
+        id: "cron-drain",
+        description: "Nightly cron drains pending DHIS2 export jobs",
+        evidence: "apps/web/src/app/api/cron/dhis2-export/route.ts",
+        passed: true,
+      },
+      {
         id: "live-national-push",
         description: "Live MoH DHIS2 transmission with operator proof",
         evidence: "simulation default; liveEvidence required",

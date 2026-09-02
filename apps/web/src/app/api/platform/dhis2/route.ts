@@ -5,6 +5,7 @@ import { NextResponse } from "next/server"
 import { requirePlatformAdminApi } from "@/lib/platform/require-admin-api"
 import {
   loadDhis2MonitorState,
+  processPendingExports,
   retryExportJob,
   triggerAggregateExport,
 } from "@/lib/platform/dhis2-export-actions"
@@ -43,6 +44,15 @@ export async function POST(request: Request) {
       jobId,
     })
     return NextResponse.json(result, { status: result.ok ? 200 : 400 })
+  }
+
+  if (action === "process_pending" || action === "drain") {
+    const result = await processPendingExports({
+      actorId: user.id,
+      actorRole: user.role ?? "platform_admin",
+      limit: Number(body.limit ?? 25),
+    })
+    return NextResponse.json(result)
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 })

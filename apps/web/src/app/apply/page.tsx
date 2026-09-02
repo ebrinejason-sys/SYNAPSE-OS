@@ -61,10 +61,11 @@ export default function ApplyPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, departments }),
       })
-      if (!res.ok) throw new Error('Submission failed')
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(payload.error || 'Submission failed')
       window.location.href = '/apply/thank-you'
-    } catch {
-      setError('Something went wrong. Please try again or visit our contact page.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again or visit our contact page.')
     } finally {
       setLoading(false)
     }

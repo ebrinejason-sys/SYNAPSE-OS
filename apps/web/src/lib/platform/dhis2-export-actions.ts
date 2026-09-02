@@ -12,6 +12,7 @@ import {
   enqueueDhis2Export,
   listRecentDhis2Jobs,
   processDhis2ExportJob,
+  processPendingDhis2Exports,
   retryDhis2ExportJob,
   InMemoryDhis2ExportQueue,
 } from "@synapse/db/dhis2-export"
@@ -167,6 +168,42 @@ export async function retryExportJob(params: {
     const mem = await memoryQueue.process(params.jobId).catch(() => null)
     if (mem) return { ok: mem.status === "succeeded", error: mem.error ?? undefined }
     return { ok: false, error: err instanceof Error ? err.message : "retry_failed" }
+  }
+}
+
+export async function processPendingExports(params: {
+  actorId: string
+  actorRole: string
+  limit?: number
+}): Promise<{
+  ok: boolean
+  processed: number
+  succeeded: number
+  failed: number
+  storage: "db" | "memory"
+}> {
+  if (!resolveDhis2Capability(params.actorRole)) {
+    return { ok: false, processed: 0, succeeded: 0, failed: 0, storage: "memory" }
+  }
+
+  const limit = params.limit ?? 25
+  try {
+    const db = createServiceClient()
+    const results = await processPendingDhis2Exports(db, { limit })
+    const succeeded = results.filter((row) => row.status === "succeeded").length
+    const failed = results.filter((row) => row.status === "failed" || row.status === "dead").length
+    await logPlatformEvent({
+      actorId: params.actorId,
+      action: "dhis2.process_pending",
+      entityType: "dhis2_export_jobs",
+      metadata: { processed: results.length, succeeded, failed, limit },
+    })
+    return { ok: true, processed: results.length, succeeded, failed, storage: "db" }
+  } catch {
+    const results = await memoryQueue.processPending(limit)
+    const succeeded = results.filter((row) => row.status === "succeeded").length
+    const failed = results.filter((row) => row.status === "failed" || row.status === "dead").length
+    return { ok: true, processed: results.length, succeeded, failed, storage: "memory" }
   }
 }
 

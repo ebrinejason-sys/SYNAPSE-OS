@@ -232,7 +232,13 @@ export default async function PlatformApplicationsPage() {
                             ) : null}
                             {column.key === "approved" ? (
                               <Link
-                                href={card.kind === "facility" ? "/platform/pharmacies/onboard" : "/platform/approvals"}
+                                href={
+                                  card.kind === "professional"
+                                    ? "/platform/approvals"
+                                    : card.facilityType === "pharmacy"
+                                      ? "/platform/pharmacies/onboard"
+                                      : `/platform/hospitals/new?name=${encodeURIComponent(card.title)}&email=${encodeURIComponent(card.subtitle)}&location=${encodeURIComponent(card.district)}`
+                                }
                                 className="rounded border border-[#F97316]/30 px-2 py-0.5 text-[10px] text-[#F97316]"
                               >
                                 Provision →

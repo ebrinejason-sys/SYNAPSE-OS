@@ -6,6 +6,7 @@ import { requirePlatformAdmin } from "../../../lib/platform/auth";
 import { formatDateTime } from "../_lib/platform-data";
 import {
   loadDhis2MonitorState,
+  processPendingExports,
   retryExportJob,
   triggerAggregateExport,
 } from "@/lib/platform/dhis2-export-actions";
@@ -42,6 +43,16 @@ async function retryExport(formData: FormData) {
   revalidatePath("/platform/dhis2");
 }
 
+async function drainPending() {
+  "use server";
+  const profile = await requirePlatformAdmin();
+  await processPendingExports({
+    actorId: profile.id,
+    actorRole: profile.role ?? "platform_admin",
+  });
+  revalidatePath("/platform/dhis2");
+}
+
 export default async function Dhis2ExportsPage() {
   await requirePlatformAdmin();
   const state = await loadDhis2MonitorState();
@@ -60,6 +71,7 @@ export default async function Dhis2ExportsPage() {
             Outbound aggregate DataValueSets only. Privacy-gated — no identifiable patient packets.
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
         <form action={triggerExportAll}>
           <button
             type="submit"
@@ -69,6 +81,16 @@ export default async function Dhis2ExportsPage() {
             Trigger aggregate export
           </button>
         </form>
+        <form action={drainPending}>
+          <button
+            type="submit"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Drain pending
+          </button>
+        </form>
+        </div>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">

@@ -347,7 +347,7 @@ Provide 3 concise, specific, actionable strategic insights for the founders in p
             <div className="space-y-2">
               {[
                 { label: 'Admin Dashboard',     href: '/admin',           badge: null },
-                { label: 'Hospital Onboarding', href: '/onboarding',      badge: null },
+                { label: 'Hospital Onboarding', href: '/platform/hospitals/new', badge: null },
                 { label: 'Feature Flags',       href: '/admin',           badge: 'Admin' },
                 { label: 'System Status',       href: '/status',          badge: null },
                 { label: 'All Doctors/Staff',   href: '/admin',           badge: null },

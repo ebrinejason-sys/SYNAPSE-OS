@@ -56,6 +56,9 @@ export type VercelDeploymentTruth = {
     state: string | null;
     url: string | null;
     createdAt: string | null;
+    authorEmail?: string | null;
+    authorName?: string | null;
+    commitVerification?: string | null;
   }>;
   detail: string;
 };
@@ -221,7 +224,13 @@ async function fetchVercelDeployments(fetchImpl: typeof fetch = fetch): Promise<
         url?: string;
         state?: string;
         created?: number;
-        meta?: { githubCommitSha?: string };
+        meta?: {
+          githubCommitSha?: string;
+          githubCommitAuthorLogin?: string;
+          githubCommitAuthorName?: string;
+          githubCommitAuthorEmail?: string;
+          githubCommitVerification?: string;
+        };
       }>;
     };
 
@@ -232,13 +241,22 @@ async function fetchVercelDeployments(fetchImpl: typeof fetch = fetch): Promise<
       state: row.state ?? null,
       url: row.url ? `https://${row.url}` : null,
       createdAt: row.created ? new Date(row.created).toISOString() : null,
+      authorEmail: row.meta?.githubCommitAuthorEmail ?? null,
+      authorName: row.meta?.githubCommitAuthorName ?? null,
+      commitVerification: row.meta?.githubCommitVerification ?? null,
     }));
 
+    const latest = rows[0];
+    const blockedHint =
+      latest?.state === "BLOCKED"
+        ? ` BLOCKED — often project collaboration / unverified commit author (${latest.authorEmail ?? latest.authorName ?? "unknown"}). Redeploy with repository-owner identity.`
+        : "";
+
     return {
-      status: rows.length > 0 ? "HEALTHY" : "NO_TELEMETRY",
+      status: latest?.state === "READY" ? "HEALTHY" : latest?.state === "BLOCKED" ? "FAILED" : rows.length > 0 ? "DEGRADED" : "NO_TELEMETRY",
       deployments: rows,
       detail: rows.length
-        ? `Latest production: ${rows[0]?.state ?? "unknown"} @ ${rows[0]?.shortSha ?? "—"}`
+        ? `Latest production: ${latest?.state ?? "unknown"} @ ${latest?.shortSha ?? "—"}${blockedHint}`
         : "No production deployments returned",
     };
   } catch (error) {

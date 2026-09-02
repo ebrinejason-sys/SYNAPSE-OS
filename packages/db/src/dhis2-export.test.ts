@@ -40,4 +40,35 @@ describe("dhis2-export queue", () => {
     assert.equal(result.job, null)
     assert.ok(result.rejected)
   })
+
+  it("refreshes payload on duplicate idempotency key and drains pending jobs", async () => {
+    const queue = new InMemoryDhis2ExportQueue()
+    const base = {
+      tenantId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      period: "202608",
+      orgUnit: "OU_SIM_FACILITY",
+      capabilityGranted: true,
+      mode: "simulation" as const,
+      isSynthetic: true,
+    }
+    const first = queue.enqueue({
+      ...base,
+      facts: fixtureAggregateFacts().map((f) => ({ ...f, localOrgKey: "OU_SIM_FACILITY", period: "202608", count: 1 })),
+    })
+    assert.ok(first.job)
+    const second = queue.enqueue({
+      ...base,
+      facts: fixtureAggregateFacts().map((f) => ({ ...f, localOrgKey: "OU_SIM_FACILITY", period: "202608", count: 9 })),
+    })
+    assert.equal(second.created, false)
+    assert.equal(second.job?.id, first.job?.id)
+    assert.equal(
+      Number(second.job?.payload.dataValues.find((v) => v.dataElement === "DE_MALARIA_PF")?.value ?? 0),
+      9,
+    )
+
+    const drained = await queue.processPending(5)
+    assert.equal(drained.length, 1)
+    assert.equal(drained[0]?.status, "succeeded")
+  })
 })

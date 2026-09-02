@@ -8,6 +8,10 @@ import {
   createDhis2Adapter,
   createDhis2AdapterFromEnv,
   getDhis2ModeFromEnv,
+  defaultLocalOrgKey,
+  monthPeriodBounds,
+  monthPeriodFromIso,
+  rollupDiagnosesToFacts,
   type AggregateCaseFact,
   type Dhis2AdapterMode,
   type Dhis2DataElementMapping,
@@ -326,6 +330,199 @@ export async function listRecentDhis2Jobs(
   return (data ?? []).map(mapJobRow)
 }
 
+/** Signed encounter diagnoses for a tenant/month — input to privacy rollup only. */
+export async function fetchSignedDiagnosisStemsForPeriod(
+  db: DbClient,
+  tenantId: string,
+  period: string,
+): Promise<Array<{ stem_code: string; encounter_id: string }>> {
+  const { start, end } = monthPeriodBounds(period)
+  const { data: encounters, error: encError } = await db
+    .from("encounters")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("is_signed", true)
+    .gte("signed_at", start)
+    .lt("signed_at", end)
+
+  if (encError) throw new Error(encError.message)
+  const encounterIds = (encounters ?? []).map((row: { id: string }) => row.id)
+  if (encounterIds.length === 0) return []
+
+  const { data: diagnoses, error: dxError } = await db
+    .from("encounter_diagnoses")
+    .select("stem_code, encounter_id")
+    .eq("tenant_id", tenantId)
+    .eq("is_deleted", false)
+    .in("encounter_id", encounterIds)
+
+  if (dxError) throw new Error(dxError.message)
+  return (diagnoses ?? []) as Array<{ stem_code: string; encounter_id: string }>
+}
+
+export type ScheduleRollupResult = {
+  scheduled: boolean
+  jobId?: string
+  refreshed?: boolean
+  reason?: string
+  period?: string
+}
+
+/**
+ * Phase 2: after EncounterSigned, rebuild monthly aggregate for tenant and queue export.
+ * Best-effort — never blocks clinical sign path.
+ */
+export async function scheduleDhis2RollupAfterEncounterSign(
+  db: DbClient,
+  params: {
+    tenantId: string
+    hospitalId: string
+    signedAt: string
+    orgUnit?: string | null
+    processImmediately?: boolean
+    isSynthetic?: boolean
+  },
+): Promise<ScheduleRollupResult> {
+  const period = monthPeriodFromIso(params.signedAt)
+  const localOrgKey = defaultLocalOrgKey(params.tenantId, params.hospitalId)
+  const orgUnit = params.orgUnit?.trim() || localOrgKey
+
+  const stems = await fetchSignedDiagnosisStemsForPeriod(db, params.tenantId, period)
+  const facts = rollupDiagnosesToFacts(stems, { localOrgKey, period })
+  if (facts.length === 0) {
+    return { scheduled: false, reason: "no_verified_diagnoses_in_period", period }
+  }
+
+  const enqueued = await enqueueOrRefreshDhis2Export(db, {
+    tenantId: params.tenantId,
+    facilityId: params.hospitalId,
+    period,
+    orgUnit,
+    facts,
+    capabilityGranted: true,
+    isSynthetic: params.isSynthetic ?? false,
+    createdBy: null,
+    mode: getDhis2ModeFromEnv(),
+  })
+
+  if (!enqueued.job) {
+    return { scheduled: false, reason: enqueued.rejected ?? "enqueue_failed", period }
+  }
+
+  if (params.processImmediately) {
+    await processDhis2ExportJob(db, enqueued.job.id, { capabilityGranted: true })
+  }
+
+  return {
+    scheduled: true,
+    jobId: enqueued.job.id,
+    refreshed: !enqueued.created,
+    period,
+  }
+}
+
+/** Process pending/failed jobs oldest-first (cron / manual drain). */
+export async function processPendingDhis2Exports(
+  db: DbClient,
+  options?: { limit?: number },
+): Promise<ProcessDhis2JobResult[]> {
+  const limit = options?.limit ?? 20
+  const { data, error } = await db
+    .from("dhis2_export_jobs")
+    .select("id")
+    .in("status", ["pending", "failed"])
+    .order("created_at", { ascending: true })
+    .limit(limit)
+
+  if (error) throw new Error(error.message)
+
+  const results: ProcessDhis2JobResult[] = []
+  for (const row of data ?? []) {
+    results.push(await processDhis2ExportJob(db, String(row.id), { capabilityGranted: true }))
+  }
+  return results
+}
+
+async function enqueueOrRefreshDhis2Export(
+  db: DbClient,
+  input: EnqueueDhis2ExportInput,
+): Promise<{ job: Dhis2ExportJob | null; created: boolean; rejected?: string }> {
+  const mode = input.mode ?? getDhis2ModeFromEnv()
+  const defaults = defaultMappings()
+  const built = buildAggregateDataValueSet({
+    source: input.facts,
+    period: input.period,
+    orgUnit: input.orgUnit,
+    dataSet: input.dataSet,
+    orgUnitMappings: input.orgUnitMappings ?? defaults.orgUnits,
+    dataElementMappings: input.dataElementMappings ?? defaults.dataElements,
+    policy: input.policy ?? DEFAULT_PRIVACY_EXPORT_POLICY,
+    capabilityGranted: input.capabilityGranted,
+    mode,
+    isSyntheticTenant: input.isSynthetic ?? false,
+  })
+
+  if (!built.ok) {
+    return { job: null, created: false, rejected: built.message }
+  }
+
+  const idempotencyKey =
+    input.idempotencyKey?.trim() ||
+    buildIdempotencyKey({
+      tenantId: input.tenantId,
+      period: input.period,
+      orgUnit: input.orgUnit,
+      dataSet: input.dataSet,
+    })
+
+  const { data: existing } = await db
+    .from("dhis2_export_jobs")
+    .select("*")
+    .eq("tenant_id", input.tenantId)
+    .eq("idempotency_key", idempotencyKey)
+    .maybeSingle()
+
+  const stamp = nowIso()
+  if (existing) {
+    const { data: updated, error } = await db
+      .from("dhis2_export_jobs")
+      .update({
+        payload: built.dataValueSet,
+        status: "pending",
+        last_error: null,
+        completed_at: null,
+        updated_at: stamp,
+      })
+      .eq("id", existing.id)
+      .select("*")
+      .single()
+    if (error) throw new Error(error.message)
+    return { job: mapJobRow(updated), created: false }
+  }
+
+  const row = {
+    tenant_id: input.tenantId,
+    facility_id: input.facilityId ?? null,
+    status: "pending",
+    mode,
+    period: input.period,
+    org_unit: input.orgUnit,
+    data_set: input.dataSet ?? null,
+    payload: built.dataValueSet,
+    idempotency_key: idempotencyKey,
+    attempt_count: 0,
+    last_error: null,
+    is_synthetic: input.isSynthetic ?? false,
+    created_by: input.createdBy ?? null,
+    created_at: stamp,
+    updated_at: stamp,
+  }
+
+  const { data, error } = await db.from("dhis2_export_jobs").insert(row).select("*").single()
+  if (error) throw new Error(error.message)
+  return { job: mapJobRow(data), created: true }
+}
+
 async function appendExportLog(
   db: DbClient,
   entry: {
@@ -434,7 +631,14 @@ export class InMemoryDhis2ExportQueue {
         dataSet: input.dataSet,
       })
     for (const existing of this.jobs.values()) {
-      if (existing.idempotencyKey === idempotencyKey) return { job: existing, created: false }
+      if (existing.idempotencyKey === idempotencyKey) {
+        existing.payload = built.dataValueSet
+        existing.status = "pending"
+        existing.lastError = null
+        existing.updatedAt = nowIso()
+        existing.completedAt = null
+        return { job: existing, created: false }
+      }
     }
     const stamp = nowIso()
     const job: Dhis2ExportJob = {
@@ -479,5 +683,17 @@ export class InMemoryDhis2ExportQueue {
     job.completedAt = nowIso()
     this.logs.push({ jobId, status: "pushed", records: push.data.importCount })
     return { jobId, status: "succeeded", recordsExported: push.data.importCount, mode: "simulation" }
+  }
+
+  listPending(): Dhis2ExportJob[] {
+    return [...this.jobs.values()].filter((job) => job.status === "pending" || job.status === "failed")
+  }
+
+  async processPending(limit = 20): Promise<ProcessDhis2JobResult[]> {
+    const results: ProcessDhis2JobResult[] = []
+    for (const job of this.listPending().slice(0, limit)) {
+      results.push(await this.process(job.id))
+    }
+    return results
   }
 }

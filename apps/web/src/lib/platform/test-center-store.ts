@@ -44,6 +44,7 @@ export const TEST_CENTER_MODULES: Array<{ id: string; label: string; href: strin
   { id: "exchange", label: "Exchange", href: "/platform/events" },
   { id: "dhis2", label: "DHIS2", href: "/platform/dhis2" },
   { id: "offline", label: "Offline", href: "/platform/registry" },
+  { id: "hospital-onboarding", label: "Hospital Onboarding", href: "/platform/hospitals/new" },
 ];
 
 type GlobalStore = { runs: StoredTestRun[]; latestByModule: Map<string, StoredTestRun> };

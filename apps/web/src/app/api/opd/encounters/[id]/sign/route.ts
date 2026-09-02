@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { recordEncounterSigned } from '@synapse/db/clinical-journey'
+import { scheduleDhis2RollupAfterEncounterSign } from '@synapse/db/dhis2-export'
 import { persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
 import { encounterSignedTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
@@ -80,6 +81,14 @@ export async function POST(
   } catch (error) {
     console.warn('[opd/encounters/sign] event persist failed', error)
   }
+
+  void scheduleDhis2RollupAfterEncounterSign(db, {
+    tenantId: ctx.tenantId,
+    hospitalId: ctx.hospitalId,
+    signedAt,
+  }).catch((error) => {
+    console.warn('[opd/encounters/sign] dhis2 rollup schedule failed', error)
+  })
 
   await logHospitalAudit({
     ctx,

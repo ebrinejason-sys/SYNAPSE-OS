@@ -3,7 +3,6 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, CheckCircle } from 'lucide-react'
 import { SynapseLogo } from '../../../components/SynapseLogo'
-import { createClient } from '../../../lib/supabase/client'
 
 const SYSTEMS = [
   'Paper records only', 'Spreadsheets / Excel', 'OpenMRS', 'Slade360',
@@ -28,26 +27,28 @@ export default function HospitalInterestPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const supabase = createClient()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: dbError } = await (supabase as any).from('hospital_leads').insert({
-      hospital_name: form.hospital_name,
-      contact_name: form.contact_name || null,
-      contact_email: form.contact_email || null,
-      contact_phone: form.contact_phone || null,
-      location: form.location || null,
-      beds_count: form.beds_count ? parseInt(form.beds_count) : null,
-      current_system: form.current_system || null,
-      notes: form.notes || null,
-      stage: 'interest',
-      source: 'signup_form',
-    })
-    if (dbError) {
-      setError('Something went wrong. Please try again or visit our contact page.')
-    } else {
+    try {
+      const res = await fetch('/api/applications/hospital-interest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hospital_name: form.hospital_name,
+          contact_name: form.contact_name,
+          contact_email: form.contact_email,
+          contact_phone: form.contact_phone,
+          location: form.location,
+          beds_count: form.beds_count,
+          current_system: form.current_system,
+          notes: form.notes,
+        }),
+      })
+      if (!res.ok) throw new Error('Submission failed')
       setSubmitted(true)
+    } catch {
+      setError('Something went wrong. Please try again or visit our contact page.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const inp = 'w-full rounded-xl px-4 py-3 text-sm outline-none transition-all'

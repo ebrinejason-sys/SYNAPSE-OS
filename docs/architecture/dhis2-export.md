@@ -53,8 +53,15 @@ Offline: facility can enqueue sync command `public_health.dhis2_export.v1` with 
 - Tracker / TEI / event programmes (stub interface only today)
 - Cross-facility cluster aggregation via HIE/FHIR
 - Catchment heat maps (analytics layer, not clinical path)
-- Nightly cron worker claiming `pending` jobs
-- Live MoH credential rotation + `liveEvidence` gate flip
+- Live MoH credentials + `liveEvidence` gate flip
+- Production org-unit / data-element seed from MoH HMIS dictionaries
+- Facility offline replay UI for `public_health.dhis2_export.v1`
+
+## Phase 2 (implemented)
+
+- **EncounterSigned → rollup**: `scheduleDhis2RollupAfterEncounterSign` rebuilds monthly counts from signed `encounter_diagnoses` and refreshes the pending job payload.
+- **Cron drain**: `GET /api/cron/dhis2-export` (23:00 UTC ≈ 02:00 Kampala) processes pending/failed jobs.
+- **Manual drain**: `POST /api/platform/dhis2` with `{ "action": "process_pending" }`.
 
 ## Operator runbook (simulation)
 

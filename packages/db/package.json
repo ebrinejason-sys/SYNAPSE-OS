@@ -45,7 +45,9 @@
     "./clinical-payment": "./src/clinical-payment.ts",
     "./dhis2-export": "./src/dhis2-export.ts",
     "./hospital-seed": "./src/hospital-seed.ts",
-    "./hospital-acceptance": "./src/hospital-acceptance.ts"
+    "./hospital-acceptance": "./src/hospital-acceptance.ts",
+    "./hospital-provision": "./src/hospital-provision.ts",
+    "./hospital-provision-catalog": "./src/hospital-provision-catalog.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",

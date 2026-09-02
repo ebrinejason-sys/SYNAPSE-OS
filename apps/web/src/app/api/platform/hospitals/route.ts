@@ -1,233 +1,206 @@
-import { NextResponse } from "next/server";
-import { createServiceClient } from "../../../../lib/supabase/server";
-import { requirePlatformAdminApi } from "../../../../lib/platform/auth";
-import { logPlatformEvent } from "../../../platform/_lib/platform-data";
+import { NextResponse } from "next/server"
+import { createServiceClient } from "../../../../lib/supabase/server"
+import { requirePlatformAdminApi } from "../../../../lib/platform/auth"
+import { sendHospitalStaffInviteEmail } from "../../../../lib/resend"
+import { logPlatformEvent } from "../../../platform/_lib/platform-data"
+import {
+  CANONICAL_HOSPITAL_MODULES,
+  FACILITY_LEVELS,
+  FACILITY_OWNERSHIP,
+  provisionHospital,
+  getProvisionRun,
+  slugify,
+  type FacilityLevel,
+  type FacilityOwnership,
+  type ProvisionMode,
+} from "@synapse/db/hospital-provision"
 
-const DEFAULT_DEPARTMENTS = ["Administration", "Front Desk", "Pharmacy", "Lab", "Finance"];
-const HOSPITAL_TYPES = new Set(["national", "referral", "teaching", "general"]);
-
-function slugify(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 48);
-}
-
-function normalizeHospitalType(value: unknown) {
-  const normalized = String(value ?? "general").trim().toLowerCase();
-  return HOSPITAL_TYPES.has(normalized) ? normalized : "general";
-}
-
-async function insertTenantWithFallback(supabaseAdmin: ReturnType<typeof createServiceClient>, row: Record<string, unknown>) {
-  const attempts = [
-    row,
-    {
-      id: row.id,
-      slug: row.slug,
-      name: row.name,
-      country: row.country,
-      district: row.district,
-      facility_type: row.facility_type,
-      phone: row.phone,
-      email: row.email,
-      plan: row.plan,
-      is_active: row.is_active,
-    },
-    {
-      id: row.id,
-      slug: row.slug,
-      name: row.name,
-      facility_type: row.facility_type,
-    },
-    {
-      id: row.id,
-      slug: row.slug,
-      name: row.name,
-    },
-  ];
-
-  let lastError: { message?: string } | null = null;
-  for (const attempt of attempts) {
-    const { error } = await (supabaseAdmin as any).from("tenants").insert(attempt);
-    if (!error) return null;
-    lastError = error;
-  }
-  return lastError;
-}
+export const dynamic = "force-dynamic"
+export const maxDuration = 60
 
 export async function GET(request: Request) {
-  const auth = await requirePlatformAdminApi();
-  if (!auth.ok) return auth.response;
+  const auth = await requirePlatformAdminApi()
+  if (!auth.ok) return auth.response
 
-  const url = new URL(request.url);
-  const slug = url.searchParams.get("slug");
-  if (!slug) {
-    return NextResponse.json({ available: false }, { status: 400 });
+  const url = new URL(request.url)
+  const slug = url.searchParams.get("slug")
+  const runId = url.searchParams.get("runId")
+  const modules = url.searchParams.get("modules")
+  const supabaseAdmin = createServiceClient()
+
+  if (modules === "1") {
+    return NextResponse.json({ modules: CANONICAL_HOSPITAL_MODULES })
   }
 
-  const supabaseAdmin = createServiceClient();
+  if (runId) {
+    const detail = await getProvisionRun(supabaseAdmin, runId)
+    if (!detail) return NextResponse.json({ error: "Run not found" }, { status: 404 })
+    return NextResponse.json(detail)
+  }
+
+  if (!slug) {
+    return NextResponse.json({ available: false }, { status: 400 })
+  }
+
+  const normalized = slugify(slug)
   const { data } = await (supabaseAdmin as any)
     .from("tenants")
     .select("id")
-    .eq("slug", slug)
-    .maybeSingle();
+    .eq("slug", normalized)
+    .maybeSingle()
 
-  return NextResponse.json({ available: !data });
+  return NextResponse.json({ available: !data, slug: normalized })
 }
 
 export async function POST(request: Request) {
-  const auth = await requirePlatformAdminApi();
-  if (!auth.ok) return auth.response;
-  const actor = auth.profile;
+  const auth = await requirePlatformAdminApi()
+  if (!auth.ok) return auth.response
+  const actor = auth.profile
 
-  const body = await request.json();
-  const supabaseAdmin = createServiceClient();
+  const body = await request.json().catch(() => ({}))
+  const supabaseAdmin = createServiceClient()
 
-  const tenantId = crypto.randomUUID();
-  const slug = slugify(body.subdomain || body.hospitalName || "");
-  const facilityType = String(body.hospitalType ?? "clinic").toLowerCase();
-  const plan = String(body.tier ?? "trial");
-
-  if (!slug || !body.hospitalName || !body.adminEmail) {
-    return NextResponse.json({ error: "Hospital name, subdomain, and admin email are required." }, { status: 400 });
-  }
-
-  const tenantError = await insertTenantWithFallback(supabaseAdmin, {
-    id: tenantId,
-    slug,
-    name: body.hospitalName,
-    country: "UG",
-    district: body.district || null,
-    facility_type: facilityType || "clinic",
-    bed_capacity: Number(body.bedsCount || 0) || null,
-    phone: body.contactPhone || null,
-    email: body.contactEmail || body.adminEmail,
-    plan,
-    is_active: true,
-    onboarding_completed: false,
-    onboarding_step: 1,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  });
-
-  if (tenantError) {
-    return NextResponse.json({ error: tenantError.message }, { status: 400 });
-  }
-
-  try {
-    await (supabaseAdmin as any).from("hospitals").insert({
-      id: tenantId,
-      name: body.hospitalName,
-      subdomain: slug,
-      type: normalizeHospitalType(body.hospitalType),
-      settings: {
-        tenant_id: tenantId,
-        city: body.city || null,
-        district: body.district || null,
-        beds_count: Number(body.bedsCount || 0) || null,
-        contact_email: body.contactEmail || body.adminEmail,
-        contact_name: body.contactName || null,
-        contact_phone: body.contactPhone || null,
-        subscription_tier: plan,
-        source: "platform_onboarding",
-      },
-    });
-  } catch {}
-
-  if (Array.isArray(body.modules) && body.modules.length > 0) {
-    const featureRows = body.modules.map((moduleKey: string) => ({
-      tenant_id: tenantId,
-      feature_key: moduleKey,
-      is_enabled: true,
-      enabled_at: new Date().toISOString(),
-      notes: "Enabled during hospital onboarding.",
-    }));
+  // Resend invitation for an existing run
+  if (body.action === "resend_invite") {
+    const runId = String(body.runId ?? "")
+    const detail = await getProvisionRun(supabaseAdmin, runId)
+    if (!detail?.invite) {
+      return NextResponse.json({ error: "Invitation not found" }, { status: 404 })
+    }
     try {
-      await (supabaseAdmin as any).from("feature_flags").upsert(featureRows, { onConflict: "tenant_id,feature_key" });
-    } catch {}
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://synapseos.tech"
+      await sendHospitalStaffInviteEmail({
+        to: detail.invite.email,
+        hospitalName: detail.run.facility_name,
+        staffName: detail.invite.full_name || "Hospital Admin",
+        role: detail.invite.role,
+        inviteUrl: `${appUrl}/invite/facility/${detail.invite.invite_token}`,
+      })
+      await (supabaseAdmin as any)
+        .from("facility_invitations")
+        .update({ status: "SENT", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq("id", detail.invite.id)
+      await logPlatformEvent({
+        actorId: actor.id,
+        action: "hospital.invite_resent",
+        entityType: "facility_invitations",
+        entityId: detail.invite.id,
+        tenantId: detail.run.tenant_id,
+      })
+      return NextResponse.json({ ok: true, status: "SENT" })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "invite_send_failed"
+      await (supabaseAdmin as any)
+        .from("facility_invitations")
+        .update({ status: "FAILED", last_error: message, updated_at: new Date().toISOString() })
+        .eq("id", detail.invite.id)
+      return NextResponse.json({ error: message }, { status: 500 })
+    }
+  }
 
+  const ownership = String(body.ownership ?? "").toUpperCase() as FacilityOwnership
+  const facilityLevel = String(body.facilityLevel ?? body.facility_level ?? "").toUpperCase() as FacilityLevel
+  const mode = (String(body.mode ?? "REAL").toUpperCase() === "SYNTHETIC_ACCEPTANCE"
+    ? "SYNTHETIC_ACCEPTANCE"
+    : "REAL") as ProvisionMode
+
+  if (!FACILITY_OWNERSHIP.includes(ownership)) {
+    return NextResponse.json(
+      { error: `ownership must be one of: ${FACILITY_OWNERSHIP.join(", ")}` },
+      { status: 400 },
+    )
+  }
+  if (!FACILITY_LEVELS.includes(facilityLevel)) {
+    return NextResponse.json(
+      { error: `facilityLevel must be one of: ${FACILITY_LEVELS.join(", ")}` },
+      { status: 400 },
+    )
+  }
+
+  const result = await provisionHospital(supabaseAdmin, {
+    facilityName: String(body.hospitalName ?? body.facilityName ?? ""),
+    slug: body.subdomain ? String(body.subdomain) : undefined,
+    country: body.country ? String(body.country) : "UG",
+    district: body.district ? String(body.district) : undefined,
+    city: body.city ? String(body.city) : undefined,
+    ownership,
+    facilityLevel,
+    bedCapacity: body.bedsCount != null ? Number(body.bedsCount) : undefined,
+    contactName: body.contactName ? String(body.contactName) : undefined,
+    contactEmail: body.contactEmail ? String(body.contactEmail) : undefined,
+    contactPhone: body.contactPhone ? String(body.contactPhone) : undefined,
+    adminName: String(body.adminName ?? body.contactName ?? "Hospital Admin"),
+    adminEmail: String(body.adminEmail ?? ""),
+    adminPhone: body.adminPhone ? String(body.adminPhone) : undefined,
+    tier: (body.tier as "trial" | "starter" | "professional" | "enterprise") || "trial",
+    modules: Array.isArray(body.modules) ? body.modules.map(String) : undefined,
+    mode,
+    idempotencyKey: body.idempotencyKey ? String(body.idempotencyKey) : undefined,
+    createdBy: actor.id,
+    sendInvite: true,
+  })
+
+  // External side-effect: invitation email (retryable)
+  if (result.ok && result.inviteToken && body.sendInvite !== false) {
     try {
-      const moduleRows = body.modules.map((moduleKey: string) => ({
-        hospital_id: tenantId,
-        tenant_id: tenantId,
-        module_key: moduleKey,
-        is_active: true,
-      }));
-      await (supabaseAdmin as any).from("hospital_modules").upsert(moduleRows, { onConflict: "hospital_id,module_key" });
-    } catch {}
-  }
-
-  const departmentRows = DEFAULT_DEPARTMENTS.map((name) => ({
-    hospital_id: tenantId,
-    tenant_id: tenantId,
-    name,
-    dept_type: name === "Pharmacy" ? "pharmacy" : "administrative",
-    is_active: true,
-  }));
-  try {
-    await (supabaseAdmin as any).from("departments").insert(departmentRows);
-  } catch {}
-
-  const { data: adminUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
-    email: body.adminEmail,
-    email_confirm: true,
-    user_metadata: {
-      full_name: body.contactName || "Hospital Admin",
-      hospital_name: body.hospitalName,
-    },
-  });
-
-  if (createUserError) {
-    await logPlatformEvent({
-      actorId: actor.id,
-      action: "hospital.admin_user_failed",
-      entityType: "tenant",
-      entityId: tenantId,
-      tenantId,
-      metadata: { error: createUserError.message, admin_email: body.adminEmail },
-    });
-    return NextResponse.json({ id: tenantId, warning: createUserError.message });
-  }
-
-  const fullName = body.contactName || "Hospital Admin";
-  const [firstName, ...restName] = fullName.split(" ");
-  const profileAttempts = [
-    {
-      id: adminUser.user.id,
-      role: "hospital_admin",
-      tenant_id: tenantId,
-      hospital_id: tenantId,
-      email: body.adminEmail,
-      full_name: fullName,
-    },
-    {
-      tenant_id: tenantId,
-      user_id: adminUser.user.id,
-      role: "facility_admin",
-      first_name: firstName || "Hospital",
-      last_name: restName.join(" ") || "Admin",
-      email: body.adminEmail,
-      phone: body.contactPhone || null,
-      is_active: true,
-    },
-  ];
-
-  for (const profile of profileAttempts) {
-    const { error } = await (supabaseAdmin as any).from("profiles").insert(profile);
-    if (!error) break;
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://synapseos.tech"
+      const inviteUrl = `${appUrl}/invite/facility/${result.inviteToken}`
+      await sendHospitalStaffInviteEmail({
+        to: String(body.adminEmail ?? "").trim().toLowerCase(),
+        hospitalName: String(body.hospitalName ?? body.facilityName ?? result.slug),
+        staffName: String(body.adminName ?? body.contactName ?? "Hospital Admin"),
+        role: "hospital_admin",
+        inviteUrl,
+      })
+      await (supabaseAdmin as any)
+        .from("facility_invitations")
+        .update({ status: "SENT", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq("invite_token", result.inviteToken)
+      result.inviteStatus = "SENT"
+    } catch (err) {
+      result.warnings.push(`invite_email: ${err instanceof Error ? err.message : "send_failed"}`)
+      result.inviteStatus = "FAILED"
+      if (result.status === "COMPLETE") result.status = "READY_WITH_WARNINGS"
+      await (supabaseAdmin as any)
+        .from("facility_invitations")
+        .update({
+          status: "FAILED",
+          last_error: err instanceof Error ? err.message : "send_failed",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("invite_token", result.inviteToken)
+    }
   }
 
   await logPlatformEvent({
     actorId: actor.id,
-    action: "hospital.onboarded",
-    entityType: "tenant",
-    entityId: tenantId,
-    tenantId,
-    metadata: { slug, plan, facility_type: facilityType },
-  });
+    action: result.ok ? "hospital.provisioned" : "hospital.provision_failed",
+    entityType: "facility_provisioning_runs",
+    entityId: result.runId,
+    tenantId: result.tenantId,
+    metadata: {
+      slug: result.slug,
+      status: result.status,
+      mode,
+      warnings: result.warnings,
+      inviteStatus: result.inviteStatus,
+    },
+  })
 
-  return NextResponse.json({ id: tenantId, slug });
+  return NextResponse.json(
+    {
+      id: result.tenantId,
+      runId: result.runId,
+      slug: result.slug,
+      status: result.status,
+      ok: result.ok,
+      steps: result.steps,
+      warnings: result.warnings,
+      inviteStatus: result.inviteStatus,
+      invitePath: result.inviteToken ? `/invite/facility/${result.inviteToken}` : null,
+      error: result.error,
+      correlationId: result.correlationId,
+    },
+    { status: result.ok ? 200 : 400 },
+  )
 }
