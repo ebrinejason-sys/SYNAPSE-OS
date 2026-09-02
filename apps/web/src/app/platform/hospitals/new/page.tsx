@@ -46,6 +46,7 @@ export default function PlatformHospitalOnboardingPage() {
   const [slugStatus, setSlugStatus] = useState<"idle" | "checking" | "available" | "unavailable" | "error">("idle")
   const [provisionProgress, setProvisionProgress] = useState<string | null>(null)
   const [result, setResult] = useState<{
+    ok?: boolean
     id?: string
     runId?: string
     status?: string
