@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   CANONICAL_HOSPITAL_MODULES,
@@ -37,6 +37,14 @@ function isEmail(value: string) {
 type StepStatus = Record<string, "PENDING" | "RUNNING" | "COMPLETE" | "FAILED" | "SKIPPED">
 
 export default function PlatformHospitalOnboardingPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-3xl py-16 text-center text-sm text-slate-400">Loading wizard…</div>}>
+      <HospitalOnboardingWizard />
+    </Suspense>
+  )
+}
+
+function HospitalOnboardingWizard() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [step, setStep] = useState(0)
