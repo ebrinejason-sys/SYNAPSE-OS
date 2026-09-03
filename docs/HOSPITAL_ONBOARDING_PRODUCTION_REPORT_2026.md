@@ -2,7 +2,9 @@
 
 ## Verdict
 
-Hospital onboarding is rebuilt for explicit provisioning state, canonical modules, ownership/level separation, invite redemption, Test Center suite, and facility detail observability. **Production is still behind GitHub `main` because Vercel blocks deployments authored as `Synapse Agent <agent@synapse.local>`.** Schema for provisioning was applied to SYNAPSE_OS. Live Create Hospital / synthetic staff login on `admin.synapseos.tech` cannot pass until a deploy with an accepted commit identity lands.
+Hospital onboarding is rebuilt for explicit provisioning state, canonical modules, ownership/level separation, invite redemption, Test Center suite, and facility detail observability.
+
+**Deploy unblocked (2026-09-02):** Owner-authored commits (`ebrinejason-sys <ebrinejason@gmail.com>`) cleared the Vercel collaboration BLOCKED gate. Production `synpase-os` is **READY** at SHA `e348dbb937438d33e4a87d99d65c1b92a5bb240a` (matches GitHub `main`). Schema for provisioning was applied to SYNAPSE_OS. Next live step: create SYNAPSE INTEGRATED REGIONAL HOSPITAL via the wizard.
 
 ## 1. Deployment truth
 

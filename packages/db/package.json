@@ -39,6 +39,7 @@
     "./work-queue-persist": "./src/work-queue-persist.ts",
     "./clinical-journey": "./src/clinical-journey.ts",
     "./lab-order-persist": "./src/lab-order-persist.ts",
+    "./lab-result-persist": "./src/lab-result-persist.ts",
     "./prescription-persist": "./src/prescription-persist.ts",
     "./clinical-timeline": "./src/clinical-timeline.ts",
     "./clinical-charge": "./src/clinical-charge.ts",
@@ -47,7 +48,9 @@
     "./hospital-seed": "./src/hospital-seed.ts",
     "./hospital-acceptance": "./src/hospital-acceptance.ts",
     "./hospital-provision": "./src/hospital-provision.ts",
-    "./hospital-provision-catalog": "./src/hospital-provision-catalog.ts"
+    "./hospital-provision-catalog": "./src/hospital-provision-catalog.ts",
+    "./facility-provision": "./src/facility-provision.ts",
+    "./facility-provision-catalog": "./src/facility-provision-catalog.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",

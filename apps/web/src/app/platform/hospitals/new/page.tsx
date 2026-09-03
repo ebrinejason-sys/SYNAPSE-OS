@@ -58,11 +58,15 @@ function HospitalOnboardingWizard() {
     id?: string
     runId?: string
     status?: string
-    steps?: Array<{ step: string; status: string; safeErrorMessage?: string }>
+    steps?: Array<{ step: string; status: string; safeErrorMessage?: string; errorCode?: string }>
     warnings?: string[]
     inviteStatus?: string
     invitePath?: string
     error?: string
+    correlationId?: string
+    failureStep?: string | null
+    failureCode?: string | null
+    failureReason?: string | null
   } | null>(null)
 
   const [facilityName, setFacilityName] = useState("")
@@ -338,7 +342,61 @@ function HospitalOnboardingWizard() {
       </div>
 
       {error ? (
-        <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p>
+        <div className="space-y-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-100">
+          <p className="font-semibold text-red-200">Provisioning failed</p>
+          {result?.failureStep ? (
+            <p>
+              Step: <span className="font-mono">{result.failureStep}</span>
+            </p>
+          ) : null}
+          {result?.failureCode ? (
+            <p>
+              Code: <span className="font-mono">{result.failureCode}</span>
+            </p>
+          ) : null}
+          <p>Reason: {result?.failureReason || error}</p>
+          {result?.correlationId ? (
+            <p className="text-xs text-red-300/80">Correlation ID: {result.correlationId}</p>
+          ) : null}
+          <div className="flex flex-wrap gap-2 pt-1">
+            {result?.runId ? (
+              <button
+                type="button"
+                className="rounded-md border border-red-400/40 px-3 py-1 text-xs font-semibold text-red-100 hover:bg-red-500/20"
+                onClick={async () => {
+                  setSubmitting(true)
+                  setError("")
+                  try {
+                    const res = await fetch("/api/platform/hospitals", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "resume", runId: result.runId, sendInvite: true }),
+                    })
+                    const payload = await res.json()
+                    setResult(payload)
+                    if (!res.ok || !payload.ok) {
+                      setError(payload.failureReason || payload.error || "Resume failed")
+                    }
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Resume failed")
+                  } finally {
+                    setSubmitting(false)
+                  }
+                }}
+              >
+                Retry
+              </button>
+            ) : null}
+            {result?.runId ? (
+              <a
+                href={`/platform/hospitals/${result.id ?? ""}?runId=${result.runId}`}
+                className="rounded-md border border-red-400/40 px-3 py-1 text-xs font-semibold text-red-100 hover:bg-red-500/20"
+              >
+                Open provisioning details
+              </a>
+            ) : null}
+          </div>
+        </div>
       ) : null}
       {provisionProgress ? (
         <p className="rounded-lg border border-[#E8B84B]/30 bg-[#E8B84B]/10 px-3 py-2 text-sm text-[#E8B84B]">

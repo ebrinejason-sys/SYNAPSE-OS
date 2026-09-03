@@ -156,6 +156,39 @@ export default function TestCenterPage() {
                 setBusy(true)
                 setError(null)
                 try {
+                  const res = await fetch("/api/platform/test-center/facility-onboarding", { method: "POST" })
+                  const data = await res.json()
+                  setSelectedRun({
+                    testRunId: data.testRunId,
+                    module: "facility-onboarding",
+                    status: data.status,
+                    durationMs: data.durationMs,
+                    correlationId: data.correlationId,
+                    completedAt: new Date().toISOString(),
+                    steps: data.steps ?? data.evidence?.steps,
+                  })
+                  if (!res.ok && data.status !== "FAIL") {
+                    throw new Error(data.message ?? data.error ?? "facility_onboarding_suite_failed")
+                  }
+                  await refresh()
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "facility_onboarding_suite_failed")
+                } finally {
+                  setBusy(false)
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-[#E8B84B]/40 bg-[#E8B84B]/10 px-5 py-2.5 text-sm font-bold text-[#E8B84B] transition hover:bg-[#E8B84B]/20 disabled:opacity-50"
+            >
+              <Building2 className="h-4 w-4" />
+              {busy ? "Running…" : "Run Facility Onboarding"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true)
+                setError(null)
+                try {
                   const res = await fetch("/api/platform/test-center/hospital-onboarding", { method: "POST" })
                   const data = await res.json()
                   if (!res.ok) throw new Error(data.message ?? data.error ?? "onboarding_suite_failed")

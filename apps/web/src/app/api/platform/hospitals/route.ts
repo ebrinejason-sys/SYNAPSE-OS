@@ -98,6 +98,46 @@ export async function POST(request: Request) {
     }
   }
 
+  // Resume failed / incomplete provisioning
+  if (body.action === "resume") {
+    const runId = String(body.runId ?? "")
+    if (!runId) return NextResponse.json({ error: "runId required" }, { status: 400 })
+    const { resumeFacilityProvision } = await import("@synapse/db/hospital-provision")
+    const result = await resumeFacilityProvision(supabaseAdmin, runId, actor.id)
+    const failed = result.steps.find((s) => s.status === "FAILED")
+    if (result.ok && result.inviteToken && body.sendInvite !== false) {
+      try {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://synapseos.tech"
+        await sendHospitalStaffInviteEmail({
+          to: String(body.adminEmail ?? "").trim().toLowerCase() || "noreply@synapseos.tech",
+          hospitalName: result.slug,
+          staffName: "Facility Admin",
+          role: "hospital_admin",
+          inviteUrl: `${appUrl}/invite/facility/${result.inviteToken}`,
+        })
+      } catch {
+        /* invite email is retryable */
+      }
+    }
+    return NextResponse.json(
+      {
+        id: result.tenantId,
+        runId: result.runId,
+        slug: result.slug,
+        status: result.status,
+        ok: result.ok,
+        steps: result.steps,
+        warnings: result.warnings,
+        error: result.error,
+        correlationId: result.correlationId,
+        failureStep: failed?.step ?? null,
+        failureCode: failed?.errorCode ?? null,
+        failureReason: failed?.safeErrorMessage ?? result.error ?? null,
+      },
+      { status: result.ok ? 200 : 400 },
+    )
+  }
+
   const ownership = String(body.ownership ?? "").toUpperCase() as FacilityOwnership
   const facilityLevel = String(body.facilityLevel ?? body.facility_level ?? "").toUpperCase() as FacilityLevel
   const mode = (String(body.mode ?? "REAL").toUpperCase() === "SYNTHETIC_ACCEPTANCE"
@@ -200,6 +240,10 @@ export async function POST(request: Request) {
       invitePath: result.inviteToken ? `/invite/facility/${result.inviteToken}` : null,
       error: result.error,
       correlationId: result.correlationId,
+      failureStep: result.steps.find((s) => s.status === "FAILED")?.step ?? null,
+      failureCode: result.steps.find((s) => s.status === "FAILED")?.errorCode ?? null,
+      failureReason:
+        result.steps.find((s) => s.status === "FAILED")?.safeErrorMessage ?? result.error ?? null,
     },
     { status: result.ok ? 200 : 400 },
   )

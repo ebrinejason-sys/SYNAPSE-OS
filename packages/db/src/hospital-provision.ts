@@ -238,6 +238,47 @@ async function skipStep(db: DbClient, runId: string, step: ProvisionStepKey, rea
   })
 }
 
+async function getStepStatus(
+  db: DbClient,
+  runId: string,
+  step: ProvisionStepKey,
+): Promise<ProvisionStepStatus | null> {
+  const { data } = await db
+    .from("facility_provisioning_steps")
+    .select("status")
+    .eq("run_id", runId)
+    .eq("step", step)
+    .maybeSingle()
+  return (data?.status as ProvisionStepStatus) ?? null
+}
+
+/** Skip re-running COMPLETE/SKIPPED steps during idempotent resume. */
+async function shouldSkipCompletedStep(
+  db: DbClient,
+  runId: string,
+  step: ProvisionStepKey,
+  stepResults: ProvisionStepResult[],
+): Promise<boolean> {
+  const status = await getStepStatus(db, runId, step)
+  if (status === "COMPLETE" || status === "SKIPPED") {
+    stepResults.push({ step, status })
+    return true
+  }
+  return false
+}
+
+async function setTenantLifecycle(
+  db: DbClient,
+  tenantId: string | null | undefined,
+  patch: { status: string; is_active: boolean },
+) {
+  if (!tenantId) return
+  await db
+    .from("tenants")
+    .update({ ...patch, updated_at: nowIso() })
+    .eq("id", tenantId)
+}
+
 export async function provisionHospital(
   db: DbClient,
   input: ProvisionHospitalInput,
@@ -385,8 +426,9 @@ export async function provisionHospital(
       phone: input.contactPhone || input.adminPhone || null,
       email: input.contactEmail || adminEmail,
       plan: input.tier ?? "trial",
-      status: "active",
-      is_active: true,
+      // Never appear ACTIVE until finalize succeeds
+      status: "provisioning",
+      is_active: false,
       default_subdomain: slug,
       modules_enabled: normalizeModuleKeys(input.modules ?? defaultModulesForLevel(input.facilityLevel)),
       onboarding_completed: false,
@@ -396,16 +438,18 @@ export async function provisionHospital(
     }
     const { error: tenantErr } = await db.from("tenants").insert(tenantRow)
     if (tenantErr) {
-      // Fallback minimal insert
+      // Fallback minimal insert — still inactive until finalize
       const { error: minErr } = await db.from("tenants").insert({
         id: tenantId,
         slug,
         name: facilityName,
         facility_type: "hospital",
+        status: "provisioning",
+        is_active: false,
       })
       if (minErr) {
         await failStep(db, runId!, "core_tenant", "TENANT_INSERT", minErr.message)
-        await failRun(db, runId!, "TENANT_INSERT", minErr.message)
+        await failRun(db, runId!, "TENANT_INSERT", minErr.message, tenantId)
         return failResult(runId!, slug, correlationId, minErr.message)
       }
       warnings.push("Tenant created with minimal columns")
@@ -425,6 +469,9 @@ export async function provisionHospital(
         updated_at: nowIso(),
       })
       .eq("id", runId)
+  } else {
+    // Resume: keep inactive until finalize
+    await setTenantLifecycle(db, tenantId, { status: "provisioning", is_active: false })
   }
   await completeStep(db, runId!, "core_tenant", { tenantId })
   stepResults.push({ step: "core_tenant", status: "COMPLETE", evidence: { tenantId } })
@@ -712,6 +759,27 @@ export async function provisionHospital(
   // ── invitation ────────────────────────────────────────────────────────
   await beginStep(db, runId!, "invitation")
   {
+    const { data: existingInvite } = await db
+      .from("facility_invitations")
+      .select("id, invite_token, status, expires_at")
+      .eq("run_id", runId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (existingInvite?.invite_token) {
+      inviteToken = existingInvite.invite_token
+      inviteStatus = existingInvite.status
+      await completeStep(db, runId!, "invitation", {
+        inviteId: existingInvite.id,
+        status: existingInvite.status,
+        resumed: true,
+      })
+      stepResults.push({
+        step: "invitation",
+        status: "COMPLETE",
+        evidence: { inviteId: existingInvite.id, resumed: true },
+      })
+    } else {
     inviteToken = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "")
     const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString()
     const { data: invite, error: inviteErr } = await db
@@ -749,6 +817,7 @@ export async function provisionHospital(
         expiresAt,
       })
       stepResults.push({ step: "invitation", status: "COMPLETE", evidence: { inviteId: invite.id } })
+    }
     }
   }
 
@@ -817,6 +886,19 @@ export async function provisionHospital(
   await completeStep(db, runId!, "finalize", { finalStatus, warnings })
   stepResults.push({ step: "finalize", status: "COMPLETE", evidence: { finalStatus } })
 
+  if (finalStatus === "FAILED") {
+    await setTenantLifecycle(db, tenantId, { status: "failed", is_active: false })
+  } else {
+    // Only successful provisioning becomes ACTIVE / operational
+    await setTenantLifecycle(db, tenantId, { status: "active", is_active: true })
+    if (tenantId) {
+      await db
+        .from("tenants")
+        .update({ onboarding_completed: true, onboarding_step: 99, updated_at: nowIso() })
+        .eq("id", tenantId)
+    }
+  }
+
   await db
     .from("facility_provisioning_runs")
     .update({
@@ -843,7 +925,19 @@ export async function provisionHospital(
   }
 }
 
-async function failRun(db: DbClient, runId: string, code: string, message: string) {
+async function failRun(
+  db: DbClient,
+  runId: string,
+  code: string,
+  message: string,
+  tenantId?: string | null,
+) {
+  const { data: run } = await db
+    .from("facility_provisioning_runs")
+    .select("tenant_id, metadata")
+    .eq("id", runId)
+    .maybeSingle()
+  const tid = tenantId ?? run?.tenant_id ?? null
   await db
     .from("facility_provisioning_runs")
     .update({
@@ -851,9 +945,11 @@ async function failRun(db: DbClient, runId: string, code: string, message: strin
       failure_code: code,
       failed_at: nowIso(),
       updated_at: nowIso(),
-      metadata: { last_error: message },
+      metadata: { ...(run?.metadata ?? {}), last_error: message },
     })
     .eq("id", runId)
+  // FAILED facilities must never appear operational
+  await setTenantLifecycle(db, tid, { status: "failed", is_active: false })
 }
 
 function failResult(
@@ -877,6 +973,107 @@ function failResult(
     warnings: [],
     error,
   }
+}
+
+
+/**
+ * Resume a FAILED/RUNNING facility provisioning run without duplicating tenant/facility.
+ * Uses the existing run's idempotency_key and stored metadata.
+ */
+export async function resumeFacilityProvision(
+  db: DbClient,
+  runId: string,
+  createdBy: string,
+): Promise<ProvisionHospitalResult> {
+  const detail = await getProvisionRun(db, runId)
+  if (!detail?.run) {
+    return {
+      ok: false,
+      runId,
+      tenantId: null,
+      hospitalId: null,
+      slug: "",
+      status: "FAILED",
+      correlationId: crypto.randomUUID(),
+      steps: [],
+      warnings: [],
+      error: "Provisioning run not found",
+    }
+  }
+  const run = detail.run as Record<string, unknown>
+  const meta = (run.metadata as Record<string, unknown>) ?? {}
+  const contact = (meta.contact as Record<string, unknown>) ?? {}
+
+  // Recover admin email if older failRun wiped contact metadata
+  let adminEmail = contact.email ? String(contact.email).toLowerCase() : ""
+  let adminName = contact.name ? String(contact.name) : ""
+  if (!adminEmail && typeof run.idempotency_key === "string") {
+    const parts = String(run.idempotency_key).split(":")
+    const maybeEmail = parts[parts.length - 1] ?? ""
+    if (maybeEmail.includes("@")) adminEmail = maybeEmail.toLowerCase()
+  }
+  if (!adminEmail && run.tenant_id) {
+    const { data: tenant } = await db
+      .from("tenants")
+      .select("email, name")
+      .eq("id", run.tenant_id)
+      .maybeSingle()
+    if (tenant?.email) adminEmail = String(tenant.email).toLowerCase()
+    if (!adminName && tenant?.name) adminName = String(tenant.name)
+  }
+  if (!adminName) adminName = "Facility Admin"
+
+  // Clear failed step so retry can re-enter RUNNING
+  const failedStep = detail.steps.find((s: Record<string, unknown>) => s.status === "FAILED")
+  if (failedStep?.step) {
+    await upsertStep(db, runId, failedStep.step as ProvisionStepKey, {
+      status: "PENDING",
+      error_code: null,
+      safe_error_message: null,
+    })
+  }
+  await db
+    .from("facility_provisioning_runs")
+    .update({
+      status: "RUNNING",
+      failure_code: null,
+      failed_at: null,
+      updated_at: nowIso(),
+      metadata: {
+        ...meta,
+        contact: {
+          name: adminName,
+          email: adminEmail,
+          phone: contact.phone ?? null,
+        },
+      },
+    })
+    .eq("id", runId)
+  if (run.tenant_id) {
+    await setTenantLifecycle(db, String(run.tenant_id), { status: "provisioning", is_active: false })
+  }
+
+  return provisionHospital(db, {
+    facilityName: String(run.facility_name ?? ""),
+    slug: String(run.slug ?? ""),
+    country: meta.country ? String(meta.country) : "UG",
+    district: meta.district ? String(meta.district) : undefined,
+    city: meta.city ? String(meta.city) : undefined,
+    ownership: String(run.ownership ?? "PUBLIC") as FacilityOwnership,
+    facilityLevel: String(run.facility_level ?? "GENERAL_HOSPITAL") as FacilityLevel,
+    bedCapacity: meta.bed_capacity != null ? Number(meta.bed_capacity) : undefined,
+    contactName: adminName,
+    contactEmail: adminEmail || undefined,
+    contactPhone: contact.phone ? String(contact.phone) : undefined,
+    adminName,
+    adminEmail,
+    adminPhone: contact.phone ? String(contact.phone) : undefined,
+    tier: (meta.tier as "trial" | "starter" | "professional" | "enterprise") || "trial",
+    mode: (String(run.mode) === "SYNTHETIC_ACCEPTANCE" ? "SYNTHETIC_ACCEPTANCE" : "REAL") as ProvisionMode,
+    idempotencyKey: String(run.idempotency_key ?? ""),
+    createdBy,
+    sendInvite: true,
+  })
 }
 
 export async function getProvisionRun(db: DbClient, runId: string) {

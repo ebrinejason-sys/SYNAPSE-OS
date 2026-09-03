@@ -67,10 +67,29 @@ export async function POST(request: Request) {
   const ctx = await requireHospitalStaffContext()
   if (isContextError(ctx)) return ctx
 
-  const cap =
-    action === "verify" || action === "release"
-      ? await requireHospitalCapability(ctx, "result", "verify", "lab")
-      : await requireHospitalCapability(ctx, "result", "enter", "lab")
+  // Role-appropriate capabilities — collect ≠ enter ≠ verify
+  let cap
+  if (action === "collect" || action === "receive" || action === "reject") {
+    cap = await requireHospitalCapability(ctx, "specimen", "collect", "lab")
+    if (cap) {
+      // Fall back to result.enter for facilities that only seeded enter caps
+      const enterFallback = await requireHospitalCapability(ctx, "result", "enter", "lab")
+      if (enterFallback) return enterFallback
+      cap = null
+    }
+  } else if (action === "verify" || action === "release") {
+    if (user.role === "lab_tech") {
+      return NextResponse.json(
+        { error: "lab_tech cannot verify or release; lab_scientist required" },
+        { status: 403 },
+      )
+    }
+    cap = await requireHospitalCapability(ctx, "result", "verify", "lab")
+  } else if (action === "acknowledge") {
+    cap = await requireHospitalCapability(ctx, "result", "verify", "lab")
+  } else {
+    cap = await requireHospitalCapability(ctx, "result", "enter", "lab")
+  }
   if (cap) return cap
 
   const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, "lab")
