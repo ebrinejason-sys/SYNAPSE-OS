@@ -194,13 +194,17 @@ async function isTenantActive(tenantId: string) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = (request.headers.get("host") ?? "").split(":")[0]?.toLowerCase() ?? "";
+  const forwardedHeaders = new Headers(request.headers);
+  forwardedHeaders.delete("x-tenant-id");
+  forwardedHeaders.delete("x-tenant-domain");
+  forwardedHeaders.delete("x-tenant-slug");
 
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/") ||
     /\.(svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2)$/.test(pathname)
   ) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: forwardedHeaders } });
   }
 
   const isLocal = hostname.includes("localhost") || hostname.includes("127.0.0.1");
