@@ -345,6 +345,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(standalonePharmacyUrl(request, `pharm-${pharmacySlug}`));
   }
 
+  if (subdomain && pathname.startsWith(`/os/${subdomain}`)) {
+    const response = NextResponse.next({ request: { headers: forwardedHeaders } });
+    response.headers.set("x-hospital-subdomain", subdomain);
+    return response;
+  }
+
   if (subdomain && subdomain !== "www" && subdomain !== "synapseos") {
     const { valid: synapseValid, tenantId: synapseTenantId } = await hasSynapseSession(request)
 
