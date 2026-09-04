@@ -1,3 +1,15 @@
+# P0-004 / P0-RBAC evidence update (2026-09-05)
+
+Isolation and negative capability coverage now runs as follows:
+
+- Offline on every run: `npm run test --workspace @synapse/web` includes the pure tenant-scope and invite-binding predicates.
+- The same offline web run includes the static negative RBAC mirror; the DB-backed assertions remain authoritative when Supabase is available.
+- With `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`: `npm run test --workspace @synapse/pharmacy` runs the P0-004 tenant fixture and `P0-RBAC` SQL `has_capability` assertions. Without those variables, Vitest skips these integration files with an explicit message.
+- P0-004 DB coverage creates two synthetic tenants, a tenant-A staff profile and scope, then proves tenant-B filtering cannot return tenant-A patients/encounters and the staff scope contains no tenant-B binding. The OS authorization predicate separately proves tenant-B entry is denied.
+- P0-RBAC coverage proves receptionist cannot verify lab results, lab technician cannot create prescriptions, cashier/billing officer cannot amend diagnosis, pharmacist cannot amend physician diagnosis, and platform admin cannot receive automatic hospital clinical-note capability. The corrective migration also removes the pre-existing lab-technician verifier grant.
+
+Remaining matrix rows still not implemented or not proven by this slice: emergency nurse, emergency doctor, surgeon, public health officer, landing-page assertions, clinician/POS stock separation, and full route-level end-to-end requests for every role. DNS/Vercel wildcard and pharmacy domain attachment remain operator-owned blockers.
+
 # Hospital Gap Backlog — 2026-08-30
 
 Ranked issues discovered during hospital acceptance audit and initial testing.
