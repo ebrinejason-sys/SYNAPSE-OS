@@ -123,6 +123,7 @@ export async function provisionFacility(
       adminPhone: input.adminPhone,
       tier: input.tier,
       modules,
+      facilityType: input.facilityType,
       mode: input.mode,
       idempotencyKey:
         input.idempotencyKey ??
@@ -692,6 +693,7 @@ async function provisionLaboratoryFacility(
     adminPhone: input.adminPhone,
     tier: input.tier ?? "trial",
     modules,
+    facilityType: "laboratory",
     mode: input.mode,
     idempotencyKey:
       input.idempotencyKey ??
@@ -709,7 +711,8 @@ async function provisionLaboratoryFacility(
       await db
         .from("hospitals")
         .update({
-          type: "laboratory",
+          type: "general",
+          facility_kind: "laboratory",
           settings: {
             facility_type: "laboratory",
             source: "platform_onboarding",

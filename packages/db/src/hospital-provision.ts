@@ -89,6 +89,7 @@ export type ProvisionHospitalInput = {
   adminPhone?: string
   tier?: "trial" | "starter" | "professional" | "enterprise"
   modules?: string[]
+  facilityType?: string
   mode?: ProvisionMode
   idempotencyKey?: string
   createdBy: string
@@ -421,7 +422,7 @@ export async function provisionHospital(
       name: facilityName,
       country: input.country ?? "UG",
       district: input.district || null,
-      facility_type: "hospital",
+      facility_type: input.facilityType ?? "hospital",
       bed_capacity: input.bedCapacity ?? null,
       phone: input.contactPhone || input.adminPhone || null,
       email: input.contactEmail || adminEmail,
@@ -443,7 +444,7 @@ export async function provisionHospital(
         id: tenantId,
         slug,
         name: facilityName,
-        facility_type: "hospital",
+        facility_type: input.facilityType ?? "hospital",
         status: "provisioning",
         is_active: false,
       })

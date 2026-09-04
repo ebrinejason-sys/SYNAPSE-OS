@@ -30,7 +30,6 @@ export const resolveTenant = cache(async (subdomain: string): Promise<TenantCont
     .from("hospitals")
     .select("id, name, subdomain, settings")
     .eq("subdomain", subdomain)
-    .eq("is_deleted", false)
     .single()) as { data: HospitalRow | null; error: unknown };
 
   if (!hospital) return null;
