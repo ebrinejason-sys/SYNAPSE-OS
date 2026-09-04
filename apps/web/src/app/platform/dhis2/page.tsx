@@ -100,6 +100,8 @@ export default async function Dhis2ExportsPage() {
           ["Last status", latest?.status ?? "none"],
           ["Records last run", Number(latest?.payload?.dataValues?.length ?? 0).toLocaleString()],
           ["Failures", failures.toLocaleString()],
+          ["Mapping coverage", `${state.mappingCoverage.mapped}/${state.mappingCoverage.seeded}`],
+          ["Last simulation", state.lastSuccessfulSimulation?.period ?? "none"],
         ].map(([label, value]) => (
           <article key={label} className="rounded-xl border border-slate-800 bg-[#111117] p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>

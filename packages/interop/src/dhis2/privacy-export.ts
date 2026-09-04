@@ -227,6 +227,7 @@ export function buildAggregateDataValueSet(input: BuildAggregateInput): BuildAgg
 
   for (const fact of facts) {
     if (!isKnownIcd11Stem(fact.icd11StemCode)) continue
+    if (fact.period !== input.period) continue
     if (fact.count < policy.minCellCount) {
       suppressedCells += 1
       continue

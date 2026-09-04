@@ -38,7 +38,7 @@ export type Dhis2DataValueSet = {
 }
 
 export type Dhis2OrgUnitMapping = {
-  tenantId: string
+  tenantId?: string | null
   facilityId?: string | null
   /** Local facility / hospital key used in SYNAPSE */
   localOrgKey: string

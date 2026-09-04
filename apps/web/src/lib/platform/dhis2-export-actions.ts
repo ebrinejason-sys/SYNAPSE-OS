@@ -215,13 +215,34 @@ export async function loadDhis2MonitorState() {
   try {
     const db = createServiceClient()
     const jobs = await listRecentDhis2Jobs(db, 80)
-    return { mode, health, jobs, storage: "db" as const }
+    const dynamicDb = db as any
+    const [{ count: mappingCount }, { data: seededMappings }] = await Promise.all([
+      dynamicDb.from("dhis2_data_element_mappings").select("id", { count: "exact", head: true }).is("tenant_id", null),
+      dynamicDb.from("dhis2_data_element_mappings").select("icd11_stem_code").is("tenant_id", null),
+    ])
+    const successfulSimulation = jobs.find((job) => job.status === "succeeded" && job.mode === "simulation")
+    return {
+      mode,
+      health,
+      jobs,
+      storage: "db" as const,
+      mappingCoverage: { mapped: mappingCount ?? seededMappings?.length ?? 0, seeded: 8 },
+      lastSuccessfulSimulation: successfulSimulation
+        ? {
+            period: successfulSimulation.period,
+            valueCount: successfulSimulation.payload.dataValues.length,
+            completedAt: successfulSimulation.completedAt ?? successfulSimulation.updatedAt,
+          }
+        : null,
+    }
   } catch {
     return {
       mode,
       health,
       jobs: [...memoryQueue.jobs.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       storage: "memory" as const,
+      mappingCoverage: { mapped: 0, seeded: 8 },
+      lastSuccessfulSimulation: null,
     }
   }
 }

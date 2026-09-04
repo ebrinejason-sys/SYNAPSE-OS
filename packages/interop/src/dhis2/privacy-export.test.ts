@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 import {
   assertNoIdentifiableLeak,
   buildAggregateDataValueSet,
+  DEFAULT_PRIVACY_EXPORT_POLICY,
   fixtureAggregateFacts,
   stripIdentifiableFields,
 } from "./privacy-export.ts"
@@ -72,6 +73,27 @@ describe("dhis2 privacy-export", () => {
     assert.equal(result.ok, false)
     if (result.ok) return
     assert.equal(result.code, "SYNTHETIC_LIVE_BLOCKED")
+  })
+
+  it("suppresses cells below minCellCount and excludes other periods", () => {
+    const result = buildAggregateDataValueSet({
+      source: [
+        { localOrgKey: "facility-kampala-01", period: "202608", icd11StemCode: "1F40", count: 2 },
+        { localOrgKey: "facility-kampala-01", period: "202608", icd11StemCode: "CA40", count: 1 },
+        { localOrgKey: "facility-kampala-01", period: "202607", icd11StemCode: "1F40", count: 9 },
+      ],
+      period: "202608",
+      orgUnit: "OU_FALLBACK",
+      orgUnitMappings: mappings.orgUnits,
+      dataElementMappings: mappings.dataElements,
+      policy: { ...DEFAULT_PRIVACY_EXPORT_POLICY, minCellCount: 2 },
+      capabilityGranted: true,
+      mode: "simulation",
+    })
+    assert.equal(result.ok, true)
+    if (!result.ok) return
+    assert.deepEqual(result.dataValueSet.dataValues.map((value) => value.dataElement), ["DE_MALARIA_PF"])
+    assert.equal(result.suppressedCells, 1)
   })
 
   it("strips identifiers and never leaks packet fields into aggregates", () => {

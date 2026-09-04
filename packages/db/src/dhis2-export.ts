@@ -76,6 +76,21 @@ function defaultMappings(): {
   }
 }
 
+async function loadMappings(db: DbClient, tenantId: string, defaults: ReturnType<typeof defaultMappings>) {
+  try {
+    const [{ data: orgUnits }, { data: dataElements }] = await Promise.all([
+      db.from("dhis2_org_unit_mappings").select("tenant_id, facility_id, local_org_key, dhis2_org_unit_id, display_name").eq("tenant_id", tenantId),
+      db.from("dhis2_data_element_mappings").select("icd11_stem_code, dhis2_data_element_id, display_name, hmis_code").or(`tenant_id.is.null,tenant_id.eq.${tenantId}`),
+    ])
+    return {
+      orgUnits: orgUnits?.length ? orgUnits : defaults.orgUnits,
+      dataElements: dataElements?.length ? dataElements : defaults.dataElements,
+    }
+  } catch {
+    return defaults
+  }
+}
+
 export function buildIdempotencyKey(params: {
   tenantId: string
   period: string
@@ -90,14 +105,14 @@ export async function enqueueDhis2Export(
   input: EnqueueDhis2ExportInput,
 ): Promise<{ job: Dhis2ExportJob | null; created: boolean; rejected?: string }> {
   const mode = input.mode ?? getDhis2ModeFromEnv()
-  const defaults = defaultMappings()
+  const mappings = await loadMappings(db, input.tenantId, defaultMappings())
   const built = buildAggregateDataValueSet({
     source: input.facts,
     period: input.period,
     orgUnit: input.orgUnit,
     dataSet: input.dataSet,
-    orgUnitMappings: input.orgUnitMappings ?? defaults.orgUnits,
-    dataElementMappings: input.dataElementMappings ?? defaults.dataElements,
+    orgUnitMappings: input.orgUnitMappings ?? mappings.orgUnits,
+    dataElementMappings: input.dataElementMappings ?? mappings.dataElements,
     policy: input.policy ?? DEFAULT_PRIVACY_EXPORT_POLICY,
     capabilityGranted: input.capabilityGranted,
     mode,
@@ -448,14 +463,14 @@ async function enqueueOrRefreshDhis2Export(
   input: EnqueueDhis2ExportInput,
 ): Promise<{ job: Dhis2ExportJob | null; created: boolean; rejected?: string }> {
   const mode = input.mode ?? getDhis2ModeFromEnv()
-  const defaults = defaultMappings()
+  const mappings = await loadMappings(db, input.tenantId, defaultMappings())
   const built = buildAggregateDataValueSet({
     source: input.facts,
     period: input.period,
     orgUnit: input.orgUnit,
     dataSet: input.dataSet,
-    orgUnitMappings: input.orgUnitMappings ?? defaults.orgUnits,
-    dataElementMappings: input.dataElementMappings ?? defaults.dataElements,
+    orgUnitMappings: input.orgUnitMappings ?? mappings.orgUnits,
+    dataElementMappings: input.dataElementMappings ?? mappings.dataElements,
     policy: input.policy ?? DEFAULT_PRIVACY_EXPORT_POLICY,
     capabilityGranted: input.capabilityGranted,
     mode,

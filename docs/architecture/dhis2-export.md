@@ -25,13 +25,18 @@ Exact encounter timestamps and free-text complaints are stripped before export.
 
 `dhis2_org_unit_mappings` maps `local_org_key` (facility / hospital key) → DHIS2 organisation unit UID.
 
-Until mappings are seeded, the platform trigger uses a simulation org unit (`OU_SIM_FACILITY`).
+The simulation seed contains `OU_SIM_FACILITY` for the synthetic facility. Production
+organisation-unit UIDs come from MoH later and must not be inferred from local IDs.
 
 ## Data element mapping
 
 `dhis2_data_element_mappings` maps verified ICD-11 MMS stem → DHIS2 data element UID (and optional HMIS code).
 
-Seed defaults in code cover malaria, pneumonia, TB, sepsis, typhoid, HIV for simulation. Production mappings must be MoH-approved.
+The simulation seed covers the known terminology stems for malaria (`1F40`), pneumonia
+(`CA40`), tuberculosis (`1B10`), sepsis (`1G40`), typhoid (`1A07`), HIV disease (`1C62`),
+hypertension (`BA00`), and diabetes (`5A21`). Diarrhoea and anaemia remain unmapped until
+their verified ICD-11 stems are present in the terminology cache. Placeholder `DE_*`
+values are simulation-only; production mappings must be MoH-approved.
 
 ## Job lifecycle
 
@@ -70,3 +75,6 @@ Offline: facility can enqueue sync command `public_health.dhis2_export.v1` with 
 3. Click **Trigger aggregate export**.
 4. Confirm a `succeeded` job with mode `simulation` and non-zero data values.
 5. Optional API: `POST /api/platform/dhis2` with `{ "action": "trigger" }`.
+6. Confirm the monitor shows the last successful simulation period/value count and
+	mapping coverage. For a deterministic test, run:
+	`npx tsx --test packages/interop/src/dhis2/privacy-export.test.ts packages/interop/src/dhis2/rollup.test.ts packages/interop/src/adapters/dhis2.test.ts`.
