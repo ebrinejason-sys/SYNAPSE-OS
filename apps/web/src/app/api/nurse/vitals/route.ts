@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../lib/hospital-shared'
 import { requireHospitalStaffContext, vitalsRecordSchema } from '../../../../lib/hospital-dept'
+import { clinicalActionTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
+import { publishTimelineEvent } from '@synapse/db/identity-persist'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,6 +65,22 @@ export async function POST(req: NextRequest) {
     recordId: row.id,
     newValue: { encounter_id, patient_id, ...vitals },
   })
+
+  void publishClinicalTimelineBestEffort(
+    publishTimelineEvent,
+    clinicalActionTimelineEvent({
+      tenantId: ctx.tenantId,
+      hospitalId: ctx.hospitalId,
+      patientId: patient_id,
+      encounterId: encounter_id,
+      sourceTable: 'vitals',
+      sourceId: row.id,
+      title: 'Vitals recorded',
+      summary: 'Nursing observations recorded for the encounter.',
+      createdBy: ctx.userId,
+      tags: ['nursing', 'vitals'],
+    }),
+  )
 
   return NextResponse.json({ vitalsId: row.id }, { status: 201 })
 }

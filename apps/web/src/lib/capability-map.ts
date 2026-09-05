@@ -11,6 +11,7 @@ const DIRECT_GRANTS: Record<string, readonly CapTuple[]> = {
     ['clinical',     'patient',   'read' ],
     ['clinical',     'encounter', 'read' ],
     ['clinical',     'encounter', 'write'],
+    ['ward',         'round',     'write'],
     ['longitudinal', 'pattern',   'read' ],
   ],
 
@@ -24,6 +25,10 @@ const DIRECT_GRANTS: Record<string, readonly CapTuple[]> = {
   ],
 
   doctor: [
+    ['opd',           'queue',      'read'  ],
+    ['opd',           'encounter',  'create'],
+    ['opd',           'encounter',  'sign'  ],
+    ['opd',           'prescription','create'],
     ['clinical',     'patient',      'delete'],
     ['clinical',     'encounter',    'delete'],
     ['clinical',     'prescription', 'admin' ],

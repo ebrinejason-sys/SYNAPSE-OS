@@ -17,7 +17,7 @@ export async function POST(
   const ctx = await requireHospitalStaffContext()
   if (isContextError(ctx)) return ctx
 
-  const cap = await requireHospitalCapability(ctx, 'encounter', 'create', 'opd')
+  const cap = await requireHospitalCapability(ctx, 'encounter', 'sign', 'opd')
   if (cap) return cap
 
   const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, 'opd')

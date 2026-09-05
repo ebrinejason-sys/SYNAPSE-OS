@@ -64,8 +64,8 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 
 | ID | Department | Workflow | Current | Expected | Fix | Complexity |
 |---|---|---|---|---|---|
-| P1-009 | OPD | Doctor workspace | 10 placeholder pages | Functional queue + encounter | **PARTIAL** — `/os/[slug]/clinical/*` canonical shell + `/doctor/*` redirects | Expand encounter workspace depth | L |
-| P1-010 | Nursing | Ward list | Placeholder | Observations + tasks | **PARTIAL** — `/nurse/ward` + vitals API | Build nurse workspace in `/os/[slug]` | L |
+| P1-009 | OPD | Doctor workspace | 10 placeholder pages | Functional queue + encounter | **FIXED for core OPD shift** — `/os/[slug]/clinical/queue` lists tenant-scoped encounters, opens orders/timeline, places lab/Rx orders, and signs encounters behind capability gates | Extend specialty workspaces outside scope | L |
+| P1-010 | Nursing | Ward list | Placeholder | Observations + tasks | **FIXED for core ward shift** — `/os/[slug]/clinical/nursing` provides scoped ward patients, vitals recording, nursing task transitions, and timeline handoff | Extend specialty nursing workflows outside scope | L |
 | P1-011 | Emergency | ED flow | NOT_IMPLEMENTED | Rapid reg → triage → resus | **PARTIAL** — /emergency/triage + APIs | Build ED vertical slice | XL |
 
 ## P2 — Operational
@@ -98,3 +98,11 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 | P0-001 | Dispense decrements inventory via complete_pharmacy_sale or hospital equivalent; idempotent retry does not double-decrement |
 | P0-004 | CI fails when SUPABASE_* missing; cross-tenant encounter/patient queries return null |
 | P1-008 | Charge creates draft invoice; POST pay updates paid_amount; idempotent payment key |
+| P1-009 | `/os/[slug]/clinical/queue` → orders/timeline → sign; `clinical-workspace.test.ts` and existing OPD API guards |
+| P1-010 | `/os/[slug]/clinical/nursing` → `/api/nurse/vitals` and nursing task POST; `clinical-workspace.test.ts`; DB-backed route checks remain credential-gated |
+
+## Clinical workspace operator steps
+
+1. A doctor opens `/os/<facility-slug>/clinical/queue`, selects an encounter, opens **Orders & timeline**, places lab orders or prescriptions, reviews the timeline, and signs the encounter.
+2. A nurse opens `/os/<facility-slug>/clinical/nursing`, selects an in-scope ward patient or nursing task, records vitals, then accepts, starts, and completes the task as appropriate.
+3. Wrong-tenant staff, unsigned capability roles, or mismatched patient/encounter IDs receive a denied response; specialty ED/ICU coverage remains outside this slice.
