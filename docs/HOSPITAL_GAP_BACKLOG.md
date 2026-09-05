@@ -1,4 +1,6 @@
-# P0-004 / P0-RBAC evidence update (2026-09-05)
+# Hospital Gap Backlog — 2026-08-30
+
+## P0-004 / P0-RBAC evidence update (2026-09-05)
 
 Isolation and negative capability coverage now runs as follows:
 
@@ -10,7 +12,18 @@ Isolation and negative capability coverage now runs as follows:
 
 Remaining matrix rows still not implemented or not proven by this slice: emergency nurse, emergency doctor, surgeon, public health officer, landing-page assertions, clinician/POS stock separation, and full route-level end-to-end requests for every role. DNS/Vercel wildcard and pharmacy domain attachment remain operator-owned blockers.
 
-# Hospital Gap Backlog — 2026-08-30
+## P0-001 dispense evidence (2026-09-05)
+
+**Status: FIXED for the hospital clinical dispense path.** `/os/<facility-slug>/clinical/dispense` loads tenant-scoped pharmacy tasks from `/api/hospital/tasks?department=pharmacy`, selects the linked prescription, and posts to `/api/hospital/pharmacy/dispense`. The server requires dispensing capability and, for active prescriptions, verification capability; it then uses `complete_pharmacy_sale`, updates the prescription and department task, persists domain events, and publishes the medication timeline event. The sale idempotency key is `clinical_prescriptions:<prescription_id>`.
+
+Operator runbook:
+
+1. Sign in as a pharmacist assigned to the facility and open `/os/<facility-slug>/clinical/dispense`.
+2. Select an open pharmacy task. Confirm the linked prescription, product, and pharmacy tenant, then submit the dispense.
+3. The prescription is verified when required, stock is decremented through the pharmacy inventory authority, the task becomes `COMPLETED`, and the medication dispense event is recorded.
+4. A retry of the same prescription is rejected as already dispensed and cannot decrement stock again. Receptionist, lab technician, and cashier roles receive a capability denial.
+
+Evidence: `P0-001` bridge tests cover verification, insufficient stock, duplicate dispense safety, and unauthorized roles; `hospital-dispense-idempotency.integration.test.ts` covers the real `complete_pharmacy_sale` path, exactly-once stock decrement, and pharmacy task completion when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are present. Without those variables the DB test skips cleanly.
 
 Ranked issues discovered during hospital acceptance audit and initial testing.
 
@@ -18,7 +31,7 @@ Ranked issues discovered during hospital acceptance audit and initial testing.
 
 | ID | Department | Workflow | Current | Expected | Root cause | Fix | Complexity |
 |---|---|---|---|---|---|---|---|
-| P0-001 | Pharmacy | Dispense | Manual insert as dispensed, skips verification | Verify → dispense → inventory decrement | **PARTIAL** — dispense API + `complete_pharmacy_sale` + WorkQueue complete; CI idempotency + bridge unit tests added | Operator UI path + full integration test through hospital dispense route | M |
+| P0-001 | Pharmacy | Dispense | Manual insert as dispensed, skips verification | Verify → dispense → inventory decrement | **FIXED** — hospital clinical shell task path, capability gates, authoritative sale RPC, task completion, timeline event, and idempotency coverage | Keep route-level E2E coverage as future hardening | M |
 | P0-002 | Clinical | Signed notes | No immutability | Signed docs cannot silently change | **FIXED** — amendment RPC + trail + trigger guard | Add signed_at + amendment trail | M |
 | P0-003 | Security | Platform admin | Role bypass in capability.ts | No automatic clinical superuser | **FIXED** — hospital facilityType enforced | Scope bypass to platform ops only | S |
 

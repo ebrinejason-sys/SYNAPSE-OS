@@ -11,10 +11,21 @@ type PrescriptionRow = {
   unit: string
   status: string
   encounter_id: string | null
+  pharmacy_tenant_id: string | null
+}
+
+type PharmacyTask = {
+  id: string
+  sourceId: string | null
+  title: string
+  status: string
+  priority: string
 }
 
 export function ClinicalDispensePanel() {
   const [prescriptions, setPrescriptions] = useState<PrescriptionRow[]>([])
+  const [pharmacyTasks, setPharmacyTasks] = useState<PharmacyTask[]>([])
+  const [taskId, setTaskId] = useState('')
   const [prescriptionId, setPrescriptionId] = useState('')
   const [productId, setProductId] = useState('')
   const [pharmacyTenantId, setPharmacyTenantId] = useState('')
@@ -25,22 +36,27 @@ export function ClinicalDispensePanel() {
   const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
-    fetch('/api/opd/prescriptions?status=active', { credentials: 'include' })
-      .then(async (res) => {
-        if (!res.ok) {
-          setLoadError('Unable to load clinical prescriptions.')
+    Promise.all([
+      fetch('/api/opd/prescriptions?status=active', { credentials: 'include' }),
+      fetch('/api/hospital/tasks?department=pharmacy&status=REQUESTED', { credentials: 'include' }),
+    ])
+      .then(async ([prescriptionResponse, taskResponse]) => {
+        if (!prescriptionResponse.ok || !taskResponse.ok) {
+          setLoadError('Unable to load the pharmacy queue.')
           return
         }
-        const data = (await res.json()) as { prescriptions: PrescriptionRow[] }
-        setPrescriptions(data.prescriptions ?? [])
+        const prescriptionData = (await prescriptionResponse.json()) as { prescriptions: PrescriptionRow[] }
+        const taskData = (await taskResponse.json()) as { tasks: PharmacyTask[] }
+        setPrescriptions(prescriptionData.prescriptions ?? [])
+        setPharmacyTasks((taskData.tasks ?? []).filter((task) => task.sourceId))
       })
-      .catch(() => setLoadError('Unable to load clinical prescriptions.'))
+      .catch(() => setLoadError('Unable to load the pharmacy queue.'))
   }, [])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!prescriptionId || !productId || !pharmacyTenantId) {
-      setError('Prescription, product ID, and pharmacy tenant ID are required.')
+      setError('Pharmacy task, product ID, and pharmacy tenant ID are required.')
       return
     }
     setSaving(true)
@@ -63,6 +79,8 @@ export function ClinicalDispensePanel() {
       return
     }
     setDone(true)
+    setPharmacyTasks((tasks) => tasks.filter((task) => task.id !== taskId))
+    setTaskId('')
     setPrescriptionId('')
     setProductId('')
     setTimeout(() => setDone(false), 3000)
@@ -87,6 +105,35 @@ export function ClinicalDispensePanel() {
       {error || loadError ? <p className="text-sm text-red-400">{error || loadError}</p> : null}
 
       <form onSubmit={submit} className="max-w-lg space-y-4">
+        <div>
+          <label className="mb-1.5 block text-sm font-semibold">Pharmacy queue task *</label>
+          <select
+            value={taskId}
+            onChange={(e) => {
+              const nextTaskId = e.target.value
+              const task = pharmacyTasks.find((candidate) => candidate.id === nextTaskId)
+              const prescription = prescriptions.find((rx) => rx.id === task?.sourceId)
+              setTaskId(nextTaskId)
+              setPrescriptionId(task?.sourceId ?? '')
+              setPharmacyTenantId(prescription?.pharmacy_tenant_id ?? '')
+            }}
+            required
+            className="w-full rounded-xl border border-subtle bg-surface px-4 py-2.5 text-sm text-primary-color outline-none"
+          >
+            <option value="">Select pharmacy task…</option>
+            {pharmacyTasks.map((task) => {
+              const prescription = prescriptions.find((rx) => rx.id === task.sourceId)
+              return (
+                <option key={task.id} value={task.id}>
+                  {task.title} · {prescription?.medication_display ?? 'prescription'} · {task.priority}
+                </option>
+              )
+            })}
+          </select>
+          {pharmacyTasks.length === 0 ? (
+            <p className="mt-1.5 text-xs text-muted-color">No open pharmacy tasks.</p>
+          ) : null}
+        </div>
         <div>
           <label className="mb-1.5 block text-sm font-semibold">Clinical prescription *</label>
           <select

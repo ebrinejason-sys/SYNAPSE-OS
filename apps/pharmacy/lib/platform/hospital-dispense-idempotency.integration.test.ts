@@ -6,12 +6,16 @@ describe.skipIf(!hasDb)("hospital dispense inventory idempotency (P0-001)", () =
   let tenantId: string
   let productId: string
   let cashierId: string
+  let taskId: string
+  let prescriptionId: string
   const idempotencyKey = `clinical_prescriptions:${crypto.randomUUID()}`
 
   beforeAll(async () => {
     tenantId = crypto.randomUUID()
     productId = crypto.randomUUID()
     cashierId = crypto.randomUUID()
+    taskId = crypto.randomUUID()
+    prescriptionId = crypto.randomUUID()
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabaseAdmin as any
@@ -48,6 +52,20 @@ describe.skipIf(!hasDb)("hospital dispense inventory idempotency (P0-001)", () =
       p_supplier_ref: "dispense-idempotency-test",
     })
     if (receiveError) throw new Error(receiveError.message)
+
+    const { error: taskError } = await db.from("department_tasks").insert({
+      id: taskId,
+      tenant_id: tenantId,
+      owner_department: "pharmacy",
+      owner_role: "pharmacist",
+      task_type: "prescription",
+      title: "Dispense Paracetamol 500mg",
+      source_resource: "clinical_prescriptions",
+      source_id: prescriptionId,
+      idempotency_key: `clinical_prescriptions:${prescriptionId}`,
+      is_synthetic: true,
+    })
+    if (taskError) throw new Error(taskError.message)
   })
 
   afterAll(async () => {
@@ -61,11 +79,12 @@ describe.skipIf(!hasDb)("hospital dispense inventory idempotency (P0-001)", () =
     await db.from("pharmacy_sale_idempotency").delete().eq("tenant_id", tenantId)
     await db.from("pharmacy_pos_sales").delete().eq("tenant_id", tenantId)
     await db.from("pharmacy_product_batches").delete().eq("tenant_id", tenantId)
+    await db.from("department_tasks").delete().eq("id", taskId)
     await db.from("pharmacy_products").delete().eq("tenant_id", tenantId)
     await db.from("tenants").delete().eq("id", tenantId)
   })
 
-  it("complete_pharmacy_sale returns the same sale on idempotent retry", async () => {
+  it("P0-001 completes a pharmacy task and decrements stock exactly once", async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabaseAdmin as any
     const items = [
@@ -85,6 +104,13 @@ describe.skipIf(!hasDb)("hospital dispense inventory idempotency (P0-001)", () =
       p_idempotency_key: idempotencyKey,
     })
     if (firstError) throw new Error(firstError.message)
+
+    const { error: taskCompleteError } = await db
+      .from("department_tasks")
+      .update({ status: "COMPLETED", result_summary: `Dispensed via sale ${String(first?.sale_id ?? "")}` })
+      .eq("id", taskId)
+      .eq("tenant_id", tenantId)
+    if (taskCompleteError) throw new Error(taskCompleteError.message)
 
     const { data: second, error: secondError } = await db.rpc("complete_pharmacy_sale", {
       p_tenant_id: tenantId,
@@ -115,5 +141,8 @@ describe.skipIf(!hasDb)("hospital dispense inventory idempotency (P0-001)", () =
       .single()
 
     expect(Number(product?.quantity ?? -1)).toBe(18)
+
+    const { data: task } = await db.from("department_tasks").select("status").eq("id", taskId).single()
+    expect(task?.status).toBe("COMPLETED")
   })
 })

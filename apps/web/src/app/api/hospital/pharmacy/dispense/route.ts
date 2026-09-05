@@ -3,7 +3,8 @@ import { supabaseAdmin } from '@synapse/db/admin'
 import { ExchangeOutbox } from '@synapse/db/exchange'
 import { verifyPrescription, dispensePrescription } from '@synapse/db/prescription-bridge'
 import { rowToClinicalPrescription, persistClinicalPrescriptionBestEffort } from '@synapse/db/prescription-persist'
-import { persistDomainEventsBestEffort } from '@synapse/db/work-queue-persist'
+import { persistDomainEventsBestEffort, persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
+import { WorkQueue } from '@synapse/db/work-queue'
 import { appendClinicalChargeBestEffort, recordInvoiceCreatedEvent } from '@synapse/db/clinical-charge'
 import { medicationDispensedTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
@@ -45,6 +46,11 @@ export async function POST(req: NextRequest) {
   const current = rowToClinicalPrescription(row as Record<string, unknown>)
   if (current.status === 'dispensed') {
     return NextResponse.json({ error: 'Already dispensed' }, { status: 409 })
+  }
+
+  if (current.status === 'active') {
+    const verifyCap = await requireHospitalCapability(ctx, 'prescription', 'verify', 'dispensing')
+    if (verifyCap) return verifyCap
   }
 
   const { data: product, error: productError } = await db
@@ -185,6 +191,7 @@ export async function POST(req: NextRequest) {
           result_summary: `Dispensed via sale ${saleId ?? 'unknown'}`,
         })
         .eq('id', taskRow.id)
+        .eq('tenant_id', ctx.tenantId)
     }
 
     await persistDomainEventsBestEffort(db, outbox.list({ correlationId: dispensed.rx.correlationId }))
@@ -211,6 +218,47 @@ export async function POST(req: NextRequest) {
         actorId: ctx.userId,
       })
       await persistDomainEventsBestEffort(db, invoiceOutbox.list({ correlationId: dispensed.rx.correlationId }))
+    }
+
+    if (charge.ok) {
+      const { data: invoice } = await db
+        .from('billing_invoices')
+        .select('id, total_amount, paid_amount, status')
+        .eq('id', charge.result.invoiceId)
+        .eq('tenant_id', ctx.tenantId)
+        .maybeSingle()
+      const balanceDue = Math.max(0, Number(invoice?.total_amount ?? 0) - Number(invoice?.paid_amount ?? 0))
+      if (balanceDue > 0 && invoice?.status !== 'paid') {
+        const queue = new WorkQueue()
+        const billingTask = queue.create({
+          tenantId: ctx.tenantId,
+          facilityId: ctx.hospitalId,
+          hospitalId: ctx.hospitalId,
+          patientId: dispensed.rx.patientId,
+          encounterId: dispensed.rx.encounterId,
+          requesterId: ctx.userId,
+          ownerDepartment: 'billing',
+          ownerRole: 'cashier',
+          taskType: 'billing',
+          priority: 'ROUTINE',
+          title: 'Payment required',
+          description: `Invoice balance due: ${balanceDue}`,
+          sourceResource: 'billing_invoices',
+          sourceId: charge.result.invoiceId,
+          correlationId: dispensed.rx.correlationId,
+          idempotencyKey: `billing_invoices:${charge.result.invoiceId}:payment`,
+          suppressDomainEvent: true,
+        })
+        if (billingTask.ok) {
+          const billingPersist = await persistWorkQueueArtifactsBestEffort(db, {
+            tasks: [billingTask.task],
+            events: [],
+          })
+          if (billingPersist.errors.length) {
+            console.warn('[hospital/dispense] billing handoff persist partial', billingPersist.errors)
+          }
+        }
+      }
     }
 
     void publishClinicalTimelineBestEffort(
