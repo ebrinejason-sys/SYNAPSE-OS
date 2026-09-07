@@ -104,3 +104,30 @@ export function pharmacyLoginUrl(tenantSlug: string): string {
   const slug = tenantSlug.replace(/^pharm-/, "")
   return `https://pharm.synapseos.tech/login?tenant=${encodeURIComponent(slug)}`
 }
+
+/** Keep account activation on the facility's own cookie boundary. */
+export function facilityInviteUrl(
+  facilityType: FacilityType,
+  tenantSlug: string,
+  inviteToken: string,
+  options: { appUrl?: string; pharmacyAppUrl?: string } = {},
+): string {
+  if (facilityType === "pharmacy") {
+    const pharmacyBase = (options.pharmacyAppUrl ?? "https://pharm.synapseos.tech").replace(/\/$/, "")
+    return `${pharmacyBase}/invite/facility/${encodeURIComponent(inviteToken)}`
+  }
+
+  const appBase = (options.appUrl ?? "https://synapseos.tech").replace(/\/$/, "")
+  const url = new URL(appBase)
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+    return `${appBase}/invite/facility/${encodeURIComponent(inviteToken)}`
+  }
+  const rootHostname = url.hostname === "synapseos.tech" || url.hostname.endsWith(".synapseos.tech")
+    ? "synapseos.tech"
+    : url.hostname.replace(/^www\./, "")
+  url.hostname = `${tenantSlug}.${rootHostname}`
+  url.pathname = `/invite/facility/${encodeURIComponent(inviteToken)}`
+  url.search = ""
+  url.hash = ""
+  return url.toString().replace(/\/$/, "")
+}

@@ -22,6 +22,10 @@ export async function POST(request: Request) {
     .maybeSingle()
 
   if (!invite) return NextResponse.json({ error: "Invalid invite token." }, { status: 404 })
+  const trustedTenantId = request.headers.get("x-tenant-id")?.trim()
+  if (trustedTenantId && trustedTenantId !== invite.tenant_id) {
+    return NextResponse.json({ error: "This invitation belongs to another facility." }, { status: 403 })
+  }
   if (invite.status === "ACCEPTED") {
     return NextResponse.json({ error: "This invite has already been used." }, { status: 409 })
   }

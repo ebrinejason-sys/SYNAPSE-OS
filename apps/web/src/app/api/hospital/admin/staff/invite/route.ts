@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from '@synapse/db/admin'
+import { facilityInviteUrl } from '@synapse/db/facility-provision'
 import { sendHospitalStaffInviteEmail } from '../../../../../../lib/resend'
 import {
   isContextError,
@@ -42,6 +43,7 @@ export async function POST(req: NextRequest) {
     .from('profiles')
     .select('id')
     .eq('email', email)
+    .eq('tenant_id', ctx.tenantId)
     .maybeSingle()
 
   if (dup) {
@@ -71,13 +73,13 @@ export async function POST(req: NextRequest) {
   const { data: profile, error } = await db.from('profiles').insert(profileRow).select('id,email,full_name,role').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const { data: hospital } = await db
-    .from('hospitals')
-    .select('name')
-    .eq('id', ctx.hospitalId)
+  const { data: facility } = await db
+    .from('tenants')
+    .select('name,slug,facility_type')
+    .eq('id', ctx.tenantId)
     .maybeSingle()
 
-  const hospitalName = hospital?.name ?? 'your hospital'
+  const hospitalName = facility?.name ?? 'your facility'
 
   const inviteToken = randomUUID().replaceAll('-', '') + randomUUID().replaceAll('-', '')
   const { error: inviteError } = await db.from('facility_invitations').insert({
@@ -90,7 +92,12 @@ export async function POST(req: NextRequest) {
   try {
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://synapseos.tech').replace(/\/$/, '')
     await sendHospitalStaffInviteEmail({ to: email, hospitalName, staffName: parsed.data.full_name.trim(),
-      role: parsed.data.role, inviteUrl: `${appUrl}/invite/facility/${inviteToken}` })
+      role: parsed.data.role, inviteUrl: facilityInviteUrl(
+        facility?.facility_type === 'laboratory' ? 'laboratory' : 'hospital',
+        facility?.slug ?? '',
+        inviteToken,
+        { appUrl },
+      ) })
     await db.from('facility_invitations').update({ status: 'SENT', sent_at: new Date().toISOString() }).eq('invite_token', inviteToken)
   } catch {
     inviteStatus = 'PENDING'

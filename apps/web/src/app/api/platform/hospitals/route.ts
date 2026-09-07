@@ -14,6 +14,7 @@ import {
   type FacilityOwnership,
   type ProvisionMode,
 } from "@synapse/db/hospital-provision"
+import { facilityInviteUrl } from "@synapse/db/facility-provision"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
         hospitalName: detail.run.facility_name,
         staffName: detail.invite.full_name || "Hospital Admin",
         role: detail.invite.role,
-        inviteUrl: `${appUrl}/invite/facility/${detail.invite.invite_token}`,
+        inviteUrl: facilityInviteUrl("hospital", detail.run.slug, detail.invite.invite_token, { appUrl }),
       })
       await (supabaseAdmin as any)
         .from("facility_invitations")
@@ -113,7 +114,7 @@ export async function POST(request: Request) {
           hospitalName: result.slug,
           staffName: "Facility Admin",
           role: "hospital_admin",
-          inviteUrl: `${appUrl}/invite/facility/${result.inviteToken}`,
+          inviteUrl: facilityInviteUrl("hospital", result.slug, result.inviteToken, { appUrl }),
         })
       } catch {
         /* invite email is retryable */
@@ -184,7 +185,7 @@ export async function POST(request: Request) {
   if (result.ok && result.inviteToken && body.sendInvite !== false) {
     try {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://synapseos.tech"
-      const inviteUrl = `${appUrl}/invite/facility/${result.inviteToken}`
+      const inviteUrl = facilityInviteUrl("hospital", result.slug, result.inviteToken, { appUrl })
       await sendHospitalStaffInviteEmail({
         to: String(body.adminEmail ?? "").trim().toLowerCase(),
         hospitalName: String(body.hospitalName ?? body.facilityName ?? result.slug),

@@ -4,6 +4,7 @@ import {
   CLINIC_DEFAULT_MODULES,
   FACILITY_TYPES,
   defaultModulesForFacilityType,
+  facilityInviteUrl,
   pharmacyLoginUrl,
   pharmacyTenantSlug,
 } from "./facility-provision-catalog.ts"
@@ -53,6 +54,24 @@ describe("facility-provision-catalog", () => {
     assert.equal(
       pharmacyLoginUrl("pharm-acme-chemist"),
       "https://pharm.synapseos.tech/login?tenant=acme-chemist",
+    )
+  })
+
+  it("keeps hospital and laboratory invitations on their tenant host", () => {
+    assert.equal(
+      facilityInviteUrl("hospital", "mulago", "invite-token", { appUrl: "https://synapseos.tech" }),
+      "https://mulago.synapseos.tech/invite/facility/invite-token",
+    )
+    assert.equal(
+      facilityInviteUrl("laboratory", "pilot-lab", "invite-token", { appUrl: "https://admin.synapseos.tech" }),
+      "https://pilot-lab.synapseos.tech/invite/facility/invite-token",
+    )
+  })
+
+  it("routes pharmacy facility invitations to the pharmacy application", () => {
+    assert.equal(
+      facilityInviteUrl("pharmacy", "pharm-acme", "invite/token"),
+      "https://pharm.synapseos.tech/invite/facility/invite%2Ftoken",
     )
   })
 })

@@ -30,13 +30,22 @@ export async function POST(req: NextRequest) {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: profile, error: profileErr } = await (supabaseAdmin as any)
+  const trustedTenantId = req.headers.get('x-tenant-id')?.trim() || null
+  let profileQuery = (supabaseAdmin as any)
     .from('profiles')
     .select('id, role, tenant_id, synapse_id, verification_status, email_verified_at, is_deleted, must_change_password, onboarding_complete')
     .eq('email', email)
-    .single()
+  if (trustedTenantId) profileQuery = profileQuery.eq('tenant_id', trustedTenantId)
+  const { data: profiles, error: profileErr } = await profileQuery.limit(2)
+  const profile = profiles?.length === 1 ? profiles[0] : null
 
   if (profileErr || !profile) {
+    if (!trustedTenantId && (profiles?.length ?? 0) > 1) {
+      return NextResponse.json(
+        { error: 'This email belongs to more than one facility. Sign in from your facility address.' },
+        { status: 409 },
+      )
+    }
     return NextResponse.json({ error: 'Account not found.' }, { status: 404 })
   }
 

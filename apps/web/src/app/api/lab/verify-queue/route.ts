@@ -15,7 +15,7 @@ export async function GET() {
     return NextResponse.json({ items: [], source: "simulation" })
   }
 
-  if (user.role === "lab_tech") {
+  if (["lab_tech", "lab_technician"].includes(user.role ?? "")) {
     return NextResponse.json({ error: "lab_scientist required for verification queue" }, { status: 403 })
   }
 

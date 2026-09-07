@@ -227,7 +227,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
   const activeItem = ALL_NAV_ITEMS.find((item) => isNavActive(pathname, item));
 
   return (
-    <div className="flex h-screen overflow-hidden bg-base text-primary-color">
+    <div className="platform-shell flex h-screen overflow-hidden bg-base text-primary-color">
       {sidebarOpen ? (
         <button
           type="button"
@@ -239,7 +239,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
       {/* Sidebar — fixed height, scrolls independently */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r border-subtle bg-[#0a0a0f] transition-transform print:hidden lg:static lg:translate-x-0 ${
+        className={`platform-sidebar fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r border-subtle bg-[#0a0a0f] transition-transform print:hidden lg:static lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

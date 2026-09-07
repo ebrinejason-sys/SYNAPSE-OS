@@ -8,6 +8,7 @@ import {
   provisionFacility,
   resumeFacilityProvision,
   getProvisionRun,
+  facilityInviteUrl,
   slugify,
   type FacilityType,
   type FacilityLevel,
@@ -116,10 +117,10 @@ export async function POST(request: Request) {
   if (result.ok && result.inviteToken && result.inviteStatus === "PENDING" && body.sendInvite !== false) {
     try {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://synapseos.tech"
-      const inviteUrl =
-        facilityType === "pharmacy"
-          ? `https://pharm.synapseos.tech/invite/facility/${result.inviteToken}`
-          : `${appUrl}/invite/facility/${result.inviteToken}`
+      const inviteUrl = facilityInviteUrl(facilityType, result.slug, result.inviteToken, {
+        appUrl,
+        pharmacyAppUrl: process.env.NEXT_PUBLIC_PHARMACY_APP_URL,
+      })
       await sendHospitalStaffInviteEmail({
         to: String(body.adminEmail ?? "").trim().toLowerCase(),
         hospitalName: String(body.facilityName ?? result.slug),

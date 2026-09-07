@@ -3,7 +3,7 @@ import { createServiceClient } from "../../../../lib/supabase/server"
 import { requirePlatformAdminApi } from "../../../../lib/platform/auth"
 import { sendHospitalStaffInviteEmail } from "../../../../lib/resend"
 import { logPlatformEvent } from "../../../platform/_lib/platform-data"
-import { provisionFacility, pharmacyLoginUrl, pharmacyTenantSlug } from "@synapse/db/facility-provision"
+import { facilityInviteUrl, provisionFacility, pharmacyLoginUrl, pharmacyTenantSlug } from "@synapse/db/facility-provision"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -56,7 +56,9 @@ export async function POST(request: Request) {
 
   if (result.ok && result.inviteToken && body.sendInvite !== false) {
     try {
-      const inviteUrl = `https://pharm.synapseos.tech/invite/facility/${result.inviteToken}`
+      const inviteUrl = facilityInviteUrl("pharmacy", result.slug, result.inviteToken, {
+        pharmacyAppUrl: process.env.NEXT_PUBLIC_PHARMACY_APP_URL,
+      })
       await sendHospitalStaffInviteEmail({
         to: String(body.adminEmail ?? "").trim().toLowerCase(),
         hospitalName: String(body.pharmacyName ?? result.slug),
