@@ -311,6 +311,15 @@ export async function provisionHospital(
     .maybeSingle()
 
   if (existingRun?.status === "COMPLETE" && existingRun.tenant_id) {
+    await db
+      .from("facility_provisioning_runs")
+      .update({
+        failure_code: null,
+        failed_at: null,
+        metadata: { ...(existingRun.metadata ?? {}), last_error: null },
+        updated_at: nowIso(),
+      })
+      .eq("id", existingRun.id)
     const [{ data: steps }, { data: existingInvite }] = await Promise.all([
       db
         .from("facility_provisioning_steps")
@@ -932,8 +941,10 @@ export async function provisionHospital(
     .update({
       status: finalStatus,
       completed_at: finalStatus === "FAILED" ? null : nowIso(),
+      failure_code: finalStatus === "FAILED" ? existingRun?.failure_code ?? null : null,
       failed_at: finalStatus === "FAILED" ? nowIso() : null,
       current_step: "finalize",
+      metadata: { ...(existingRun?.metadata ?? {}), last_error: finalStatus === "FAILED" ? existingRun?.metadata?.last_error ?? null : null },
       updated_at: nowIso(),
     })
     .eq("id", runId)

@@ -179,6 +179,15 @@ async function provisionPharmacyFacility(
     .maybeSingle()
 
   if (existingRun?.status === "COMPLETE" && existingRun.tenant_id) {
+    await db
+      .from("facility_provisioning_runs")
+      .update({
+        failure_code: null,
+        failed_at: null,
+        metadata: { ...(existingRun.metadata ?? {}), last_error: null },
+        updated_at: nowIso(),
+      })
+      .eq("id", existingRun.id)
     const [{ data: existingSteps }, { data: existingInvite }] = await Promise.all([
       db
         .from("facility_provisioning_steps")
