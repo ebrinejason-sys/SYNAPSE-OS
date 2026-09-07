@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { lookupActiveTenant } from "@/lib/tenant-routing"
+import { facilitySlugFromHost, lookupActiveTenant } from "@/lib/tenant-routing"
 import { requirePlatformAdminApi } from "@/lib/platform/auth"
 import { createServiceClient } from "@/lib/supabase/server"
 import { persistTestRun } from "@/lib/platform/test-center-store"
@@ -142,9 +142,9 @@ export async function POST() {
   )
 
   // Probe production ingress instead of asserting a stale deployment snapshot.
-  const probe = async (host: string) => {
+  const probe = async (host: string, headers?: Record<string, string>) => {
     try {
-      const response = await fetch(`https://${host}/`, { redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(10000) })
+      const response = await fetch(`https://${host}/`, { redirect: "manual", cache: "no-store", headers, signal: AbortSignal.timeout(10000) })
       return { status: response.status, location: response.headers.get("location") }
     } catch { return { status: 0, location: null } }
   }
@@ -156,13 +156,89 @@ export async function POST() {
     ? pass("unknown_tenant_failure", "Unknown tenant fails closed", { unknown })
     : fail("unknown_tenant_failure", "Unknown tenant fails closed", "EXPECTED_404", { unknown }))
   const knownTenant = await lookupActiveTenant("domain-test", { url: process.env.NEXT_PUBLIC_SUPABASE_URL, key: process.env.SUPABASE_SERVICE_ROLE_KEY })
-  steps.push(knownTenant && known.status === 307 && known.location?.includes("domain-test.synapseos.tech/login")
+  steps.push(knownTenant && known.status === 307 && known.location?.startsWith("/login")
     ? pass("known_tenant_resolution", "Known tenant resolves to login", { tenantId: knownTenant.id, known })
     : fail("known_tenant_resolution", "Known tenant resolves to login", "DOMAIN_TEST_NOT_VERIFIED", { known }))
-  // These require the live acceptance workflow; absence of evidence must never appear green.
-  for (const id of ["idempotent_retry", "secure_admin_invitation", "tenant_isolation", "inactive_tenant_failure", "reserved_hosts", "spoofed_header_rejection", "pharmacy_workspace", "laboratory_workspace"]) {
-    steps.push({ id, label: id.replaceAll("_", " "), status: "BLOCKED", durationMs: 0, evidence: {}, error: "LIVE_ACCEPTANCE_EVIDENCE_REQUIRED" })
-  }
+
+  const acceptanceSlugs = ["domain-test", "synapse-acceptance-hospital-two", "pharm-synapse-acceptance-pharmacy", "synapse-pilot-lab"]
+  const { data: acceptanceTenants } = await db
+    .from("tenants")
+    .select("id, slug, facility_type, status, is_active")
+    .in("slug", acceptanceSlugs)
+  type AcceptanceTenant = { id: string; slug: string; facility_type: string; status: string; is_active: boolean }
+  const tenantsBySlug = new Map<string, AcceptanceTenant>((acceptanceTenants ?? []).map((tenant: AcceptanceTenant) => [tenant.slug, tenant]))
+  const pharmacyTenant = tenantsBySlug.get("pharm-synapse-acceptance-pharmacy")
+  const labTenant = tenantsBySlug.get("synapse-pilot-lab")
+  const hospitalTenants = [tenantsBySlug.get("domain-test"), tenantsBySlug.get("synapse-acceptance-hospital-two")].filter(Boolean) as AcceptanceTenant[]
+  const targetIds = (acceptanceTenants ?? []).map((tenant: Record<string, unknown>) => String(tenant.id))
+
+  const [{ data: pharmacyRuns }, { data: pharmacyStores }, { data: invitations }] = await Promise.all([
+    pharmacyTenant ? db.from("facility_provisioning_runs").select("id, status, failure_code, failed_at").eq("tenant_id", pharmacyTenant.id) : Promise.resolve({ data: [] }),
+    pharmacyTenant ? db.from("pharmacy_stores").select("id").eq("tenant_id", pharmacyTenant.id).eq("is_deleted", false) : Promise.resolve({ data: [] }),
+    targetIds.length ? db.from("facility_invitations").select("tenant_id, status, invite_token, sent_at, accepted_at").in("tenant_id", targetIds) : Promise.resolve({ data: [] }),
+  ])
+  const retryPass = pharmacyTenant?.is_active === true && pharmacyRuns?.length === 1 && pharmacyRuns[0]?.status === "COMPLETE" && !pharmacyRuns[0]?.failure_code && pharmacyStores?.length === 1
+  steps.push(retryPass
+    ? pass("idempotent_retry", "Idempotent retry", { runCount: pharmacyRuns.length, storeCount: pharmacyStores.length, runStatus: pharmacyRuns[0].status })
+    : fail("idempotent_retry", "Idempotent retry", "LIVE_RETRY_EVIDENCE_INCOMPLETE", { runCount: pharmacyRuns?.length ?? 0, storeCount: pharmacyStores?.length ?? 0, run: pharmacyRuns?.[0] ?? null }))
+
+  const invitedTenantIds = new Set((invitations ?? []).filter((invite: Record<string, unknown>) =>
+    Boolean(invite.invite_token) && ["SENT", "ACCEPTED"].includes(String(invite.status)),
+  ).map((invite: Record<string, unknown>) => String(invite.tenant_id)))
+  steps.push(targetIds.length === 4 && targetIds.every((id: string) => invitedTenantIds.has(id))
+    ? pass("secure_admin_invitation", "Secure admin invitation", { tenantCount: invitedTenantIds.size, statuses: (invitations ?? []).map((invite: Record<string, unknown>) => invite.status) })
+    : fail("secure_admin_invitation", "Secure admin invitation", "INVITATION_NOT_SENT", { expected: targetIds.length, sentOrAccepted: invitedTenantIds.size }))
+
+  const { data: acceptanceDepartments } = hospitalTenants.length === 2
+    ? await db.from("departments").select("tenant_id, name").in("tenant_id", hospitalTenants.map((tenant) => tenant.id)).eq("is_deleted", false)
+    : { data: [] }
+  const requiredDepartmentNames = ["Laboratory", "Pharmacy", "Billing / Cashier", "Reception / Registration / Medical Records"]
+  const isolatedDepartments = hospitalTenants.length === 2 && hospitalTenants.every((tenant) => {
+    const names = new Set((acceptanceDepartments ?? []).filter((row: Record<string, unknown>) => row.tenant_id === tenant.id).map((row: Record<string, unknown>) => String(row.name)))
+    return requiredDepartmentNames.every((name) => names.has(name))
+  })
+  steps.push(isolatedDepartments
+    ? pass("tenant_isolation", "Tenant isolation", { tenantIds: hospitalTenants.map((tenant) => tenant.id), requiredDepartmentNames })
+    : fail("tenant_isolation", "Tenant isolation", "TENANT_SCOPED_DEPARTMENTS_MISSING"))
+
+  const { data: inactiveTenant } = await db.from("tenants").select("id, status, is_active").eq("slug", "ebrine").maybeSingle()
+  const inactiveProbe = await probe("ebrine.synapseos.tech")
+  steps.push(inactiveTenant && inactiveTenant.is_active !== true && inactiveProbe.status === 404
+    ? pass("inactive_tenant_failure", "Inactive tenant failure", { status: inactiveTenant.status, httpStatus: inactiveProbe.status })
+    : fail("inactive_tenant_failure", "Inactive tenant failure", "INACTIVE_TENANT_NOT_CLOSED", { tenant: inactiveTenant, probe: inactiveProbe }))
+
+  const reserved = ["admin", "app", "www", "pharm", "api", "status", "docs"]
+  const [adminHost, appHost, pharmHost] = await Promise.all([probe("admin.synapseos.tech"), probe("app.synapseos.tech"), probe("pharm.synapseos.tech")])
+  const reservedPass = reserved.every((slug) => facilitySlugFromHost(`${slug}.synapseos.tech`) === null) && [adminHost, appHost, pharmHost].every((result) => result.status > 0 && result.status !== 404)
+  steps.push(reservedPass
+    ? pass("reserved_hosts", "Reserved hosts", { reserved, admin: adminHost.status, app: appHost.status, pharm: pharmHost.status })
+    : fail("reserved_hosts", "Reserved hosts", "RESERVED_HOST_ROUTED_AS_TENANT"))
+
+  const spoofed = await probe("domain-test.synapseos.tech", { "x-tenant-id": String(pharmacyTenant?.id ?? "spoof"), "x-tenant-slug": "pharm-synapse-acceptance-pharmacy" })
+  steps.push(spoofed.status === known.status && spoofed.location === known.location
+    ? pass("spoofed_header_rejection", "Spoofed header rejection", { known, spoofed })
+    : fail("spoofed_header_rejection", "Spoofed header rejection", "SPOOF_CHANGED_ROUTE", { known, spoofed }))
+
+  const [{ data: pharmacyFlags }, pharmacyWorkspace] = await Promise.all([
+    pharmacyTenant ? db.from("feature_flags").select("feature_key").eq("tenant_id", pharmacyTenant.id).eq("is_enabled", true) : Promise.resolve({ data: [] }),
+    probe("pharm.synapseos.tech"),
+  ])
+  const pharmacyKeys = new Set((pharmacyFlags ?? []).map((row: Record<string, unknown>) => String(row.feature_key)))
+  const pharmacyPass = pharmacyTenant?.is_active === true && pharmacyStores?.length === 1 && ["pharmacy_core", "inventory", "pos"].every((key) => pharmacyKeys.has(key)) && pharmacyWorkspace.status === 200
+  steps.push(pharmacyPass
+    ? pass("pharmacy_workspace", "Pharmacy workspace", { tenantId: pharmacyTenant.id, storeCount: pharmacyStores.length, status: pharmacyWorkspace.status })
+    : fail("pharmacy_workspace", "Pharmacy workspace", "PHARMACY_WORKSPACE_INCOMPLETE", { tenant: pharmacyTenant, storeCount: pharmacyStores?.length ?? 0, status: pharmacyWorkspace.status }))
+
+  const [{ data: labFlags }, { data: labAdmins }, labWorkspace] = await Promise.all([
+    labTenant ? db.from("feature_flags").select("feature_key").eq("tenant_id", labTenant.id).eq("is_enabled", true) : Promise.resolve({ data: [] }),
+    labTenant ? db.from("profiles").select("id, role").eq("tenant_id", labTenant.id).eq("role", "lab_admin") : Promise.resolve({ data: [] }),
+    probe("synapse-pilot-lab.synapseos.tech"),
+  ])
+  const labKeys = (labFlags ?? []).map((row: Record<string, unknown>) => String(row.feature_key)).sort()
+  const labPass = labTenant?.is_active === true && JSON.stringify(labKeys) === JSON.stringify(["billing", "core", "lab", "registration", "reports"]) && labAdmins?.length === 1 && labWorkspace.status === 307 && labWorkspace.location?.startsWith("/login")
+  steps.push(labPass
+    ? pass("laboratory_workspace", "Laboratory workspace", { tenantId: labTenant.id, modules: labKeys, labAdminCount: labAdmins.length, status: labWorkspace.status })
+    : fail("laboratory_workspace", "Laboratory workspace", "LABORATORY_WORKSPACE_INCOMPLETE", { tenant: labTenant, modules: labKeys, labAdminCount: labAdmins?.length ?? 0, probe: labWorkspace }))
 
   const status = steps.every((s) => s.status === "PASS") ? "PASS" : "FAIL"
   const completedAt = new Date().toISOString()
