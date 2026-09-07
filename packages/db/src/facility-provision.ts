@@ -179,6 +179,19 @@ async function provisionPharmacyFacility(
     .maybeSingle()
 
   if (existingRun?.status === "COMPLETE" && existingRun.tenant_id) {
+    const [{ data: existingSteps }, { data: existingInvite }] = await Promise.all([
+      db
+        .from("facility_provisioning_steps")
+        .select("step, status, error_code, safe_error_message, evidence")
+        .eq("run_id", existingRun.id),
+      db
+        .from("facility_invitations")
+        .select("invite_token, status")
+        .eq("run_id", existingRun.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ])
     return {
       ok: true,
       runId: existingRun.id,
@@ -187,8 +200,16 @@ async function provisionPharmacyFacility(
       slug: existingRun.slug,
       status: "COMPLETE",
       correlationId: existingRun.correlation_id,
-      steps: [],
+      steps: (existingSteps ?? []).map((step: Record<string, unknown>) => ({
+        step: step.step as never,
+        status: step.status as never,
+        errorCode: (step.error_code as string) ?? null,
+        safeErrorMessage: (step.safe_error_message as string) ?? null,
+        evidence: (step.evidence as Record<string, unknown>) ?? {},
+      })),
       warnings: ["Idempotent replay — existing COMPLETE pharmacy run"],
+      inviteToken: (existingInvite?.invite_token as string | undefined) ?? null,
+      inviteStatus: (existingInvite?.status as string | undefined) ?? null,
       facilityType: "pharmacy",
       workspaceUrl: pharmacyLoginUrl(existingRun.slug),
     }
@@ -628,6 +649,7 @@ async function provisionPharmacyFacility(
     .update({
       status: finalStatus,
       completed_at: finalStatus === "FAILED" ? null : nowIso(),
+      failure_code: null,
       failed_at: finalStatus === "FAILED" ? nowIso() : null,
       current_step: "finalize",
       updated_at: nowIso(),

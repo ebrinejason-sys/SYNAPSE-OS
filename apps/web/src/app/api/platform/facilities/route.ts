@@ -113,7 +113,7 @@ export async function POST(request: Request) {
     includeDispensing: Boolean(body.includeDispensing),
   })
 
-  if (result.ok && result.inviteToken && body.sendInvite !== false) {
+  if (result.ok && result.inviteToken && result.inviteStatus === "PENDING" && body.sendInvite !== false) {
     try {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://synapseos.tech"
       const inviteUrl =

@@ -311,10 +311,19 @@ export async function provisionHospital(
     .maybeSingle()
 
   if (existingRun?.status === "COMPLETE" && existingRun.tenant_id) {
-    const { data: steps } = await db
-      .from("facility_provisioning_steps")
-      .select("step, status, error_code, safe_error_message, evidence")
-      .eq("run_id", existingRun.id)
+    const [{ data: steps }, { data: existingInvite }] = await Promise.all([
+      db
+        .from("facility_provisioning_steps")
+        .select("step, status, error_code, safe_error_message, evidence")
+        .eq("run_id", existingRun.id),
+      db
+        .from("facility_invitations")
+        .select("invite_token, status")
+        .eq("run_id", existingRun.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ])
     return {
       ok: true,
       runId: existingRun.id,
@@ -331,6 +340,8 @@ export async function provisionHospital(
         evidence: (s.evidence as Record<string, unknown>) ?? {},
       })),
       warnings: ["Idempotent replay — existing COMPLETE run returned"],
+      inviteToken: (existingInvite?.invite_token as string | undefined) ?? null,
+      inviteStatus: (existingInvite?.status as string | undefined) ?? null,
     }
   }
 

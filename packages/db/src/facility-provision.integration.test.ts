@@ -65,8 +65,11 @@ describe('facility orchestration with persisted effects', () => {
     expect(db.tables.facility_invitations).toHaveLength(1)
     expect(db.tables.tenant_subscriptions).toHaveLength(1)
     expect(db.tables.tenants[0].is_active).toBe(true)
+    if (type === 'pharmacy') expect(db.tables.facility_provisioning_runs[0].failure_code).toBeNull()
     const counts = Object.fromEntries(Object.entries(db.tables).map(([k, v]) => [k, v.length]))
-    await provisionFacility(db, input(type))
+    const replayed = await provisionFacility(db, input(type))
+    expect(replayed.inviteToken).toBe(db.tables.facility_invitations[0].invite_token)
+    expect(replayed.inviteStatus).toBe(db.tables.facility_invitations[0].status)
     expect(Object.fromEntries(Object.entries(db.tables).map(([k, v]) => [k, v.length]))).toEqual(counts)
   })
   it('laboratory keeps its tenant link, exact lean modules, and lab administrator', async () => {
