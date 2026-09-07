@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { facilitySlugFromHost, lookupActiveTenant, sanitizedTenantHeaders } from "./lib/tenant-routing";
 import { verifyToken } from '@synapse/auth/tokens'
 import { SESSION_COOKIE } from '@synapse/config/constants'
 
@@ -169,12 +170,12 @@ async function hasPlatformControlPlaneAccess(
 async function isTenantActive(tenantId: string) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) return true;
+  if (!supabaseUrl || !supabaseKey) return false;
 
   try {
     const tenantUrl = new URL(`${supabaseUrl}/rest/v1/tenants`);
     tenantUrl.searchParams.set("id", `eq.${tenantId}`);
-    tenantUrl.searchParams.set("select", "is_active");
+    tenantUrl.searchParams.set("select", "is_active,status");
     tenantUrl.searchParams.set("limit", "1");
     const tenantResponse = await fetch(tenantUrl, {
       headers: {
@@ -183,31 +184,59 @@ async function isTenantActive(tenantId: string) {
       },
       cache: "no-store",
     });
-    if (!tenantResponse.ok) return true;
-    const [tenant] = (await tenantResponse.json()) as { is_active?: boolean | null }[];
-    return tenant?.is_active !== false;
+    if (!tenantResponse.ok) return false;
+    const [tenant] = (await tenantResponse.json()) as { is_active?: boolean | null; status?: string }[];
+    return tenant?.is_active === true && tenant.status === "active";
   } catch {
-    return true;
+    return false;
   }
 }
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = (request.headers.get("host") ?? "").split(":")[0]?.toLowerCase() ?? "";
-  const forwardedHeaders = new Headers(request.headers);
-  forwardedHeaders.delete("x-tenant-id");
-  forwardedHeaders.delete("x-tenant-domain");
-  forwardedHeaders.delete("x-tenant-slug");
+  const forwardedHeaders = sanitizedTenantHeaders(request.headers);
+  const next = () => NextResponse.next({ request: { headers: forwardedHeaders } });
+  const rewrite = (url: URL) => NextResponse.rewrite(url, { request: { headers: forwardedHeaders } });
+  const isStatic = pathname.startsWith("/_next/") || (!/^\/(api|os)(?:\/|$)/.test(pathname) && /\.(svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2)$/.test(pathname));
+  if (isStatic) return next();
 
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/api/") ||
-    /\.(svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2)$/.test(pathname)
-  ) {
-    return NextResponse.next({ request: { headers: forwardedHeaders } });
+  const hostSlug = facilitySlugFromHost(hostname);
+  // Root /os/:slug routes are also tenant-scoped. A tenant host may never select another path tenant.
+  const pathSlug = pathname.match(/^\/os\/([^/]+)(?:\/|$)/)?.[1];
+  if (hostSlug && pathSlug && pathSlug !== hostSlug) {
+    return new NextResponse("Facility unavailable", { status: 404 });
   }
+  const routedSlug = hostSlug ?? pathSlug;
+  if (routedSlug) {
+    const tenant = await lookupActiveTenant(routedSlug, {
+      url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      key: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    });
+    if (!tenant) return new NextResponse("Facility unavailable", { status: 404 });
+    const session = await hasSynapseSession(request);
+    if (session.valid && session.tenantId !== tenant.id) {
+      return new NextResponse("Tenant access denied", { status: 403 });
+    }
+    forwardedHeaders.set("x-tenant-id", tenant.id);
+    forwardedHeaders.set("x-tenant-slug", tenant.slug);
+    forwardedHeaders.set("x-tenant-type", tenant.facility_type);
+    forwardedHeaders.set("x-hospital-subdomain", tenant.slug);
+    if (pathname === "/api" || pathname.startsWith("/api/")) return next();
+    if (pathname === "/login" || pathname.startsWith("/invite/") || pathname === "/forgot-password" || pathname.startsWith("/reset-password")) return next();
+    if (!session.valid) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("next", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    if (tenant.facility_type === "pharmacy") return NextResponse.redirect(standalonePharmacyUrl(request, tenant.slug));
+    // Shared workspaces keep their native paths; only tenant shell paths are rewritten.
+    if (!hostSlug || pathSlug || /^\/(lab|hospital|admin|doctor|nurse|encounter|patient)(?:\/|$)/.test(pathname)) return next();
+    return rewrite(new URL(`/os/${tenant.slug}${pathname === "/" ? "" : pathname}`, request.url));
+  }
+  if (pathname === "/api" || pathname.startsWith("/api/")) return next();
 
-  const isLocal = hostname.includes("localhost") || hostname.includes("127.0.0.1");
+  const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
   const parts = hostname.split(".");
   const rawSubdomain = parts[0] ?? "";
 
@@ -220,11 +249,12 @@ export async function middleware(request: NextRequest) {
     hostname.startsWith("synapseos.") ||
     hostname.startsWith("www.") ||
     isLocal ||
-    hostname.includes("vercel.app");
+    hostname.endsWith(".vercel.app");
 
-  const subdomain = isRootDomain ? (request.nextUrl.searchParams.get("subdomain") ?? "") : rawSubdomain;
+  const subdomain = isRootDomain ? (isLocal ? request.nextUrl.searchParams.get("subdomain") ?? "" : "") : rawSubdomain;
+  if (["api", "status", "docs"].includes(subdomain)) return new NextResponse("Not found", { status: 404 });
 
-  if (!isLocal && !hostname.includes("vercel.app") && !isSynapseManagedDomain) {
+  if (!isLocal && !hostname.endsWith(".vercel.app") && !isSynapseManagedDomain) {
     const pharmacyDomain = await resolvePharmacyCustomDomain(hostname);
     if (pharmacyDomain) {
       return NextResponse.redirect(standalonePharmacyUrl(request, pharmacyDomain.slug));
@@ -235,7 +265,7 @@ export async function middleware(request: NextRequest) {
   if (subdomain === "demo") {
     const url = request.nextUrl.clone();
     url.pathname = `/demo${pathname === "/" ? "" : pathname}`;
-    return NextResponse.rewrite(url);
+    return rewrite(url);
   }
 
   // ── APP subdomain: consumer health portal ───────────────────────────
@@ -243,16 +273,16 @@ export async function middleware(request: NextRequest) {
     if (pathname === "/" || pathname === "") {
       const url = request.nextUrl.clone();
       url.pathname = "/app-portal";
-      return NextResponse.rewrite(url);
+      return rewrite(url);
     }
-    return NextResponse.next();
+    return next();
   }
 
   // ── ADMIN subdomain: email-gated ──────────────────────────────────
   if (subdomain === "admin") {
     // Invite redemption is public — don't rewrite or gate it
     if (pathname.startsWith("/invite/") || pathname.startsWith("/platform/invite/")) {
-      return NextResponse.next();
+      return next();
     }
 
     const platformPath = pathname.startsWith("/platform")
@@ -280,12 +310,12 @@ export async function middleware(request: NextRequest) {
             const url = request.nextUrl.clone();
             url.pathname = "/platform/login";
             url.searchParams.set("error", "unauthorized");
-            return NextResponse.rewrite(url);
+            return rewrite(url);
           }
         } catch {
           const url = request.nextUrl.clone();
           url.pathname = "/platform/login";
-          return NextResponse.rewrite(url);
+          return rewrite(url);
         }
       }
     }
@@ -302,19 +332,19 @@ export async function middleware(request: NextRequest) {
       } else {
         url.pathname = '/platform/login'
       }
-      return NextResponse.rewrite(url)
+      return rewrite(url)
     }
 
     const url = request.nextUrl.clone();
     url.pathname = platformPath;
-    return NextResponse.rewrite(url);
+    return rewrite(url);
   }
 
   // ── PHARM subdomain: standalone pharmacy app ─────────────────────
   if (subdomain === "pharm") {
     // Invite redemption is public — no auth, no rewrite
     if (pathname.startsWith("/invite/")) {
-      return NextResponse.next();
+      return next();
     }
 
     const { valid: pharmSessionValid } = await hasSynapseSession(request);
@@ -324,7 +354,7 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       url.searchParams.set("next", pathname);
-      return NextResponse.rewrite(url);
+      return rewrite(url);
     }
 
     // Rewrite to /pharmacy/* routes
@@ -336,7 +366,7 @@ export async function middleware(request: NextRequest) {
         : `/pharmacy${pathname}`;
     const url = request.nextUrl.clone();
     url.pathname = pharmPath;
-    return NextResponse.rewrite(url);
+    return rewrite(url);
   }
 
   // ── PHARM-{SLUG} subdomain: tenant-specific redirect ─────────────
@@ -345,46 +375,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(standalonePharmacyUrl(request, `pharm-${pharmacySlug}`));
   }
 
-  if (subdomain && pathname.startsWith(`/os/${subdomain}`)) {
-    const response = NextResponse.next({ request: { headers: forwardedHeaders } });
-    response.headers.set("x-hospital-subdomain", subdomain);
-    return response;
-  }
-
   if (subdomain && subdomain !== "www" && subdomain !== "synapseos") {
-    const { valid: synapseValid, tenantId: synapseTenantId } = await hasSynapseSession(request)
-
-    if (synapseValid && synapseTenantId) {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      if (supabaseUrl && supabaseKey) {
-        try {
-          const hospitalUrl = new URL(`${supabaseUrl}/rest/v1/hospitals`)
-          hospitalUrl.searchParams.set("subdomain", `eq.${subdomain}`)
-          hospitalUrl.searchParams.set("select", "settings")
-          hospitalUrl.searchParams.set("limit", "1")
-          const hres = await fetch(hospitalUrl, {
-            headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
-            cache: "no-store",
-          })
-          if (hres.ok) {
-            const [hospital] = (await hres.json()) as { settings?: Record<string, string> }[]
-            const hostTenantId = hospital?.settings?.tenant_id
-            if (hostTenantId && hostTenantId !== synapseTenantId) {
-              return NextResponse.redirect(new URL("/login?error=wrong_tenant", request.url))
-            }
-          }
-        } catch {
-          /* non-fatal */
-        }
-      }
-    }
-
-    const response = NextResponse.rewrite(
-      new URL(`/os/${subdomain}${pathname === "/" ? "" : pathname}`, request.url)
-    );
-    response.headers.set("x-hospital-subdomain", subdomain);
-    return response;
+    return new NextResponse("Facility unavailable", { status: 404 });
   }
 
   const { valid: synapseValid, tenantId: synapseTenantId } = await hasSynapseSession(request)
@@ -413,9 +405,9 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return NextResponse.next({ request });
+  return next();
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/:path*"],
 };

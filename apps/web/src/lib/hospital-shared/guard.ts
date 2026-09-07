@@ -16,7 +16,7 @@ export async function requireHospitalCapability(
       module,
       resource,
       action,
-      ctx.facilityType === 'hospital' ? 'hospital' : 'any',
+      ['hospital', 'laboratory'].includes(ctx.facilityType) ? ctx.facilityType : 'any',
     )
     return null
   } catch (e) {

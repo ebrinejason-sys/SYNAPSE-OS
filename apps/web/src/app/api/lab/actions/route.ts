@@ -9,7 +9,7 @@ import { executeHospitalLabAction } from "@/lib/hospital-lab-db"
 export const dynamic = "force-dynamic"
 
 function canUseLab(role: string | undefined, email: string | null) {
-  return hasPlatformAdminAccess(role, email) || role === "lab_tech" || role === "lab_scientist" || role === "doctor"
+  return hasPlatformAdminAccess(role, email) || ["lab_tech", "lab_technician", "lab_scientist", "lab_admin"].includes(role ?? "") || role === "doctor"
 }
 
 export async function POST(request: Request) {
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const ctx = await requireHospitalStaffContext()
+  const ctx = await requireHospitalStaffContext({ allowLaboratory: true })
   if (isContextError(ctx)) return ctx
 
   // Role-appropriate capabilities — collect ≠ enter ≠ verify
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       cap = null
     }
   } else if (action === "verify" || action === "release") {
-    if (user.role === "lab_tech") {
+    if (["lab_tech", "lab_technician"].includes(user.role ?? "")) {
       return NextResponse.json(
         { error: "lab_tech cannot verify or release; lab_scientist required" },
         { status: 403 },

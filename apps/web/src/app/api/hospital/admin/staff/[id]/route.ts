@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 type RouteParams = { params: Promise<{ id: string }> }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const ctx = await requireHospitalAdminContext()
+  const ctx = await requireHospitalAdminContext({ allowLaboratory: true })
   if (isContextError(ctx)) return ctx
 
   const cap = await requireHospitalCapability(ctx, 'staff', 'write')
@@ -26,8 +26,17 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
+  if (ctx.facilityType === 'laboratory' && !['lab_admin', 'lab_scientist', 'lab_technician', 'receptionist', 'billing_officer'].includes(parsed.data.role)) {
+    return NextResponse.json({ error: 'Role unavailable for a standalone laboratory.' }, { status: 403 })
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
+
+  if (parsed.data.department_id) {
+    const { data: department } = await db.from('departments').select('id').eq('id', parsed.data.department_id).eq('tenant_id', ctx.tenantId).maybeSingle()
+    if (!department) return NextResponse.json({ error: 'Department unavailable for this facility.' }, { status: 403 })
+  }
   const { data: existing } = await db
     .from('profiles')
     .select('*')
@@ -36,6 +45,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .maybeSingle()
 
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (['platform_admin', 'superadmin', 'platform_observer'].includes(existing.role)) {
+    return NextResponse.json({ error: 'Platform accounts cannot be changed through facility administration.' }, { status: 403 })
+  }
 
   const patch: Record<string, unknown> = {}
   if (parsed.data.role !== undefined) patch.role = parsed.data.role
@@ -46,6 +59,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .from('profiles')
     .update(patch)
     .eq('id', id)
+    .eq('tenant_id', ctx.tenantId)
     .select('id, email, full_name, role, department_id, is_deleted')
     .single()
 

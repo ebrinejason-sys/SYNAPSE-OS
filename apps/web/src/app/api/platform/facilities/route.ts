@@ -124,7 +124,7 @@ export async function POST(request: Request) {
         to: String(body.adminEmail ?? "").trim().toLowerCase(),
         hospitalName: String(body.facilityName ?? result.slug),
         staffName: String(body.adminName ?? "Facility Admin"),
-        role: facilityType === "pharmacy" ? "pharmacy_admin" : "hospital_admin",
+        role: facilityType === "pharmacy" ? "pharmacy_admin" : facilityType === "laboratory" ? "lab_admin" : "hospital_admin",
         inviteUrl,
       })
       await (supabaseAdmin as any)

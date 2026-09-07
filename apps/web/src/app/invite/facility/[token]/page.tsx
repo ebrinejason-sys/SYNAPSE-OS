@@ -42,7 +42,7 @@ export default function FacilityInviteRedeemPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-12">
-      <h1 className="text-2xl font-bold">Set your hospital admin password</h1>
+      <h1 className="text-2xl font-bold">Set your facility account password</h1>
       <p className="mt-2 text-sm text-slate-400">Single-use invite. Choose a password to activate your account.</p>
       <form onSubmit={submit} className="mt-6 space-y-4">
         <label className="block space-y-1 text-sm">

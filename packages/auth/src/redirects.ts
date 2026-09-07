@@ -49,6 +49,10 @@ export function getPostLoginPath(ctx: PostLoginContext): string {
     return `${base}/portal/dashboard`
   }
 
+  if (ctx.tenantFacilityType === 'laboratory' || ['lab_admin', 'lab_scientist', 'lab_technician'].includes(role)) {
+    return '/lab/orders'
+  }
+
   if (role === 'patient') {
     return '/health/dashboard'
   }

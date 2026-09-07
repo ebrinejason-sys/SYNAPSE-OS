@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { verifyToken } from '@synapse/auth/tokens'
 import { validateSession } from '@synapse/auth'
@@ -8,7 +8,7 @@ import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE } from '@synapse/config/constants'
 import type { HospitalContext } from '../hospital-shared'
 
-export async function requireHospitalStaffContext(): Promise<
+export async function requireHospitalStaffContext(options: { allowLaboratory?: boolean } = {}): Promise<
   HospitalContext | NextResponse
 > {
   const cookieStore = await cookies()
@@ -41,13 +41,17 @@ export async function requireHospitalStaffContext(): Promise<
 
   const { data: tenant } = await db
     .from('tenants')
-    .select('facility_type')
+    .select('facility_type,is_active,status')
     .eq('id', profile.tenant_id)
     .maybeSingle()
 
-  const facilityType = String(tenant?.facility_type ?? 'hospital')
+  const trustedTenantId = (await headers()).get('x-tenant-id')
+  if (!tenant || tenant.is_active !== true || tenant.status !== 'active' || (trustedTenantId && trustedTenantId !== profile.tenant_id)) {
+    return NextResponse.json({ error: 'Facility unavailable' }, { status: 403 })
+  }
+  const facilityType = String(tenant.facility_type)
   const role = String(profile.role ?? payload.role ?? '')
-  if (facilityType !== 'hospital' && role !== 'platform_admin') {
+  if (facilityType !== 'hospital' && !(options.allowLaboratory && facilityType === 'laboratory') && role !== 'platform_admin') {
     return NextResponse.json({ error: 'Hospital facility required' }, { status: 403 })
   }
 

@@ -1,4 +1,6 @@
 import { cache } from "react";
+import { headers } from "next/headers";
+import { facilitySlugFromHost, RESERVED_HOSTS } from "./tenant-routing";
 import { createServiceClient } from "./supabase/server";
 
 export type TenantContext = {
@@ -19,10 +21,14 @@ type HospitalRow = {
 type TenantRow = {
   id: string;
   plan: string;
+  is_active: boolean;
+  status: string;
 };
 
 export const resolveTenant = cache(async (subdomain: string): Promise<TenantContext | null> => {
-  if (!subdomain) return null;
+  if (!subdomain || RESERVED_HOSTS.has(subdomain)) return null;
+  const hostSlug = facilitySlugFromHost((await headers()).get("host") ?? "");
+  if (hostSlug && hostSlug !== subdomain) return null;
   const supabase = createServiceClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,9 +45,11 @@ export const resolveTenant = cache(async (subdomain: string): Promise<TenantCont
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: tenant } = (await (supabase as any)
     .from("tenants")
-    .select("id, plan")
+    .select("id, plan, is_active, status")
     .eq("id", tenantId)
     .single()) as { data: TenantRow | null; error: unknown };
+
+  if (!tenant?.id || tenant.is_active !== true || tenant.status !== "active") return null;
 
   return {
     tenantId: tenant?.id ?? tenantId,

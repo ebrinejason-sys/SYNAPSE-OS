@@ -1,3 +1,4 @@
+import { provisioningCanActivate } from "./hospital-provision-catalog"
 /**
  * Generic facility provisioning entry points.
  * Hospital path reuses durable hospital-provision workflow.
@@ -210,6 +211,7 @@ async function provisionPharmacyFacility(
         facility_level: "CLINIC",
         metadata: {
           facility_type: "pharmacy",
+          modules,
           contact: {
             name: input.contactName ?? input.adminName,
             email: input.contactEmail ?? adminEmail,
@@ -268,13 +270,13 @@ async function provisionPharmacyFacility(
         failed_at: nowIso(),
         current_step: step,
         updated_at: nowIso(),
-        metadata: { last_error: message, facility_type: "pharmacy" },
+        metadata: { ...existingRun?.metadata, last_error: message, facility_type: "pharmacy", modules, tier: input.tier ?? "trial", contact: { name: input.adminName, email: adminEmail, phone: input.adminPhone ?? null } },
       })
       .eq("id", runId)
     if (tenantId) {
       await db
         .from("tenants")
-        .update({ status: "failed", is_active: false, updated_at: nowIso() })
+        .update({ status: "suspended", is_active: false, updated_at: nowIso() })
         .eq("id", tenantId)
     }
     steps.push({ step: step as never, status: "FAILED", errorCode: code, safeErrorMessage: message })
@@ -332,6 +334,8 @@ async function provisionPharmacyFacility(
       slug,
       name: facilityName,
       facility_type: "pharmacy",
+      is_synthetic: mode === "SYNTHETIC_ACCEPTANCE",
+      environment: mode === "SYNTHETIC_ACCEPTANCE" ? "demo" : "production",
       district: input.district || null,
       country: input.country ?? "UG",
       email: adminEmail,
@@ -447,25 +451,12 @@ async function provisionPharmacyFacility(
         { onConflict: "tenant_id" },
       )
       if (error) {
-        warnings.push(`subscription: ${error.message}`)
-        await db.from("facility_provisioning_steps").upsert(
-          {
-            run_id: runId,
-            step: "subscription",
-            status: "SKIPPED",
-            evidence: { reason: error.message },
-            completed_at: nowIso(),
-            updated_at: nowIso(),
-          },
-          { onConflict: "run_id,step" },
-        )
-        steps.push({ step: "subscription" as never, status: "SKIPPED" })
+        return fail("subscription", "SUBSCRIPTION_UPSERT", "Subscription setup failed")
       } else {
         await complete("subscription", { planId: planRow.id })
       }
     } else {
-      warnings.push("No pharmacy subscription plan found")
-      await complete("subscription", { skipped: true })
+      return fail("subscription", "SUBSCRIPTION_PLAN_MISSING", "No pharmacy subscription plan configured")
     }
   }
 
@@ -584,13 +575,7 @@ async function provisionPharmacyFacility(
         .select("id")
         .single()
       if (error) {
-        warnings.push(`invitation: ${error.message}`)
-        steps.push({
-          step: "invitation" as never,
-          status: "FAILED",
-          errorCode: "INVITE_INSERT",
-          safeErrorMessage: error.message,
-        })
+        return fail("invitation", "INVITE_INSERT", "Secure administrator invitation could not be created")
       } else {
         await complete("invitation", { inviteId: invite.id })
       }
@@ -606,16 +591,12 @@ async function provisionPharmacyFacility(
   })
 
   // finalize
-  const hardFail = steps.some(
-    (s) =>
-      ["core_tenant", "facility_profile", "modules", "store", "administrator"].includes(s.step) &&
-      s.status === "FAILED",
-  )
-  const finalStatus = hardFail ? "FAILED" : warnings.length ? "READY_WITH_WARNINGS" : "COMPLETE"
+  const canActivate = provisioningCanActivate(steps, ["core_tenant", "facility_profile", "modules", "store", "subscription", "administrator", "invitation", "domain"])
+  const finalStatus = !canActivate ? "FAILED" : warnings.length ? "READY_WITH_WARNINGS" : "COMPLETE"
   if (finalStatus === "FAILED") {
     await db
       .from("tenants")
-      .update({ status: "failed", is_active: false, updated_at: nowIso() })
+      .update({ status: "suspended", is_active: false, updated_at: nowIso() })
       .eq("id", tenantId)
   } else {
     await db
@@ -701,27 +682,6 @@ async function provisionLaboratoryFacility(
     createdBy: input.createdBy,
     sendInvite: input.sendInvite,
   })
-
-  if (result.tenantId) {
-    await db
-      .from("tenants")
-      .update({ facility_type: "laboratory", updated_at: nowIso() })
-      .eq("id", result.tenantId)
-    if (result.hospitalId) {
-      await db
-        .from("hospitals")
-        .update({
-          type: "general",
-          facility_kind: "laboratory",
-          settings: {
-            facility_type: "laboratory",
-            source: "platform_onboarding",
-            ownership: input.ownership ?? "PUBLIC",
-          },
-        })
-        .eq("id", result.hospitalId)
-    }
-  }
 
   return {
     ...result,

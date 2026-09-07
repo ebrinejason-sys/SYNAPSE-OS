@@ -77,6 +77,10 @@ export function resolveDashboardForUser(ctx: DashboardContext): ResolvedDashboar
     }
   }
 
+  if (facilityType === 'laboratory') {
+    return { redirectPath: '/lab/orders', primaryModules: ['core', 'registration', 'lab', 'billing', 'reports'].filter(key => enabledModules.includes(key)), quickActions: ['view_pending', 'enter_results'] }
+  }
+
   const roleBase   = ROLE_BASE[role] ?? 'dashboard'
   const facilityMods  = FACILITY_MODULES[facilityType] ?? ['clinical']
   const allFeatures   = new Set([...enabledModules, ...subscriptionFeatures])

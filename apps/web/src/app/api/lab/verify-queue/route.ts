@@ -19,7 +19,7 @@ export async function GET() {
     return NextResponse.json({ error: "lab_scientist required for verification queue" }, { status: 403 })
   }
 
-  const ctx = await requireHospitalStaffContext()
+  const ctx = await requireHospitalStaffContext({ allowLaboratory: true })
   if (isContextError(ctx)) return ctx
   const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, "lab")
   if (moduleBlock) return moduleBlock

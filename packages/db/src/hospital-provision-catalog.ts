@@ -109,3 +109,12 @@ export function slugify(value: string): string {
     .replace(/-+/g, "-")
     .slice(0, 48)
 }
+
+/** Infrastructure names can never be allocated to a facility. */
+export const RESERVED_FACILITY_SLUGS = new Set(['admin', 'app', 'www', 'pharm', 'api', 'status', 'docs', 'demo'])
+
+/** Required provisioning steps must complete; skipped work is not success. */
+export function provisioningCanActivate(steps: ReadonlyArray<{ step: string; status: string }>, required: readonly string[]): boolean {
+  return required.every(key => steps.some(step => step.step === key && step.status === 'COMPLETE')) &&
+    !steps.some(step => step.status === 'FAILED')
+}

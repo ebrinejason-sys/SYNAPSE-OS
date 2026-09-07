@@ -1,3 +1,4 @@
+import { RESERVED_FACILITY_SLUGS, provisioningCanActivate } from "./hospital-provision-catalog"
 /**
  * Durable hospital facility provisioning (Platform Admin onboarding).
  * Explicit step status — never silently ignore failures.
@@ -50,6 +51,7 @@ export const PROVISION_STEP_KEYS = [
   "subscription",
   "administrator",
   "invitation",
+  "domain",
   "synthetic_staff",
   "synthetic_guards",
   "finalize",
@@ -286,11 +288,12 @@ export async function provisionHospital(
 ): Promise<ProvisionHospitalResult> {
   const mode: ProvisionMode = input.mode ?? "REAL"
   const slug =
-    mode === "SYNTHETIC_ACCEPTANCE"
+    mode === "SYNTHETIC_ACCEPTANCE" && !input.slug
       ? HOSPITAL_CANONICAL_SLUG
       : slugify(input.slug || input.facilityName)
   const facilityName =
-    mode === "SYNTHETIC_ACCEPTANCE" ? HOSPITAL_CANONICAL_NAME : input.facilityName.trim()
+    mode === "SYNTHETIC_ACCEPTANCE" && !input.facilityName.trim() ? HOSPITAL_CANONICAL_NAME : input.facilityName.trim()
+  const adminRole = input.facilityType === "laboratory" ? "lab_admin" : "hospital_admin"
   const adminEmail = input.adminEmail.trim().toLowerCase()
   const correlationId = crypto.randomUUID()
   const idempotencyKey =
@@ -347,6 +350,8 @@ export async function provisionHospital(
         ownership: input.ownership,
         facility_level: input.facilityLevel,
         metadata: {
+          facility_type: input.facilityType ?? "hospital",
+          modules: input.modules ?? defaultModulesForLevel(input.facilityLevel),
           contact: {
             name: input.contactName ?? input.adminName,
             email: input.contactEmail ?? adminEmail,
@@ -386,7 +391,7 @@ export async function provisionHospital(
 
   // ── validate ──────────────────────────────────────────────────────────
   await beginStep(db, runId!, "validate")
-  if (!facilityName || !slug || !adminEmail || !input.adminName?.trim()) {
+  if (!facilityName || !slug || RESERVED_FACILITY_SLUGS.has(slug) || !adminEmail || !input.adminName?.trim()) {
     await failStep(db, runId!, "validate", "VALIDATION", "Facility name, slug, admin name and email are required")
     await failRun(db, runId!, "VALIDATION", "Missing required fields")
     return failResult(runId!, slug, correlationId, "Missing required fields")
@@ -427,6 +432,8 @@ export async function provisionHospital(
       phone: input.contactPhone || input.adminPhone || null,
       email: input.contactEmail || adminEmail,
       plan: input.tier ?? "trial",
+      is_synthetic: isSynthetic,
+      environment: isSynthetic ? "demo" : "production",
       // Never appear ACTIVE until finalize succeeds
       status: "provisioning",
       is_active: false,
@@ -489,8 +496,10 @@ export async function provisionHospital(
       name: facilityName,
       subdomain: slug,
       type: hospitalsTypeFromLevel(input.facilityLevel),
+      facility_kind: input.facilityType === "laboratory" ? "laboratory" : "hospital",
       settings: {
         tenant_id: tenantId,
+        facility_type: input.facilityType ?? "hospital",
         ownership: input.ownership,
         facility_level: input.facilityLevel,
         city: input.city || null,
@@ -560,7 +569,9 @@ export async function provisionHospital(
   await beginStep(db, runId!, "departments")
   {
     const deptDefs =
-      mode === "SYNTHETIC_ACCEPTANCE"
+      input.facilityType === "laboratory"
+        ? HOSPITAL_DEPARTMENTS.filter(d => ["reception", "laboratory", "billing"].includes(d.code))
+        : mode === "SYNTHETIC_ACCEPTANCE"
         ? HOSPITAL_DEPARTMENTS
         : HOSPITAL_DEPARTMENTS.filter((d) =>
             ["administration", "reception", "triage", "opd", "laboratory", "pharmacy", "billing"].includes(d.code),
@@ -594,9 +605,10 @@ export async function provisionHospital(
 
   // ── locations ─────────────────────────────────────────────────────────
   await beginStep(db, runId!, "locations")
-  if (mode === "SYNTHETIC_ACCEPTANCE") {
+  {
     let created = 0
-    for (const loc of HOSPITAL_LOCATIONS) {
+    const locations = input.facilityType === "laboratory" ? HOSPITAL_LOCATIONS.filter(loc => /lab|reception|billing/i.test(loc.code)) : HOSPITAL_LOCATIONS
+    for (const loc of locations) {
       const { data: existing } = await db
         .from("facility_locations")
         .select("id")
@@ -613,21 +625,17 @@ export async function provisionHospital(
         floor: loc.floor ?? null,
         building: loc.building ?? null,
         is_active: true,
-        is_synthetic: true,
+        is_synthetic: isSynthetic,
       })
       if (error) {
         await failStep(db, runId!, "locations", "LOCATION_INSERT", error.message)
-        warnings.push(`locations: ${error.message}`)
-        // Locations are important for acceptance but allow READY_WITH_WARNINGS
-        break
+        await failRun(db, runId!, "LOCATION_INSERT", "Location setup failed", tenantId)
+        return failResult(runId!, slug, correlationId, "Location setup failed", tenantId, hospitalId, stepResults)
       }
       created += 1
     }
     await completeStep(db, runId!, "locations", { created, total: HOSPITAL_LOCATIONS.length })
     stepResults.push({ step: "locations", status: "COMPLETE", evidence: { created } })
-  } else {
-    await skipStep(db, runId!, "locations", "Locations seeded only in SYNTHETIC_ACCEPTANCE mode")
-    stepResults.push({ step: "locations", status: "SKIPPED" })
   }
 
   // ── subscription ──────────────────────────────────────────────────────
@@ -641,9 +649,8 @@ export async function provisionHospital(
       .eq("is_active", true)
       .maybeSingle()
     if (!planRow?.id) {
-      warnings.push("No hospital subscription plan found — subscription step skipped")
-      await skipStep(db, runId!, "subscription", "No matching subscription_plans row")
-      stepResults.push({ step: "subscription", status: "SKIPPED" })
+      await failStep(db, runId!, "subscription", "SUBSCRIPTION_PLAN_MISSING", "No matching subscription plan")
+      stepResults.push({ step: "subscription", status: "FAILED", errorCode: "SUBSCRIPTION_PLAN_MISSING", safeErrorMessage: "No matching subscription plan" })
     } else if (isSynthetic) {
       // Record protected subscription metadata without live billing
       const { error } = await db.from("tenant_subscriptions").upsert(
@@ -659,9 +666,8 @@ export async function provisionHospital(
         { onConflict: "tenant_id" },
       )
       if (error) {
-        warnings.push(`subscription: ${error.message}`)
-        await skipStep(db, runId!, "subscription", error.message)
-        stepResults.push({ step: "subscription", status: "SKIPPED" })
+        await failStep(db, runId!, "subscription", "SUBSCRIPTION_UPSERT", "Subscription setup failed")
+        stepResults.push({ step: "subscription", status: "FAILED", errorCode: "SUBSCRIPTION_UPSERT", safeErrorMessage: "Subscription setup failed" })
       } else {
         await completeStep(db, runId!, "subscription", { planId: planRow.id, protected: true })
         stepResults.push({ step: "subscription", status: "COMPLETE" })
@@ -704,7 +710,7 @@ export async function provisionHospital(
       .maybeSingle()
 
     if (existingProfile) {
-      if (existingProfile.tenant_id && existingProfile.tenant_id !== tenantId) {
+      if (existingProfile.tenant_id !== tenantId || ["platform_admin", "superadmin", "platform_observer"].includes(existingProfile.role)) {
         await failStep(
           db,
           runId!,
@@ -721,7 +727,7 @@ export async function provisionHospital(
         .update({
           tenant_id: tenantId,
           hospital_id: hospitalId,
-          role: "hospital_admin",
+          role: adminRole,
           is_admin: true,
           must_change_password: true,
           updated_at: nowIso(),
@@ -738,7 +744,7 @@ export async function provisionHospital(
         full_name: input.adminName.trim(),
         first_name: nameParts[0] ?? "Hospital",
         last_name: nameParts.slice(1).join(" ") || "Admin",
-        role: "hospital_admin",
+        role: adminRole,
         tenant_id: tenantId,
         hospital_id: hospitalId,
         is_admin: true,
@@ -790,7 +796,7 @@ export async function provisionHospital(
         run_id: runId,
         email: adminEmail,
         full_name: input.adminName.trim(),
-        role: "hospital_admin",
+        role: adminRole,
         invite_token: inviteToken,
         status: "PENDING",
         expires_at: expiresAt,
@@ -824,11 +830,11 @@ export async function provisionHospital(
 
   // ── synthetic_staff ───────────────────────────────────────────────────
   await beginStep(db, runId!, "synthetic_staff")
-  if (mode === "SYNTHETIC_ACCEPTANCE") {
+  if (mode === "SYNTHETIC_ACCEPTANCE" && input.facilityType !== "laboratory") {
     let staffCreated = 0
     for (const role of HOSPITAL_STAFF_ROLES) {
       if (role.code === "hosp_admin") continue // already created
-      const email = `${role.code}@synapse-integrated.local`
+      const email = `${role.code}@${slug}.synapse-integrated.local`
       const { data: exists } = await db.from("profiles").select("id").eq("email", email).maybeSingle()
       if (exists) continue
       const { error } = await db.from("profiles").insert({
@@ -873,22 +879,32 @@ export async function provisionHospital(
     stepResults.push({ step: "synthetic_guards", status: "SKIPPED" })
   }
 
+  // Persist assignment before activation; DNS verification is a separate live check.
+  await beginStep(db, runId!, "domain")
+  const { error: domainError } = await db.from("facility_domain_records").upsert({
+    tenant_id: tenantId, facility_id: hospitalId, hostname: `${slug}.synapseos.tech`,
+    domain_type: "synapse_subdomain", target_project: "prj_ST72DC6VkMfhon3M1yW2PL575mcd",
+    status: "REQUESTED", updated_at: nowIso(),
+  }, { onConflict: "hostname" })
+  if (domainError) {
+    await failStep(db, runId!, "domain", "DOMAIN_RECORD", "Domain assignment failed")
+    await failRun(db, runId!, "DOMAIN_RECORD", "Domain assignment failed", tenantId)
+    return failResult(runId!, slug, correlationId, "Domain assignment failed", tenantId, hospitalId, stepResults)
+  }
+  await completeStep(db, runId!, "domain", { hostname: `${slug}.synapseos.tech` })
+  stepResults.push({ step: "domain", status: "COMPLETE" })
+
   // ── finalize ──────────────────────────────────────────────────────────
   await beginStep(db, runId!, "finalize")
-  const hardFails = stepResults.filter((s) =>
-    ["core_tenant", "facility_profile", "modules", "departments", "administrator"].includes(s.step) &&
-    s.status === "FAILED",
-  )
-  const softFails = stepResults.filter((s) => s.status === "FAILED")
-  let finalStatus: ProvisionRunStatus = "COMPLETE"
-  if (hardFails.length > 0) finalStatus = "FAILED"
-  else if (softFails.length > 0 || warnings.length > 0) finalStatus = "READY_WITH_WARNINGS"
+  const required = ["core_tenant", "facility_profile", "modules", "departments", "locations", "subscription", "administrator", "invitation", "domain"];
+  const canActivate = provisioningCanActivate(stepResults, required);
+  const finalStatus: ProvisionRunStatus = !canActivate ? "FAILED" : warnings.length ? "READY_WITH_WARNINGS" : "COMPLETE";
 
   await completeStep(db, runId!, "finalize", { finalStatus, warnings })
   stepResults.push({ step: "finalize", status: "COMPLETE", evidence: { finalStatus } })
 
   if (finalStatus === "FAILED") {
-    await setTenantLifecycle(db, tenantId, { status: "failed", is_active: false })
+    await setTenantLifecycle(db, tenantId, { status: "suspended", is_active: false })
   } else {
     // Only successful provisioning becomes ACTIVE / operational
     await setTenantLifecycle(db, tenantId, { status: "active", is_active: true })
@@ -950,7 +966,7 @@ async function failRun(
     })
     .eq("id", runId)
   // FAILED facilities must never appear operational
-  await setTenantLifecycle(db, tid, { status: "failed", is_active: false })
+  await setTenantLifecycle(db, tid, { status: "suspended", is_active: false })
 }
 
 function failResult(
@@ -1024,6 +1040,22 @@ export async function resumeFacilityProvision(
   }
   if (!adminName) adminName = "Facility Admin"
 
+  if (meta.facility_type === "pharmacy" || meta.facility_type === "laboratory") {
+    const { provisionFacility } = await import("./facility-provision")
+    return provisionFacility(db, {
+      facilityType: meta.facility_type,
+      facilityName: String(run.facility_name ?? ""), slug: String(run.slug ?? ""),
+      adminName, adminEmail, createdBy,
+      country: String(meta.country ?? "UG"),
+      tier: (meta.tier as "trial" | "starter" | "professional" | "enterprise") || "trial",
+      modules: Array.isArray(meta.modules) ? meta.modules.map(String) : undefined,
+      licenseNumber: meta.license_number ? String(meta.license_number) : undefined,
+      physicalAddress: meta.physical_address ? String(meta.physical_address) : undefined,
+      mode: run.mode === "SYNTHETIC_ACCEPTANCE" ? "SYNTHETIC_ACCEPTANCE" : "REAL",
+      idempotencyKey: String(run.idempotency_key ?? ""), sendInvite: true,
+    })
+  }
+
   // Clear failed step so retry can re-enter RUNNING
   const failedStep = detail.steps.find((s: Record<string, unknown>) => s.status === "FAILED")
   if (failedStep?.step) {
@@ -1055,6 +1087,8 @@ export async function resumeFacilityProvision(
   }
 
   return provisionHospital(db, {
+    facilityType: (meta.facility_type as ProvisionHospitalInput["facilityType"]) ?? "hospital",
+    modules: Array.isArray(meta.modules) ? meta.modules.map(String) : undefined,
     facilityName: String(run.facility_name ?? ""),
     slug: String(run.slug ?? ""),
     country: meta.country ? String(meta.country) : "UG",

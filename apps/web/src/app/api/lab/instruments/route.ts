@@ -10,7 +10,7 @@ export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const ctx = await requireHospitalStaffContext()
+  const ctx = await requireHospitalStaffContext({ allowLaboratory: true })
   if (isContextError(ctx)) return ctx
   const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, "lab")
   if (moduleBlock) return moduleBlock

@@ -42,7 +42,8 @@
     "seed:admin-password": "tsx scripts/seed-admin-password.ts",
     "seed:pharmacy-pilot": "node scripts/pharmacy-pilot-seed.mjs",
     "seed:pharmacy-pilot:reset": "node scripts/pharmacy-pilot-seed.mjs --reset-inventory",
-    "postinstall": "node scripts/patch-expo-metro-file-store.mjs || true; node scripts/nest-eslint-ajv6.mjs || true"
+    "postinstall": "node scripts/patch-expo-metro-file-store.mjs || true; node scripts/nest-eslint-ajv6.mjs || true",
+    "test:control-plane": "vitest run apps/web/src/lib/tenant-routing.test.ts packages/db/src/facility-provision.integration.test.ts apps/web/src/lib/control-plane-security.test.ts"
   },
   "devDependencies": {
     "supabase": "^2.107.0",

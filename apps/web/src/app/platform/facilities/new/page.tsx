@@ -43,10 +43,11 @@ function CreateFacilityWizard() {
   const [adminEmail, setAdminEmail] = useState("")
   const [adminPhone, setAdminPhone] = useState("")
   const [tier, setTier] = useState("trial")
-  const [modules, setModules] = useState<string[]>(defaultModulesForFacilityType("hospital"))
+  const [modules, setModules] = useState<string[]>(defaultModulesForFacilityType(FACILITY_TYPES.includes(initialType) ? initialType : "hospital"))
   const [includeLab, setIncludeLab] = useState(false)
   const [includeDispensing, setIncludeDispensing] = useState(false)
   const [licenseNumber, setLicenseNumber] = useState("")
+  const [synthetic, setSynthetic] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
   const [result, setResult] = useState<{
@@ -100,6 +101,7 @@ function CreateFacilityWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           facilityType,
+          mode: synthetic ? "SYNTHETIC_ACCEPTANCE" : "REAL",
           facilityName,
           slug: computedSlug,
           ownership,
@@ -218,6 +220,11 @@ function CreateFacilityWizard() {
           </button>
         ))}
       </div>
+
+      <label className="flex items-center gap-3 text-sm text-slate-300">
+        <input type="checkbox" checked={synthetic} onChange={e => setSynthetic(e.target.checked)} />
+        Synthetic acceptance facility (test data only)
+      </label>
 
       <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
         <label className="block text-sm">
