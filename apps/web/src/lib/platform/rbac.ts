@@ -54,6 +54,8 @@ export const PLATFORM_CAPABILITIES = [
   "feature_flag.manage",
   "incident.manage",
   "tenant.manage",
+  "platform.subscription.read",
+  "platform.subscription.manage",
 ] as const;
 
 export type PlatformCapability = (typeof PLATFORM_CAPABILITIES)[number];
@@ -98,6 +100,8 @@ const ROLE_CAPABILITIES: Record<PlatformRole, PlatformCapability[]> = {
     "feature_flag.manage",
     "incident.manage",
     "tenant.manage",
+    "platform.subscription.read",
+    "platform.subscription.manage",
   ],
   RELEASE_MANAGER: [
     ...ALL_READ,

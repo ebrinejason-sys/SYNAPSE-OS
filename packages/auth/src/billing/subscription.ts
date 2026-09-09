@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@synapse/db/admin'
+import { resolveEffectiveSubscription, type EffectiveSubscription, type ManualGrantInput } from './entitlement'
 import { initFlutterwavePayment, verifyFlutterwaveTransaction } from './flutterwave'
 import { evaluateEntitlement, type EntitlementResult } from './entitlement'
 
@@ -143,11 +144,36 @@ export async function isTenantEntitled(tenantId: string): Promise<EntitlementRes
   // On query error, fail-open so we never lock a tenant out due to infra issues.
   if (error) return { entitled: true, reason: 'query_error_failopen', status: null }
 
-  return evaluateEntitlement({
-    status: data?.status ?? null,
-    current_period_end: data?.current_period_end ?? null,
-    grace_until: data?.grace_until ?? null,
-  })
+  const { data: grants } = await db()
+    .from('subscription_grants')
+    .select('id, starts_at, ends_at, status, reason, subscription_plans(slug, name)')
+    .eq('tenant_id', tenantId)
+    .in('status', ['SCHEDULED', 'ACTIVE'])
+  const effective = resolveEffectiveSubscription(
+    data ? { status: data.status, current_period_end: data.current_period_end, grace_until: data.grace_until } : null,
+    (grants ?? []).map((grant: Record<string, unknown>) => {
+      const plan = Array.isArray(grant.subscription_plans) ? grant.subscription_plans[0] : grant.subscription_plans as Record<string, unknown> | null
+      return { id: String(grant.id), starts_at: String(grant.starts_at), ends_at: String(grant.ends_at), status: String(grant.status), reason: String(grant.reason), planSlug: plan?.slug as string | null, planName: plan?.name as string | null } satisfies ManualGrantInput
+    }),
+  )
+  return {
+    entitled: effective.entitled,
+    reason: effective.reason,
+    status: effective.status,
+  }
+}
+
+export async function getEffectiveSubscription(tenantId: string): Promise<EffectiveSubscription> {
+  const { data } = await db().from('tenant_subscriptions').select('status, current_period_end, grace_until, trial_ends, subscription_plans(slug, name)').eq('tenant_id', tenantId).maybeSingle()
+  const plan = data?.subscription_plans as { slug?: string; name?: string } | null
+  const { data: grants } = await db().from('subscription_grants').select('id, starts_at, ends_at, status, reason, subscription_plans(slug, name)').eq('tenant_id', tenantId).in('status', ['SCHEDULED', 'ACTIVE'])
+  return resolveEffectiveSubscription(
+    data ? { status: data.status, current_period_end: data.current_period_end, grace_until: data.grace_until, trial_ends: data.trial_ends, planSlug: plan?.slug, planName: plan?.name } : null,
+    (grants ?? []).map((grant: Record<string, unknown>) => {
+      const grantPlan = Array.isArray(grant.subscription_plans) ? grant.subscription_plans[0] : grant.subscription_plans as Record<string, unknown> | null
+      return { id: String(grant.id), starts_at: String(grant.starts_at), ends_at: String(grant.ends_at), status: String(grant.status), reason: String(grant.reason), planSlug: grantPlan?.slug as string | null, planName: grantPlan?.name as string | null }
+    }),
+  )
 }
 
 export async function listSubscriptionPayments(tenantId: string, limit = 20): Promise<PaymentRow[]> {

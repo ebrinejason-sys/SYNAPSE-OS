@@ -110,6 +110,7 @@ const SIDEBAR_SECTIONS: NavSection[] = [
     caption: "Money",
     items: [
       { href: "/platform/billing", label: "Revenue & Billing", icon: CreditCard },
+      { href: "/platform/subscriptions", label: "Manual Grants", icon: CreditCard },
       { href: "/platform/receipts", label: "Receipts & Invoices", icon: Receipt },
     ],
   },

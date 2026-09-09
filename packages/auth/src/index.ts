@@ -45,6 +45,7 @@ export {
   confirmSubscriptionPayment,
   handleFlutterwaveWebhook,
   isTenantEntitled,
+  getEffectiveSubscription,
   billingCycleMonths,
   addBillingCycle,
   kampalaStamp,
@@ -68,8 +69,9 @@ export {
   evaluateEntitlement,
   ENTITLED_STATUSES,
   BLOCKED_STATUSES,
+  resolveEffectiveSubscription,
 } from './billing/entitlement'
-export type { EntitlementInput, EntitlementResult } from './billing/entitlement'
+export type { EntitlementInput, EntitlementResult, ManualGrantInput, EffectiveSubscription } from './billing/entitlement'
 export { verifyWebhookHash } from './billing/flutterwave'
 export {
   PHARMACY_INVENTORY_MUTATOR_ROLES,

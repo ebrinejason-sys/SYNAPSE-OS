@@ -36,6 +36,75 @@ export type EntitlementResult = {
   status: string | null
 }
 
+export type ManualGrantInput = {
+  id: string
+  planSlug?: string | null
+  planName?: string | null
+  starts_at: string
+  ends_at: string
+  status: string
+  reason?: string | null
+}
+
+export type EffectiveSubscription = EntitlementResult & {
+  source: 'PAID' | 'MANUAL_GRANT' | 'TRIAL' | 'GRACE' | 'EXPIRED' | 'NONE'
+  planSlug: string | null
+  planName: string | null
+  startsAt: string | null
+  endsAt: string | null
+  daysRemaining: number | null
+  grantId: string | null
+  overrideReason: string | null
+  paymentStatus: 'PAID' | 'NOT_REQUIRED' | 'NONE'
+}
+
+export function resolveEffectiveSubscription(
+  paid: (EntitlementInput & { planSlug?: string | null; planName?: string | null; trial_ends?: string | null }) | null | undefined,
+  grants: ManualGrantInput[] = [],
+  now: Date = new Date(),
+): EffectiveSubscription {
+  const activeGrant = grants
+    .filter((grant) => grant.status !== 'REVOKED' && grant.status !== 'CANCELLED')
+    .filter((grant) => new Date(grant.starts_at) <= now && now < new Date(grant.ends_at))
+    .sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())[0]
+  if (activeGrant) {
+    const end = new Date(activeGrant.ends_at)
+    return {
+      entitled: true,
+      reason: 'manual_grant',
+      status: 'active',
+      source: 'MANUAL_GRANT',
+      planSlug: activeGrant.planSlug ?? null,
+      planName: activeGrant.planName ?? null,
+      startsAt: activeGrant.starts_at,
+      endsAt: activeGrant.ends_at,
+      daysRemaining: Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000)),
+      grantId: activeGrant.id,
+      overrideReason: activeGrant.reason ?? null,
+      paymentStatus: 'NOT_REQUIRED',
+    }
+  }
+  const evaluated = evaluateEntitlement(paid, now)
+  const end = paid?.current_period_end ?? paid?.trial_ends ?? null
+  const source: EffectiveSubscription['source'] = !paid?.status
+    ? 'NONE'
+    : evaluated.entitled
+      ? paid.status.toLowerCase() === 'trial' || paid.status.toLowerCase() === 'trialing' ? 'TRIAL' : paid.status.toLowerCase() === 'past_due' ? 'GRACE' : 'PAID'
+    : paid?.status ? 'EXPIRED' : 'NONE'
+  return {
+    ...evaluated,
+    source,
+    planSlug: paid?.planSlug ?? null,
+    planName: paid?.planName ?? null,
+    startsAt: null,
+    endsAt: end,
+    daysRemaining: end ? Math.max(0, Math.ceil((new Date(end).getTime() - now.getTime()) / 86400000)) : null,
+    grantId: null,
+    overrideReason: null,
+    paymentStatus: source === 'PAID' || source === 'GRACE' ? 'PAID' : 'NONE',
+  }
+}
+
 export function evaluateEntitlement(
   input: EntitlementInput | null | undefined,
   now: Date = new Date(),
