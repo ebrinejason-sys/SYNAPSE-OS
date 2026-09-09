@@ -32,6 +32,7 @@ describe.skipIf(!hasDb)("hospital tenant isolation (P0-004)", () => {
     for (const [id, name] of [[tenantA, "Tenant A"], [tenantB, "Tenant B"]] as const) {
       const { error } = await db.from("tenants").insert({
         id,
+        slug: id,
         name,
         facility_type: "hospital",
         is_synthetic: true,

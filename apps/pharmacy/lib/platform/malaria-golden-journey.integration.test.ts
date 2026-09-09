@@ -25,6 +25,7 @@ describe.skipIf(!hasDb)("malaria golden journey — Postgres OPD triage → lab 
 
     const { error: tenantError } = await db.from("tenants").insert({
       id: tenantId,
+      slug: tenantId,
       name: "Golden Journey Integration Hospital",
       facility_type: "hospital",
       is_synthetic: true,

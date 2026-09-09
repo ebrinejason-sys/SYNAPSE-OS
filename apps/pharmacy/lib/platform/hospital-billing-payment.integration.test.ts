@@ -21,6 +21,7 @@ describe.skipIf(!hasDb)('hospital billing payment (P1-008)', () => {
 
     const { error: tenantError } = await db.from('tenants').insert({
       id: tenantId,
+      slug: tenantId,
       name: 'Billing Payment Test Hospital',
       facility_type: 'hospital',
       is_synthetic: true,

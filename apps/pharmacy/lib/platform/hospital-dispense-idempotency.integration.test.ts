@@ -22,6 +22,7 @@ describe.skipIf(!hasDb)("hospital dispense inventory idempotency (P0-001)", () =
 
     const { error: tenantError } = await db.from("tenants").insert({
       id: tenantId,
+      slug: tenantId,
       name: "Dispense Idempotency Pharmacy",
       facility_type: "pharmacy",
       is_synthetic: true,
