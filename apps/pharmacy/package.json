@@ -12,6 +12,7 @@
     "lint": "eslint . --max-warnings 0",
     "type-check": "tsc --noEmit",
     "test": "vitest run && node --experimental-strip-types --test lib/pos/fefo.test.ts",
+    "test:general": "CI=false vitest run && node --experimental-strip-types --test lib/pos/fefo.test.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

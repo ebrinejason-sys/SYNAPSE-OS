@@ -18,7 +18,7 @@
     "lint": "turbo lint",
     "type-check": "turbo type-check",
     "verify:web": "node scripts/verify-web-build.mjs",
-    "verify:pharmacy": "npm run type-check --workspace @synapse/pharmacy && npm run lint --workspace @synapse/pharmacy && npm run test --workspace @synapse/pharmacy && npm run build --workspace @synapse/pharmacy",
+    "verify:pharmacy": "npm run type-check --workspace @synapse/pharmacy && npm run lint --workspace @synapse/pharmacy && npm run test:general --workspace @synapse/pharmacy && npm run build --workspace @synapse/pharmacy",
     "verify:pharm-release": "node scripts/verify-pharm-release.mjs",
     "verify:pharm-live": "node scripts/verify-pharm-live.mjs",
     "verify:pharm-release:live": "node scripts/verify-pharm-release.mjs --live",

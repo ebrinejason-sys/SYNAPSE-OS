@@ -42,11 +42,8 @@ jobs:
       - name: Verify pharmacy (type-check, lint, tenant-authz + spine safety tests, build)
         run: npm run verify:pharmacy
         env:
-          CI: "true"
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SYNAPSE_JWT_SECRET: ${{ secrets.SYNAPSE_JWT_SECRET }}
           NEXT_PUBLIC_PHARMACY_APP_URL: https://pharm.synapseos.tech
 
@@ -59,11 +56,51 @@ jobs:
       - name: Lint web app
         run: npm run lint --workspace @synapse/web
 
+  # Protected-main acceptance gate. This remains fail-closed: a missing or
+  # partial database configuration must stop the release before deployment.
+  db-acceptance:
+    needs: verify
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Require database credentials
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_SERVICE_ROLE_KEY" ]]; then
+            echo "Protected-main database acceptance requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY"
+            exit 1
+          fi
+
+      - name: Run database-backed pharmacy acceptance
+        run: npm run test --workspace @synapse/pharmacy
+        env:
+          CI: "true"
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SYNAPSE_JWT_SECRET: ${{ secrets.SYNAPSE_JWT_SECRET }}
+
+      - name: Verify migration and schema compatibility checks
+        run: npm run db:check
+
   # Optional CLI deploy. Prefer Vercel Git integration for www/pharm production.
   # Enable with repository variable ENABLE_VERCEL_CLI_DEPLOY=true and secret VERCEL_TOKEN.
   # Note: secrets cannot be referenced in job-level `if` — use a repo variable gate instead.
   deploy-vercel:
-    needs: verify
+    needs: [verify, db-acceptance]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && vars.ENABLE_VERCEL_CLI_DEPLOY == 'true'
     steps:
@@ -91,7 +128,7 @@ jobs:
 
   # Enable by setting repository variable ENABLE_DB_PUSH=true and secret SUPABASE_ACCESS_TOKEN
   db-push:
-    needs: verify
+    needs: [verify, db-acceptance]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && vars.ENABLE_DB_PUSH == 'true'
     steps:
