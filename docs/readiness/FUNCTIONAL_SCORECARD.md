@@ -42,5 +42,8 @@ This scorecard is intentionally conservative. A capability cannot be GREEN from 
 - Web typecheck, lint, and production build: PASS.
 - Database package: focused provisioning tests PASS; broad direct-Node sweep is blocked by existing extensionless-import resolution and is not treated as a green full-package gate.
 - Remote migrations, live synthetic journeys, and deployment SHA alignment: NOT VERIFIED locally.
+- CI database secrets: workflow references `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; repository secret availability is operator-controlled and was not available locally.
+- Remote migrations: DRIFT until `20260908120000` and `20260909100000` are applied and verified.
+- Dependency security: YELLOW; 77 audit findings are classified in [DEPENDENCY_SECURITY_AUDIT_2026.md](DEPENDENCY_SECURITY_AUDIT_2026.md).
 
 The functional rows remain conservative. Infrastructure proof does not promote clinical write-up, inpatient, referrals, offline, Lab TAT, or ALIS quality/inventory rows to GREEN.

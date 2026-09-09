@@ -95,6 +95,8 @@ Validated on the current working tree after the provisioning repairs:
 - Database package: provisioning/domain tests pass under the focused Vitest run. The broad native Node TAP sweep is not a valid repository-wide gate because 11 files use extensionless imports that fail under direct Node resolution (`exchange`, `canonical`, and related package imports). No DB package test script exists.
 - Remote migration state, live synthetic acceptance, GitHub/Vercel SHA alignment, and production deployment health were not claimed by this local run.
 
+- Release closeout: workflow wiring now uses the dedicated `SUPABASE_URL` server secret for database-backed pharmacy acceptance. Remote migration drift and CI secret availability remain documented in [MIGRATION_ALIGNMENT_2026.md](MIGRATION_ALIGNMENT_2026.md) and [DEPENDENCY_SECURITY_AUDIT_2026.md](DEPENDENCY_SECURITY_AUDIT_2026.md).
+
 The previous six control-plane failures are closed. Wave 0 is ready for commit only after final git review and remote alignment verification.
 
 ## Canonical Destinations to Protect
