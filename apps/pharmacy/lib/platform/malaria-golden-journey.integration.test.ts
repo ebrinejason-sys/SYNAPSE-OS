@@ -33,6 +33,15 @@ describe.skipIf(!hasDb)("malaria golden journey — Postgres OPD triage → lab 
     })
     if (tenantError) throw new Error(tenantError.message)
 
+    const { error: hospitalError } = await db.from("hospitals").insert({
+      id: tenantId,
+      name: "Golden Journey Integration Hospital",
+      subdomain: tenantId,
+      facility_kind: "hospital",
+      settings: { tenant_id: tenantId, is_synthetic: true },
+    })
+    if (hospitalError) throw new Error(hospitalError.message)
+
     const { error: profileError } = await db.from("profiles").insert({
       id: clinicianId,
       email: `${clinicianId}@golden-journey.invalid`,
@@ -64,6 +73,7 @@ describe.skipIf(!hasDb)("malaria golden journey — Postgres OPD triage → lab 
     await db.from("lab_orders").delete().eq("tenant_id", tenantId)
     await db.from("encounters").delete().eq("tenant_id", tenantId)
     await db.from("patients").delete().eq("tenant_id", tenantId)
+    await db.from("hospitals").delete().eq("id", tenantId)
     await db.from("profiles").delete().eq("id", clinicianId)
     await db.from("tenants").delete().eq("id", tenantId)
   })

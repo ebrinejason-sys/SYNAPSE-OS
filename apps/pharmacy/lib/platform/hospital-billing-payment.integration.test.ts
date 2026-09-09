@@ -8,13 +8,11 @@ describe.skipIf(!hasDb)('hospital billing payment (P1-008)', () => {
   let tenantId: string
   let patientId: string
   let encounterId: string
-  let cashierId: string
 
   beforeAll(async () => {
     tenantId = crypto.randomUUID()
     patientId = crypto.randomUUID()
     encounterId = crypto.randomUUID()
-    cashierId = crypto.randomUUID()
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabaseAdmin as any
@@ -29,18 +27,6 @@ describe.skipIf(!hasDb)('hospital billing payment (P1-008)', () => {
       data_classification: 'synthetic',
     })
     if (tenantError) throw new Error(tenantError.message)
-
-    const { error: profileError } = await db.from('profiles').insert({
-      id: cashierId,
-      email: `${cashierId}@p1-008.invalid`,
-      full_name: 'Synthetic Cashier',
-      first_name: 'Synthetic',
-      last_name: 'Cashier',
-      role: 'cashier',
-      tenant_id: tenantId,
-      verification_status: 'verified',
-    })
-    if (profileError) throw new Error(profileError.message)
 
     const { error: patientError } = await db.from('patients').insert({
       id: patientId,
@@ -73,7 +59,7 @@ describe.skipIf(!hasDb)('hospital billing payment (P1-008)', () => {
       qty: 1,
       sourceTable: 'encounters',
       sourceId: encounterId,
-      createdBy: cashierId,
+      createdBy: undefined,
     })
   })
 
@@ -85,7 +71,6 @@ describe.skipIf(!hasDb)('hospital billing payment (P1-008)', () => {
     await db.from('billing_invoices').delete().eq('tenant_id', tenantId)
     await db.from('encounters').delete().eq('tenant_id', tenantId)
     await db.from('patients').delete().eq('tenant_id', tenantId)
-    await db.from('profiles').delete().eq('id', cashierId)
     await db.from('tenants').delete().eq('id', tenantId)
   })
 

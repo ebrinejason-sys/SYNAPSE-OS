@@ -116,7 +116,7 @@ describe.skipIf(!hasDb)("hospital tenant isolation (P0-004)", () => {
       qty: 1,
       sourceTable: "encounters",
       sourceId: encounterA,
-      createdBy: staffA,
+      createdBy: undefined,
     })
     invoiceA = charge.invoiceId
   })
