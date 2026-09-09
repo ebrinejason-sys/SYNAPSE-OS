@@ -336,3 +336,31 @@ export function paymentRecordedTimelineEvent(params: {
     createdBy: params.createdBy ?? null,
   }
 }
+
+export function clinicalActionTimelineEvent(params: {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  encounterId: string
+  sourceTable: string
+  sourceId: string
+  title: string
+  summary: string
+  createdBy: string
+  tags: string[]
+}): TimelineEventInput {
+  return {
+    tenantId: params.tenantId,
+    hospitalId: params.hospitalId,
+    patientId: params.patientId,
+    eventType: "consultation",
+    title: params.title,
+    summary: params.summary,
+    sourceTable: params.sourceTable,
+    sourceId: params.sourceId,
+    provenance: "PROVIDER_VERIFIED",
+    payload: { encounterId: params.encounterId },
+    tags: params.tags,
+    createdBy: params.createdBy,
+  }
+}

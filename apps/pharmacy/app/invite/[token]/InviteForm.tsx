@@ -56,21 +56,21 @@ export function InviteForm({ token, pharmacyName, adminEmail, adminName, profile
     router.refresh()
   }
 
-  const inputCls = 'w-full bg-[#1A1A24] border border-[#2A2A36] rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:border-[#F97316] focus:outline-none disabled:opacity-50 transition-colors'
-  const labelCls = 'text-xs font-medium uppercase tracking-wider text-zinc-400'
+  const inputCls = 'w-full bg-background border border-input rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-50 transition-colors'
+  const labelCls = 'text-xs font-medium uppercase tracking-wider text-muted-foreground'
 
   return (
     <>
       <div className="mb-6 text-center">
-        <h2 className="text-white font-bold text-xl mb-1">Set up your account</h2>
-        <p className="text-[#E8B84B] text-sm font-medium">{pharmacyName}</p>
+        <h2 className="text-foreground font-bold text-xl mb-1">Set up your account</h2>
+        <p className="text-accent text-sm font-medium">{pharmacyName}</p>
       </div>
 
       {/* Show pre-filled email as info whenever email is known (profile exists or stored in onboarding) */}
       {adminEmail && !needsEmail && (
-        <div className="mb-4 bg-[#1A1A24] border border-[#2A2A36] rounded-lg px-3 py-2.5 text-sm">
-          <span className="text-zinc-500 text-xs uppercase tracking-wider font-medium">Email</span>
-          <p className="text-zinc-300 mt-0.5">{adminEmail}</p>
+        <div className="mb-4 bg-card border border-border rounded-lg px-3 py-2.5 text-sm">
+          <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">Email</span>
+          <p className="text-foreground mt-0.5">{adminEmail}</p>
         </div>
       )}
 
@@ -121,7 +121,7 @@ export function InviteForm({ token, pharmacyName, adminEmail, adminName, profile
               className={inputCls + ' pr-10'}
             />
             <button type="button" tabIndex={-1} onClick={() => setShowPassword(v => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors">
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
@@ -141,25 +141,25 @@ export function InviteForm({ token, pharmacyName, adminEmail, adminName, profile
               className={inputCls + ' pr-10'}
             />
             <button type="button" tabIndex={-1} onClick={() => setShowConfirm(v => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors">
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
               {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
         </label>
 
         {error && (
-          <p className="text-red-400 bg-red-500/10 rounded-lg px-3 py-2 text-sm">{error}</p>
+          <p className="text-destructive bg-destructive/10 rounded-lg px-3 py-2 text-sm">{error}</p>
         )}
 
         <button type="submit" disabled={submitting}
-          className="w-full bg-[#F97316] hover:bg-orange-600 text-white rounded-lg py-2.5 font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-2 flex items-center justify-center gap-2">
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg py-2.5 font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-2 flex items-center justify-center gap-2">
           {submitting ? (
             <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Creating Account…</>
           ) : 'Create Account'}
         </button>
       </form>
 
-      <p className="text-center text-xs mt-6 text-zinc-600">
+      <p className="text-center text-xs mt-6 text-muted-foreground">
         Synapse Health Technologies &copy; {new Date().getFullYear()}
       </p>
     </>

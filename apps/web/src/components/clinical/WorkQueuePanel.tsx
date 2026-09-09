@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 
 type DepartmentTask = {
   id: string
@@ -20,12 +21,14 @@ const DEPARTMENTS = ['', 'opd', 'laboratory', 'pharmacy', 'imaging', 'billing', 
 
 type WorkQueuePanelProps = {
   initialDepartment?: string
+  tenantSlug?: string
 }
 
-export function WorkQueuePanel({ initialDepartment = '' }: WorkQueuePanelProps) {
+export function WorkQueuePanel({ initialDepartment = '', tenantSlug }: WorkQueuePanelProps) {
   const [department, setDepartment] = useState(initialDepartment)
   const [tasks, setTasks] = useState<DepartmentTask[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
 
   const loadTasks = useCallback(async () => {
     const params = new URLSearchParams()
@@ -44,11 +47,31 @@ export function WorkQueuePanel({ initialDepartment = '' }: WorkQueuePanelProps) 
     loadTasks().catch(() => setError('Unable to load tasks'))
   }, [loadTasks])
 
+  async function transition(taskId: string, status: string) {
+    setBusy(taskId)
+    setError(null)
+    try {
+      const res = await fetch('/api/hospital/tasks', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ taskId, status }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Could not update task')
+      await loadTasks()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update task')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <div>
-      <h1 className="font-display text-2xl">Department tasks</h1>
+      <h1 className="font-display text-2xl">My Work</h1>
       <p className="mt-2 text-sm text-muted-color">
-        Unified WorkQueue — lab, pharmacy, triage, and admission handoffs for your facility.
+        Work that needs your attention across lab, pharmacy, triage, and admission handoffs.
       </p>
 
       <label className="mt-6 block text-xs text-muted-color">
@@ -76,6 +99,11 @@ export function WorkQueuePanel({ initialDepartment = '' }: WorkQueuePanelProps) 
                 <p className="font-medium">
                   {task.taskType} · {task.ownerDepartment}
                 </p>
+                {task.patientId && tenantSlug ? (
+                  <Link href={`/os/${tenantSlug}/patients/${task.patientId}`} className="mt-1 inline-block text-xs font-medium text-blue-700 hover:underline">
+                    Open patient context
+                  </Link>
+                ) : null}
                 <p className="text-xs text-muted-color">
                   {task.status} · {task.priority}
                   {task.encounterId ? ` · enc ${task.encounterId.slice(0, 8)}…` : ''}
@@ -87,6 +115,23 @@ export function WorkQueuePanel({ initialDepartment = '' }: WorkQueuePanelProps) 
               <span className="text-[10px] uppercase text-muted-color">
                 {new Date(task.createdAt).toLocaleString()}
               </span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {task.status === 'REQUESTED' ? (
+                <button type="button" disabled={busy === task.id} onClick={() => transition(task.id, 'ACCEPTED')} className="min-h-11 rounded-lg border border-edge px-3 py-2 text-xs font-medium">
+                  Accept task
+                </button>
+              ) : null}
+              {task.status === 'ACCEPTED' || task.status === 'ON_HOLD' ? (
+                <button type="button" disabled={busy === task.id} onClick={() => transition(task.id, 'IN_PROGRESS')} className="min-h-11 rounded-lg border border-edge px-3 py-2 text-xs font-medium">
+                  Start task
+                </button>
+              ) : null}
+              {task.status === 'IN_PROGRESS' ? (
+                <button type="button" disabled={busy === task.id} onClick={() => transition(task.id, 'COMPLETED')} className="min-h-11 rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white">
+                  Complete task
+                </button>
+              ) : null}
             </div>
           </li>
         ))}

@@ -37,6 +37,10 @@ export function getPostLoginPath(ctx: PostLoginContext): string {
     return '/platform'
   }
 
+  if (ctx.tenantFacilityType === 'laboratory' || role === 'lab_admin' || role === 'lab_supervisor') {
+    return '/lab/orders'
+  }
+
   if (
     PHARMACY_ROLES.includes(ctx.role as (typeof PHARMACY_ROLES)[number]) ||
     role === 'pharmacy_admin' ||

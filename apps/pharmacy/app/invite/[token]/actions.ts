@@ -184,16 +184,11 @@ export async function setupAccount(
       .eq('id', onboarding.id)
   }
 
-  // 3. Advance onboarding + activate tenant
+  // 3. Advance onboarding. Tenant lifecycle is owned by provisioning finalize.
   await supabaseAdmin
     .from('pharmacy_onboarding')
     .update({ current_step: 1, account_created_at: new Date().toISOString() })
     .eq('id', onboarding.id)
-
-  await supabaseAdmin
-    .from('tenants')
-    .update({ status: 'active', is_active: true })
-    .eq('id', tenantId)
 
   // 4. Issue session
   try {

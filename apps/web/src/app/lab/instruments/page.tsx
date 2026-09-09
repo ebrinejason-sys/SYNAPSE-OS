@@ -15,6 +15,7 @@ type Device = {
   active: boolean
   last_seen_at: string | null
   last_message_at: string | null
+  operational_health?: string
 }
 
 export default function LabInstrumentsPage() {
@@ -69,11 +70,11 @@ export default function LabInstrumentsPage() {
                   </p>
                 </div>
                 <div className="text-right text-xs">
-                  <p className={d.active ? "text-emerald-300" : "text-slate-400"}>
-                    {d.validation_status} · {d.health_status}
+                  <p className={d.operational_health === "ONLINE" ? "text-emerald-300" : "text-slate-400"}>
+                    Validation: {d.validation_status} · Operational: {d.operational_health ?? "OFFLINE"}
                   </p>
                   <p className="text-muted-color">
-                    Last message {d.last_message_at ? new Date(d.last_message_at).toLocaleString() : "never"}
+                    Last seen {d.last_seen_at ? new Date(d.last_seen_at).toLocaleString() : "never"} · Last message {d.last_message_at ? new Date(d.last_message_at).toLocaleString() : "never"}
                   </p>
                 </div>
               </div>

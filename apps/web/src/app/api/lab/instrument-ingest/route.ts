@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
   const { data: bridge } = await db
     .from("lab_instrument_bridges")
-    .select("id, tenant_id, name, is_active")
+    .select("id, tenant_id, name, is_active, device_id")
     .eq("api_key", apiKey)
     .eq("is_active", true)
     .maybeSingle()
@@ -31,6 +31,18 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+  const deviceId = typeof body.deviceId === "string" ? body.deviceId.trim() : ""
+  if (!deviceId || !bridge.device_id || bridge.device_id !== deviceId) {
+    return NextResponse.json({ error: "Registered device is required for this bridge" }, { status: 403 })
+  }
+  const { data: device } = await db
+    .from("lab_devices")
+    .select("id, tenant_id, active, validation_status")
+    .eq("id", deviceId)
+    .eq("tenant_id", bridge.tenant_id)
+    .maybeSingle()
+  if (!device || !device.active) return NextResponse.json({ error: "Device is not registered or active" }, { status: 403 })
+
   const rawPayload = String(body.rawPayload ?? body.raw ?? body.message ?? "")
   if (!rawPayload) {
     return NextResponse.json({ error: "rawPayload required" }, { status: 400 })
@@ -43,11 +55,20 @@ export async function POST(request: Request) {
   const messageControlId =
     typeof body.messageControlId === "string" ? body.messageControlId : null
 
+  const { data: duplicate } = await db
+    .from("lab_device_messages")
+    .select("id")
+    .eq("tenant_id", bridge.tenant_id)
+    .eq("payload_hash", payloadHash)
+    .eq("message_control_id", messageControlId ?? "")
+    .maybeSingle()
+  if (duplicate?.id) return NextResponse.json({ ok: true, messageId: duplicate.id, duplicate: true, match: "DUPLICATE" })
+
   // Prefer lab_device_messages when migrated; fall back to lab_analyzer_messages
   let messageId: string | null = null
   const deviceMessage = {
     tenant_id: bridge.tenant_id,
-    device_id: null,
+    device_id: deviceId,
     direction: "inbound",
     protocol,
     raw_payload: rawPayload,
@@ -65,6 +86,15 @@ export async function POST(request: Request) {
     .maybeSingle()
 
   if (msgErr) {
+    if (/duplicate|unique/i.test(msgErr.message ?? "")) {
+      const { data: existing } = await db
+        .from("lab_device_messages")
+        .select("id")
+        .eq("tenant_id", bridge.tenant_id)
+        .eq("payload_hash", payloadHash)
+        .maybeSingle()
+      if (existing?.id) return NextResponse.json({ ok: true, messageId: existing.id, duplicate: true, match: "DUPLICATE" })
+    }
     // Table may not exist yet — legacy analyzer messages table
     const { data: legacy, error: legacyErr } = await db
       .from("lab_analyzer_messages")
@@ -94,6 +124,11 @@ export async function POST(request: Request) {
     .from("lab_instrument_bridges")
     .update({ last_seen_at: new Date().toISOString() })
     .eq("id", bridge.id)
+  await db
+    .from("lab_devices")
+    .update({ last_seen_at: new Date().toISOString(), last_message_at: new Date().toISOString(), health_status: "ONLINE" })
+    .eq("id", deviceId)
+    .eq("tenant_id", bridge.tenant_id)
 
   // Stage unmatched if no accession — never invent patient match
   let stagingStatus = "RECEIVED"
@@ -116,19 +151,33 @@ export async function POST(request: Request) {
     stagingStatus = "UNMATCHED"
   }
 
-  const { error: stageErr } = await db.from("lab_result_staging").insert({
-    tenant_id: bridge.tenant_id,
-    device_message_id: messageId,
-    lab_order_id: labOrderId,
-    accession_number: accession,
-    analyzer_code: typeof body.analyzerCode === "string" ? body.analyzerCode : null,
-    value: typeof body.value === "string" ? body.value : null,
-    unit: typeof body.unit === "string" ? body.unit : null,
-    flags: body.flags ?? {},
-    instrument_flags: body.instrumentFlags ?? {},
-    status: stagingStatus,
-    correlation_id: correlationId,
-  })
+  const observations = Array.isArray(body.observations)
+    ? body.observations as Record<string, unknown>[]
+    : [{ analyzerCode: body.analyzerCode, value: body.value, unit: body.unit, flags: body.flags, instrumentFlags: body.instrumentFlags }]
+  const stagingRows = []
+  for (const observation of observations) {
+    const analyzerCode = typeof observation.analyzerCode === "string" ? observation.analyzerCode : null
+    const { data: mapping } = analyzerCode
+      ? await db.from("lab_device_test_mappings").select("loinc_code, analyzer_name").eq("tenant_id", bridge.tenant_id).eq("device_id", deviceId).eq("analyzer_code", analyzerCode).eq("active", true).maybeSingle()
+      : { data: null }
+    stagingRows.push({
+      tenant_id: bridge.tenant_id,
+      device_id: deviceId,
+      device_message_id: messageId,
+      lab_order_id: labOrderId,
+      accession_number: accession,
+      analyzer_code: analyzerCode,
+      mapped_loinc: mapping?.loinc_code ?? null,
+      mapped_test_name: mapping?.analyzer_name ?? null,
+      value: typeof observation.value === "string" ? observation.value : null,
+      unit: typeof observation.unit === "string" ? observation.unit : null,
+      flags: observation.flags ?? {},
+      instrument_flags: observation.instrumentFlags ?? {},
+      status: mapping ? (stagingStatus === "MATCHED" ? "READY_FOR_REVIEW" : stagingStatus) : "UNMAPPED",
+      correlation_id: correlationId,
+    })
+  }
+  const { error: stageErr } = await db.from("lab_result_staging").insert(stagingRows)
 
   // Staging table optional until migration applied
   if (stageErr && !/does not exist|schema cache/i.test(stageErr.message ?? "")) {

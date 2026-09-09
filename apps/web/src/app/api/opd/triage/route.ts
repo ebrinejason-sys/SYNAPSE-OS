@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { recordEncounterOpened } from '@synapse/db/clinical-journey'
+import { recordEncounterOpened, recordTriageCompleted } from '@synapse/db/clinical-journey'
 import { persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
 import { encounterOpenedTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
@@ -82,8 +82,21 @@ export async function POST(req: NextRequest) {
       requesterId: ctx.userId,
       chiefComplaint: chief_complaint,
     })
+    let handoffTasks = [journey.triageTask]
+    if (vitalsRecorded) {
+      const handoff = recordTriageCompleted({
+        queue: journey.queue,
+        triageTaskId: journey.triageTask.id,
+        tenantId: ctx.tenantId,
+        hospitalId: ctx.hospitalId,
+        patientId: patient_id,
+        encounterId: encounter.id as string,
+        requesterId: ctx.userId,
+      })
+      handoffTasks = [journey.triageTask, handoff.doctorTask]
+    }
     const persist = await persistWorkQueueArtifactsBestEffort(db, {
-      tasks: [journey.triageTask],
+      tasks: handoffTasks,
       events: journey.queue.outbox.list({ correlationId: journey.correlationId }),
     })
     if (persist.errors.length) {

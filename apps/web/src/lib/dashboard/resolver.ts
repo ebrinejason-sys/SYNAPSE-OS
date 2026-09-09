@@ -1,7 +1,7 @@
 // Dashboard resolver — returns the appropriate path and context for any user/tenant combination.
 // Called once per authenticated page load to determine where to send the user.
 
-export type FacilityType = 'pharmacy' | 'clinic' | 'hospital' | 'homecare' | 'ngo' | 'lab'
+export type FacilityType = 'pharmacy' | 'clinic' | 'hospital' | 'homecare' | 'ngo' | 'lab' | 'laboratory'
 
 export interface DashboardContext {
   userId:    string
@@ -33,6 +33,10 @@ const ROLE_BASE: Record<string, string> = {
   pharmacy_staff:          'pharmacy',
   pharmacy_ceo:            'pharmacy',
   lab_tech:                'lab',
+  lab_scientist:           'lab',
+  lab_admin:               'lab',
+  lab_supervisor:          'lab',
+  facility_admin:          'lab',
   receptionist:            'patients',
   hospital_admin:          'admin',
   claims_officer:          'insurance',
@@ -47,6 +51,7 @@ const FACILITY_MODULES: Record<string, string[]> = {
   homecare:  ['clinical', 'patients', 'billing'],
   ngo:       ['clinical', 'lab', 'pharmacy', 'patients'],
   lab:       ['lab', 'patients'],
+  laboratory: ['lab', 'patients'],
 }
 
 // Role → quick actions
@@ -60,6 +65,9 @@ const ROLE_QUICK_ACTIONS: Record<string, string[]> = {
   pharmacy_ceo:            ['new_sale', 'check_stock', 'view_reports'],
   pharmacy_admin:          ['new_sale', 'cashier_session', 'check_stock', 'view_reports'],
   lab_tech:                ['new_sample', 'view_pending', 'enter_results'],
+  lab_scientist:           ['view_pending', 'verify_results', 'release_results'],
+  lab_admin:               ['view_pending', 'manage_staff', 'manage_sections'],
+  lab_supervisor:          ['view_pending', 'verify_results'],
   receptionist:            ['register_patient', 'search_patient', 'book_appointment'],
   hospital_admin:          ['view_reports', 'manage_users', 'view_audit'],
   claims_officer:          ['check_eligibility', 'draft_claim', 'view_preauths'],

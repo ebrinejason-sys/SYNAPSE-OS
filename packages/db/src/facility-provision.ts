@@ -1,4 +1,3 @@
-import { provisioningCanActivate } from "./hospital-provision-catalog"
 /**
  * Generic facility provisioning entry points.
  * Hospital path reuses durable hospital-provision workflow.
@@ -56,6 +55,11 @@ export type ProvisionFacilityInput = {
   tier?: "trial" | "starter" | "professional" | "enterprise"
   modules?: string[]
   licenseNumber?: string
+  regulatoryNumber?: string
+  accreditationStatus?: "NOT_ACCREDITED" | "IN_PROGRESS" | "ACCREDITED" | "UNKNOWN"
+  accreditationIdentifier?: string
+  laboratoryType?: string
+  laboratorySections?: string[]
   physicalAddress?: string
   networkVisible?: boolean
   customDomain?: string | null
@@ -179,28 +183,6 @@ async function provisionPharmacyFacility(
     .maybeSingle()
 
   if (existingRun?.status === "COMPLETE" && existingRun.tenant_id) {
-    await db
-      .from("facility_provisioning_runs")
-      .update({
-        failure_code: null,
-        failed_at: null,
-        metadata: { ...(existingRun.metadata ?? {}), last_error: null },
-        updated_at: nowIso(),
-      })
-      .eq("id", existingRun.id)
-    const [{ data: existingSteps }, { data: existingInvite }] = await Promise.all([
-      db
-        .from("facility_provisioning_steps")
-        .select("step, status, error_code, safe_error_message, evidence")
-        .eq("run_id", existingRun.id),
-      db
-        .from("facility_invitations")
-        .select("invite_token, status")
-        .eq("run_id", existingRun.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ])
     return {
       ok: true,
       runId: existingRun.id,
@@ -209,16 +191,8 @@ async function provisionPharmacyFacility(
       slug: existingRun.slug,
       status: "COMPLETE",
       correlationId: existingRun.correlation_id,
-      steps: (existingSteps ?? []).map((step: Record<string, unknown>) => ({
-        step: step.step as never,
-        status: step.status as never,
-        errorCode: (step.error_code as string) ?? null,
-        safeErrorMessage: (step.safe_error_message as string) ?? null,
-        evidence: (step.evidence as Record<string, unknown>) ?? {},
-      })),
+      steps: [],
       warnings: ["Idempotent replay — existing COMPLETE pharmacy run"],
-      inviteToken: (existingInvite?.invite_token as string | undefined) ?? null,
-      inviteStatus: (existingInvite?.status as string | undefined) ?? null,
       facilityType: "pharmacy",
       workspaceUrl: pharmacyLoginUrl(existingRun.slug),
     }
@@ -241,7 +215,6 @@ async function provisionPharmacyFacility(
         facility_level: "CLINIC",
         metadata: {
           facility_type: "pharmacy",
-          modules,
           contact: {
             name: input.contactName ?? input.adminName,
             email: input.contactEmail ?? adminEmail,
@@ -300,13 +273,13 @@ async function provisionPharmacyFacility(
         failed_at: nowIso(),
         current_step: step,
         updated_at: nowIso(),
-        metadata: { ...existingRun?.metadata, last_error: message, facility_type: "pharmacy", modules, tier: input.tier ?? "trial", contact: { name: input.adminName, email: adminEmail, phone: input.adminPhone ?? null } },
+        metadata: { last_error: message, facility_type: "pharmacy" },
       })
       .eq("id", runId)
     if (tenantId) {
       await db
         .from("tenants")
-        .update({ status: "suspended", is_active: false, updated_at: nowIso() })
+        .update({ status: "failed", is_active: false, updated_at: nowIso() })
         .eq("id", tenantId)
     }
     steps.push({ step: step as never, status: "FAILED", errorCode: code, safeErrorMessage: message })
@@ -364,8 +337,6 @@ async function provisionPharmacyFacility(
       slug,
       name: facilityName,
       facility_type: "pharmacy",
-      is_synthetic: mode === "SYNTHETIC_ACCEPTANCE",
-      environment: mode === "SYNTHETIC_ACCEPTANCE" ? "demo" : "production",
       district: input.district || null,
       country: input.country ?? "UG",
       email: adminEmail,
@@ -481,12 +452,25 @@ async function provisionPharmacyFacility(
         { onConflict: "tenant_id" },
       )
       if (error) {
-        return fail("subscription", "SUBSCRIPTION_UPSERT", "Subscription setup failed")
+        warnings.push(`subscription: ${error.message}`)
+        await db.from("facility_provisioning_steps").upsert(
+          {
+            run_id: runId,
+            step: "subscription",
+            status: "SKIPPED",
+            evidence: { reason: error.message },
+            completed_at: nowIso(),
+            updated_at: nowIso(),
+          },
+          { onConflict: "run_id,step" },
+        )
+        steps.push({ step: "subscription" as never, status: "SKIPPED" })
       } else {
         await complete("subscription", { planId: planRow.id })
       }
     } else {
-      return fail("subscription", "SUBSCRIPTION_PLAN_MISSING", "No pharmacy subscription plan configured")
+      warnings.push("No pharmacy subscription plan found")
+      await complete("subscription", { skipped: true })
     }
   }
 
@@ -605,7 +589,13 @@ async function provisionPharmacyFacility(
         .select("id")
         .single()
       if (error) {
-        return fail("invitation", "INVITE_INSERT", "Secure administrator invitation could not be created")
+        warnings.push(`invitation: ${error.message}`)
+        steps.push({
+          step: "invitation" as never,
+          status: "FAILED",
+          errorCode: "INVITE_INSERT",
+          safeErrorMessage: error.message,
+        })
       } else {
         await complete("invitation", { inviteId: invite.id })
       }
@@ -621,12 +611,16 @@ async function provisionPharmacyFacility(
   })
 
   // finalize
-  const canActivate = provisioningCanActivate(steps, ["core_tenant", "facility_profile", "modules", "store", "subscription", "administrator", "invitation", "domain"])
-  const finalStatus = !canActivate ? "FAILED" : warnings.length ? "READY_WITH_WARNINGS" : "COMPLETE"
+  const hardFail = steps.some(
+    (s) =>
+      ["core_tenant", "facility_profile", "modules", "store", "administrator"].includes(s.step) &&
+      s.status === "FAILED",
+  )
+  const finalStatus = hardFail ? "FAILED" : warnings.length ? "READY_WITH_WARNINGS" : "COMPLETE"
   if (finalStatus === "FAILED") {
     await db
       .from("tenants")
-      .update({ status: "suspended", is_active: false, updated_at: nowIso() })
+      .update({ status: "failed", is_active: false, updated_at: nowIso() })
       .eq("id", tenantId)
   } else {
     await db
@@ -658,7 +652,6 @@ async function provisionPharmacyFacility(
     .update({
       status: finalStatus,
       completed_at: finalStatus === "FAILED" ? null : nowIso(),
-      failure_code: null,
       failed_at: finalStatus === "FAILED" ? nowIso() : null,
       current_step: "finalize",
       updated_at: nowIso(),
@@ -712,7 +705,40 @@ async function provisionLaboratoryFacility(
       `laboratory:${input.mode ?? "REAL"}:${slugify(input.slug || input.facilityName)}:${input.adminEmail.trim().toLowerCase()}`,
     createdBy: input.createdBy,
     sendInvite: input.sendInvite,
+    laboratorySections: input.laboratorySections,
   })
+
+  if (result.tenantId) {
+    await db
+      .from("tenants")
+      .update({
+        facility_type: "laboratory",
+        laboratory_profile: {
+          licenseNumber: input.licenseNumber ?? null,
+          regulatoryNumber: input.regulatoryNumber ?? null,
+          accreditationStatus: input.accreditationStatus ?? "UNKNOWN",
+          accreditationIdentifier: input.accreditationIdentifier ?? null,
+          laboratoryType: input.laboratoryType ?? "GENERAL_DIAGNOSTIC",
+          enabledSections: input.laboratorySections ?? ["reception", "phlebotomy", "processing", "hematology", "chemistry", "microbiology", "quality"],
+        },
+        updated_at: nowIso(),
+      })
+      .eq("id", result.tenantId)
+    if (result.hospitalId) {
+      await db
+        .from("hospitals")
+        .update({
+          type: "general",
+          facility_kind: "laboratory",
+          settings: {
+            facility_type: "laboratory",
+            source: "platform_onboarding",
+            ownership: input.ownership ?? "PUBLIC",
+          },
+        })
+        .eq("id", result.hospitalId)
+    }
+  }
 
   return {
     ...result,

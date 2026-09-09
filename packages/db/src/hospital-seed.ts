@@ -115,6 +115,18 @@ export const HOSPITAL_LOCATIONS: HospitalLocationDef[] = [
   { code: "stores", name: "Stores", locationType: "warehouse", departmentCode: "stores" },
 ]
 
+export const LABORATORY_LOCATIONS: HospitalLocationDef[] = [
+  { code: "lab_reception", name: "Reception / Registration", locationType: "reception", departmentCode: "laboratory" },
+  { code: "lab_phlebotomy", name: "Phlebotomy / Specimen Collection", locationType: "collection", departmentCode: "laboratory", parentCode: "lab_reception" },
+  { code: "lab_processing", name: "Sample Processing / Accessioning", locationType: "processing", departmentCode: "laboratory", parentCode: "lab_reception" },
+  { code: "lab_hematology", name: "Hematology", locationType: "section", departmentCode: "laboratory", parentCode: "lab_reception" },
+  { code: "lab_chemistry", name: "Clinical Chemistry", locationType: "section", departmentCode: "laboratory", parentCode: "lab_reception" },
+  { code: "lab_microbiology", name: "Microbiology", locationType: "section", departmentCode: "laboratory", parentCode: "lab_reception" },
+  { code: "lab_quality", name: "Quality Management", locationType: "quality", departmentCode: "laboratory", parentCode: "lab_reception" },
+  { code: "lab_stores", name: "Reagents / Stores", locationType: "stores", departmentCode: "laboratory", parentCode: "lab_reception" },
+  { code: "lab_instruments", name: "Instruments / Equipment", locationType: "bench", departmentCode: "laboratory", parentCode: "lab_reception" },
+]
+
 export const HOSPITAL_STAFF_ROLES: HospitalStaffRoleDef[] = [
   { code: "hosp_admin", displayName: "Hospital Administrator", role: "hospital_admin", departmentCode: "administration", profession: "administrator", capabilities: ["staff.manage", "facility.manage", "module.manage"] },
   { code: "med_super", displayName: "Medical Superintendent", role: "facility_admin", departmentCode: "administration", profession: "physician", capabilities: ["encounter.read", "encounter.write", "staff.manage"] },

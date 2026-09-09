@@ -6,8 +6,8 @@ function Logo() {
   return (
     <div className="flex flex-col items-center mb-8">
       <img src="/logo.png" alt="SynapseOS" className="w-16 h-16 rounded-2xl object-contain mb-4 shadow-lg" />
-      <h1 className="text-xl font-bold text-white">
-        Synapse <span className="text-[#E8B84B]">Pharmacy</span>
+      <h1 className="text-xl font-bold text-foreground">
+        Synapse <span className="text-accent">Pharmacy</span>
       </h1>
     </div>
   )
@@ -35,13 +35,13 @@ export default async function InvitePage({
     return (
       <Shell>
         <Logo />
-        <div className="text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-4 text-sm text-center">
+        <div className="text-primary bg-primary/10 border border-primary/20 rounded-lg px-4 py-4 text-sm text-center">
           <p className="font-semibold text-base mb-1">Invite already used</p>
-          <p className="text-blue-200/80">This invite has already been used. Contact your administrator if you need access.</p>
+          <p className="text-primary/80">This invite has already been used. Contact your administrator if you need access.</p>
         </div>
-        <p className="mt-6 text-sm text-zinc-500 text-center">
+        <p className="mt-6 text-sm text-muted-foreground text-center">
           Already have an account?{' '}
-          <Link href="/login" className="text-[#F97316] hover:underline font-medium">Sign in</Link>
+          <Link href="/login" className="text-primary hover:underline font-medium">Sign in</Link>
         </p>
       </Shell>
     )
@@ -72,8 +72,8 @@ export default async function InvitePage({
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#07070A] flex items-center justify-center p-4">
-      <div className="bg-[#111117] border border-[#2A2A36] rounded-2xl p-8 w-full max-w-md shadow-xl">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-2xl p-8 w-full max-w-md shadow-xl">
         {children}
       </div>
     </div>
@@ -82,9 +82,9 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function InvalidCard() {
   return (
-    <div className="text-red-400 bg-red-500/10 rounded-lg px-4 py-4 text-sm text-center">
+    <div className="text-destructive bg-destructive/10 rounded-lg px-4 py-4 text-sm text-center">
       <p className="font-semibold text-base mb-1">Link invalid or expired</p>
-      <p className="text-red-300/80">This invite link is invalid or has expired. Contact your administrator to request a new one.</p>
+      <p className="text-destructive/80">This invite link is invalid or has expired. Contact your administrator to request a new one.</p>
     </div>
   )
 }

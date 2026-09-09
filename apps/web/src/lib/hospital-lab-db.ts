@@ -6,6 +6,8 @@
 import { supabaseAdmin } from '@synapse/db/admin'
 import { LabWorkflow, type LabOrder, type LabResult } from '@synapse/db/lab-workflow'
 import { rowToLabOrder, persistLabOrderBestEffort } from '@synapse/db/lab-order-persist'
+import { WorkQueue } from '@synapse/db/work-queue'
+import { rowToDepartmentTask, persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
 import {
   allocateAccessionNumber,
   loadLabResultsForOrder,
@@ -15,6 +17,9 @@ import {
 } from '@synapse/db/lab-result-persist'
 import { labResultReleasedTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
+import { buildLabReportArtifact } from '@synapse/db/lab-report'
+import { ExchangeOutbox } from '@synapse/db/exchange'
+import { persistDomainEventsBestEffort } from '@synapse/db/work-queue-persist'
 import type { HospitalContext } from './hospital-shared'
 
 type DbClient = typeof supabaseAdmin
@@ -230,6 +235,141 @@ export async function executeHospitalLabAction(params: {
   }
 
   if (params.action === 'release') {
+    let releasedReportId: string | null = null
+    if (result) {
+      const { data: existingReport, error: reportLookupError } = await db
+        .from('lab_reports')
+        .select('id')
+        .eq('tenant_id', params.ctx.tenantId)
+        .eq('lab_order_id', params.orderId)
+        .eq('version', 1)
+        .maybeSingle()
+      if (reportLookupError && !/does not exist|schema cache/i.test(reportLookupError.message ?? '')) {
+        warnings.push(reportLookupError.message)
+      } else if (!existingReport) {
+        const { data: specimen } = await db
+          .from('lab_specimens')
+          .select('specimen_type, collected_at, received_at')
+          .eq('tenant_id', params.ctx.tenantId)
+          .eq('lab_order_id', params.orderId)
+          .maybeSingle()
+        const report = buildLabReportArtifact({
+          id: crypto.randomUUID(),
+          tenantId: params.ctx.tenantId,
+          facilityId: params.ctx.hospitalId,
+          patientId: updated.patientId,
+          encounterId: updated.encounterId,
+          orderId: params.orderId,
+          clinicalResultId: result.id,
+          accession: updated.accessionNumber ?? params.orderId,
+          testName: updated.testName,
+          loincCode: updated.loincCode,
+          specimenType: specimen?.specimen_type ?? null,
+          collectedAt: specimen?.collected_at ?? null,
+          receivedAt: specimen?.received_at ?? null,
+          reportedAt: result.releasedAt ?? new Date().toISOString(),
+          resultValue: result.resultValue,
+          unit: result.unit,
+          referenceRange: result.referenceRange,
+          abnormalFlag: result.flag,
+          isCritical: result.isCritical,
+          verifiedBy: result.verifiedBy ?? params.actorId,
+        })
+        const { error: reportInsertError } = await db.from('lab_reports').insert({
+          id: report.id,
+          tenant_id: report.tenantId,
+          facility_id: report.facilityId,
+          patient_id: report.patientId,
+          encounter_id: report.encounterId,
+          lab_order_id: report.orderId,
+          clinical_result_id: report.clinicalResultId,
+          accession: report.accession,
+          status: report.status,
+          version: report.version,
+          report_type: 'LAB_RESULT',
+          generated_at: report.reportedAt,
+          generated_by: params.actorId,
+          verified_by: report.verifiedBy,
+          released_at: report.reportedAt,
+          template_version: report.templateVersion,
+          html_snapshot: report.htmlSnapshot,
+          content_hash: report.contentHash,
+        })
+        if (reportInsertError && !/duplicate|unique/i.test(reportInsertError.message ?? '')) {
+          warnings.push(reportInsertError.message)
+        } else {
+          releasedReportId = report.id
+        }
+      } else {
+        releasedReportId = String(existingReport.id)
+      }
+    }
+    if (releasedReportId && result) {
+      const outbox = new ExchangeOutbox()
+      const event = outbox.append({
+        eventType: 'LabResultReleased',
+        tenantId: params.ctx.tenantId,
+        facilityId: params.ctx.hospitalId,
+        actorId: params.actorId,
+        patientId: updated.patientId,
+        encounterId: updated.encounterId,
+        correlationId: updated.correlationId,
+        payload: {
+          reportId: releasedReportId,
+          resultId: result.id,
+          accession: updated.accessionNumber ?? null,
+        },
+        source: 'synapse-lab',
+        aggregateId: params.orderId,
+        action: 'released',
+      })
+      const eventPersist = await persistDomainEventsBestEffort(db, [event])
+      if (!eventPersist.ok) warnings.push(eventPersist.error)
+      }
+    const { data: labTaskRow } = await db
+      .from('department_tasks')
+      .select('*')
+      .eq('tenant_id', params.ctx.tenantId)
+      .eq('source_resource', 'lab_orders')
+      .eq('source_id', params.orderId)
+      .eq('task_type', 'lab_order')
+      .maybeSingle()
+
+    if (labTaskRow) {
+      const queue = new WorkQueue()
+      const labTask = rowToDepartmentTask(labTaskRow)
+      queue.tasks.set(labTask.id, labTask)
+      if (labTask.status === 'REQUESTED') queue.start(labTask.id, params.actorId)
+      if (queue.get(labTask.id)?.status === 'IN_PROGRESS') queue.complete(labTask.id, 'Laboratory result released', params.actorId)
+      const review = queue.create({
+        tenantId: params.ctx.tenantId,
+        facilityId: params.ctx.hospitalId,
+        hospitalId: params.ctx.hospitalId,
+        patientId: updated.patientId,
+        encounterId: updated.encounterId,
+        requesterId: params.actorId,
+        ownerDepartment: 'opd',
+        ownerRole: 'doctor',
+        taskType: 'doctor_result_review',
+        priority: result?.isCritical ? 'STAT' : 'ROUTINE',
+        title: result?.isCritical ? 'CRITICAL RESULT: Doctor review' : 'Doctor review: released result',
+        description: `Review released ${updated.testName} for the ordering encounter`,
+        sourceResource: 'lab_results',
+        sourceId: result?.id ?? params.orderId,
+        correlationId: updated.correlationId,
+        idempotencyKey: `lab_results:${result?.id ?? params.orderId}:doctor-result-review`,
+      })
+      if (review.ok) {
+        const handoffPersist = await persistWorkQueueArtifactsBestEffort(db, {
+          tasks: [labTask, review.task],
+          events: queue.outbox.list({ correlationId: updated.correlationId }),
+        })
+        if (handoffPersist.errors.length) warnings.push(...handoffPersist.errors)
+      } else {
+        warnings.push(review.error)
+      }
+    }
+
     const { error } = await db
       .from('department_tasks')
       .update({ status: 'COMPLETED', completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })

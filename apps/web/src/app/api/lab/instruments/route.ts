@@ -28,5 +28,13 @@ export async function GET() {
   if (error) {
     return NextResponse.json({ devices: [], warning: error.message })
   }
-  return NextResponse.json({ devices: data ?? [] })
+  const staleAfterMs = 90_000
+  const now = Date.now()
+  const devices = (data ?? []).map((device: Record<string, unknown>) => ({
+    ...device,
+    operational_health: device.last_seen_at && now - new Date(String(device.last_seen_at)).getTime() <= staleAfterMs
+      ? "ONLINE"
+      : "OFFLINE",
+  }))
+  return NextResponse.json({ devices })
 }

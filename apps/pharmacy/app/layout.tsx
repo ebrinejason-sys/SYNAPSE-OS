@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google"
 import { synapseThemeFoucScript } from "@synapse/config/theme"
-import { SynapseThemeProvider } from "@synapse/ui"
+import { SynapseThemeProvider, SynapseThemeToggle } from "@synapse/ui"
 import "@synapse/config/typography.css"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
@@ -48,7 +48,12 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans antialiased bg-background text-foreground">
-        <SynapseThemeProvider>{children}</SynapseThemeProvider>
+        <SynapseThemeProvider>
+          {children}
+          <div className="fixed right-4 top-4 z-50">
+            <SynapseThemeToggle size="sm" />
+          </div>
+        </SynapseThemeProvider>
         <Toaster />
       </body>
     </html>

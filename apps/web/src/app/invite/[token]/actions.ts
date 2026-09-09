@@ -115,13 +115,9 @@ export async function redeemInvite(
     .update({ current_step: 1, account_created_at: now, updated_at: now })
     .eq('tenant_id', tenantId)
 
-  // 3. Activate the tenant
-  await db
-    .from('tenants')
-    .update({ status: 'active', is_active: true, updated_at: now })
-    .eq('id', tenantId)
+  // Tenant lifecycle is owned by the provisioning finalize step.
 
-  // 4. Mint JWT + create session
+  // 3. Mint JWT + create session
   const jwtToken = await signToken({
     sub:       profile.id as string,
     email:     profile.email as string,
@@ -137,7 +133,7 @@ export async function redeemInvite(
     app:    'web',
   })
 
-  // 5. Set session cookie
+  // 4. Set session cookie
   const expires = new Date()
   expires.setDate(expires.getDate() + SESSION_DURATION_DAYS)
 

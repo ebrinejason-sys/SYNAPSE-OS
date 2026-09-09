@@ -162,45 +162,55 @@ function LoginContent() {
   async function handlePassword(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError('')
-    const res = await fetch('/api/auth/password-login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
-    const data = await res.json()
-    setLoading(false)
-    if (!res.ok) {
-      setError(data.error ?? 'Invalid email or password.')
-      return
+    try {
+      const res = await fetch('/api/auth/password-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) {
+        setError(data.error ?? 'Invalid email or password.')
+        return
+      }
+      setOtpEmail(email)
+      setEmailCode('')
+      setSubStep('otp')
+    } catch {
+      setError('Unable to reach SYNAPSE. Check your connection and try again.')
+    } finally {
+      setLoading(false)
     }
-    setOtpEmail(email)
-    setEmailCode('')
-    setSubStep('otp')
   }
 
   async function verifyPasswordCode(e: React.FormEvent) {
     e.preventDefault()
     if (emailCode.length !== 6) { setError('Enter the 6-digit code from your email.'); return }
     setLoading(true); setError('')
-    const res = await fetch('/api/auth/email-otp/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, otp: emailCode }),
-    })
-    const data = await res.json().catch(() => ({})) as {
-      ok?: boolean
-      mfaRequired?: boolean
-      mfaSetupRequired?: boolean
-      redirectTo?: string
-      error?: string
+    try {
+      const res = await fetch('/api/auth/email-otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp: emailCode }),
+      })
+      const data = await res.json().catch(() => ({})) as {
+        ok?: boolean
+        mfaRequired?: boolean
+        mfaSetupRequired?: boolean
+        redirectTo?: string
+        error?: string
+      }
+      if (!res.ok) { setError(data.error ?? 'Verification failed.'); return }
+      if (data.mfaSetupRequired) { router.push('/platform/mfa'); return }
+      if (data.mfaRequired) { router.push('/platform/mfa-verify'); return }
+      const dest = data.redirectTo ?? next
+      if (dest.startsWith('http')) { window.location.href = dest; return }
+      router.push(dest)
+    } catch {
+      setError('Unable to reach the authentication service. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-    if (!res.ok) { setError(data.error ?? 'Verification failed.'); return }
-    if (data.mfaSetupRequired) { router.push('/platform/mfa'); return }
-    if (data.mfaRequired) { router.push('/platform/mfa-verify'); return }
-    const dest = data.redirectTo ?? next
-    if (dest.startsWith('http')) { window.location.href = dest; return }
-    router.push(dest)
   }
 
   async function resendPasswordCode() {
@@ -217,69 +227,90 @@ function LoginContent() {
   async function sendEmailCode() {
     if (!otpEmail) return
     setLoading(true); setError('')
-    const res = await fetch('/api/auth/email-otp/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: otpEmail }),
-    })
-    const data = await res.json()
-    setLoading(false)
-    if (!res.ok) { setError(data.error ?? 'Failed to send code.'); return }
-    setSubStep('otp')
+    try {
+      const res = await fetch('/api/auth/email-otp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: otpEmail }),
+      })
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) { setError(data.error ?? 'Failed to send code.'); return }
+      setSubStep('otp')
+    } catch {
+      setError('Unable to reach the authentication service. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function verifyEmailCode(e: React.FormEvent) {
     e.preventDefault()
     if (emailCode.length !== 6) { setError('Enter the 6-digit code from your email.'); return }
     setLoading(true); setError('')
-    const res = await fetch('/api/auth/email-otp/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: otpEmail, otp: emailCode }),
-    })
-    const data = await res.json().catch(() => ({})) as {
-      ok?: boolean
-      mfaRequired?: boolean
-      mfaSetupRequired?: boolean
-      redirectTo?: string
-      error?: string
+    try {
+      const res = await fetch('/api/auth/email-otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: otpEmail, otp: emailCode }),
+      })
+      const data = await res.json().catch(() => ({})) as {
+        ok?: boolean
+        mfaRequired?: boolean
+        mfaSetupRequired?: boolean
+        redirectTo?: string
+        error?: string
+      }
+      if (!res.ok) { setError(data.error ?? 'Verification failed.'); return }
+      if (data.mfaSetupRequired) { window.location.href = '/platform/mfa'; return }
+      if (data.mfaRequired) { window.location.href = '/platform/mfa-verify'; return }
+      const dest = data.redirectTo ?? next
+      if (dest.startsWith('http')) { window.location.href = dest; return }
+      window.location.href = dest
+    } catch {
+      setError('Unable to reach the authentication service. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    if (!res.ok) { setError(data.error ?? 'Verification failed.'); setLoading(false); return }
-    setLoading(false)
-    if (data.mfaSetupRequired) { window.location.href = '/platform/mfa'; return }
-    if (data.mfaRequired) { window.location.href = '/platform/mfa-verify'; return }
-    const dest = data.redirectTo ?? next
-    if (dest.startsWith('http')) { window.location.href = dest; return }
-    window.location.href = dest
   }
 
   // ─── Phone OTP ─────────────────────────────────────────────
   async function sendPhoneCode() {
     if (!phone) return
     setLoading(true); setError('')
-    const res = await fetch('/api/auth/phone/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone }),
-    })
-    const data = await res.json()
-    setLoading(false)
-    if (!res.ok) { setError(data.error ?? 'Failed to send SMS.'); return }
-    setSubStep('otp')
+    try {
+      const res = await fetch('/api/auth/phone/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      })
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) { setError(data.error ?? 'Failed to send SMS.'); return }
+      setSubStep('otp')
+    } catch {
+      setError('Unable to reach the authentication service. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function verifyPhoneCode(e: React.FormEvent) {
     e.preventDefault()
     if (phoneCode.length !== 6) { setError('Enter the 6-digit code from your SMS.'); return }
     setLoading(true); setError('')
-    const res = await fetch('/api/auth/phone/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, otp: phoneCode }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setError(data.error ?? 'Verification failed.'); setLoading(false); return }
-    router.push(next)
+    try {
+      const res = await fetch('/api/auth/phone/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, otp: phoneCode }),
+      })
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) { setError(data.error ?? 'Verification failed.'); return }
+      router.push(next)
+    } catch {
+      setError('Unable to reach the authentication service. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const TABS: { id: AuthTab; label: string }[] = [

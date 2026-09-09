@@ -40,6 +40,7 @@
     "./clinical-journey": "./src/clinical-journey.ts",
     "./lab-order-persist": "./src/lab-order-persist.ts",
     "./lab-result-persist": "./src/lab-result-persist.ts",
+    "./lab-report": "./src/lab-report.ts",
     "./prescription-persist": "./src/prescription-persist.ts",
     "./clinical-timeline": "./src/clinical-timeline.ts",
     "./clinical-charge": "./src/clinical-charge.ts",

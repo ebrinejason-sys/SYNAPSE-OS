@@ -87,6 +87,51 @@ export function recordEncounterOpened(input: EncounterOpenedInput): EncounterOpe
   }
 }
 
+export type TriageCompletedInput = {
+  queue: WorkQueue
+  triageTaskId: string
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  encounterId: string
+  requesterId: string
+  priority?: DepartmentTask["priority"]
+}
+
+export type TriageCompletedResult = {
+  queue: WorkQueue
+  doctorTask: DepartmentTask
+}
+
+/** Complete persisted triage work and hand the same encounter to the doctor queue. */
+export function recordTriageCompleted(input: TriageCompletedInput): TriageCompletedResult {
+  const started = input.queue.start(input.triageTaskId, input.requesterId)
+  if (!started.ok) throw new Error(started.error)
+  const completed = input.queue.complete(input.triageTaskId, "Triage completed", input.requesterId)
+  if (!completed.ok) throw new Error(completed.error)
+
+  const doctor = input.queue.create({
+    tenantId: input.tenantId,
+    facilityId: input.hospitalId,
+    hospitalId: input.hospitalId,
+    patientId: input.patientId,
+    encounterId: input.encounterId,
+    requesterId: input.requesterId,
+    ownerDepartment: "opd",
+    ownerRole: "doctor",
+    taskType: "consultation",
+    priority: input.priority ?? "ROUTINE",
+    title: "Doctor review",
+    description: "Triage completed; encounter awaits clinician review",
+    sourceResource: "encounters",
+    sourceId: input.encounterId,
+    correlationId: input.encounterId,
+    idempotencyKey: `encounters:${input.encounterId}:doctor-review`,
+  })
+  if (!doctor.ok) throw new Error(doctor.error)
+  return { queue: input.queue, doctorTask: doctor.task }
+}
+
 export type EdTriagePlacedInput = {
   tenantId: string
   hospitalId: string
@@ -192,6 +237,91 @@ export function getEncounterJourneySnapshot(queue: WorkQueue, tenantId: string, 
 
 export function createProductionWorkQueue(): WorkQueue {
   return new WorkQueue(new ExchangeOutbox())
+}
+
+export type EncounterNextWork = {
+  next: "LAB" | "DOCTOR_REVIEW" | "PHARMACY" | "BILLING" | "COMPLETE" | "WAITING"
+  reason: string
+  sourceType: string | null
+  sourceId: string | null
+}
+
+export type EncounterWorkState = {
+  labOrders?: Array<{ id: string; status: string }>
+  releasedResults?: Array<{ id: string; reviewed?: boolean }>
+  prescriptions?: Array<{ id: string; status: string; localDispense?: boolean }>
+  invoice?: { status?: string; totalAmount?: number; paidAmount?: number } | null
+  tasks?: Array<{ taskType: string; status: string; sourceId?: string | null }>
+}
+
+/** Deterministically derives the next required work from persisted domain snapshots. */
+export function resolveEncounterNextWork(state: EncounterWorkState): EncounterNextWork {
+  const activeLab = (state.labOrders ?? []).find((order) => !["RELEASED", "CANCELLED", "REJECTED"].includes(order.status))
+  if (activeLab) return { next: "LAB", reason: `Lab order ${activeLab.id} is ${activeLab.status}`, sourceType: "lab_orders", sourceId: activeLab.id }
+
+  const result = (state.releasedResults ?? []).find((item) => !item.reviewed)
+  if (result) return { next: "DOCTOR_REVIEW", reason: "Released result requires clinician review", sourceType: "lab_results", sourceId: result.id }
+
+  const prescription = (state.prescriptions ?? []).find((item) => item.status === "active" && item.localDispense !== false)
+  if (prescription) return { next: "PHARMACY", reason: "Prescription awaits local dispensing", sourceType: "clinical_prescriptions", sourceId: prescription.id }
+
+  const invoice = state.invoice
+  if (invoice && invoice.status !== "paid" && Number(invoice.totalAmount ?? 0) > Number(invoice.paidAmount ?? 0)) {
+    return { next: "BILLING", reason: "Invoice has an outstanding balance", sourceType: "billing_invoices", sourceId: null }
+  }
+
+  const pendingTask = (state.tasks ?? []).find((task) => ["REQUESTED", "ACCEPTED", "IN_PROGRESS", "ON_HOLD"].includes(task.status))
+  if (pendingTask) return { next: "WAITING", reason: `${pendingTask.taskType} is still in progress`, sourceType: null, sourceId: pendingTask.sourceId ?? null }
+  return { next: "COMPLETE", reason: "No required clinical or financial work remains", sourceType: null, sourceId: null }
+}
+
+export type EncounterReconciliationState = EncounterWorkState & {
+  triageCompleted?: boolean
+  releasedLabOrderIds?: string[]
+  dispensedPrescriptionIds?: string[]
+  cancelledLabOrderIds?: string[]
+  cancelledPrescriptionIds?: string[]
+}
+
+/** Apply only legal, tenant-local corrections to stale actionable tasks. */
+export function reconcileEncounterTasks(
+  queue: WorkQueue,
+  tenantId: string,
+  encounterId: string,
+  actorId: string,
+  state: EncounterReconciliationState,
+): { reconciled: DepartmentTask[]; next: EncounterNextWork } {
+  const completed = new Set<string>()
+  const cancelled = new Set<string>()
+  for (const task of queue.list({ tenantId, encounterId })) {
+    const sourceId = task.sourceId ?? ""
+    const isActionable = ["REQUESTED", "ACCEPTED", "IN_PROGRESS", "ON_HOLD"].includes(task.status)
+    if (!isActionable) continue
+
+    const shouldComplete =
+      (task.taskType === "triage" && state.triageCompleted) ||
+      (task.taskType === "lab_order" && state.releasedLabOrderIds?.includes(sourceId)) ||
+      (task.taskType === "prescription" && state.dispensedPrescriptionIds?.includes(sourceId)) ||
+      (task.taskType === "billing" && state.invoice?.status === "paid")
+    const shouldCancel =
+      (task.taskType === "lab_order" && state.cancelledLabOrderIds?.includes(sourceId)) ||
+      (task.taskType === "prescription" && state.cancelledPrescriptionIds?.includes(sourceId))
+
+    if (shouldComplete) {
+      const started = task.status === "REQUESTED" ? queue.start(task.id, actorId) : { ok: true as const }
+      if (started.ok && queue.get(task.id)?.status === "IN_PROGRESS") {
+        const result = queue.complete(task.id, "Reconciled from completed source record", actorId)
+        if (result.ok) completed.add(task.id)
+      }
+    } else if (shouldCancel) {
+      const result = queue.cancel(task.id, "Reconciled from cancelled source record")
+      if (result.ok) cancelled.add(task.id)
+    }
+  }
+  return {
+    reconciled: queue.list({ tenantId, encounterId }).filter((task) => completed.has(task.id) || cancelled.has(task.id)),
+    next: resolveEncounterNextWork(state),
+  }
 }
 
 export type LabOrderPlacedInput = {

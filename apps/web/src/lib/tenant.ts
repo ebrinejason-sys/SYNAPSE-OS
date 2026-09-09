@@ -1,7 +1,8 @@
 import { cache } from "react";
-import { headers } from "next/headers";
-import { facilitySlugFromHost, RESERVED_HOSTS } from "./tenant-routing";
 import { createServiceClient } from "./supabase/server";
+import { isTenantScopeAllowed } from "./tenant-scope";
+
+export { isTenantScopeAllowed } from "./tenant-scope";
 
 export type TenantContext = {
   tenantId: string;
@@ -9,6 +10,7 @@ export type TenantContext = {
   hospitalName: string;
   subdomain: string;
   plan: string;
+  facilityType: string;
 };
 
 type HospitalRow = {
@@ -21,14 +23,41 @@ type HospitalRow = {
 type TenantRow = {
   id: string;
   plan: string;
-  is_active: boolean;
-  status: string;
+  facility_type: string | null;
 };
 
+export async function userCanAccessTenant(userId: string, tenant: TenantContext, role?: string) {
+  const supabase = createServiceClient();
+
+  // Platform access never grants implicit hospital PHI access. Non-hospital
+  // facilities retain the existing scoped control-plane bypass.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: profile } = (await (supabase as any)
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", userId)
+    .maybeSingle()) as { data: { tenant_id: string | null } | null };
+
+  // Scope assignments are authoritative for staff whose profile predates the
+  // tenant column or whose role is explicitly scoped.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: assignments } = (await (supabase as any)
+    .from("staff_scope_assignments")
+    .select("tenant_id")
+    .eq("profile_id", userId)
+    .eq("is_active", true)) as { data: { tenant_id: string | null }[] | null };
+
+  return isTenantScopeAllowed(
+    profile?.tenant_id ?? null,
+    assignments ?? [],
+    tenant.tenantId,
+    role,
+    tenant.facilityType,
+  );
+}
+
 export const resolveTenant = cache(async (subdomain: string): Promise<TenantContext | null> => {
-  if (!subdomain || RESERVED_HOSTS.has(subdomain)) return null;
-  const hostSlug = facilitySlugFromHost((await headers()).get("host") ?? "");
-  if (hostSlug && hostSlug !== subdomain) return null;
+  if (!subdomain) return null;
   const supabase = createServiceClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,11 +74,9 @@ export const resolveTenant = cache(async (subdomain: string): Promise<TenantCont
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: tenant } = (await (supabase as any)
     .from("tenants")
-    .select("id, plan, is_active, status")
+    .select("id, plan, facility_type")
     .eq("id", tenantId)
     .single()) as { data: TenantRow | null; error: unknown };
-
-  if (!tenant?.id || tenant.is_active !== true || tenant.status !== "active") return null;
 
   return {
     tenantId: tenant?.id ?? tenantId,
@@ -57,5 +84,6 @@ export const resolveTenant = cache(async (subdomain: string): Promise<TenantCont
     hospitalName: hospital.name,
     subdomain: hospital.subdomain,
     plan: tenant?.plan ?? "trial",
+    facilityType: tenant?.facility_type ?? "hospital",
   };
 });

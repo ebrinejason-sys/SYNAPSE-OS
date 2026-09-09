@@ -11,17 +11,30 @@ import {
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { ThemeToggle } from './ThemeToggle'
+import { SkipLink } from '@synapse/ui'
 
 const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs))
 
-const NAV_GROUPS = [
+const NAV_GROUPS = (tenantSlug?: string, role?: string) => {
+  const base = tenantSlug ? `/os/${tenantSlug}` : '/os'
+  const roleItems = role === 'receptionist'
+    ? ['Patients', 'Encounters']
+    : role === 'nurse'
+      ? ['Nursing', 'Patients', 'Tasks']
+      : role === 'lab_tech' || role === 'lab_scientist' || role === 'lab_admin' || role === 'lab_supervisor' || role === 'facility_admin'
+        ? ['Laboratory', 'Tasks']
+        : role === 'pharmacist' || role === 'pharmacy_admin' || role === 'pharmacy_staff'
+          ? ['Pharmacy', 'Inventory']
+          : null
+
+  const groups = [
   {
     label: 'Clinical',
     items: [
-      { name: 'Dashboard',  href: '/os/dashboard',   icon: LayoutDashboard },
-      { name: 'Doctor',     href: '/doctor/queue',   icon: Stethoscope },
-      { name: 'Nursing',    href: '/nurse/queue',    icon: HeartPulse },
-      { name: 'Patients',   href: '/patient/search', icon: UserRound },
+      { name: 'Dashboard', href: `${base}/dashboard`, icon: LayoutDashboard },
+      { name: 'Doctor', href: `${base}/clinical/queue`, icon: Stethoscope },
+      { name: 'Nursing', href: '/nurse/queue', icon: HeartPulse },
+      { name: 'Patients', href: `${base}/patients`, icon: UserRound },
     ],
   },
   {
@@ -30,7 +43,7 @@ const NAV_GROUPS = [
       { name: 'Laboratory', href: '/lab/orders',         icon: FlaskConical },
       { name: 'Pharmacy',   href: '/pharmacy/queue',     icon: Pill },
       { name: 'Inventory',  href: '/admin/supply/orders', icon: Package },
-      { name: 'Encounters', href: '/encounter/new',      icon: ClipboardList },
+      { name: 'Encounters', href: `${base}/encounters/new`, icon: ClipboardList },
     ],
   },
   {
@@ -42,21 +55,33 @@ const NAV_GROUPS = [
       { name: 'Settings', href: '/admin/settings', icon: Settings },
     ],
   },
-]
+  ]
 
-const BOTTOM_TABS = [
-  { name: 'Home',     href: '/os/dashboard',   icon: LayoutDashboard },
-  { name: 'Doctor',   href: '/doctor/queue',   icon: Stethoscope },
-  { name: 'Patients', href: '/patient/search', icon: UserRound },
+  return groups.map((group) => ({
+    ...group,
+    items: roleItems ? group.items.filter((item) => item.name === 'Dashboard' || roleItems.includes(item.name)) : group.items,
+  })).filter((group) => group.items.length > 0)
+}
+
+const BOTTOM_TABS = (tenantSlug?: string) => {
+  const base = tenantSlug ? `/os/${tenantSlug}` : '/os'
+  return [
+  { name: 'Home', href: `${base}/dashboard`, icon: LayoutDashboard },
+  { name: 'Doctor', href: `${base}/clinical/queue`, icon: Stethoscope },
+  { name: 'Patients', href: `${base}/patients`, icon: UserRound },
   { name: 'Lab',      href: '/lab/orders',     icon: FlaskConical },
 ]
+}
 
-export function AppSidebar({ children }: { children: React.ReactNode }) {
+export function AppSidebar({ children, tenantSlug, role }: { children: React.ReactNode; tenantSlug?: string; role?: string }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const navGroups = NAV_GROUPS(tenantSlug, role)
+  const bottomTabs = BOTTOM_TABS(tenantSlug)
 
   return (
     <div className="min-h-screen bg-background">
+      <SkipLink />
       {open && (
         <button
           type="button"
@@ -72,7 +97,7 @@ export function AppSidebar({ children }: { children: React.ReactNode }) {
         open ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex items-center justify-between h-16 px-4 border-b border-border shrink-0">
-          <Link href="/os/dashboard" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <Link href={tenantSlug ? `/os/${tenantSlug}/dashboard` : '/os'} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#F97316] to-[#E8B84B] flex items-center justify-center shadow">
               <span className="text-white font-black text-sm">S</span>
             </div>
@@ -87,7 +112,7 @@ export function AppSidebar({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-4">
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
             <div key={group.label}>
               <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                 {group.label}
@@ -122,23 +147,23 @@ export function AppSidebar({ children }: { children: React.ReactNode }) {
       {/* Main area */}
       <div className="lg:pl-64 flex flex-col min-h-screen">
         <header className="sticky top-0 z-30 flex items-center h-14 px-4 lg:px-6 bg-card/80 backdrop-blur-md border-b border-border shrink-0">
-          <button type="button" className="lg:hidden text-muted-foreground hover:text-foreground p-1 mr-2" onClick={() => setOpen(true)}>
+          <button type="button" aria-label="Open navigation" className="lg:hidden text-muted-foreground hover:text-foreground p-1 mr-2" onClick={() => setOpen(true)}>
             <Menu className="h-5 w-5" />
           </button>
           <span className="text-sm font-semibold text-foreground truncate flex-1">
-            {NAV_GROUPS.flatMap(g => g.items).find(item => pathname === item.href || pathname.startsWith(item.href + '/'))?.name ?? 'Synapse OS'}
+            {navGroups.flatMap(g => g.items).find(item => pathname === item.href || pathname.startsWith(item.href + '/'))?.name ?? 'Synapse OS'}
           </span>
           <ThemeToggle />
         </header>
 
-        <main className="flex-1 p-4 pb-20 lg:p-6 lg:pb-6">
+        <main id="main" tabIndex={-1} className="flex-1 p-4 pb-20 outline-none lg:p-6 lg:pb-6">
           {children}
         </main>
 
         {/* Mobile bottom tabs */}
         <nav className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-card/95 backdrop-blur-md border-t border-border">
           <div className="flex items-center justify-around px-1 py-1">
-            {BOTTOM_TABS.map((tab) => {
+            {bottomTabs.map((tab) => {
               const Icon = tab.icon
               const isActive = pathname === tab.href || pathname.startsWith(tab.href + '/')
               return (
@@ -155,7 +180,7 @@ export function AppSidebar({ children }: { children: React.ReactNode }) {
                 </Link>
               )
             })}
-            <button onClick={() => setOpen(true)} className="flex flex-col items-center gap-0.5 px-3 py-2 text-muted-foreground">
+            <button type="button" aria-label="Open more navigation" onClick={() => setOpen(true)} className="flex flex-col items-center gap-0.5 px-3 py-2 text-muted-foreground">
               <Menu className="h-5 w-5" />
               <span className="text-[9px] font-medium">More</span>
             </button>

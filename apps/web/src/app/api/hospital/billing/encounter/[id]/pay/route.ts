@@ -6,7 +6,8 @@ import {
 } from '@synapse/db/clinical-payment'
 import { paymentRecordedTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
-import { persistDomainEventsBestEffort } from '@synapse/db/work-queue-persist'
+import { persistDomainEventsBestEffort, rowToDepartmentTask } from '@synapse/db/work-queue-persist'
+import { WorkQueue } from '@synapse/db/work-queue'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '@/lib/hospital-shared'
 import { requireHospitalStaffContext, encounterPaymentSchema } from '@/lib/hospital-dept'
 
@@ -98,6 +99,40 @@ export async function POST(
           receipt_number: result.receiptNumber,
         },
       })
+    }
+
+    if (result.balanceDue <= 0) {
+      const { data: billingTaskRow } = await db
+        .from('department_tasks')
+        .select('*')
+        .eq('tenant_id', ctx.tenantId)
+        .eq('encounter_id', encounterId)
+        .eq('source_resource', 'billing_invoices')
+        .eq('source_id', result.invoiceId)
+        .eq('task_type', 'billing')
+        .maybeSingle()
+      if (billingTaskRow) {
+        const queue = new WorkQueue()
+        const task = rowToDepartmentTask(billingTaskRow)
+        queue.tasks.set(task.id, task)
+        if (task.status === 'REQUESTED') queue.start(task.id, ctx.userId)
+        if (queue.get(task.id)?.status === 'IN_PROGRESS') queue.complete(task.id, 'Invoice fully paid', ctx.userId)
+        const completed = queue.get(task.id)
+        if (completed?.status === 'COMPLETED') {
+          await db
+            .from('department_tasks')
+            .update({
+              status: completed.status,
+              accepted_at: completed.acceptedAt,
+              completed_at: completed.completedAt,
+              assigned_to: completed.assignedTo,
+              result_summary: completed.resultSummary,
+              updated_at: completed.updatedAt,
+            })
+            .eq('id', task.id)
+            .eq('tenant_id', ctx.tenantId)
+        }
+      }
     }
 
     return NextResponse.json({ payment: result })

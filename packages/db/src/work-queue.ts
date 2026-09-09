@@ -25,6 +25,7 @@ export const TASK_TYPES = [
   "lab_order",
   "lab_collection",
   "lab_verification",
+  "doctor_result_review",
   "imaging_order",
   "imaging_report",
   "prescription",

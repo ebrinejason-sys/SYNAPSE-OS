@@ -46,40 +46,40 @@ export default async function PatientsPage({
           name="q"
           defaultValue={q}
           placeholder="Search by name..."
-          className="w-full max-w-md bg-[#0D1B2E] border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#00D4AA]"
+          className="w-full max-w-md bg-surface border border-edge rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-teal-500"
         />
       </form>
 
-      <div className="bg-[#0D1B2E] border border-slate-800 rounded-xl overflow-hidden">
+      <div className="clinical-card overflow-hidden shadow-sm">
         <table className="w-full text-sm">
-          <thead className="border-b border-slate-800">
+          <thead className="border-b border-subtle">
             <tr>
               {["MRN", "Name", "DOB", "Sex", "Registered"].map((h) => (
                 <th
                   key={h}
-                  className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider"
+                  className="px-4 py-3 text-left text-xs font-medium text-muted-color uppercase tracking-wider"
                 >
                   {h}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800">
+          <tbody className="divide-y divide-subtle">
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {((patients as any[]) ?? []).map((p: any) => (
-              <tr key={p.id} className="hover:bg-slate-800/40">
-                <td className="px-4 py-3 font-mono text-xs text-slate-300">{p.mrn ?? "—"}</td>
+              <tr key={p.id} className="hover:bg-overlay/40">
+                <td className="px-4 py-3 font-mono text-xs text-secondary-color">{p.mrn ?? "—"}</td>
                 <td className="px-4 py-3">
                   <Link
                     href={`/os/${slug}/patients/${p.id}`}
-                    className="text-white hover:text-[#00D4AA] font-medium"
+                    className="text-primary-color hover:text-teal-600 font-medium"
                   >
                     {p.full_name}
                   </Link>
                 </td>
-                <td className="px-4 py-3 text-slate-400">{p.date_of_birth ?? "—"}</td>
-                <td className="px-4 py-3 text-slate-400 capitalize">{p.sex ?? "—"}</td>
-                <td className="px-4 py-3 text-slate-400">
+                <td className="px-4 py-3 text-secondary-color">{p.date_of_birth ?? "—"}</td>
+                <td className="px-4 py-3 text-secondary-color capitalize">{p.sex ?? "—"}</td>
+                <td className="px-4 py-3 text-secondary-color">
                   {new Date(p.created_at).toLocaleDateString()}
                 </td>
               </tr>
@@ -87,7 +87,7 @@ export default async function PatientsPage({
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {((patients as any[]) ?? []).length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={5} className="px-4 py-8 text-center text-muted-color">
                   No patients found
                 </td>
               </tr>

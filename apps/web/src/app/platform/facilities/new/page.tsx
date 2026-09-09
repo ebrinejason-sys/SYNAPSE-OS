@@ -17,6 +17,14 @@ import {
   type FacilityOwnership,
 } from "@synapse/db/facility-provision-catalog"
 
+const LAB_SECTION_OPTIONS: Array<[string, string]> = [
+  ["reception", "Reception"], ["phlebotomy", "Phlebotomy"], ["processing", "Sample Processing"],
+  ["hematology", "Hematology"], ["chemistry", "Clinical Chemistry"], ["microbiology", "Microbiology"],
+  ["quality", "Quality"], ["serology", "Serology / Immunology"], ["parasitology", "Parasitology"],
+  ["molecular", "Molecular / PCR"], ["histopathology", "Histopathology"], ["cytology", "Cytology"],
+  ["blood_bank", "Blood Bank"], ["research", "Research"],
+]
+
 export default function CreateFacilityPage() {
   return (
     <Suspense fallback={<div className="mx-auto max-w-3xl py-16 text-center text-sm text-slate-400">Loading…</div>}>
@@ -39,15 +47,22 @@ function CreateFacilityWizard() {
   const [facilityLevel, setFacilityLevel] = useState<FacilityLevel>("GENERAL_HOSPITAL")
   const [city, setCity] = useState("")
   const [district, setDistrict] = useState("")
+  const [physicalAddress, setPhysicalAddress] = useState("")
+  const [facilityPhone, setFacilityPhone] = useState("")
+  const [facilityEmail, setFacilityEmail] = useState("")
   const [adminName, setAdminName] = useState("")
   const [adminEmail, setAdminEmail] = useState("")
   const [adminPhone, setAdminPhone] = useState("")
   const [tier, setTier] = useState("trial")
-  const [modules, setModules] = useState<string[]>(defaultModulesForFacilityType(FACILITY_TYPES.includes(initialType) ? initialType : "hospital"))
+  const [modules, setModules] = useState<string[]>(defaultModulesForFacilityType("hospital"))
   const [includeLab, setIncludeLab] = useState(false)
   const [includeDispensing, setIncludeDispensing] = useState(false)
   const [licenseNumber, setLicenseNumber] = useState("")
-  const [synthetic, setSynthetic] = useState(false)
+  const [regulatoryNumber, setRegulatoryNumber] = useState("")
+  const [accreditationStatus, setAccreditationStatus] = useState("UNKNOWN")
+  const [accreditationIdentifier, setAccreditationIdentifier] = useState("")
+  const [laboratoryType, setLaboratoryType] = useState("GENERAL_DIAGNOSTIC")
+  const [laboratorySections, setLaboratorySections] = useState(["reception", "phlebotomy", "processing", "hematology", "chemistry", "microbiology", "quality"])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
   const [result, setResult] = useState<{
@@ -101,24 +116,29 @@ function CreateFacilityWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           facilityType,
-          mode: synthetic ? "SYNTHETIC_ACCEPTANCE" : "REAL",
           facilityName,
           slug: computedSlug,
           ownership,
           facilityLevel: facilityType === "hospital" ? facilityLevel : undefined,
           city,
           district,
+          physicalAddress,
+          contactPhone: facilityPhone || adminPhone,
+          contactEmail: facilityEmail || adminEmail,
           adminName,
           adminEmail,
           adminPhone,
           contactName: adminName,
-          contactEmail: adminEmail,
-          contactPhone: adminPhone,
           tier,
           modules,
           includeLab,
           includeDispensing,
           licenseNumber: licenseNumber || undefined,
+          regulatoryNumber: regulatoryNumber || undefined,
+          accreditationStatus,
+          accreditationIdentifier: accreditationIdentifier || undefined,
+          laboratoryType,
+          laboratorySections,
           sendInvite: true,
         }),
       })
@@ -221,11 +241,6 @@ function CreateFacilityWizard() {
         ))}
       </div>
 
-      <label className="flex items-center gap-3 text-sm text-slate-300">
-        <input type="checkbox" checked={synthetic} onChange={e => setSynthetic(e.target.checked)} />
-        Synthetic acceptance facility (test data only)
-      </label>
-
       <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
         <label className="block text-sm">
           <span className="text-slate-400">Facility name</span>
@@ -245,7 +260,7 @@ function CreateFacilityWizard() {
           />
         </label>
 
-        {(facilityType === "hospital" || facilityType === "clinic" || facilityType === "health_centre") && (
+        {(facilityType === "hospital" || facilityType === "clinic" || facilityType === "health_centre" || facilityType === "laboratory") && (
           <>
             <label className="block text-sm">
               <span className="text-slate-400">Ownership</span>
@@ -299,7 +314,15 @@ function CreateFacilityWizard() {
           </>
         )}
 
-        {facilityType === "pharmacy" ? (
+        {facilityType === "laboratory" ? (
+          <div className="space-y-4">
+            <label className="block text-sm"><span className="text-slate-400">Laboratory profile</span><select className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" value={laboratoryType} onChange={(e) => setLaboratoryType(e.target.value)}><option value="GENERAL_DIAGNOSTIC">General Diagnostic Laboratory</option><option value="REFERENCE">Reference Laboratory</option><option value="HOSPITAL_INDEPENDENT">Hospital-Independent Laboratory</option><option value="SPECIALIST">Specialist Laboratory</option><option value="COLLECTION_CENTRE">Collection Centre</option><option value="RESEARCH">Research Laboratory</option></select></label>
+            <label className="block text-sm"><span className="text-slate-400">Laboratory license number</span><input className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} /></label>
+            <label className="block text-sm"><span className="text-slate-400">Regulatory / registration number</span><input className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" value={regulatoryNumber} onChange={(e) => setRegulatoryNumber(e.target.value)} /></label>
+            <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm"><span className="text-slate-400">Accreditation status</span><select className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" value={accreditationStatus} onChange={(e) => setAccreditationStatus(e.target.value)}><option value="UNKNOWN">Unknown</option><option value="NOT_ACCREDITED">Not Accredited</option><option value="IN_PROGRESS">In Progress</option><option value="ACCREDITED">Accredited</option></select></label><label className="block text-sm"><span className="text-slate-400">Accreditation identifier (optional)</span><input className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" value={accreditationIdentifier} onChange={(e) => setAccreditationIdentifier(e.target.value)} /></label></div>
+            <fieldset><legend className="text-sm text-slate-400">Lab sections</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{LAB_SECTION_OPTIONS.map(([key, label]) => <label key={key} className="inline-flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={laboratorySections.includes(key)} onChange={() => setLaboratorySections((prev) => prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key])} />{label}</label>)}</div></fieldset>
+          </div>
+        ) : facilityType === "pharmacy" ? (
           <label className="block text-sm">
             <span className="text-slate-400">License number</span>
             <input
@@ -320,6 +343,8 @@ function CreateFacilityWizard() {
             <input className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" value={district} onChange={(e) => setDistrict(e.target.value)} />
           </label>
         </div>
+
+        {facilityType === "laboratory" ? <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm"><span className="text-slate-400">Facility phone</span><input className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" value={facilityPhone} onChange={(e) => setFacilityPhone(e.target.value)} /></label><label className="block text-sm"><span className="text-slate-400">Facility email</span><input type="email" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" value={facilityEmail} onChange={(e) => setFacilityEmail(e.target.value)} /></label><label className="block text-sm sm:col-span-2"><span className="text-slate-400">Address</span><input className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" value={physicalAddress} onChange={(e) => setPhysicalAddress(e.target.value)} /></label></div> : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm">

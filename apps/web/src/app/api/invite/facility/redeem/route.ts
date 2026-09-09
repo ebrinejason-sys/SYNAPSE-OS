@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { hashPassword } from "@synapse/auth"
 import { createServiceClient } from "@/lib/supabase/server"
+import { canBindInviteToTenant } from "@/lib/invite-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -40,11 +41,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This invite has expired." }, { status: 410 })
   }
 
+  const { data: tenant } = await db
+    .from("tenants")
+    .select("id, is_active")
+    .eq("id", invite.tenant_id)
+    .maybeSingle()
+  if (!tenant) return NextResponse.json({ error: "This invite is not bound to a facility." }, { status: 409 })
+
+  const { data: profile } = await db
+    .from("profiles")
+    .select("id, tenant_id")
+    .eq("id", invite.profile_id)
+    .maybeSingle()
+  if (!profile) return NextResponse.json({ error: "Invite has no linked profile." }, { status: 409 })
+  if (!canBindInviteToTenant(profile.tenant_id, [], invite.tenant_id)) {
+    return NextResponse.json({ error: "This account is already associated with another facility." }, { status: 403 })
+  }
+
+  const { data: activeScopes } = await db
+    .from("staff_scope_assignments")
+    .select("id, tenant_id")
+    .eq("profile_id", invite.profile_id)
+    .eq("is_active", true)
+  if (!canBindInviteToTenant(profile.tenant_id, (activeScopes ?? []).map((scope: { tenant_id: string | null }) => scope.tenant_id), invite.tenant_id)) {
+    return NextResponse.json({ error: "This account is already scoped to another facility." }, { status: 403 })
+  }
+
   const passwordHash = await hashPassword(password)
   if (invite.profile_id) {
     const { error } = await db
       .from("profiles")
       .update({
+        tenant_id: invite.tenant_id,
         password_hash: passwordHash,
         must_change_password: false,
         password_changed_at: new Date().toISOString(),
@@ -55,6 +83,16 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   } else {
     return NextResponse.json({ error: "Invite has no linked profile." }, { status: 500 })
+  }
+
+  if (!(activeScopes ?? []).some((scope: { tenant_id: string | null }) => scope.tenant_id === invite.tenant_id)) {
+    const { error: scopeError } = await db.from("staff_scope_assignments").insert({
+      profile_id: invite.profile_id,
+      tenant_id: invite.tenant_id,
+      role: invite.role,
+      is_active: true,
+    })
+    if (scopeError) return NextResponse.json({ error: "Failed to bind staff access to this facility." }, { status: 500 })
   }
 
   await db
