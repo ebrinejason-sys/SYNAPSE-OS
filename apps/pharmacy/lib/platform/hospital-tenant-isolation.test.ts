@@ -72,7 +72,6 @@ describe.skipIf(!hasDb)("hospital tenant isolation (P0-004)", () => {
       last_name: "Staff",
       role: "doctor",
       tenant_id: tenantA,
-      is_active: true,
       verification_status: "verified",
     })
     if (profileError) throw new Error(profileError.message)

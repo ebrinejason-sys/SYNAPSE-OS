@@ -13,7 +13,6 @@ describe.skipIf(!hasDb)("malaria golden journey — Postgres OPD triage → lab 
   let tenantId: string
   let patientId: string
   let clinicianId: string
-  const hospitalId = crypto.randomUUID()
 
   beforeAll(async () => {
     tenantId = crypto.randomUUID()
@@ -34,6 +33,18 @@ describe.skipIf(!hasDb)("malaria golden journey — Postgres OPD triage → lab 
     })
     if (tenantError) throw new Error(tenantError.message)
 
+    const { error: profileError } = await db.from("profiles").insert({
+      id: clinicianId,
+      email: `${clinicianId}@golden-journey.invalid`,
+      full_name: "Synthetic Clinician",
+      first_name: "Synthetic",
+      last_name: "Clinician",
+      role: "doctor",
+      tenant_id: tenantId,
+      verification_status: "verified",
+    })
+    if (profileError) throw new Error(profileError.message)
+
     const { error: patientError } = await db.from("patients").insert({
       id: patientId,
       tenant_id: tenantId,
@@ -53,6 +64,7 @@ describe.skipIf(!hasDb)("malaria golden journey — Postgres OPD triage → lab 
     await db.from("lab_orders").delete().eq("tenant_id", tenantId)
     await db.from("encounters").delete().eq("tenant_id", tenantId)
     await db.from("patients").delete().eq("tenant_id", tenantId)
+    await db.from("profiles").delete().eq("id", clinicianId)
     await db.from("tenants").delete().eq("id", tenantId)
   })
 
@@ -65,7 +77,6 @@ describe.skipIf(!hasDb)("malaria golden journey — Postgres OPD triage → lab 
       .from("encounters")
       .insert({
         tenant_id: tenantId,
-        hospital_id: hospitalId,
         patient_id: patientId,
         clinician_id: clinicianId,
         chief_complaint: chiefComplaint,
@@ -81,7 +92,7 @@ describe.skipIf(!hasDb)("malaria golden journey — Postgres OPD triage → lab 
 
     const triageJourney = recordEncounterOpened({
       tenantId,
-      hospitalId,
+      hospitalId: tenantId,
       patientId,
       encounterId: encounter.id as string,
       requesterId: clinicianId,
@@ -97,7 +108,7 @@ describe.skipIf(!hasDb)("malaria golden journey — Postgres OPD triage → lab 
 
     const labJourney = recordLabOrderPlaced({
       tenantId,
-      hospitalId,
+      hospitalId: tenantId,
       patientId,
       encounterId: encounter.id as string,
       requesterId: clinicianId,

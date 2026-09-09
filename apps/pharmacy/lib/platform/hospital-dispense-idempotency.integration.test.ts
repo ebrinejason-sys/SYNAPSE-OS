@@ -31,6 +31,18 @@ describe.skipIf(!hasDb)("hospital dispense inventory idempotency (P0-001)", () =
     })
     if (tenantError) throw new Error(tenantError.message)
 
+    const { error: profileError } = await db.from('profiles').insert({
+      id: cashierId,
+      email: `${cashierId}@p0-001.invalid`,
+      full_name: 'Synthetic Pharmacist',
+      first_name: 'Synthetic',
+      last_name: 'Pharmacist',
+      role: 'pharmacist',
+      tenant_id: tenantId,
+      verification_status: 'verified',
+    })
+    if (profileError) throw new Error(profileError.message)
+
     const { error: productError } = await db.from("pharmacy_products").insert({
       id: productId,
       tenant_id: tenantId,
@@ -83,6 +95,7 @@ describe.skipIf(!hasDb)("hospital dispense inventory idempotency (P0-001)", () =
     await db.from("pharmacy_product_batches").delete().eq("tenant_id", tenantId)
     await db.from("department_tasks").delete().eq("id", taskId)
     await db.from("pharmacy_products").delete().eq("tenant_id", tenantId)
+    await db.from("profiles").delete().eq("id", cashierId)
     await db.from("tenants").delete().eq("id", tenantId)
   })
 
