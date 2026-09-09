@@ -86,7 +86,7 @@ describe.skipIf(!hasDb)('hospital billing payment (P1-008)', () => {
       amount: 10000,
       paymentMethod: 'cash',
       idempotencyKey,
-      receivedBy: cashierId,
+      receivedBy: undefined,
     })
 
     expect(first.created).toBe(true)
@@ -101,7 +101,7 @@ describe.skipIf(!hasDb)('hospital billing payment (P1-008)', () => {
       amount: 10000,
       paymentMethod: 'cash',
       idempotencyKey,
-      receivedBy: cashierId,
+      receivedBy: undefined,
     })
 
     expect(second.created).toBe(false)
