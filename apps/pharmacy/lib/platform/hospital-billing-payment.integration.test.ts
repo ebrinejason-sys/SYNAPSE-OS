@@ -34,9 +34,8 @@ describe.skipIf(!hasDb)('hospital billing payment (P1-008)', () => {
       id: patientId,
       tenant_id: tenantId,
       mrn: `PAY-${Date.now()}`,
-      first_name: 'Test',
-      last_name: 'Payer',
-      date_of_birth: '1992-03-10',
+      full_name: 'Test Payer',
+      dob: '1992-03-10',
       sex: 'M',
     })
     if (patientError) throw new Error(patientError.message)

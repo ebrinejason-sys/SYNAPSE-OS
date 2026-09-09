@@ -38,9 +38,8 @@ describe.skipIf(!hasDb)("malaria golden journey — Postgres OPD triage → lab 
       id: patientId,
       tenant_id: tenantId,
       mrn: `GJ-${Date.now()}`,
-      first_name: "Amina",
-      last_name: "Nalubega",
-      date_of_birth: "1990-01-15",
+      full_name: "Amina Nalubega",
+      dob: "1990-01-15",
       sex: "F",
     })
     if (patientError) throw new Error(patientError.message)

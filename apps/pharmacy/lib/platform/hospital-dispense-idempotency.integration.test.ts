@@ -37,6 +37,7 @@ describe.skipIf(!hasDb)("hospital dispense inventory idempotency (P0-001)", () =
       name: "Paracetamol 500mg",
       sku: `PCT-${Date.now()}`,
       price: 500,
+      cost_price: 300,
       quantity: 0,
       is_active: true,
     })

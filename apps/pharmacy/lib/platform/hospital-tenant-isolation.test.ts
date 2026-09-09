@@ -46,9 +46,8 @@ describe.skipIf(!hasDb)("hospital tenant isolation (P0-004)", () => {
       id: patientA,
       tenant_id: tenantA,
       mrn: `ISO-A-${Date.now()}`,
-      first_name: "Tenant",
-      last_name: "A Patient",
-      date_of_birth: "1985-06-01",
+      full_name: "Tenant A Patient",
+      dob: "1985-06-01",
       sex: "M",
     })
     if (patientError) throw new Error(patientError.message)
