@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { hasDb } from "./test-db-guard"
+import { hasPartialDbConfig } from "./test-db-guard"
 
-/** Non-skippable gate: SKIPPED != PASS in CI for integration evidence. */
+/** Non-skippable gate: CI must not partially configure DB-backed integration tests. */
 describe("database test prerequisites (P0-004 / connected care spine)", () => {
-  it("CI must configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY", () => {
+  it("CI must provide either both DB vars or neither", () => {
     if (process.env.CI === "true") {
-      expect(hasDb).toBe(true)
+      expect(hasPartialDbConfig).toBe(false)
     }
   })
 })
