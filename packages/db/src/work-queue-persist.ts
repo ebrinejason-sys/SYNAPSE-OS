@@ -9,8 +9,7 @@ import type { DepartmentTask } from "./work-queue.ts"
 
 export type DbClient = {
   from(table: string): {
-    upsert(row: Record<string, unknown>, options?: { onConflict?: string }): PromiseLike<{ error: { message?: string } | null }>
-    insert(rows: Record<string, unknown> | Record<string, unknown>[]): PromiseLike<{ error: { message?: string } | null }>
+    upsert(row: Record<string, unknown> | Record<string, unknown>[], options?: { onConflict?: string }): PromiseLike<{ error: { message?: string } | null }>
   }
 }
 
@@ -108,7 +107,9 @@ export async function persistDomainEventsBestEffort(
   if (events.length === 0) return { ok: true, inserted: 0 }
   try {
     const rows = events.map((event) => toDomainEventInsert(event))
-    const { error } = await db.from("synapse_domain_events").insert(rows)
+    const { error } = await db.from("synapse_domain_events").upsert(rows, {
+      onConflict: "idempotency_key",
+    })
     if (error) {
       // Idempotent replays may hit unique idempotency_key — treat as soft success for journey continuity.
       if (String(error.message ?? "").toLowerCase().includes("duplicate")) {

@@ -185,7 +185,6 @@ export async function appendClinicalCharge(
       item_name: input.itemName,
       unit_price: unitPrice,
       qty,
-      total_price: lineTotal,
       notes: sourceNotes(input.sourceTable, input.sourceId),
       created_by: input.createdBy ?? null,
       is_deleted: false,
