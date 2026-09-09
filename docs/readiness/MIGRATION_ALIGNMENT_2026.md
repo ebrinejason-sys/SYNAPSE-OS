@@ -39,3 +39,5 @@ For `manual_subscription_grants` verify `subscription_grants`, tenant RLS, platf
 ## Current Decision
 
 Migration alignment is **RED for release application** and **YELLOW for code**. Authenticated access is now proven, but production migration history is not reproducible from the current repository. No pending migration was applied, and Lab reports, subscription grants, and tenant-scoped receipt uniqueness remain unverified in production.
+
+See [PRODUCTION_MIGRATION_RECONCILIATION_2026.md](PRODUCTION_MIGRATION_RECONCILIATION_2026.md) for the read-only Git/history forensic mapping and the confirmed timestamp-drift example.
