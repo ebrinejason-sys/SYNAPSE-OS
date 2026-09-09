@@ -5,7 +5,7 @@ Repository baseline: `e436f533993d1fc24af5efe23a63fb39ba9541ca`
 
 ## Snapshot
 
-`npm audit` reported 77 findings: 4 low, 34 moderate, 37 high, and 2 critical. The audit was classified without running `npm audit fix --force`.
+The current valid dependency graph reports 76 findings: 4 low, 37 moderate, 34 high, and 1 critical. The attempted targeted remediation was not retained because it produced an invalid npm graph or left the Vercel tar advisory unresolved. No `npm audit fix --force` was used.
 
 The current output is dominated by the monorepo's Expo/mobile and build toolchain. A finding is not automatically a production-runtime exploit: package path, reachability, and whether untrusted input reaches the vulnerable parser still need review.
 
@@ -17,7 +17,7 @@ The current output is dominated by the monorepo's Expo/mobile and build toolchai
 | `brace-expansion`, `browserslist`, `cacache` | High, transitive | Build/dev dependency paths | Not established as web production runtime paths from this audit; pin/upgrade through lockfile-compatible parent upgrades. |
 | `fast-uri` | High, transitive | Transitive URI parser | Requires reachability review in server/runtime dependency graph before calling exploitable; prioritize parent package upgrade. |
 | XML parser chain such as `xmldom` / Expo plist | Moderate/high transitive findings | Mobile/build dependency path | Treat as build-time unless runtime import evidence says otherwise. |
-| Critical findings | 2 reported by the CI snapshot | Not yet attributed to a production package in this local summary | Must be enumerated from the CI `npm audit` artifact and assigned an owner before pilot sign-off. |
+| `tar` under `@vercel/fun` | Critical | CLI/build-only transitive dependency via Vercel tooling | Upstream `@vercel/fun@1.3.1` still requests vulnerable `tar@7.5.7`; a scoped tar 7.5.22 override did not take effect in the reproducible install. Keep blocked pending a compatible upstream fix. |
 
 ## Policy
 
@@ -28,4 +28,4 @@ The current output is dominated by the monorepo's Expo/mobile and build toolchai
 
 ## Current Decision
 
-Dependency status is **YELLOW**. The count is documented and partially classified, but the two critical findings require the full CI audit artifact or a package-path report to identify exact advisories and remediation owners.
+Dependency status is **YELLOW**. The critical finding is in a CLI/build-only Vercel path rather than the deployed web runtime, but the graph cannot be called clean until the upstream package publishes a compatible tar fix.
