@@ -2,19 +2,20 @@
 
 Date: 2026-09-09
 Project: `qfqakzmjatszisuqjwon`
-Repository baseline: `e436f533993d1fc24af5efe23a63fb39ba9541ca`
+Repository baseline: `8ce25f59f4fdeb7c8ab8b99e4d536f270a001f1b`
 
 ## Evidence Boundary
 
-The repository contains migration files through `20260909100000_manual_subscription_grants.sql`. The production migration head reported by the release audit is `20260907123159_backfill_canonical_hospital_locations`. Local Supabase credentials were not available during this run, so no migration was applied and no remote schema query was performed here.
+The repository contains migration files through `20260909130000_scope_pharmacy_receipts_to_tenant.sql`. Authenticated GitHub CI reached the production project and the Supabase dry-run reported that production contains many historical migration versions absent from this repository, through `20260907123159_backfill_canonical_hospital_locations`. No migration was applied: dry-run stopped at history reconciliation.
 
 `REPO_PRESENT` is established from the working tree. `REMOTE_APPLIED` is only marked from the verified remote history supplied for this closeout; it is not inferred from file presence.
 
 | VERSION | NAME | REPO_PRESENT | REMOTE_APPLIED | REQUIRED_BY | RISK | STATUS |
 |---|---|---:|---:|---|---|---|
-| `20260907123159` | `backfill_canonical_hospital_locations` | yes | yes | Existing facility/clinical routing | Medium | ALIGNED_HEAD |
+| `20260907123159` | `backfill_canonical_hospital_locations` | no | yes | Existing facility/clinical routing | High | HISTORY_DRIFT |
 | `20260908120000` | `lab_reports_release_artifacts` | yes | no | Lab release/report/FHIR evidence | High | BLOCKED_PENDING_APPLY |
 | `20260909100000` | `manual_subscription_grants` | yes | no | Platform manual grants and pilot entitlements | High | BLOCKED_PENDING_APPLY |
+| `20260909130000` | `scope_pharmacy_receipts_to_tenant` | yes | no | Tenant-safe pharmacy receipt uniqueness | High | BLOCKED_PENDING_APPLY |
 
 ## Required Operator Action
 
@@ -27,7 +28,7 @@ Configure the CI/deployment environment with:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SYNAPSE_JWT_SECRET`
 
-Then enable `ENABLE_DB_PUSH=true` only after reviewing the two migrations against the target project. Run the dry-run first, apply in timestamp order, and verify the remote migration history and schema objects afterward.
+The current dry-run cannot proceed until migration history is reconciled. Supabase listed remote versions absent from the repository and suggested `supabase db pull` or explicit migration-history repair. Do not run either automatically: pull/review the missing historical migrations or obtain an approved history-repair plan first. After reconciliation, rerun dry-run, review the three pending migrations, apply them in timestamp order, and verify the remote migration history and schema objects afterward.
 
 ## Schema Verification Checklist
 
@@ -37,4 +38,4 @@ For `manual_subscription_grants` verify `subscription_grants`, tenant RLS, platf
 
 ## Current Decision
 
-Migration alignment is **YELLOW**. Code and migration files are present, but remote application and live schema verification remain unproven until an authorized operator supplies the required credentials.
+Migration alignment is **RED for release application** and **YELLOW for code**. Authenticated access is now proven, but production migration history is not reproducible from the current repository. No pending migration was applied, and Lab reports, subscription grants, and tenant-scoped receipt uniqueness remain unverified in production.
