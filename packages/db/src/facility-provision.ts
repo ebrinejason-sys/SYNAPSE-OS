@@ -6,7 +6,7 @@
 
 import {
   provisionHospital,
-  resumeFacilityProvision,
+  resumeFacilityProvision as resumeHospitalProvision,
   getProvisionRun,
   type DbClient,
   type ProvisionHospitalInput,
@@ -27,7 +27,6 @@ import {
 export * from "./facility-provision-catalog"
 export {
   provisionHospital,
-  resumeFacilityProvision,
   getProvisionRun,
   PROVISION_STEP_KEYS,
   type ProvisionHospitalResult,
@@ -161,6 +160,51 @@ export async function provisionFacility(
   return provisionLaboratoryFacility(db, input)
 }
 
+/** Resume through the adapter that owns the facility lifecycle. */
+export async function resumeFacilityProvision(
+  db: DbClient,
+  runId: string,
+  createdBy: string,
+): Promise<ProvisionHospitalResult & { facilityType?: FacilityType; workspaceUrl?: string }> {
+  const detail = await getProvisionRun(db, runId)
+  const run = detail?.run as Record<string, unknown> | undefined
+  const runMetadata = (run?.metadata as Record<string, unknown>) ?? {}
+  const facilityType = String(runMetadata.facility_type ?? "hospital") as FacilityType
+  if (facilityType !== "pharmacy") {
+    return resumeHospitalProvision(db, runId, createdBy)
+  }
+
+  const metadata = runMetadata
+  const contact = (metadata.contact as Record<string, unknown>) ?? {}
+  let adminEmail = String(contact.email ?? "").toLowerCase()
+  let adminName = String(contact.name ?? "")
+  if ((!adminEmail || !adminName) && run?.tenant_id) {
+    const { data: tenant } = await db
+      .from("tenants")
+      .select("email, name")
+      .eq("id", run.tenant_id)
+      .maybeSingle()
+    adminEmail ||= String(tenant?.email ?? "").toLowerCase()
+    adminName ||= String(tenant?.name ?? "")
+  }
+  return provisionFacility(db, {
+    facilityType: "pharmacy",
+    facilityName: String(run?.facility_name ?? ""),
+    slug: String(run?.slug ?? ""),
+    country: String(metadata.country ?? "UG"),
+    district: metadata.district ? String(metadata.district) : undefined,
+    city: metadata.city ? String(metadata.city) : undefined,
+    ownership: String(run?.ownership ?? "PRIVATE") as FacilityOwnership,
+    adminName: adminName || "Facility Admin",
+    adminEmail,
+    adminPhone: contact.phone ? String(contact.phone) : undefined,
+    tier: String(metadata.tier ?? "starter") as "trial" | "starter" | "professional" | "enterprise",
+    createdBy,
+    mode: String(run?.mode) === "SYNTHETIC_ACCEPTANCE" ? "SYNTHETIC_ACCEPTANCE" : "REAL",
+    idempotencyKey: String(run?.idempotency_key ?? ""),
+  })
+}
+
 async function provisionPharmacyFacility(
   db: DbClient,
   input: ProvisionFacilityInput,
@@ -183,6 +227,17 @@ async function provisionPharmacyFacility(
     .maybeSingle()
 
   if (existingRun?.status === "COMPLETE" && existingRun.tenant_id) {
+    const { data: existingInvite } = await db
+      .from("facility_invitations")
+      .select("invite_token, status")
+      .eq("run_id", existingRun.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    await db
+      .from("facility_provisioning_runs")
+      .update({ failure_code: null, updated_at: nowIso() })
+      .eq("id", existingRun.id)
     return {
       ok: true,
       runId: existingRun.id,
@@ -192,6 +247,8 @@ async function provisionPharmacyFacility(
       status: "COMPLETE",
       correlationId: existingRun.correlation_id,
       steps: [],
+      inviteToken: existingInvite?.invite_token ?? null,
+      inviteStatus: existingInvite?.status ?? null,
       warnings: ["Idempotent replay — existing COMPLETE pharmacy run"],
       facilityType: "pharmacy",
       workspaceUrl: pharmacyLoginUrl(existingRun.slug),
@@ -452,19 +509,7 @@ async function provisionPharmacyFacility(
         { onConflict: "tenant_id" },
       )
       if (error) {
-        warnings.push(`subscription: ${error.message}`)
-        await db.from("facility_provisioning_steps").upsert(
-          {
-            run_id: runId,
-            step: "subscription",
-            status: "SKIPPED",
-            evidence: { reason: error.message },
-            completed_at: nowIso(),
-            updated_at: nowIso(),
-          },
-          { onConflict: "run_id,step" },
-        )
-        steps.push({ step: "subscription" as never, status: "SKIPPED" })
+        return fail("subscription", "SUBSCRIPTION_UPSERT", error.message)
       } else {
         await complete("subscription", { planId: planRow.id })
       }
@@ -589,13 +634,7 @@ async function provisionPharmacyFacility(
         .select("id")
         .single()
       if (error) {
-        warnings.push(`invitation: ${error.message}`)
-        steps.push({
-          step: "invitation" as never,
-          status: "FAILED",
-          errorCode: "INVITE_INSERT",
-          safeErrorMessage: error.message,
-        })
+        return fail("invitation", "INVITE_INSERT", error.message)
       } else {
         await complete("invitation", { inviteId: invite.id })
       }
@@ -653,6 +692,7 @@ async function provisionPharmacyFacility(
       status: finalStatus,
       completed_at: finalStatus === "FAILED" ? null : nowIso(),
       failed_at: finalStatus === "FAILED" ? nowIso() : null,
+      failure_code: finalStatus === "FAILED" ? undefined : null,
       current_step: "finalize",
       updated_at: nowIso(),
     })
@@ -731,6 +771,7 @@ async function provisionLaboratoryFacility(
           type: "general",
           facility_kind: "laboratory",
           settings: {
+            tenant_id: result.tenantId,
             facility_type: "laboratory",
             source: "platform_onboarding",
             ownership: input.ownership ?? "PUBLIC",

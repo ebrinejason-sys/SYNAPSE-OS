@@ -14,7 +14,7 @@ import {
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  const ctx = await requireHospitalAdminContext({ allowLaboratory: true })
+  const ctx = await requireHospitalAdminContext()
   if (isContextError(ctx)) return ctx
 
   const cap = await requireHospitalCapability(ctx, 'staff', 'write')

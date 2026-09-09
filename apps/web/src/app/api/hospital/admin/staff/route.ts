@@ -9,7 +9,7 @@ import {
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const ctx = await requireHospitalAdminContext({ allowLaboratory: true })
+  const ctx = await requireHospitalAdminContext()
   if (isContextError(ctx)) return ctx
 
   const cap = await requireHospitalCapability(ctx, 'staff', 'read')

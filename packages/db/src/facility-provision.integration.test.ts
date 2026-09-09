@@ -45,7 +45,7 @@ function database() {
   }
   return db
 }
-const input = (type: 'hospital' | 'pharmacy' | 'laboratory', suffix = 'a') => ({
+const input = (type: 'hospital' | 'clinic' | 'pharmacy' | 'laboratory', suffix = 'a') => ({
   facilityType: type, facilityName: `SYNAPSE ACCEPTANCE ${type} ${suffix}`, slug: `acceptance-${type}-${suffix}`,
   adminName: 'Synthetic Admin', adminEmail: `${type}-${suffix}@example.test`, createdBy: 'platform-admin',
   mode: 'SYNTHETIC_ACCEPTANCE' as const,
@@ -98,5 +98,23 @@ describe('facility orchestration with persisted effects', () => {
     const result = await provisionFacility(db, input('hospital'))
     expect(result.ok).toBe(false)
     expect(db.tables.tenants[0].is_active).toBe(false)
+  })
+  it('creates a pending domain record without claiming external DNS verification', async () => {
+    const db = database()
+    const result = await provisionFacility(db, input('clinic'))
+    expect(result.ok).toBe(true)
+    expect(db.tables.facility_domain_records).toHaveLength(1)
+    expect(db.tables.facility_domain_records[0]).toMatchObject({
+      tenant_id: result.tenantId,
+      hostname: 'acceptance-clinic-a.synapseos.tech',
+      status: 'REQUESTED',
+    })
+  })
+  it('rejects reserved facility slugs before creating a tenant', async () => {
+    const db = database()
+    const result = await provisionFacility(db, { ...input('clinic'), slug: 'admin' })
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('reserved')
+    expect(db.tables.tenants ?? []).toHaveLength(0)
   })
 })

@@ -15,7 +15,7 @@ export async function GET() {
     return NextResponse.json({ results: [], source: "simulation" })
   }
 
-  const ctx = await requireHospitalStaffContext({ allowLaboratory: true })
+  const ctx = await requireHospitalStaffContext()
   if (isContextError(ctx)) return ctx
   const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, "lab")
   if (moduleBlock) return moduleBlock

@@ -37,16 +37,28 @@ export const bedCreateSchema = z.object({
 
 export const bedPatchSchema = bedCreateSchema.partial()
 
+const FACILITY_STAFF_ROLES = z.enum([
+  'doctor',
+  'nurse',
+  'pharmacist',
+  'lab_tech',
+  'admin',
+  'clinician',
+  'radiologist',
+  'physiotherapist',
+  'receptionist',
+])
+
 export const staffInviteSchema = z.object({
   email: z.string().email(),
   full_name: z.string().min(1).max(120),
-  role: z.string().min(1).max(60),
+  role: FACILITY_STAFF_ROLES,
   phone: z.string().max(40).optional().nullable(),
   department_id: z.string().uuid().optional().nullable(),
 })
 
 export const staffRolePatchSchema = z.object({
-  role: z.string().min(1).max(60).optional(),
+  role: FACILITY_STAFF_ROLES.optional(),
   department_id: z.string().uuid().optional().nullable(),
   is_active: z.boolean().optional(),
 })

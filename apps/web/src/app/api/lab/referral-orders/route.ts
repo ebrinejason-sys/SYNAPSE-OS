@@ -21,7 +21,7 @@ const referralOrderSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const ctx = await requireHospitalStaffContext({ allowLaboratory: true })
+  const ctx = await requireHospitalStaffContext()
   if (isContextError(ctx)) return ctx
   const cap = await requireHospitalCapability(ctx, 'order', 'create', 'lab')
   if (cap) return cap

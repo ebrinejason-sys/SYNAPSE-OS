@@ -5,8 +5,6 @@
  */
 
 import {
-  HOSPITAL_CANONICAL_NAME,
-  HOSPITAL_CANONICAL_SLUG,
   HOSPITAL_DEPARTMENTS,
   HOSPITAL_LOCATIONS,
   LABORATORY_LOCATIONS,
@@ -18,6 +16,7 @@ import {
   FACILITY_OWNERSHIP,
   defaultModulesForLevel,
   normalizeModuleKeys,
+  RESERVED_FACILITY_SLUGS,
   slugify,
   type FacilityLevel,
   type FacilityOwnership,
@@ -51,6 +50,7 @@ export const PROVISION_STEP_KEYS = [
   "subscription",
   "administrator",
   "invitation",
+  "domain",
   "synthetic_staff",
   "synthetic_guards",
   "finalize",
@@ -288,11 +288,9 @@ export async function provisionHospital(
 ): Promise<ProvisionHospitalResult> {
   const mode: ProvisionMode = input.mode ?? "REAL"
   const slug =
-    mode === "SYNTHETIC_ACCEPTANCE"
-      ? HOSPITAL_CANONICAL_SLUG
-      : slugify(input.slug || input.facilityName)
+    slugify(input.slug || input.facilityName)
   const facilityName =
-    mode === "SYNTHETIC_ACCEPTANCE" ? HOSPITAL_CANONICAL_NAME : input.facilityName.trim()
+    input.facilityName.trim()
   const adminEmail = input.adminEmail.trim().toLowerCase()
   const correlationId = crypto.randomUUID()
   const idempotencyKey =
@@ -402,6 +400,11 @@ export async function provisionHospital(
     await failStep(db, runId!, "validate", "INVALID_LEVEL", "Invalid facility level")
     await failRun(db, runId!, "INVALID_LEVEL", "Invalid facility level")
     return failResult(runId!, slug, correlationId, "Invalid facility level")
+  }
+  if (RESERVED_FACILITY_SLUGS.has(slug)) {
+    await failStep(db, runId!, "validate", "RESERVED_SLUG", `Subdomain "${slug}" is reserved`)
+    await failRun(db, runId!, "RESERVED_SLUG", `Subdomain "${slug}" is reserved`)
+    return failResult(runId!, slug, correlationId, `Subdomain "${slug}" is reserved`)
   }
 
   const { data: slugConflict } = await db.from("tenants").select("id").eq("slug", slug).maybeSingle()
@@ -628,9 +631,8 @@ export async function provisionHospital(
       })
       if (error) {
         await failStep(db, runId!, "locations", "LOCATION_INSERT", error.message)
-        warnings.push(`locations: ${error.message}`)
-        // Locations are important for acceptance but allow READY_WITH_WARNINGS
-        break
+        await failRun(db, runId!, "LOCATION_INSERT", error.message, tenantId)
+        return failResult(runId!, slug, correlationId, error.message, tenantId, hospitalId, stepResults)
       }
       created += 1
     }
@@ -670,9 +672,9 @@ export async function provisionHospital(
         { onConflict: "tenant_id" },
       )
       if (error) {
-        warnings.push(`subscription: ${error.message}`)
-        await skipStep(db, runId!, "subscription", error.message)
-        stepResults.push({ step: "subscription", status: "SKIPPED" })
+        await failStep(db, runId!, "subscription", "SUBSCRIPTION_UPSERT", error.message)
+        await failRun(db, runId!, "SUBSCRIPTION_UPSERT", error.message, tenantId)
+        return failResult(runId!, slug, correlationId, error.message, tenantId, hospitalId, stepResults)
       } else {
         await completeStep(db, runId!, "subscription", { planId: planRow.id, protected: true })
         stepResults.push({ step: "subscription", status: "COMPLETE" })
@@ -732,7 +734,7 @@ export async function provisionHospital(
         .update({
           tenant_id: tenantId,
           hospital_id: hospitalId,
-          role: "hospital_admin",
+          role: input.facilityType === "laboratory" ? "lab_admin" : "hospital_admin",
           is_admin: true,
           must_change_password: true,
           updated_at: nowIso(),
@@ -749,7 +751,7 @@ export async function provisionHospital(
         full_name: input.adminName.trim(),
         first_name: nameParts[0] ?? "Hospital",
         last_name: nameParts.slice(1).join(" ") || "Admin",
-        role: "hospital_admin",
+        role: input.facilityType === "laboratory" ? "lab_admin" : "hospital_admin",
         tenant_id: tenantId,
         hospital_id: hospitalId,
         is_admin: true,
@@ -801,7 +803,7 @@ export async function provisionHospital(
         run_id: runId,
         email: adminEmail,
         full_name: input.adminName.trim(),
-        role: "hospital_admin",
+        role: input.facilityType === "laboratory" ? "lab_admin" : "hospital_admin",
         invite_token: inviteToken,
         status: "PENDING",
         expires_at: expiresAt,
@@ -813,14 +815,8 @@ export async function provisionHospital(
 
     if (inviteErr) {
       await failStep(db, runId!, "invitation", "INVITE_INSERT", inviteErr.message)
-      warnings.push(`invitation: ${inviteErr.message}`)
-      inviteStatus = "FAILED"
-      stepResults.push({
-        step: "invitation",
-        status: "FAILED",
-        errorCode: "INVITE_INSERT",
-        safeErrorMessage: inviteErr.message,
-      })
+      await failRun(db, runId!, "INVITE_INSERT", inviteErr.message, tenantId)
+      return failResult(runId!, slug, correlationId, inviteErr.message, tenantId, hospitalId, stepResults)
     } else {
       inviteStatus = invite.status
       await completeStep(db, runId!, "invitation", {
@@ -833,9 +829,36 @@ export async function provisionHospital(
     }
   }
 
+  // Domain records describe intended routing without claiming external DNS verification.
+  await beginStep(db, runId!, "domain")
+  {
+    const hostname = `${slug}.synapseos.tech`
+    const { error } = await db.from("facility_domain_records").upsert(
+      {
+        tenant_id: tenantId,
+        facility_id: hospitalId,
+        hostname,
+        domain_type: "synapse_subdomain",
+        status: "REQUESTED",
+        target_project: "synapse-os",
+        verification_requirements: ["host_resolves_to_expected_deployment"],
+        metadata: { facility_type: input.facilityType ?? "hospital", slug },
+        updated_at: nowIso(),
+      },
+      { onConflict: "hostname" },
+    )
+    if (error) {
+      await failStep(db, runId!, "domain", "DOMAIN_RECORD_UPSERT", error.message)
+      await failRun(db, runId!, "DOMAIN_RECORD_UPSERT", error.message, tenantId)
+      return failResult(runId!, slug, correlationId, error.message, tenantId, hospitalId, stepResults)
+    }
+    await completeStep(db, runId!, "domain", { hostname, status: "REQUESTED" })
+    stepResults.push({ step: "domain", status: "COMPLETE", evidence: { hostname, status: "REQUESTED" } })
+  }
+
   // ── synthetic_staff ───────────────────────────────────────────────────
   await beginStep(db, runId!, "synthetic_staff")
-  if (mode === "SYNTHETIC_ACCEPTANCE") {
+  if (mode === "SYNTHETIC_ACCEPTANCE" && input.facilityType !== "laboratory") {
     let staffCreated = 0
     for (const role of HOSPITAL_STAFF_ROLES) {
       if (role.code === "hosp_admin") continue // already created
@@ -917,6 +940,7 @@ export async function provisionHospital(
       status: finalStatus,
       completed_at: finalStatus === "FAILED" ? null : nowIso(),
       failed_at: finalStatus === "FAILED" ? nowIso() : null,
+      failure_code: finalStatus === "FAILED" ? undefined : null,
       current_step: "finalize",
       updated_at: nowIso(),
     })

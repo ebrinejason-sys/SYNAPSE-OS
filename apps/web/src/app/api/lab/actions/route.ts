@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const ctx = await requireHospitalStaffContext({ allowLaboratory: true })
+  const ctx = await requireHospitalStaffContext()
   if (isContextError(ctx)) return ctx
 
   // Role-appropriate capabilities — collect ≠ enter ≠ verify
