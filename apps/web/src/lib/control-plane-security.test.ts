@@ -26,4 +26,9 @@ describe('facility staff security and laboratory landing', () => {
     expect(route).not.toContain('facility_invitations')
     expect(route).not.toContain('profiles')
   })
+  it('does not wire the implemented-but-unverified invitation create/redeem module into the live route yet', () => {
+    const route = readFileSync(join(process.cwd(), 'apps/web/src/app/api/platform/facilities/[id]/staff/route.ts'), 'utf8')
+    expect(route).not.toContain('facility-invitations.server')
+    expect(route).not.toContain('createFacilityInvitation')
+  })
 })
