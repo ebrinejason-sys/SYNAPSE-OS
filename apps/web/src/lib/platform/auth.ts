@@ -16,6 +16,7 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
 
 export type PlatformAdminProfile = {
   id: string;
+  sessionId: string;
   role: string;
   fullName: string | null;
   avatarUrl: string | null;
@@ -46,6 +47,7 @@ async function loadPlatformProfile(ctx: SynapseContext): Promise<PlatformAdminPr
 
   return {
     id: ctx.user.id,
+    sessionId: ctx.sessionId,
     role: ctx.user.role,
     fullName: ctx.user.fullName,
     avatarUrl: ctx.user.avatarUrl,
@@ -59,6 +61,7 @@ async function loadPlatformProfile(ctx: SynapseContext): Promise<PlatformAdminPr
 function toPlatformAdminProfile(ctx: SynapseContext, platform: PlatformAdminProfile): PlatformAdminProfile {
   return {
     id: ctx.user.id,
+    sessionId: ctx.sessionId,
     role: ctx.user.role,
     fullName: ctx.user.fullName,
     avatarUrl: ctx.user.avatarUrl,

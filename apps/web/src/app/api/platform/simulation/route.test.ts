@@ -1,17 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { roleHasCapability } from "../../../../lib/platform/rbac"
 
-const { requirePlatformAdminApi, createDemoTenant, runScenario, resetDemoTenant, persistRunBestEffort, logPlatformEvent } = vi.hoisted(() => ({
+const { requirePlatformAdminApi, createDemoTenant, runScenario, resetDemoTenant, persistRunBestEffort, logPlatformEvent, hasRecentVerifiedMfa } = vi.hoisted(() => ({
   requirePlatformAdminApi: vi.fn(),
   createDemoTenant: vi.fn(),
   runScenario: vi.fn(),
   resetDemoTenant: vi.fn(),
   persistRunBestEffort: vi.fn(),
   logPlatformEvent: vi.fn(),
+  hasRecentVerifiedMfa: vi.fn(),
 }))
 
 vi.mock("@/lib/platform/auth", () => ({
   requirePlatformAdminApi: (...args: unknown[]) => requirePlatformAdminApi(...args),
+}))
+
+vi.mock("@synapse/auth", () => ({
+  hasRecentVerifiedMfa: (...args: unknown[]) => hasRecentVerifiedMfa(...args),
 }))
 
 // Exercise the real capability table (imported relatively above) so tests
@@ -113,10 +118,25 @@ describe("POST /api/platform/simulation", () => {
     expect(res.status).toBe(403)
     expect(resetDemoTenant).not.toHaveBeenCalled()
     expect(logPlatformEvent).not.toHaveBeenCalled()
+    expect(hasRecentVerifiedMfa).not.toHaveBeenCalled()
   })
 
-  it("allows reset only for a role with both simulation.manage and tenant.manage", async () => {
+  it("blocks reset for tenant.manage + simulation.manage without a recent MFA step-up", async () => {
     requirePlatformAdminApi.mockResolvedValue(authorized("PLATFORM_ADMIN"))
+    hasRecentVerifiedMfa.mockResolvedValue(false)
+
+    const { POST } = await import("./route")
+    const res = await POST(makeRequest({ action: "reset", tenantId: "demo-1" }))
+    expect(res.status).toBe(403)
+    const json = await res.json()
+    expect(json.code).toBe("MFA_STEP_UP_REQUIRED")
+    expect(resetDemoTenant).not.toHaveBeenCalled()
+    expect(logPlatformEvent).not.toHaveBeenCalled()
+  })
+
+  it("allows reset only for a role with both simulation.manage and tenant.manage and a recent MFA step-up", async () => {
+    requirePlatformAdminApi.mockResolvedValue(authorized("PLATFORM_ADMIN"))
+    hasRecentVerifiedMfa.mockResolvedValue(true)
     resetDemoTenant.mockReturnValue(["removed-1"])
     logPlatformEvent.mockResolvedValue(undefined)
 
@@ -124,5 +144,6 @@ describe("POST /api/platform/simulation", () => {
     const res = await POST(makeRequest({ action: "reset", tenantId: "demo-1" }))
     expect(res.status).toBe(200)
     expect(resetDemoTenant).toHaveBeenCalledWith("demo-1", "actor-1")
+    expect(hasRecentVerifiedMfa).toHaveBeenCalledWith("actor-1", undefined)
   })
 })

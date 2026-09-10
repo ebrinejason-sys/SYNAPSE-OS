@@ -2,12 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { createHash } from "node:crypto"
 
 /**
- * Minimal in-memory Supabase-query-builder fake supporting exactly the
- * chains used by facility-invitations.server.ts: select/eq/in/limit,
- * maybeSingle/single, insert(...).select(...).single()/maybeSingle(), and
- * update(...).eq(...).in(...).select(...).maybeSingle() for the conditional
- * single-use claim. Good enough to exercise real business-logic branches
- * instead of just asserting spy calls.
+ * Minimal in-memory Supabase-query-builder fake supporting the chains used by
+ * facility-invitations.server.ts: select/eq/in/limit, maybeSingle/single,
+ * insert(...).select(...).single()/maybeSingle(), update(...), and a fake
+ * .rpc(name, args) that dispatches to hand-written JS mirrors of the two
+ * Postgres acceptance functions so business-logic branches (wrong recipient,
+ * already-used, department revalidation, etc.) are exercised without a real
+ * database. Real transactional/concurrency/RLS guarantees are proven
+ * separately by the isolated DB-backed integration test
+ * (facility-invitations.integration.test.ts), which this suite cannot and
+ * does not claim to cover.
  */
 function makeFakeDb(tables: Record<string, Record<string, unknown>[]>) {
   const schemaBroken = { value: false }
@@ -24,8 +28,11 @@ function makeFakeDb(tables: Record<string, Record<string, unknown>[]>) {
 
     const builder: Record<string, unknown> = {
       select(cols: string) {
-        if (table === "facility_invitations" && schemaBroken.value && /token_hash|redeemed_by/.test(cols)) {
+        if (table === "facility_invitations" && schemaBroken.value && /token_hash|redeemed_by|department_id/.test(cols)) {
           builder.__forceError = "column facility_invitations.token_hash does not exist"
+        }
+        if (table === "facility_invitation_audit" && schemaBroken.value) {
+          builder.__forceError = "relation facility_invitation_audit does not exist"
         }
         return builder
       },
@@ -71,9 +78,6 @@ function makeFakeDb(tables: Record<string, Record<string, unknown>[]>) {
         return builder
       },
       then(resolve: (v: { data: unknown; error: unknown }) => void) {
-        // Awaiting the builder directly (no terminal call) resolves after
-        // applying any pending insert/update, matching real supabase-js
-        // thenable query builders.
         if (pendingInsert) {
           rows.push(...pendingInsert)
           return resolve({ data: pendingInsert, error: null })
@@ -89,8 +93,75 @@ function makeFakeDb(tables: Record<string, Record<string, unknown>[]>) {
     return builder
   }
 
+  /** Hand-rolled mirror of the plpgsql acceptance functions, for fast unit coverage only. */
+  function rpc(name: string, args: Record<string, unknown>) {
+    const invites = tables.facility_invitations ?? (tables.facility_invitations = [])
+    const profiles = tables.profiles ?? (tables.profiles = [])
+    const scopes = tables.staff_scope_assignments ?? (tables.staff_scope_assignments = [])
+    const audit = tables.facility_invitation_audit ?? (tables.facility_invitation_audit = [])
+    const departments = tables.departments ?? (tables.departments = [])
+
+    const invite = invites.find((r) => r.token_hash === args.p_token_hash)
+    const fail = (code: string) => ({ data: null, error: { message: code } })
+
+    if (!invite) return Promise.resolve(fail("INVITE_NOT_FOUND"))
+    if (invite.status === "REVOKED") return Promise.resolve(fail("INVITE_REVOKED"))
+    if (invite.status === "ACCEPTED") return Promise.resolve(fail("INVITE_ALREADY_USED"))
+    if (new Date(invite.expires_at as string) < new Date()) {
+      invite.status = "EXPIRED"
+      return Promise.resolve(fail("INVITE_EXPIRED"))
+    }
+    if (!["PENDING", "SENT"].includes(invite.status as string)) return Promise.resolve(fail("INVITE_ALREADY_USED"))
+
+    if (invite.department_id && !departments.some((d) => d.id === invite.department_id && d.tenant_id === invite.tenant_id)) {
+      return Promise.resolve(fail("DEPARTMENT_OUT_OF_SCOPE"))
+    }
+
+    if (name === "accept_facility_invitation_existing_user") {
+      const profile = profiles.find((p) => p.id === args.p_session_profile_id)
+      if (!profile) return Promise.resolve(fail("PROFILE_NOT_FOUND"))
+      if (String(profile.email).toLowerCase() !== String(invite.email).toLowerCase()) {
+        return Promise.resolve(fail("WRONG_RECIPIENT"))
+      }
+      const exists = scopes.find((s) => s.profile_id === profile.id && s.tenant_id === invite.tenant_id && s.department_id === invite.department_id && s.is_active)
+      if (!exists) scopes.push({ profile_id: profile.id, tenant_id: invite.tenant_id, role: invite.role, department_id: invite.department_id ?? null, is_active: true })
+
+      invite.status = "ACCEPTED"
+      invite.redeemed_by = profile.id
+      invite.profile_id = profile.id
+      audit.push({ invitation_id: invite.id, event: "ACCEPTED_EXISTING_USER" })
+      return Promise.resolve({ data: { profile_id: profile.id, tenant_id: invite.tenant_id }, error: null })
+    }
+
+    if (name === "accept_facility_invitation_new_account") {
+      const existing = profiles.find((p) => String(p.email).toLowerCase() === String(invite.email).toLowerCase())
+      if (existing) return Promise.resolve(fail("IDENTITY_EXISTS"))
+
+      profiles.push({
+        id: args.p_profile_id,
+        email: invite.email,
+        full_name: args.p_full_name,
+        role: invite.role,
+        tenant_id: invite.tenant_id,
+        password_hash: args.p_password_hash,
+        must_change_password: false,
+        onboarding_complete: false,
+        verification_status: "unverified",
+      })
+      scopes.push({ profile_id: args.p_profile_id, tenant_id: invite.tenant_id, role: invite.role, department_id: invite.department_id ?? null, is_active: true })
+      invite.status = "ACCEPTED"
+      invite.redeemed_by = args.p_profile_id
+      invite.profile_id = args.p_profile_id
+      audit.push({ invitation_id: invite.id, event: "ACCEPTED_NEW_ACCOUNT" })
+      return Promise.resolve({ data: { profile_id: args.p_profile_id, tenant_id: invite.tenant_id }, error: null })
+    }
+
+    return Promise.resolve(fail("UNKNOWN_RPC"))
+  }
+
   return {
     from: (table: string) => query(table),
+    rpc,
     __breakSchema: () => {
       schemaBroken.value = true
     },
@@ -118,6 +189,7 @@ function seed() {
     profiles: [],
     facility_invitations: [],
     staff_scope_assignments: [],
+    facility_invitation_audit: [],
   })
 }
 
@@ -135,25 +207,25 @@ describe("facility-invitations.server", () => {
     if (!result.ok) expect(result.code).toBe("SCHEMA_INCOMPATIBLE")
   })
 
-  it("creates an invitation with a fresh identity, storing only a token hash", async () => {
+  it("creates an invitation with a fresh identity, storing only a token hash and the invited department", async () => {
     const { createFacilityInvitation } = await import("./facility-invitations.server")
-    const result = await createFacilityInvitation({ tenantId: "lab-1", email: "new@example.test", fullName: "New Person", role: "lab_tech", actorId: "admin-1" })
+    const result = await createFacilityInvitation({ tenantId: "lab-1", email: "new@example.test", fullName: "New Person", role: "lab_tech", departmentId: "dept-1", actorId: "admin-1" })
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.token).toBeTruthy()
     const rows = fakeDb.__tables.facility_invitations
     expect(rows).toHaveLength(1)
     expect(rows[0].invite_token).toBeNull()
+    expect(rows[0].department_id).toBe("dept-1")
     expect(rows[0].token_hash).not.toBe(result.token)
     expect(String(rows[0].token_hash)).not.toContain(result.token)
   })
 
-  it("rejects invitation creation when the identity is already scoped to another facility", async () => {
+  it("allows invitation creation for an existing identity at an additional facility", async () => {
     const { createFacilityInvitation } = await import("./facility-invitations.server")
     fakeDb.__tables.profiles.push({ id: "existing-1", email: "taken@example.test", tenant_id: "other-tenant" })
     const result = await createFacilityInvitation({ tenantId: "lab-1", email: "taken@example.test", fullName: "Taken Person", role: "lab_tech", actorId: "admin-1" })
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.code).toBe("IDENTITY_SCOPE_CONFLICT")
+    expect(result.ok).toBe(true)
   })
 
   it("rejects a duplicate pending invitation for the same email and tenant", async () => {
@@ -172,13 +244,13 @@ describe("facility-invitations.server", () => {
     if (!result.ok) expect(result.code).toBe("DEPARTMENT_OUT_OF_SCOPE")
   })
 
-  it("redeems a valid invitation exactly once, creating membership via staff_scope_assignments", async () => {
-    const { createFacilityInvitation, redeemFacilityInvitation } = await import("./facility-invitations.server")
+  it("registers a new account exactly once, never marking onboarding complete", async () => {
+    const { createFacilityInvitation, registerFacilityInvitationNewAccount } = await import("./facility-invitations.server")
     const created = await createFacilityInvitation({ tenantId: "lab-1", email: "redeem@example.test", fullName: "Redeem Person", role: "lab_tech", actorId: "admin-1" })
     expect(created.ok).toBe(true)
     if (!created.ok) return
 
-    const first = await redeemFacilityInvitation(created.token, "supersecret1")
+    const first = await registerFacilityInvitationNewAccount({ token: created.token, password: "supersecret1" })
     expect(first.ok).toBe(true)
 
     const scopes = fakeDb.__tables.staff_scope_assignments
@@ -186,58 +258,87 @@ describe("facility-invitations.server", () => {
     expect(scopes[0].tenant_id).toBe("lab-1")
     expect(scopes[0].is_active).toBe(true)
 
-    // Retry-safe / single-use: a second redemption of the same token must not
+    const profile = fakeDb.__tables.profiles[0]
+    expect(profile.onboarding_complete).toBe(false)
+    expect(profile.verification_status).toBe("unverified")
+
+    // Single-use, retry-safe: a second acceptance of the same token must not
     // create a second profile or a second scope assignment.
-    const second = await redeemFacilityInvitation(created.token, "supersecret1")
+    const second = await registerFacilityInvitationNewAccount({ token: created.token, password: "supersecret1" })
     expect(second.ok).toBe(false)
     if (!second.ok) expect(second.code).toBe("INVITE_ALREADY_USED")
 
     expect(fakeDb.__tables.profiles).toHaveLength(1)
   })
 
-  it("rejects redemption of an expired invitation", async () => {
-    const { createFacilityInvitation, redeemFacilityInvitation } = await import("./facility-invitations.server")
+  it("rejects new-account registration when an account already exists for the email", async () => {
+    const { createFacilityInvitation, registerFacilityInvitationNewAccount } = await import("./facility-invitations.server")
+    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "already@example.test", fullName: "Already Person", role: "lab_tech", actorId: "admin-1" })
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+    fakeDb.__tables.profiles.push({ id: "existing-2", email: "already@example.test", tenant_id: "lab-1" })
+
+    const result = await registerFacilityInvitationNewAccount({ token: created.token, password: "supersecret1" })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe("IDENTITY_EXISTS")
+  })
+
+  it("accepts for an existing, correctly-authenticated recipient without touching their password", async () => {
+    const { createFacilityInvitation, acceptFacilityInvitationForExistingUser } = await import("./facility-invitations.server")
+    fakeDb.__tables.profiles.push({ id: "existing-3", email: "member@example.test", tenant_id: null, password_hash: "original-hash" })
+    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "member@example.test", fullName: "Member Person", role: "lab_tech", actorId: "admin-1" })
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+
+    const result = await acceptFacilityInvitationForExistingUser({ token: created.token, sessionProfileId: "existing-3" })
+    expect(result.ok).toBe(true)
+    expect(fakeDb.__tables.profiles[0].password_hash).toBe("original-hash")
+    expect(hashPassword).not.toHaveBeenCalled()
+  })
+
+  it("rejects acceptance by the wrong authenticated recipient", async () => {
+    const { createFacilityInvitation, acceptFacilityInvitationForExistingUser } = await import("./facility-invitations.server")
+    fakeDb.__tables.profiles.push({ id: "wrong-1", email: "someone-else@example.test", tenant_id: null })
+    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "victim@example.test", fullName: "Victim Person", role: "lab_tech", actorId: "admin-1" })
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+
+    const result = await acceptFacilityInvitationForExistingUser({ token: created.token, sessionProfileId: "wrong-1" })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe("WRONG_RECIPIENT")
+    expect(fakeDb.__tables.staff_scope_assignments).toHaveLength(0)
+    expect(fakeDb.__tables.facility_invitations[0].status).not.toBe("ACCEPTED")
+  })
+
+  it("rejects acceptance of an expired invitation", async () => {
+    const { createFacilityInvitation, registerFacilityInvitationNewAccount } = await import("./facility-invitations.server")
     const created = await createFacilityInvitation({ tenantId: "lab-1", email: "exp@example.test", fullName: "Expired Person", role: "lab_tech", actorId: "admin-1" })
     expect(created.ok).toBe(true)
     if (!created.ok) return
     fakeDb.__tables.facility_invitations[0].expires_at = new Date(Date.now() - 1000).toISOString()
 
-    const result = await redeemFacilityInvitation(created.token, "supersecret1")
+    const result = await registerFacilityInvitationNewAccount({ token: created.token, password: "supersecret1" })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.code).toBe("INVITE_EXPIRED")
   })
 
-  it("rejects redemption of a revoked invitation", async () => {
-    const { createFacilityInvitation, redeemFacilityInvitation } = await import("./facility-invitations.server")
+  it("rejects acceptance of a revoked invitation", async () => {
+    const { createFacilityInvitation, registerFacilityInvitationNewAccount } = await import("./facility-invitations.server")
     const created = await createFacilityInvitation({ tenantId: "lab-1", email: "rev@example.test", fullName: "Revoked Person", role: "lab_tech", actorId: "admin-1" })
     expect(created.ok).toBe(true)
     if (!created.ok) return
     fakeDb.__tables.facility_invitations[0].status = "REVOKED"
 
-    const result = await redeemFacilityInvitation(created.token, "supersecret1")
+    const result = await registerFacilityInvitationNewAccount({ token: created.token, password: "supersecret1" })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.code).toBe("INVITE_REVOKED")
   })
 
-  it("rejects redemption for an identity already scoped to another facility, without creating a duplicate scope", async () => {
-    const { createFacilityInvitation, redeemFacilityInvitation } = await import("./facility-invitations.server")
-    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "conflict@example.test", fullName: "Conflict Person", role: "lab_tech", actorId: "admin-1" })
-    expect(created.ok).toBe(true)
-    if (!created.ok) return
-
-    fakeDb.__tables.profiles.push({ id: "existing-2", email: "conflict@example.test", tenant_id: "another-facility" })
-
-    const result = await redeemFacilityInvitation(created.token, "supersecret1")
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.code).toBe("IDENTITY_SCOPE_CONFLICT")
-
-    expect(fakeDb.__tables.staff_scope_assignments).toHaveLength(0)
-  })
-
   it("rejects an unknown token", async () => {
-    const { redeemFacilityInvitation } = await import("./facility-invitations.server")
-    const result = await redeemFacilityInvitation("not-a-real-token", "supersecret1")
+    const { registerFacilityInvitationNewAccount } = await import("./facility-invitations.server")
+    const result = await registerFacilityInvitationNewAccount({ token: "not-a-real-token", password: "supersecret1" })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.code).toBe("INVITE_NOT_FOUND")
   })
 })
+

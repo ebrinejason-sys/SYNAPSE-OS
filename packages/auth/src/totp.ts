@@ -56,9 +56,13 @@ async function totpCode(secret: string, counter: number): Promise<string> {
   return num.toString().padStart(6, '0')
 }
 
+export function currentTotpTimeStep(nowMs: number = Date.now()): number {
+  return Math.floor(nowMs / 1000 / 30)
+}
+
 export async function verifyTotp(secret: string, code: string): Promise<boolean> {
   if (!/^\d{6}$/.test(code)) return false
-  const t = Math.floor(Date.now() / 1000 / 30)
+  const t = currentTotpTimeStep()
   for (const d of [-1, 0, 1]) {
     if (await totpCode(secret, t + d) === code) return true
   }

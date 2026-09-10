@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { hasRecentVerifiedMfa } from "@synapse/auth"
 import { SCENARIO_IDS, type DemoTenantKind, type ScenarioId } from "@synapse/db/simulation"
 import { requirePlatformAdminApi } from "@/lib/platform/auth"
 import { roleHasCapability } from "@/lib/platform/rbac"
@@ -85,14 +86,20 @@ export async function POST(request: Request) {
     }
 
     if (action === "reset") {
-      // Destructive: no session step-up/reauth mechanism exists in this repo
-      // yet (tracked gap — see docs/ADMIN_PLATFORM_CURRENT_STATE_2026.md), so
-      // as an interim control this requires a second, higher-privilege
-      // capability on top of simulation.manage rather than accepting the
-      // same authorization as create/run.
+      // Destructive: tenant.manage is an authorization requirement, not proof
+      // of recent MFA — a second, higher-privilege capability on top of
+      // simulation.manage plus a fresh, server-verified step-up (see
+      // /api/platform/mfa/step-up and @synapse/auth hasRecentVerifiedMfa)
+      // are both required before this can proceed.
       if (!roleHasCapability(user.platformRole, "tenant.manage")) {
         return NextResponse.json(
           { code: "PLATFORM_FORBIDDEN", error: "Resetting demo tenants requires tenant.manage in addition to simulation.manage" },
+          { status: 403 },
+        )
+      }
+      if (!(await hasRecentVerifiedMfa(user.id, user.sessionId))) {
+        return NextResponse.json(
+          { code: "MFA_STEP_UP_REQUIRED", error: "Resetting demo tenants requires a recent MFA step-up. Call /api/platform/mfa/step-up first." },
           { status: 403 },
         )
       }
