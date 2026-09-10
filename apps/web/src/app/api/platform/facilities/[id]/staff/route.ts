@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto"
 import { NextResponse } from "next/server"
-import { requirePlatformAdminApi } from "@/lib/platform/require-admin-api"
+import { requirePlatformAdminApi } from "@/lib/platform/auth"
 import { hashPassword } from "@synapse/auth"
 import { supabaseAdmin } from "@synapse/db/admin"
 import { sendHospitalStaffInviteEmail } from "@/lib/resend"
@@ -10,8 +10,17 @@ export const dynamic = "force-dynamic"
 const LAB_ROLES = new Set(["hospital_admin", "facility_admin", "lab_tech", "lab_scientist", "billing_officer", "quality_officer", "instrument_manager"])
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await requirePlatformAdminApi()
-  if (admin.error) return admin.error
+  const admin = await requirePlatformAdminApi("user.invite")
+  if (!admin.ok) return admin.response
+  if (process.env.FACILITY_INVITE_HARDENED !== "true") {
+    return NextResponse.json(
+      {
+        code: "FACILITY_INVITE_HARDENING_REQUIRED",
+        error: "Facility staff invitations are blocked until the acceptance-time identity migration is deployed.",
+      },
+      { status: 503 },
+    )
+  }
   const { id: tenantId } = await params
   const body = await request.json().catch(() => ({})) as Record<string, unknown>
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : ""
@@ -36,12 +45,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     role, tenant_id: tenantId, hospital_id: tenantId, department_id: departmentId,
     password_hash: await hashPassword(randomUUID()), must_change_password: true,
     onboarding_complete: false, verification_status: "verified", is_admin: role === "hospital_admin" || role === "facility_admin",
-    created_by: admin.user.id,
+    created_by: admin.profile.id,
   })
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
   const token = `${randomUUID().replaceAll("-", "")}${randomUUID().replaceAll("-", "")}`
   const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString()
-  const { data: invitation, error: inviteError } = await db.from("facility_invitations").insert({ tenant_id: tenantId, email, full_name: fullName, role, invite_token: token, status: "SENT", expires_at: expiresAt, sent_at: new Date().toISOString(), profile_id: profileId, created_by: admin.user.id }).select("id, status, expires_at").single()
+  const { data: invitation, error: inviteError } = await db.from("facility_invitations").insert({ tenant_id: tenantId, email, full_name: fullName, role, invite_token: token, status: "SENT", expires_at: expiresAt, sent_at: new Date().toISOString(), profile_id: profileId, created_by: admin.profile.id }).select("id, status, expires_at").single()
   if (inviteError) return NextResponse.json({ error: inviteError.message }, { status: 500 })
   const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://synapseos.tech"}/invite/facility/${token}`
   try {

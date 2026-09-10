@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { SCENARIO_IDS, type DemoTenantKind, type ScenarioId } from "@synapse/db/simulation"
-import { requirePlatformAdminApi } from "@/lib/platform/require-admin-api"
+import { requirePlatformAdminApi } from "@/lib/platform/auth"
 import { logPlatformEvent } from "@/app/platform/_lib/platform-data"
 import {
   createDemoTenant,
@@ -15,8 +15,8 @@ import {
 export const dynamic = "force-dynamic"
 
 export async function GET() {
-  const { error } = await requirePlatformAdminApi()
-  if (error) return error
+  const gate = await requirePlatformAdminApi("simulation.read")
+  if (!gate.ok) return gate.response
   const engine = getSimulationEngine()
   return NextResponse.json({
     tenants: listDemoTenants(),
@@ -26,8 +26,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { user, error } = await requirePlatformAdminApi()
-  if (error || !user) return error
+  const gate = await requirePlatformAdminApi("simulation.read")
+  if (!gate.ok) return gate.response
+  const user = gate.profile
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const action = String(body.action ?? "")
 

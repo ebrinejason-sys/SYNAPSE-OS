@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google"
 import { synapseThemeFoucScript } from "@synapse/config/theme"
 import { SynapseThemeProvider, SynapseThemeToggle } from "@synapse/ui"
 import "@synapse/config/typography.css"
@@ -7,20 +6,6 @@ import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 
 /** Same type stack as synapseos.tech — IBM Plex Sans + Mono. */
-const plexSans = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  variable: "--font-sans",
-})
-
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  variable: "--font-mono",
-})
-
 export const metadata: Metadata = {
   title: "Synapse Pharm",
   description:
@@ -33,7 +18,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`scroll-smooth ${plexSans.variable} ${plexMono.variable}`}
+      className="scroll-smooth"
       suppressHydrationWarning
     >
       <head>

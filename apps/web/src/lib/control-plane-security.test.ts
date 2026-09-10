@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { staffInviteSchema, staffRolePatchSchema } from './hospital-admin/schemas'
 import { getPostLoginPath } from '@synapse/auth/redirects'
 import { resolveDashboardForUser } from './dashboard/resolver'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 describe('facility staff security and laboratory landing', () => {
   it.each(['platform_admin', 'superadmin', 'platform_observer'])('rejects facility-level assignment of %s', role => {
@@ -15,5 +17,11 @@ describe('facility staff security and laboratory landing', () => {
     const result = resolveDashboardForUser({ userId: 'user', role: 'lab_admin', tenantId: 'lab', tenantSlug: 'pilot-lab', facilityType: 'laboratory', enabledModules: ['core', 'registration', 'lab', 'billing', 'reports', 'ipd'], subscriptionFeatures: [] })
     expect(result.redirectPath).toBe('/lab/orders')
     expect(result.primaryModules).not.toContain('ipd')
+  })
+  it('keeps the legacy facility invitation path fail-closed until hardened schema is deployed', () => {
+    const route = readFileSync(join(process.cwd(), 'apps/web/src/app/api/platform/facilities/[id]/staff/route.ts'), 'utf8')
+    expect(route).toContain('requirePlatformAdminApi("user.invite")')
+    expect(route).toContain('FACILITY_INVITE_HARDENED !== "true"')
+    expect(route).toContain('FACILITY_INVITE_HARDENING_REQUIRED')
   })
 })
