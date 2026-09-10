@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { SCENARIO_IDS, type DemoTenantKind, type ScenarioId } from "@synapse/db/simulation"
 import { requirePlatformAdminApi } from "@/lib/platform/auth"
+import { roleHasCapability } from "@/lib/platform/rbac"
 import { logPlatformEvent } from "@/app/platform/_lib/platform-data"
 import {
   createDemoTenant,
@@ -26,7 +27,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const gate = await requirePlatformAdminApi("simulation.read")
+  // All mutating actions require the write capability; simulation.read is
+  // observer-only and must never authorize create/run/reset.
+  const gate = await requirePlatformAdminApi("simulation.manage")
   if (!gate.ok) return gate.response
   const user = gate.profile
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
@@ -82,6 +85,17 @@ export async function POST(request: Request) {
     }
 
     if (action === "reset") {
+      // Destructive: no session step-up/reauth mechanism exists in this repo
+      // yet (tracked gap — see docs/ADMIN_PLATFORM_CURRENT_STATE_2026.md), so
+      // as an interim control this requires a second, higher-privilege
+      // capability on top of simulation.manage rather than accepting the
+      // same authorization as create/run.
+      if (!roleHasCapability(user.platformRole, "tenant.manage")) {
+        return NextResponse.json(
+          { code: "PLATFORM_FORBIDDEN", error: "Resetting demo tenants requires tenant.manage in addition to simulation.manage" },
+          { status: 403 },
+        )
+      }
       const tenantId = String(body.tenantId ?? "")
       const removed = resetDemoTenant(tenantId, user.id)
       await logPlatformEvent({

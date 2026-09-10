@@ -31,6 +31,7 @@ export const PLATFORM_CAPABILITIES = [
   "capability.read",
   "test_center.read",
   "simulation.read",
+  "simulation.manage",
   "deployment.read",
   "release.read",
   "integration.read",
@@ -84,6 +85,7 @@ const ROLE_CAPABILITIES: Record<PlatformRole, PlatformCapability[]> = {
   SUPER_ADMIN: [...PLATFORM_CAPABILITIES],
   PLATFORM_ADMIN: [
     ...ALL_READ,
+    "simulation.manage",
     "finance_summary.read",
     "security_summary.read",
     "user.read",
@@ -140,6 +142,7 @@ const ROLE_CAPABILITIES: Record<PlatformRole, PlatformCapability[]> = {
     ...OBSERVER_READ,
     "test_center.read",
     "simulation.read",
+    "simulation.manage",
   ],
   STAKEHOLDER: OBSERVER_READ,
   BOARD_OBSERVER: OBSERVER_READ,
