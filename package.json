@@ -30,6 +30,7 @@
     "verify:deploy": "npm run db:check && npm run verify:web",
     "db:check": "node scripts/check-supabase-migrations.mjs",
     "db:history:check": "node scripts/check-migration-history.mjs",
+    "test:migration-integrity": "node --test scripts/check-migration-history.test.mjs",
     "test:tenancy": "vitest run apps/web/src/lib/tenant-routing.test.ts apps/web/src/lib/control-plane-security.test.ts",
     "test:lab-edge": "npm test --workspace @synapse/lab-edge",
     "simulate:astm": "npm start --workspace @synapse/lab-edge -- simulate:astm",

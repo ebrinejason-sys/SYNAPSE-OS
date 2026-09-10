@@ -12,6 +12,15 @@ const legacyVersionExceptions = new Map([
   ["20260609_missing_operational_tables.sql", "historical duplicate prefix retained for production ledger compatibility"],
   ["20260609_pharmacy_network_onboarding.sql", "historical duplicate prefix retained for production ledger compatibility"],
 ])
+// Reviewed, checked-in exceptions only — never controlled by an environment
+// variable an operator or CI input could set at run time. Every entry here
+// must correspond to a specific commit-reviewed justification.
+const reviewedModificationExceptions = new Map([
+  // ["20260101_example.sql", "reason + reviewing PR link"],
+])
+const reviewedBaselineUnavailableExceptions = new Set([
+  // "some-ref" — only ever add with an accompanying reviewed justification.
+])
 
 const fail = (message) => {
   console.error(`[db:history:check] ${message}`)
@@ -85,22 +94,42 @@ for (const file of files) {
   })
 }
 
-const baselineFiles = git(["ls-tree", "-r", "--name-only", baselineRef, "supabase/migrations"])
-  .split("\n")
-  .filter(Boolean)
-  .map((path) => path.replace(/^supabase\/migrations\//, ""))
+const baselineResolvable = Boolean(git(["rev-parse", "--verify", "--quiet", `${baselineRef}^{commit}`]))
 
-if (!baselineFiles.length) {
-  warnings.push(`baseline ${baselineRef} is unavailable; Git provenance comparison was skipped`)
+const baselineFiles = baselineResolvable
+  ? git(["ls-tree", "-r", "--name-only", baselineRef, "supabase/migrations"])
+      .split("\n")
+      .filter(Boolean)
+      .map((path) => path.replace(/^supabase\/migrations\//, ""))
+  : []
+
+if (!baselineResolvable) {
+  if (reviewedBaselineUnavailableExceptions.has(baselineRef)) {
+    warnings.push(`baseline ${baselineRef} is unavailable; proceeding under a reviewed, checked-in exception`)
+  } else {
+    errors.push(
+      `baseline ${baselineRef} could not be resolved in this clone (likely a shallow checkout that never fetched it); ` +
+        `fetch the exact baseline SHA before running this check, or add a reviewed entry to reviewedBaselineUnavailableExceptions`,
+    )
+  }
 } else {
   const currentNames = new Set(files)
   const baselineNames = new Set(baselineFiles)
   for (const file of baselineFiles) {
-    if (!currentNames.has(file)) errors.push(`migration deleted since ${baselineRef}: ${file}`)
-    else {
+    if (!currentNames.has(file)) {
+      errors.push(`migration deleted since ${baselineRef}: ${file}`)
+    } else {
       const baselineSql = gitRaw(["show", `${baselineRef}:supabase/migrations/${file}`])
       const current = inventory.find((item) => item.file === file)
-      if (current && current.rawSha256 !== hash(baselineSql)) warnings.push(`migration modified since ${baselineRef}: ${file} (raw hash differs; review normalized hash and provenance)`)
+      // Raw hash is the sole integrity authority — normalized-SQL hashes are
+      // informational only and must never substitute for byte-identical proof.
+      if (current && current.rawSha256 !== hash(baselineSql)) {
+        if (reviewedModificationExceptions.has(file)) {
+          warnings.push(`migration modified since ${baselineRef}: ${file} (reviewed exception: ${reviewedModificationExceptions.get(file)})`)
+        } else {
+          errors.push(`migration modified since ${baselineRef}: ${file} (raw hash differs from the approved baseline; historical migrations must not change without a reviewed, checked-in exception)`)
+        }
+      }
     }
   }
   for (const file of files) if (!baselineNames.has(file)) warnings.push(`migration added since ${baselineRef}: ${file}`)
