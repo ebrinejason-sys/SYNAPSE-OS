@@ -1,0 +1,127 @@
+#!/usr/bin/env node
+import { createHash } from "node:crypto"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { execFileSync } from "node:child_process"
+import { join } from "node:path"
+
+const root = process.cwd()
+const migrationDir = join(root, "supabase", "migrations")
+const baselineRef = process.env.MIGRATION_HISTORY_BASELINE ?? "e624986"
+const legacyExceptions = new Set(["demo_schema_init.sql"])
+const legacyVersionExceptions = new Map([
+  ["20260609_missing_operational_tables.sql", "historical duplicate prefix retained for production ledger compatibility"],
+  ["20260609_pharmacy_network_onboarding.sql", "historical duplicate prefix retained for production ledger compatibility"],
+])
+
+const fail = (message) => {
+  console.error(`[db:history:check] ${message}`)
+  process.exitCode = 1
+}
+
+function hash(value) {
+  return createHash("sha256").update(value).digest("hex")
+}
+
+function normalizeSql(sql) {
+  return sql.replace(/--.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\s+/g, " ").trim().toLowerCase()
+}
+
+function git(args) {
+  try {
+    return execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim()
+  } catch {
+    return ""
+  }
+}
+
+function gitRaw(args) {
+  try {
+    return execFileSync("git", args, { cwd: root, encoding: "utf8" })
+  } catch {
+    return ""
+  }
+}
+
+function versionFor(file) {
+  if (legacyVersionExceptions.has(file)) return null
+  const match = file.match(/^(\d+)(?:_|-)/)
+  return match ? match[1] : null
+}
+
+if (!existsSync(migrationDir)) {
+  fail("supabase/migrations directory missing")
+  process.exit()
+}
+
+const files = readdirSync(migrationDir).filter((file) => file.endsWith(".sql")).sort()
+if (files.length === 0) {
+  fail("no migration files found")
+  process.exit()
+}
+
+const errors = []
+const warnings = []
+const seenVersions = new Map()
+const inventory = []
+
+for (const file of files) {
+  const version = versionFor(file)
+  if (!version && !legacyExceptions.has(file) && !legacyVersionExceptions.has(file)) errors.push(`unclassified migration filename: ${file}`)
+  if (legacyVersionExceptions.has(file)) warnings.push(`legacy version exception: ${file} (${legacyVersionExceptions.get(file)})`)
+  if (version && seenVersions.has(version)) errors.push(`duplicate migration version prefix ${version}: ${seenVersions.get(version)} and ${file}`)
+  if (version) seenVersions.set(version, file)
+
+  const path = join(migrationDir, file)
+  const sql = readFileSync(path, "utf8")
+  if (sql.trim().length === 0) errors.push(`empty migration: ${file}`)
+  if (!/\b(create|alter|drop|insert|update|delete|grant|revoke|comment)\b/i.test(sql)) errors.push(`migration may be empty or invalid SQL: ${file}`)
+  inventory.push({
+    file,
+    version,
+    legacyException: !version,
+    rawSha256: hash(sql),
+    normalizedSha256: hash(normalizeSql(sql)),
+    lastCommit: git(["log", "-1", "--format=%H", "--", `supabase/migrations/${file}`]) || null,
+  })
+}
+
+const baselineFiles = git(["ls-tree", "-r", "--name-only", baselineRef, "supabase/migrations"])
+  .split("\n")
+  .filter(Boolean)
+  .map((path) => path.replace(/^supabase\/migrations\//, ""))
+
+if (!baselineFiles.length) {
+  warnings.push(`baseline ${baselineRef} is unavailable; Git provenance comparison was skipped`)
+} else {
+  const currentNames = new Set(files)
+  const baselineNames = new Set(baselineFiles)
+  for (const file of baselineFiles) {
+    if (!currentNames.has(file)) errors.push(`migration deleted since ${baselineRef}: ${file}`)
+    else {
+      const baselineSql = gitRaw(["show", `${baselineRef}:supabase/migrations/${file}`])
+      const current = inventory.find((item) => item.file === file)
+      if (current && current.rawSha256 !== hash(baselineSql)) warnings.push(`migration modified since ${baselineRef}: ${file} (raw hash differs; review normalized hash and provenance)`)
+    }
+  }
+  for (const file of files) if (!baselineNames.has(file)) warnings.push(`migration added since ${baselineRef}: ${file}`)
+}
+
+const output = {
+  baselineRef,
+  generatedAt: new Date().toISOString(),
+  migrationCount: inventory.length,
+  migrations: inventory,
+  errors,
+  warnings,
+  remoteReconciliation: "BLOCKED_OPERATOR_CONTROLLED",
+}
+console.log(JSON.stringify(output, null, 2))
+
+if (errors.length) {
+  console.error("[db:history:check] read-only migration history validation failed")
+  process.exitCode = 1
+} else {
+  console.error(`[db:history:check] ${inventory.length} local migrations inventoried against baseline ${baselineRef}`)
+  for (const warning of warnings) console.error(`[db:history:check] WARNING: ${warning}`)
+  console.error("[db:history:check] remote migration ledger reconciliation remains a separate, explicit operator-controlled action")
+}

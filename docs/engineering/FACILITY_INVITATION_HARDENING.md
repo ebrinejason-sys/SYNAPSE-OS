@@ -1,0 +1,5 @@
+# Facility Invitation Hardening
+
+The current facility staff endpoint is explicitly gated because its deployed schema stores raw invitation tokens and its legacy path creates a verified profile before acceptance. The gate is controlled by `FACILITY_INVITE_HARDENED=true` and remains closed until the additive proposal at `docs/engineering/proposals/facility-invitation-hardening.sql` is reviewed and applied through the operator-controlled database workflow.
+
+The proposed contract stores a token digest, makes the legacy raw-token column nullable for backfill, records delivery attempts and the authenticated accepter, and supports creating the profile and facility scope only during authenticated acceptance. Existing invitations require an operator-managed backfill or expiry decision; no remote migration or data mutation was performed in this task.
