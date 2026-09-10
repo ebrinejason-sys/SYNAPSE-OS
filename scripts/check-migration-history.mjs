@@ -137,6 +137,7 @@ if (!baselineResolvable) {
 
 const output = {
   baselineRef,
+  headSha: git(["rev-parse", "HEAD"]) || null,
   generatedAt: new Date().toISOString(),
   migrationCount: inventory.length,
   migrations: inventory,
@@ -145,6 +146,15 @@ const output = {
   remoteReconciliation: "BLOCKED_OPERATOR_CONTROLLED",
 }
 console.log(JSON.stringify(output, null, 2))
+
+try {
+  const { mkdirSync, writeFileSync } = await import("node:fs")
+  const evidenceDir = join(root, "artifacts", "readiness")
+  mkdirSync(evidenceDir, { recursive: true })
+  writeFileSync(join(evidenceDir, "migration-history.json"), `${JSON.stringify(output, null, 2)}\n`)
+} catch {
+  // Evidence persistence is best-effort; the console JSON above is the authoritative output for this run.
+}
 
 if (errors.length) {
   console.error("[db:history:check] read-only migration history validation failed")

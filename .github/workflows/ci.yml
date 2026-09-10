@@ -70,6 +70,9 @@ jobs:
       - name: Security assertions
         run: npm run test:workflow-safety && node scripts/check-workflow-safety.mjs
 
+      - name: Readiness evidence gate behavioral tests
+        run: npm run test:readiness-report
+
   required:
     needs: verify
     runs-on: ubuntu-latest

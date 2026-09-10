@@ -55,7 +55,8 @@
     "postinstall": "node scripts/patch-expo-metro-file-store.mjs || true; node scripts/nest-eslint-ajv6.mjs || true",
     "test:control-plane": "vitest run apps/web/src/lib/tenant-routing.test.ts packages/db/src/facility-provision.integration.test.ts apps/web/src/lib/control-plane-security.test.ts apps/web/src/lib/platform/require-admin-api.test.ts apps/web/src/app/api/platform/facilities/[id]/staff/route.test.ts apps/web/src/app/api/platform/simulation/route.test.ts",
     "health:smoke": "node scripts/health-smoke.mjs",
-    "readiness:report": "node scripts/readiness-report.mjs"
+    "readiness:report": "node scripts/readiness-report.mjs",
+    "test:readiness-report": "node --test scripts/readiness-report.test.mjs"
   },
   "devDependencies": {
     "supabase": "^2.107.0",
