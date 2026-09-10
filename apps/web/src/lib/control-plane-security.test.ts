@@ -18,10 +18,12 @@ describe('facility staff security and laboratory landing', () => {
     expect(result.redirectPath).toBe('/lab/orders')
     expect(result.primaryModules).not.toContain('ipd')
   })
-  it('keeps the legacy facility invitation path fail-closed until hardened schema is deployed', () => {
+  it('keeps the facility invitation path unconditionally fail-closed with no reachable legacy handler', () => {
     const route = readFileSync(join(process.cwd(), 'apps/web/src/app/api/platform/facilities/[id]/staff/route.ts'), 'utf8')
     expect(route).toContain('requirePlatformAdminApi("user.invite")')
-    expect(route).toContain('FACILITY_INVITE_HARDENED !== "true"')
     expect(route).toContain('FACILITY_INVITE_HARDENING_REQUIRED')
+    expect(route).not.toContain('FACILITY_INVITE_HARDENED')
+    expect(route).not.toContain('facility_invitations')
+    expect(route).not.toContain('profiles')
   })
 })
