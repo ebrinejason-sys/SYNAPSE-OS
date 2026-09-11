@@ -33,3 +33,5 @@ Every feature: domain logic → HTTP/API proof → live synthetic journey → re
 - Clinical write-up domain + HTTP + notes UI landed (see `docs/engineering/evidence/clinical-writeup-2026-09-11.md`).
 - Professional light mode tokens restored to orange/gold brand (light mode no longer swaps primary to blue).
 - Marketing hero chrome quieted (no particle field; reduced aurora/shimmer) while retaining module/pricing content.
+
+- Closeout golden: billing balance → payment → disposition → close (`docs/engineering/evidence/hospital-closeout-golden-2026-09-11.md`).

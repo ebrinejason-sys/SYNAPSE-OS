@@ -78,6 +78,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ en
 
   const decision = evaluateEncounterCloseGate({
     encounterExists: Boolean(encounter),
+    disposition: encounter?.disposition ?? null,
     hospitalMatches: Boolean(encounter && encounter.hospital_id === ctx.hospitalId),
     status: encounter?.status ?? null,
     openLabOrderIds: (labs ?? []).map((row: { id: string }) => row.id),
