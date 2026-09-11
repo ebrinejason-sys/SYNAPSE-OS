@@ -27,3 +27,9 @@ One demonstrable facility workflow — not every module GREEN.
 
 ## Engineering standard
 Every feature: domain logic → HTTP/API proof → live synthetic journey → readiness evidence.
+
+
+## Progress — 2026-09-11
+- Clinical write-up domain + HTTP + notes UI landed (see `docs/engineering/evidence/clinical-writeup-2026-09-11.md`).
+- Professional light mode tokens restored to orange/gold brand (light mode no longer swaps primary to blue).
+- Marketing hero chrome quieted (no particle field; reduced aurora/shimmer) while retaining module/pricing content.
