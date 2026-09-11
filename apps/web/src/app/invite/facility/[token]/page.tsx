@@ -37,7 +37,8 @@ export default function FacilityInviteRedeemPage() {
         const res = await fetch(`/api/invite/facility/lookup?token=${encodeURIComponent(token)}`)
         const data = (await res.json()) as LookupOk | LookupErr
         if (!res.ok || data.ok !== true) {
-          if (!cancelled) setError(data.error || 'Invalid invitation')
+          const message = data.ok === true ? 'Invalid invitation' : (data.error || 'Invalid invitation')
+          if (!cancelled) setError(message)
           return
         }
         if (!cancelled) setLookup(data)
