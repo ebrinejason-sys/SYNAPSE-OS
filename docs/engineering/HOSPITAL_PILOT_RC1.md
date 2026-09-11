@@ -35,3 +35,5 @@ Every feature: domain logic → HTTP/API proof → live synthetic journey → re
 - Marketing hero chrome quieted (no particle field; reduced aurora/shimmer) while retaining module/pricing content.
 
 - Closeout golden: billing balance → payment → disposition → close (`docs/engineering/evidence/hospital-closeout-golden-2026-09-11.md`).
+
+- Full Hospital Golden Journey domain runner (`docs/engineering/evidence/hospital-golden-journey-2026-09-11.md`).
