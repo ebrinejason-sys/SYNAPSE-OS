@@ -35,6 +35,8 @@ jobs:
         run: npm run test:migration-integrity
       - name: OPD dispense golden journey (domain)
         run: npm run test:opd-dispense-golden
+      - name: Encounter close-gate tests
+        run: npm run test:encounter-close-gate
 
       - name: Platform admin guard audit
         run: node scripts/check-platform-admin-guards.mjs

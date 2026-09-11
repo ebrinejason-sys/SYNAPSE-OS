@@ -18,7 +18,7 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
-    "verify": "npm run db:check && npm run test:opd-dispense-golden && npm run verify:web && npm run verify:pharmacy && npm run test:control-plane && npm run test:tenancy && npm run test:lab-edge",
+    "verify": "npm run db:check && npm run test:opd-dispense-golden && npm run test:encounter-close-gate && npm run verify:web && npm run verify:pharmacy && npm run test:control-plane && npm run test:tenancy && npm run test:lab-edge",
     "verify:web": "node scripts/verify-web-build.mjs",
     "verify:pharmacy": "npm run type-check --workspace @synapse/pharmacy && npm run lint --workspace @synapse/pharmacy && npm run test:general --workspace @synapse/pharmacy && npm run build --workspace @synapse/pharmacy",
     "verify:control-plane": "npm run test:control-plane",
@@ -58,10 +58,11 @@
     "seed:pharmacy-pilot": "node scripts/pharmacy-pilot-seed.mjs",
     "seed:pharmacy-pilot:reset": "node scripts/pharmacy-pilot-seed.mjs --reset-inventory",
     "postinstall": "node scripts/patch-expo-metro-file-store.mjs || true; node scripts/nest-eslint-ajv6.mjs || true",
-    "test:control-plane": "vitest run apps/web/src/lib/tenant-routing.test.ts packages/db/src/facility-provision.integration.test.ts apps/web/src/lib/control-plane-security.test.ts apps/web/src/lib/platform/require-admin-api.test.ts apps/web/src/app/api/platform/facilities/[id]/staff/route.test.ts apps/web/src/app/api/platform/simulation/route.test.ts apps/web/src/lib/platform/facility-invitations.server.test.ts apps/web/src/lib/platform/facility-invitations.integration.test.ts apps/web/src/app/api/platform/mfa/step-up/route.test.ts apps/web/src/app/api/opd/prescriptions/route.test.ts apps/web/src/app/api/hospital/pharmacy/dispense/route.test.ts",
+    "test:control-plane": "vitest run apps/web/src/lib/tenant-routing.test.ts packages/db/src/facility-provision.integration.test.ts apps/web/src/lib/control-plane-security.test.ts apps/web/src/lib/platform/require-admin-api.test.ts apps/web/src/app/api/platform/facilities/[id]/staff/route.test.ts apps/web/src/app/api/platform/simulation/route.test.ts apps/web/src/lib/platform/facility-invitations.server.test.ts apps/web/src/lib/platform/facility-invitations.integration.test.ts apps/web/src/app/api/platform/mfa/step-up/route.test.ts apps/web/src/app/api/opd/prescriptions/route.test.ts apps/web/src/app/api/hospital/pharmacy/dispense/route.test.ts apps/web/src/app/api/opd/encounters/[encounterId]/close/route.test.ts",
     "health:smoke": "node scripts/health-smoke.mjs",
     "readiness:report": "node scripts/readiness-report.mjs",
-    "test:readiness-report": "node --test scripts/readiness-report.test.mjs"
+    "test:readiness-report": "node --test scripts/readiness-report.test.mjs",
+    "test:encounter-close-gate": "tsx --test packages/db/src/encounter-close-gate.test.ts"
   },
   "devDependencies": {
     "supabase": "^2.107.0",
