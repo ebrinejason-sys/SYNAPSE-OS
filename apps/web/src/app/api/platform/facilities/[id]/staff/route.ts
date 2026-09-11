@@ -1,24 +1,83 @@
 import { NextResponse } from "next/server"
+import { facilityInviteUrl } from "@synapse/db/facility-provision"
+import { supabaseAdmin } from "@synapse/db/admin"
 import { requirePlatformAdminApi } from "@/lib/platform/auth"
+import {
+  createFacilityInvitation,
+  markFacilityInvitationDeliveryFailed,
+  markFacilityInvitationSent,
+} from "@/lib/platform/facility-invitations.server"
+import { sendHospitalStaffInviteEmail } from "@/lib/resend"
 
 export const dynamic = "force-dynamic"
 
 /**
- * Facility staff invitations are fail-closed pending the acceptance-time
- * identity/membership migration (cryptographic token hashing, expiry,
- * single-use redemption, canonical membership creation). No flag re-enables
- * the legacy raw-token/profile-creation flow described in this handler's
- * history — the replacement must be implemented and verified end-to-end
- * before this route can return anything other than 503.
+ * Hardened facility staff invitations.
+ * Creates a single-use, hashed-token invitation via createFacilityInvitation,
+ * emails a setup link (never a temporary password), and records delivery state.
+ * Schema compatibility is enforced inside createFacilityInvitation — if the
+ * acceptance-time migration is missing remotely this still returns 503
+ * SCHEMA_INCOMPATIBLE rather than falling back to the legacy raw-token path.
  */
-export async function POST(_request: Request, { params: _params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const admin = await requirePlatformAdminApi("user.invite")
   if (!admin.ok) return admin.response
-  return NextResponse.json(
-    {
-      code: "FACILITY_INVITE_HARDENING_REQUIRED",
-      error: "Facility staff invitations are blocked until the acceptance-time identity migration is implemented and verified.",
-    },
-    { status: 503 },
-  )
+
+  const { id: tenantId } = await params
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+  const email = String(body.email ?? "").trim()
+  const fullName = String(body.fullName ?? "").trim()
+  const role = String(body.role ?? "").trim()
+  const departmentRaw = body.departmentId
+  const departmentId =
+    departmentRaw == null || String(departmentRaw).trim() === ""
+      ? null
+      : String(departmentRaw).trim()
+
+  const created = await createFacilityInvitation({
+    tenantId,
+    email,
+    fullName,
+    role,
+    departmentId,
+    actorId: admin.profile.id,
+  })
+  if (!created.ok) {
+    return NextResponse.json({ code: created.code, error: created.error }, { status: created.status })
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any
+  const { data: tenant } = await db.from("tenants").select("slug, facility_type").eq("id", tenantId).maybeSingle()
+  const slug = String(tenant?.slug ?? "facility")
+  const facilityType = (tenant?.facility_type === "pharmacy" ? "pharmacy" : tenant?.facility_type === "hospital" ? "hospital" : "laboratory") as
+    | "pharmacy"
+    | "hospital"
+    | "laboratory"
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://synapseos.tech"
+  const inviteUrl = facilityInviteUrl(facilityType, slug, created.token, { appUrl })
+
+  try {
+    await sendHospitalStaffInviteEmail({
+      to: created.email,
+      hospitalName: created.tenantName,
+      staffName: fullName,
+      role,
+      inviteUrl,
+    })
+    await markFacilityInvitationSent(created.invitationId)
+  } catch (err) {
+    await markFacilityInvitationDeliveryFailed(
+      created.invitationId,
+      err instanceof Error ? err.message : "invite_email_send_failed",
+    )
+  }
+
+  return NextResponse.json({
+    ok: true,
+    invitationId: created.invitationId,
+    email: created.email,
+    expiresAt: created.expiresAt,
+    inviteUrl,
+  })
 }

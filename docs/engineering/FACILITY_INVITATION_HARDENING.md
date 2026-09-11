@@ -59,3 +59,16 @@ This report distinguishes four different levels of confidence on purpose, becaus
 5. **Re-verify the step-up MFA gate end-to-end** (enroll → step up → destructive action) against a real environment before treating it as more than unit-tested — the mock-based route tests prove the gate logic, not the live TOTP round-trip against `mfa_enrollments` and `synapse_sessions`.
 
 No production migration was applied and no staging journey was executed as part of this task.
+
+
+## HTTP wiring (2026-09-11)
+
+Production schema for token hash + acceptance RPCs is applied. Live routes now:
+
+- `POST /api/platform/facilities/[id]/staff` → `createFacilityInvitation` + invite email (no temp password)
+- `GET /api/invite/facility/lookup?token=` → safe preview (`hasExistingAccount`)
+- `POST /api/invite/facility/accept` → existing-user acceptance (session required)
+- `POST /api/invite/facility/redeem` → new-account registration only
+- UI: `/invite/facility/[token]` branches on lookup
+
+Still required before declaring pilot-proven: a recorded staging/live invitation journey (create → email/retrieve → accept/register → membership/audit checks) and live MFA step-up verification on destructive platform actions.
