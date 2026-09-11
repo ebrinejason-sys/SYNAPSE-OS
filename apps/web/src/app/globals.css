@@ -100,10 +100,10 @@
   --text-gold:      #D97706;
   --text-orange:    #B84500;
 
-  /* Brand colours stay vivid but darken slightly for legibility */
-  --brand-orange:       #2563EB;
+  /* Brand colours stay orange/gold — darkened only for WCAG on white */
+  --brand-orange:       #EA580C;
   --brand-orange-light: #F97316;
-  --brand-orange-dark:  #B84500;
+  --brand-orange-dark:  #C2410C;
   --brand-gold:         #D97706;
   --brand-gold-light:   #F59E0B;
   --brand-gold-dark:    #B45309;
@@ -140,7 +140,7 @@
   --card-foreground: 222 47% 11%;
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
-  --primary: 217 91% 60%;
+  --primary: 24 95% 44%;
   --primary-foreground: 0 0% 100%;
   --secondary: 210 25% 94%;
   --secondary-foreground: 222 47% 11%;
@@ -858,7 +858,7 @@ code, pre, .mono, .font-mono {
 }
 
 [data-theme='light'] .landing-hero-aurora {
-  opacity: 0.4;
+  opacity: 0.22;
 }
 
 @keyframes auroraDrift {
@@ -880,8 +880,8 @@ code, pre, .mono, .font-mono {
   border-radius: 1.5rem;
   background: radial-gradient(60% 60% at 50% 40%, rgba(249, 115, 22, 0.22), transparent 70%);
   filter: blur(36px);
-  opacity: 0.8;
-  animation: previewHalo 6s ease-in-out infinite;
+  opacity: 0.45;
+  animation: none;
 }
 
 .landing-preview-wrap > * {
@@ -1502,4 +1502,45 @@ code, pre, .mono, .font-mono {
   #synapse-receipt footer {
     break-inside: avoid;
   }
+}
+
+
+/* Professional marketing chrome — retain info, reduce “vibe” motion */
+.landing-hero-aurora {
+  opacity: 0.35;
+  filter: blur(48px);
+}
+[data-theme='light'] .landing-hero {
+  background: var(--bg-base);
+}
+[data-theme='light'] .landing-hero-bg {
+  opacity: 0.55;
+}
+[data-theme='light'] .landing-hero-grid {
+  opacity: 0.35;
+}
+.landing-hero .shimmer-sweep::after {
+  animation: none;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .landing-hero-aurora {
+    animation-duration: 36s;
+  }
+}
+
+
+.landing-card-quiet {
+  box-shadow: none;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-edge);
+}
+[data-theme='light'] .landing-card-quiet {
+  background: #fff;
+}
+[data-theme='light'] .landing-page {
+  background: var(--bg-base);
+}
+.landing-page .landing-card {
+  transition: border-color 160ms ease, box-shadow 160ms ease;
 }

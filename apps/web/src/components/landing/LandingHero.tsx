@@ -13,7 +13,6 @@ import {
 } from 'lucide-react'
 import { PUBLIC_STORY, HEADLINE_METRICS } from '@synapse/config/manifest'
 import { AvatarCluster } from './AvatarCluster'
-import { LandingParticleField } from './LandingParticleField'
 import { BodyText, DisplayHeading, Eyebrow, LeadText } from '../typography'
 
 const COMPLIANCE = [
@@ -37,14 +36,14 @@ const PREVIEW_CARDS = [
     icon: FlaskConical,
     title: 'Lab',
     metric: 'Order → result → verify',
-    detail: 'First vertical slice in development',
+    detail: 'Orders, results, and verification workflows',
     accent: 'var(--brand-gold)',
   },
   {
     icon: Pill,
     title: 'Pharmacy & revenue',
-    metric: 'FEFO · POS · claims',
-    detail: 'Batch stock and receipts. Offline checkout disabled.',
+    metric: 'FEFO · dispense · receipts',
+    detail: 'Batch stock, dispense bridge, and receipts',
     accent: '#22C55E',
   },
 ]
@@ -64,8 +63,6 @@ export function LandingHero() {
       <div className="landing-hero-bg" aria-hidden />
       <div className="landing-hero-grid" aria-hidden />
       <div className="landing-hero-aurora" aria-hidden />
-      <LandingParticleField />
-
       <div className="landing-container relative z-[1] grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
         <div>
           <motion.div
@@ -74,7 +71,7 @@ export function LandingHero() {
             transition={{ duration: 0.45 }}
             className="mb-6"
           >
-            <Eyebrow className="shimmer-sweep">
+            <Eyebrow>
               Health management platform · Kampala, Uganda
             </Eyebrow>
           </motion.div>

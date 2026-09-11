@@ -8,6 +8,7 @@ export type CloseBlocking =
   | "DOCTOR_REVIEW"
   | "PHARMACY"
   | "BILLING"
+  | "DISPOSITION"
   | "TASK"
   | "ALREADY_CLOSED"
   | "NOT_FOUND"
@@ -16,6 +17,8 @@ export type EncounterCloseState = {
   encounterExists: boolean
   hospitalMatches: boolean
   status: string | null
+  /** Doctor disposition required before close (RC1 closeout). */
+  disposition?: string | null
   openLabOrderIds?: string[]
   unreviewedFinalResultIds?: string[]
   /** Active prescriptions that still require local pharmacy work. */
@@ -78,6 +81,13 @@ export function evaluateEncounterCloseGate(state: EncounterCloseState): Encounte
       blocking: "BILLING",
       sourceId: invoice.id,
       error: "Encounter cannot close while an invoice has an outstanding balance",
+    }
+  }
+  if (!state.disposition || !String(state.disposition).trim()) {
+    return {
+      ok: false,
+      blocking: "DISPOSITION",
+      error: "Encounter cannot close until a doctor disposition is recorded",
     }
   }
   if (state.pendingTask) {

@@ -10,7 +10,7 @@ export function SynapseThemeProvider({ children }: { children: ReactNode }) {
   return (
     <NextThemesProvider
       attribute="data-theme"
-      defaultTheme="system"
+      defaultTheme="light"
       enableSystem
       storageKey={SYNAPSE_THEME_STORAGE_KEY}
       themes={['light', 'dark']}

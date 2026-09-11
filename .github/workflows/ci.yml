@@ -37,6 +37,8 @@ jobs:
         run: npm run test:opd-dispense-golden
       - name: Encounter close-gate tests
         run: npm run test:encounter-close-gate
+          npm run test:clinical-writeup
+          npm run test:hospital-closeout-golden
 
       - name: Platform admin guard audit
         run: node scripts/check-platform-admin-guards.mjs

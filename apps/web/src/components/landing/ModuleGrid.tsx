@@ -14,23 +14,18 @@ export function ModuleGrid({ modules }: { modules: Module[] }) {
     <div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {visible.map((m) => (
-          <div key={m.name} className="landing-card !p-4">
-            <span
-              className="mb-2 inline-block rounded px-2 py-0.5 font-mono text-xs font-bold"
-              style={{ background: 'rgba(249,115,22,0.1)', color: 'var(--brand-orange)' }}
-            >
+          <div key={m.name} className="landing-card landing-card-quiet !p-4">
+            <span className="mb-2 inline-block rounded-md border border-subtle bg-elevated px-2 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-secondary-color">
               {m.abbr}
             </span>
-            <p className="text-sm font-semibold">{m.name}</p>
-            <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-              {m.desc}
-            </p>
+            <p className="text-sm font-semibold text-primary-color">{m.name}</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-color">{m.desc}</p>
           </div>
         ))}
       </div>
       {modules.length > INITIAL_COUNT && (
         <button type="button" onClick={() => setExpanded((v) => !v)} className="landing-btn-secondary mt-6">
-          {expanded ? 'Show fewer modules' : `Show all ${modules.length} modules →`}
+          {expanded ? 'Show fewer modules' : `Show all ${modules.length} modules`}
         </button>
       )}
     </div>

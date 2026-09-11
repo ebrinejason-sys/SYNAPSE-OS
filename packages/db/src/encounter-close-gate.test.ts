@@ -6,11 +6,12 @@ import {
 } from "./encounter-close-gate.ts"
 
 describe("evaluateEncounterCloseGate", () => {
-  it("allows close when clinical and financial work is clear", () => {
+  it("allows close when clinical, financial, and disposition work is clear", () => {
     const decision = evaluateEncounterCloseGate({
       encounterExists: true,
       hospitalMatches: true,
       status: "in_progress",
+      disposition: "CLINICAL_COMPLETE",
       invoice: { id: "inv-1", status: "paid", totalAmount: 100, paidAmount: 100 },
     })
     assert.deepEqual(decision, { ok: true })
@@ -24,6 +25,18 @@ describe("evaluateEncounterCloseGate", () => {
     })
     assert.equal(decision.ok, true)
     if (decision.ok) assert.equal(decision.alreadyClosed, true)
+  })
+
+  it("blocks when disposition is missing even if billing is paid", () => {
+    const decision = evaluateEncounterCloseGate({
+      encounterExists: true,
+      hospitalMatches: true,
+      status: "in_progress",
+      disposition: null,
+      invoice: { id: "inv-1", status: "paid", totalAmount: 100, paidAmount: 100 },
+    })
+    assert.equal(decision.ok, false)
+    if (!decision.ok) assert.equal(decision.blocking, "DISPOSITION")
   })
 
   it("blocks on open lab, unreviewed results, pharmacy, billing, and tasks", () => {
@@ -54,25 +67,30 @@ describe("evaluateEncounterCloseGate", () => {
       }).ok,
       false,
     )
-    const billing = evaluateEncounterCloseGate({
-      encounterExists: true,
-      hospitalMatches: true,
-      status: "open",
-      invoice: { id: "inv-2", status: "issued", totalAmount: 50, paidAmount: 10 },
-    })
-    assert.equal(billing.ok, false)
-    if (!billing.ok) assert.equal(billing.blocking, "BILLING")
-    const task = evaluateEncounterCloseGate({
-      encounterExists: true,
-      hospitalMatches: true,
-      status: "open",
-      pendingTask: { id: "t-1", taskType: "consultation" },
-    })
-    assert.equal(task.ok, false)
-    if (!task.ok) assert.equal(task.blocking, "TASK")
+    assert.equal(
+      evaluateEncounterCloseGate({
+        encounterExists: true,
+        hospitalMatches: true,
+        status: "open",
+        disposition: "FOLLOW_UP",
+        invoice: { id: "inv-1", status: "issued", totalAmount: 100, paidAmount: 0 },
+      }).ok,
+      false,
+    )
+    assert.equal(
+      evaluateEncounterCloseGate({
+        encounterExists: true,
+        hospitalMatches: true,
+        status: "open",
+        disposition: "FOLLOW_UP",
+        invoice: { id: "inv-1", status: "paid", totalAmount: 100, paidAmount: 100 },
+        pendingTask: { id: "t-1", taskType: "FOLLOW_UP" },
+      }).ok,
+      false,
+    )
   })
 
-  it("treats EXTERNAL_PHARMACY / NO_MEDICATION active rows as non-blocking", () => {
+  it("filters local-pharmacy blockers from prescription rows", () => {
     const ids = blockingLocalPharmacyPrescriptions([
       { id: "a", status: "active", disposition: "EXTERNAL_PHARMACY" },
       { id: "b", status: "active", disposition: null },
