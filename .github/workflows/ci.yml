@@ -33,6 +33,8 @@ jobs:
 
       - name: Migration history integrity gate behavioral tests
         run: npm run test:migration-integrity
+      - name: OPD dispense golden journey (domain)
+        run: npm run test:opd-dispense-golden
 
       - name: Platform admin guard audit
         run: node scripts/check-platform-admin-guards.mjs
