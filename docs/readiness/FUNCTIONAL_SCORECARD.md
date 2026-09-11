@@ -1,7 +1,8 @@
 # SYNAPSE Functional Scorecard
 
-Date: 2026-09-09
-Baseline: `c1d9a65f859ec762a15bba28905d6b3dcc18aa0e`
+Date: 2026-09-11
+Baseline: `76d80e92876e30ca1fe628acc9d30dd30fdf674a`
+
 
 This scorecard is intentionally conservative. A capability cannot be GREEN from route presence alone. `LIVE_PROOF` requires an executable journey or acceptance artifact on the current SHA.
 
@@ -13,7 +14,7 @@ This scorecard is intentionally conservative. A capability cannot be GREEN from 
 | Triage | Y | Y | Y | Y | Y | Y | Y | N | Partial | N/A | YELLOW | Full vital and danger-sign coverage |
 | Clinical write-up | Partial | Partial | Y | Y | Partial | Partial | Partial | N | Partial | N/A | RED | HPI/PMH/ROS/exam/plan/signature parity |
 | Orders and result review | Y | Y | Y | Y | Y | Y | Y | N | Has | Partial | YELLOW | Cross-module golden proof |
-| Pharmacy bridge | Y | Y | Y | Y | Y | Y | Y | N | Has | N/A | YELLOW | Pharm decrement/event/billing proof |
+| Pharmacy bridge | Y | Y | Y | Y | Y | Y | Y | Y | Has | N/A | YELLOW | Live synthetic decrement+idempotency proven 2026-09-11; still needs full Hospital Golden closeout |
 | Billing / disposition | Y | Y | Y | Y | Partial | Y | Y | N | Partial | N/A | YELLOW | Policy and non-revenue paths |
 | Inpatient / discharge | Partial | Partial | Y | Y | Partial | Partial | Partial | N | Partial | N/A | RED | Admission-transfer-discharge lifecycle |
 | Referrals | N | Partial | Y | Partial | N | Partial | N | N | Missing | Partial | RED | Active pages are stubs |
@@ -47,3 +48,17 @@ This scorecard is intentionally conservative. A capability cannot be GREEN from 
 - Dependency security: YELLOW; 77 audit findings are classified in [DEPENDENCY_SECURITY_AUDIT_2026.md](DEPENDENCY_SECURITY_AUDIT_2026.md).
 
 The functional rows remain conservative. Infrastructure proof does not promote clinical write-up, inpatient, referrals, offline, Lab TAT, or ALIS quality/inventory rows to GREEN.
+
+
+## 2026-09-11 UPDATE
+
+Evidence that supersedes older “migration deadlock / no live clinical proof” statements in this file’s 2026-09-09 rows:
+
+- Production migration ledger reconciled; pending migrations applied (PR #57 evidence under `docs/engineering/evidence/`).
+- Facility invitation create→register→membership live journey PASS.
+- OPD prescribe→verify→dispense: domain golden (PR #58), HTTP route tests (PR #59), live synthetic DB journey PASS (PR #60).
+- Dispense stock authority corrected to `pharmacy_product_batches`.
+
+Still RED / incomplete for RC1: full doctor write-up parity, inpatient lifecycle, referrals, clinical offline, and a single end-to-end Hospital Golden Journey (Reception→…→disposition/payment/close).
+
+Release-control gap: GitHub branch protection/rulesets unavailable on this private free-plan repo — see `docs/engineering/RELEASE_CONTROL.md`.

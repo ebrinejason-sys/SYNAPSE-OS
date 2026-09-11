@@ -1,0 +1,29 @@
+# SYNAPSE Hospital Pilot RC1
+
+## Goal
+One demonstrable facility workflow — not every module GREEN.
+
+## RC1 must prove
+1. Facility provisioned cleanly
+2. Staff invited securely (hashed-token invite journey)
+3. One OPD patient journey: arrival → payment/disposition
+4. Lab and Pharmacy handoffs proven where in-path
+5. Tenant isolation + audit on actions in the path
+6. Reload/retry/idempotency on dispense and payment
+7. Admin shows real service/release status (SHA alignment)
+8. No dead-end links in the Golden Journey UI for this path
+
+## Already landed evidence (2026-09-11)
+- Migration ledger unlock + invite journey (PR #57)
+- Domain OPD→dispense golden (PR #58)
+- HTTP prescribe/dispense route tests (PR #59)
+- Live synthetic dispense + `pharmacy_product_batches` stock fix (PR #60)
+
+## Next coding targets (depth order)
+1. Doctor encounter write-up completeness (HPI/PMH/ROS/exam/assessment/plan/sign/amend)
+2. Billing collect + disposition + close gates as one coherent closeout
+3. Wire a single Hospital Golden Journey runner across those steps
+4. Then admissions/transfer/discharge, referrals, clinical offline
+
+## Engineering standard
+Every feature: domain logic → HTTP/API proof → live synthetic journey → readiness evidence.

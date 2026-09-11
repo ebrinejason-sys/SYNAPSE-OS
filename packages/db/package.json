@@ -52,7 +52,8 @@
     "./hospital-provision": "./src/hospital-provision.ts",
     "./hospital-provision-catalog": "./src/hospital-provision-catalog.ts",
     "./facility-provision": "./src/facility-provision.ts",
-    "./facility-provision-catalog": "./src/facility-provision-catalog.ts"
+    "./facility-provision-catalog": "./src/facility-provision-catalog.ts",
+    "./encounter-close-gate": "./src/encounter-close-gate.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",
