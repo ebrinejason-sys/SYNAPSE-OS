@@ -47,11 +47,11 @@ export async function createSession(params: {
 
 export async function validateSession(
   token: string
-): Promise<{ valid: boolean; userId?: string }> {
+): Promise<{ valid: boolean; userId?: string; sessionId?: string }> {
   const tokenHash = hashToken(token)
   const { data, error } = await supabaseAdmin
     .from('synapse_sessions')
-    .select('user_id, expires_at, revoked_at')
+    .select('id, user_id, expires_at, revoked_at')
     .eq('token_hash', tokenHash)
     .single()
 
@@ -66,7 +66,7 @@ export async function validateSession(
   if (data.revoked_at) return { valid: false }
   if (new Date(data.expires_at as string) < new Date()) return { valid: false }
 
-  return { valid: true, userId: data.user_id as string }
+  return { valid: true, userId: data.user_id as string, sessionId: data.id as string }
 }
 
 export async function revokeSession(token: string): Promise<void> {

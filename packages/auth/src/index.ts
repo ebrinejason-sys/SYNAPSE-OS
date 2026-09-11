@@ -20,7 +20,7 @@ export {
 
 export { requireCapability, checkCapability, CapabilityError } from './capability'
 
-export { generateTotpSecret, totpUri, verifyTotp } from './totp'
+export { generateTotpSecret, totpUri, verifyTotp, currentTotpTimeStep, matchingTotpTimeStep } from './totp'
 
 export {
   MFA_PENDING_COOKIE,
@@ -32,6 +32,13 @@ export {
   mfaCookieOptions,
   pharmMfaCookieOptions,
 } from './mfa'
+
+export {
+  DESTRUCTIVE_ACTION_MFA_MAX_AGE_MS,
+  hasRecentVerifiedMfa,
+  verifyStepUpMfa,
+} from './mfa-recency'
+export type { StepUpMfaResult } from './mfa-recency'
 
 export { requireFeature, requireActiveSubscription, checkFeature, gateFeature, subscriptionRequiredResponse, FeatureGateError } from './features'
 export {

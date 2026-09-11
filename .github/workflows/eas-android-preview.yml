@@ -31,6 +31,8 @@ jobs:
         working-directory: apps/app
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -57,3 +59,17 @@ jobs:
             exit 1
           fi
           npx eas-cli build --platform android --profile "${{ inputs.profile }}" --non-interactive --wait
+
+      - name: Write source SHA metadata
+        if: always()
+        run: |
+          mkdir -p ../../artifacts/android
+          printf '{"source_sha":"%s","profile":"%s"}\n' "$GITHUB_SHA" "${{ inputs.profile }}" > ../../artifacts/android/source-metadata.json
+
+      - name: Upload Android source metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-source-${{ github.sha }}
+          path: artifacts/android/source-metadata.json
+          if-no-files-found: error

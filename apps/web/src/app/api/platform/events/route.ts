@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server"
 import { maskPatientId } from "@synapse/interop"
-import { requirePlatformAdminApi } from "@/lib/platform/require-admin-api"
+import { requirePlatformAdminApi } from "@/lib/platform/auth"
 import { getSimulationEngine } from "@/lib/platform/simulation-runtime"
 import { createServiceClient } from "@/lib/supabase/server"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
-  const { error } = await requirePlatformAdminApi()
-  if (error) return error
+  const gate = await requirePlatformAdminApi("event.read")
+  if (!gate.ok) return gate.response
   const url = new URL(request.url)
   const correlationId = url.searchParams.get("correlationId") ?? undefined
   const tenantId = url.searchParams.get("tenantId") ?? undefined

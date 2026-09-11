@@ -18,6 +18,17 @@ describe("tenant isolation (HOSPITAL_GAP_BACKLOG P0-004)", () => {
     );
   });
 
+  it("allows the requested facility while retaining denial for an unrelated facility", () => {
+    assert.equal(
+      isTenantScopeAllowed("home-tenant", [{ tenant_id: "facility-a" }, { tenant_id: "facility-b" }], "facility-b", "nurse", "hospital"),
+      true,
+    );
+    assert.equal(
+      isTenantScopeAllowed("home-tenant", [{ tenant_id: "facility-a" }, { tenant_id: "facility-b" }], "facility-c", "nurse", "hospital"),
+      false,
+    );
+  });
+
   it("allows only the assigned tenant and keeps hospital PHI closed to platform admins", () => {
     assert.equal(
       isTenantScopeAllowed(null, [{ tenant_id: "tenant-a" }], "tenant-a", "doctor", "hospital"),
@@ -33,9 +44,9 @@ describe("tenant isolation (HOSPITAL_GAP_BACKLOG P0-004)", () => {
     );
   });
 
-  it("rejects a facility A invite from binding a profile to facility B", () => {
-    assert.equal(canBindInviteToTenant(null, ["tenant-b"], "tenant-a"), false);
-    assert.equal(canBindInviteToTenant("tenant-b", [], "tenant-a"), false);
+  it("allows additive invitation binding without changing the home tenant", () => {
+    assert.equal(canBindInviteToTenant(null, ["tenant-b"], "tenant-a"), true);
+    assert.equal(canBindInviteToTenant("tenant-b", [], "tenant-a"), true);
     assert.equal(canBindInviteToTenant(null, ["tenant-a"], "tenant-a"), true);
   });
 });

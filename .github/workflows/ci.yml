@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history is required so the migration integrity gate can
+          # resolve the approved baseline commit; a shallow clone would
+          # otherwise silently fail baseline comparison.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Migration static checks
+        run: npm run db:check
+
+      - name: Migration history integrity check (read-only)
+        run: npm run db:history:check
+
+      - name: Migration history integrity gate behavioral tests
+        run: npm run test:migration-integrity
+
+      - name: Platform admin guard audit
+        run: node scripts/check-platform-admin-guards.mjs
+
+      - name: Web lint
+        run: npm run lint --workspace @synapse/web
+
+      - name: Web type-check
+        run: npm run type-check --workspace @synapse/web
+
+      - name: Web build
+        run: npm run verify:web
+
+      - name: Pharmacy verification
+        run: npm run verify:pharmacy
+
+      - name: Control-plane tests
+        run: npm run test:control-plane
+
+      - name: MFA session boundary tests
+        run: npx vitest run packages/auth/src/mfa-recency.test.ts
+
+      - name: Isolated PostgreSQL invitation acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/readiness
+          bash scripts/db-tests/run-isolated.sh 2>&1 | tee artifacts/readiness/invitation-postgres.log
+
+      - name: Retain PostgreSQL acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: invitation-postgres-${{ github.sha }}
+          path: artifacts/readiness/invitation-postgres.log
+          if-no-files-found: warn
+
+      - name: Tenancy isolation tests
+        run: npm run test:tenancy
+
+      - name: Lab Edge tests
+        run: npm run test:lab-edge
+
+      - name: Expo type-check
+        run: npm run type-check --workspace @synapse/app
+
+      - name: Expo Android export
+        run: npm run export:android --workspace @synapse/app
+
+      - name: Capability consistency checks
+        run: node -e "const fs=require('fs'); const p='docs/implementation/capability-registry.json'; if(!fs.existsSync(p)){console.error('Missing capability registry'); process.exit(1)} console.log('capability registry exists')"
+
+      - name: Security assertions
+        run: npm run test:workflow-safety && node scripts/check-workflow-safety.mjs
+
+      - name: Readiness evidence gate behavioral tests
+        run: npm run test:readiness-report
+
+  required:
+    needs: verify
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Fail if any required gate failed
+        run: |
+          if [ "${{ needs.verify.result }}" != "success" ]; then
+            echo "CI / required failed"
+            exit 1
+          fi
+          echo "CI / required passed"

@@ -1,0 +1,52 @@
+{
+  "generatedAt": "2026-09-11T06:52:02.920Z",
+  "supabaseProjectId": "qfqakzmjatszisuqjwon",
+  "journey": "facility-invitation-create-register-membership-audit",
+  "email": "invite-journey-2026-09-11T06-52-02@example.invalid",
+  "role": "lab_scientist",
+  "steps": [
+    {
+      "name": "schema_compatibility",
+      "at": "2026-09-11T06:52:04.017Z",
+      "compatible": true
+    },
+    {
+      "name": "SYNAPSE PILOT LAB",
+      "at": "2026-09-11T06:52:04.288Z",
+      "slug": "synapse-pilot-lab"
+    },
+    {
+      "name": "resolve_actor",
+      "at": "2026-09-11T06:52:04.605Z",
+      "actorId": "b3d53ff7-cf8e-45bd-9f0d-a8a4e92e39f5"
+    },
+    {
+      "name": "create_invitation",
+      "at": "2026-09-11T06:52:05.071Z",
+      "ok": true,
+      "invitationId": "a13a6d5a-24de-454a-935f-23988cc1e350",
+      "error": null
+    },
+    {
+      "name": "lookup_preview",
+      "at": "2026-09-11T06:52:05.620Z",
+      "hasExistingAccount": false,
+      "status": "SENT"
+    },
+    {
+      "name": "register_new_account_rpc",
+      "at": "2026-09-11T06:52:06.042Z",
+      "ok": false,
+      "profileId": null,
+      "tenantId": null,
+      "error": "new row for relation \"profiles\" violates check constraint \"profiles_verification_status_check\""
+    }
+  ],
+  "ok": false,
+  "notes": [
+    "role lab_scientist used because lab_tech is not in profiles_role_check"
+  ],
+  "tenantId": "210ec33c-27b5-4681-a3de-befef7b21b3f",
+  "tenantSlug": "synapse-pilot-lab",
+  "tenantName": "SYNAPSE PILOT LAB"
+}

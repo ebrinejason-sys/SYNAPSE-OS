@@ -39,6 +39,7 @@ export interface SynapseContext {
     onboardingCompleted: boolean
   }
   app: AppSurface
+  sessionId: string
   token: string
   isImpersonation: boolean
   impersonatorId: string | null
@@ -61,7 +62,7 @@ export async function getContext(
   }
   if (!payload) redirect(redirectTo)
 
-  const { valid } = await validateSession(token)
+  const { valid, sessionId } = await validateSession(token)
   if (!valid) redirect(redirectTo)
 
   const tokenPayload = payload
@@ -136,6 +137,7 @@ export async function getContext(
         onboardingCompleted: true,
       },
       app,
+      sessionId: sessionId as string,
       token,
       isImpersonation,
       impersonatorId,
@@ -171,6 +173,7 @@ export async function getContext(
       onboardingCompleted: (tenantRow.onboarding_completed as boolean) ?? false,
     },
     app,
+    sessionId: sessionId as string,
     token,
     isImpersonation,
     impersonatorId,

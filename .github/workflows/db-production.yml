@@ -1,0 +1,233 @@
+name: Production DB migration workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run_only:
+        description: Only run dry-run and save evidence
+        required: false
+        default: true
+        type: boolean
+      apply_migrations:
+        description: Apply migrations explicitly after review
+        required: false
+        default: false
+        type: boolean
+      confirmation:
+        description: Type PRODUCTION to confirm this is the production project
+        required: true
+        default: ''
+      reconciliation_confirmation:
+        description: Type RECONCILED to confirm the remote migration ledger has been operator-reviewed and reconciled against source_sha
+        required: true
+        default: ''
+      source_sha:
+        description: Full 40-character reviewed commit SHA to use for dry-run and apply
+        required: true
+        type: string
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      RECONCILIATION_CONFIRMATION: ${{ inputs.reconciliation_confirmation }}
+    steps:
+      - name: Validate source_sha format
+        run: |
+          set -euo pipefail
+          if ! [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "source_sha must be a full 40-character commit SHA, got: $SOURCE_SHA"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          # Full history: the migration integrity gate must resolve its
+          # approved baseline commit, which a shallow clone cannot guarantee.
+          fetch-depth: 0
+
+      - name: Verify checked-out commit matches source_sha exactly
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$SOURCE_SHA" ]; then
+            echo "Checked-out HEAD ($actual) does not match the reviewed source_sha ($SOURCE_SHA)"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify production identity confirmation
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRMATION" != "PRODUCTION" ]; then
+            echo "Production confirmation missing; no migration mutation will run."
+            exit 1
+          fi
+
+      - name: Verify remote reconciliation attestation
+        run: |
+          set -euo pipefail
+          # remoteReconciliation is structurally BLOCKED_OPERATOR_CONTROLLED —
+          # automation can never resolve it. This attestation is the explicit,
+          # human-provided gate that stands in for that resolution and is
+          # bound to the exact source_sha under review.
+          if [ "$RECONCILIATION_CONFIRMATION" != "RECONCILED" ]; then
+            echo "Remote migration ledger reconciliation was not confirmed for $SOURCE_SHA; refusing to proceed."
+            exit 1
+          fi
+
+      - name: Read-only migration history check
+        env:
+          CI: 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/readiness
+          npm run db:history:check 2>&1 | tee artifacts/readiness/migration-history-check.log
+
+      - name: Read-only supabase dry run
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/readiness
+          npx supabase link --project-ref qfqakzmjatszisuqjwon 2>&1 | tee artifacts/readiness/production-link.log
+          npx supabase db push --dry-run 2>&1 | tee artifacts/readiness/production-dry-run.log
+
+      - name: Save dry-run evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/readiness
+          printf '{"source_sha":"%s","generated_at":"%s","mode":"dry-run"}\n' "$SOURCE_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/readiness/production-db-evidence.json
+
+      - name: Upload dry-run evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-db-dry-run-${{ inputs.source_sha }}
+          path: artifacts/readiness
+          if-no-files-found: error
+
+  apply:
+    needs: reconcile
+    if: ${{ github.event.inputs.apply_migrations == 'true' && github.event.inputs.dry_run_only == 'false' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+    steps:
+      - name: Validate source_sha format
+        run: |
+          set -euo pipefail
+          if ! [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "source_sha must be a full 40-character commit SHA, got: $SOURCE_SHA"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+
+      - name: Verify checked-out commit matches source_sha exactly
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$SOURCE_SHA" ]; then
+            echo "Checked-out HEAD ($actual) does not match the reviewed source_sha ($SOURCE_SHA)"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Re-run migration integrity gate immediately before apply
+        env:
+          CI: 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/readiness
+          npm run db:history:check 2>&1 | tee artifacts/readiness/apply-migration-history-check.log
+
+      - name: Apply production migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/readiness
+          npx supabase link --project-ref qfqakzmjatszisuqjwon 2>&1 | tee artifacts/readiness/apply-link.log
+          npx supabase db push 2>&1 | tee artifacts/readiness/apply-db-push.log
+
+      - name: Post-apply schema and RLS verification
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "Missing SUPABASE_DB_URL for remote schema/RLS verification"
+            exit 1
+          fi
+          mkdir -p artifacts/readiness
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 <<'SQL' 2>&1 | tee artifacts/readiness/post-apply-verification.log
+          DO $$
+          DECLARE
+            missing_table text;
+            unprotected_table text;
+          BEGIN
+            SELECT t.tbl INTO missing_table
+            FROM (VALUES ('platform_memberships'), ('profiles')) AS t(tbl)
+            WHERE to_regclass('public.' || t.tbl) IS NULL
+            LIMIT 1;
+
+            IF missing_table IS NOT NULL THEN
+              RAISE EXCEPTION 'post-apply verification failed: required table % is missing', missing_table;
+            END IF;
+
+            SELECT c.relname INTO unprotected_table
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public'
+              AND c.relname IN ('platform_memberships', 'profiles')
+              AND c.relrowsecurity = false
+            LIMIT 1;
+
+            IF unprotected_table IS NOT NULL THEN
+              RAISE EXCEPTION 'post-apply verification failed: table % has row level security disabled', unprotected_table;
+            END IF;
+
+            RAISE NOTICE 'post-apply verification passed: required tables present with RLS enabled';
+          END
+          $$;
+          SQL
+
+      - name: Save apply evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/readiness
+          printf '{"source_sha":"%s","generated_at":"%s","mode":"apply"}\n' "$SOURCE_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/readiness/production-db-apply-evidence.json
+
+      - name: Upload apply evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-db-apply-${{ inputs.source_sha }}
+          path: artifacts/readiness
+          if-no-files-found: error
+

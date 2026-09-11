@@ -1,0 +1,93 @@
+{
+  "generatedAt": "2026-09-11T06:55:28.431Z",
+  "supabaseProjectId": "qfqakzmjatszisuqjwon",
+  "journey": "facility-invitation-create-register-membership-audit",
+  "email": "invite-journey-2026-09-11T06-55-28@example.invalid",
+  "role": "lab_scientist",
+  "steps": [
+    {
+      "name": "schema_compatibility",
+      "at": "2026-09-11T06:55:28.431Z",
+      "compatible": true,
+      "note": "post verification_status fix migration"
+    },
+    {
+      "name": "select_tenant",
+      "at": "2026-09-11T06:55:29.509Z",
+      "slug": "synapse-pilot-lab"
+    },
+    {
+      "name": "create_invitation",
+      "at": "2026-09-11T06:55:30.548Z",
+      "ok": true,
+      "invitationId": "c696e248-c096-4c3b-907c-4e8fbda27e1e",
+      "error": null
+    },
+    {
+      "name": "register_new_account_rpc",
+      "at": "2026-09-11T06:55:31.177Z",
+      "ok": true,
+      "profileId": "66e30ee4-9dca-444c-afa1-ae8b0457da28",
+      "tenantId": "210ec33c-27b5-4681-a3de-befef7b21b3f",
+      "error": null,
+      "rpcData": {
+        "tenant_id": "210ec33c-27b5-4681-a3de-befef7b21b3f",
+        "profile_id": "66e30ee4-9dca-444c-afa1-ae8b0457da28"
+      }
+    },
+    {
+      "name": "verify_membership_audit",
+      "at": "2026-09-11T06:55:31.982Z",
+      "scopeCount": 1,
+      "checks": {
+        "hasActiveScope": true,
+        "invitationAccepted": true,
+        "redeemedByMatches": true,
+        "rawTokenNotStored": true,
+        "onboardingNotAutoComplete": true,
+        "verificationPending": true,
+        "hasPasswordHash": true,
+        "auditEvents": [
+          "ACCEPTED_NEW_ACCOUNT"
+        ]
+      }
+    },
+    {
+      "name": "existing_user_second_facility",
+      "at": "2026-09-11T06:55:33.112Z",
+      "ok": true,
+      "error": null,
+      "homeTenantUnchanged": true,
+      "hasBothScopes": true,
+      "otherLabSlug": "synthetic-laboratory-20260904"
+    },
+    {
+      "name": "cleanup",
+      "at": "2026-09-11T06:55:34.785Z",
+      "cleaned": true
+    }
+  ],
+  "ok": true,
+  "tenantId": "210ec33c-27b5-4681-a3de-befef7b21b3f",
+  "tenantSlug": "synapse-pilot-lab",
+  "tenantName": "SYNAPSE PILOT LAB",
+  "requiredChecks": {
+    "hasActiveScope": true,
+    "invitationAccepted": true,
+    "redeemedByMatches": true,
+    "rawTokenNotStored": true,
+    "onboardingNotAutoComplete": true,
+    "verificationPending": true,
+    "hasPasswordHash": true,
+    "auditEvents": [
+      "ACCEPTED_NEW_ACCOUNT"
+    ]
+  },
+  "existingUserSecondFacility": {
+    "ok": true,
+    "error": null,
+    "homeTenantUnchanged": true,
+    "hasBothScopes": true,
+    "otherLabSlug": "synthetic-laboratory-20260904"
+  }
+}

@@ -14,9 +14,17 @@ coverage/
 !.env.example
 
 .supabase/
+supabase/.temp/
 
 .vercel
 .turbo/
+
+# Local editor workspace settings — never shared via the repo
+.vscode/
+
+# Generated readiness/reconciliation evidence — regenerated per run, and the
+# reconciliation evidence file itself may contain operator-identifying data.
+/artifacts/
 
 # Temporary debug/probe scripts — may contain hardcoded production data
 scripts/_tmp_*

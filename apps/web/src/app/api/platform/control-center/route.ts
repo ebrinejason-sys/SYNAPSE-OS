@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { ALL_CAPABILITIES, INTEGRATIONS, overallPlatformHealth } from "@synapse/config/manifest"
-import { requirePlatformAdminApi } from "@/lib/platform/require-admin-api"
+import { requirePlatformAdminApi } from "@/lib/platform/auth"
 import { checkDatabaseLatency } from "@/app/platform/_lib/platform-data"
 import { getSimulationEngine, listDemoTenants } from "@/lib/platform/simulation-runtime"
 
@@ -42,8 +42,8 @@ async function probeHttp(id: string, label: string, url: string): Promise<Probe>
 }
 
 export async function GET() {
-  const { error } = await requirePlatformAdminApi()
-  if (error) return error
+  const gate = await requirePlatformAdminApi("platform.dashboard.read")
+  if (!gate.ok) return gate.response
 
   const db = await checkDatabaseLatency()
   const [web, admin, pharm, demo] = await Promise.all([

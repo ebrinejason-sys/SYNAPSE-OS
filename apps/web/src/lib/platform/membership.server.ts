@@ -143,6 +143,16 @@ export async function resolvePlatformAccess(
     return { role: membership.platformRole, membership, legacy: false };
   }
 
+  // Once a membership record exists, its terminal or suspended state must not
+  // be bypassed by the temporary legacy bootstrap path.
+  const db = supabaseAdmin as any;
+  const { data: membershipRecord, error: membershipLookupError } = await db
+    .from("platform_memberships")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (membershipLookupError || membershipRecord) return null;
+
   const legacyRole = legacyPlatformAccess(profileRole, email);
   if (legacyRole) {
     return { role: legacyRole, membership: null, legacy: true };
@@ -262,7 +272,6 @@ export async function ensureLegacyMembershipBootstrap(
     .from("platform_memberships")
     .select("id")
     .eq("user_id", userId)
-    .in("status", ["INVITED", "ACTIVE", "SUSPENDED"])
     .maybeSingle();
 
   if (existing) return;

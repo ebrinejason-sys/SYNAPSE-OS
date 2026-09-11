@@ -46,7 +46,9 @@ for (const file of files) {
   }
 
   const sql = readFileSync(path, 'utf8')
-  if (!/\b(create|alter|drop|insert|update|delete|grant|revoke|comment)\b/i.test(sql)) {
+  // Allow SELECT/DO as well: some production ledger entries are verification-only
+  // statements (e.g. to_regprocedure checks) rather than schema DDL.
+  if (!/\b(create|alter|drop|insert|update|delete|grant|revoke|comment|select|do)\b/i.test(sql)) {
     errors.push(`migration may be empty or invalid SQL: ${file}`)
   }
 }

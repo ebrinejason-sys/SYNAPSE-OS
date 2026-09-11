@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 import { NextResponse } from "next/server"
-import { requirePlatformAdminApi } from "@/lib/platform/require-admin-api"
+import { requirePlatformAdminApi } from "@/lib/platform/auth"
 import {
   loadDhis2MonitorState,
   processPendingExports,
@@ -11,15 +11,16 @@ import {
 } from "@/lib/platform/dhis2-export-actions"
 
 export async function GET() {
-  const { error } = await requirePlatformAdminApi()
-  if (error) return error
+  const gate = await requirePlatformAdminApi("integration.read")
+  if (!gate.ok) return gate.response
   const state = await loadDhis2MonitorState()
   return NextResponse.json(state)
 }
 
 export async function POST(request: Request) {
-  const { user, error } = await requirePlatformAdminApi()
-  if (error || !user) return error
+  const gate = await requirePlatformAdminApi("integration.manage")
+  if (!gate.ok) return gate.response
+  const user = gate.profile
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const action = String(body.action ?? "trigger")

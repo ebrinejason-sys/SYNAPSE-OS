@@ -1,26 +1,10 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import "@synapse/config/typography.css";
 import { synapseThemeFoucScript } from '@synapse/config/theme'
 import "./globals.css";
 import { ThemeProvider } from "../components/ThemeProvider";
-
-/** Shared with pharmacy — IBM Plex Sans (UI + display) · IBM Plex Mono (data). */
-const plexSans = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  variable: "--font-sans",
-});
-
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  variable: "--font-mono",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -52,7 +36,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${plexSans.variable} ${plexMono.variable}`}
     >
       <head>
         {/* Anti-AI-scraping */}

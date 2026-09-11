@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
+import { hasRecentVerifiedMfa } from "@synapse/auth"
 import { SCENARIO_IDS, type DemoTenantKind, type ScenarioId } from "@synapse/db/simulation"
-import { requirePlatformAdminApi } from "@/lib/platform/require-admin-api"
+import { requirePlatformAdminApi } from "@/lib/platform/auth"
+import { roleHasCapability } from "@/lib/platform/rbac"
 import { logPlatformEvent } from "@/app/platform/_lib/platform-data"
 import {
   createDemoTenant,
@@ -15,8 +17,8 @@ import {
 export const dynamic = "force-dynamic"
 
 export async function GET() {
-  const { error } = await requirePlatformAdminApi()
-  if (error) return error
+  const gate = await requirePlatformAdminApi("simulation.read")
+  if (!gate.ok) return gate.response
   const engine = getSimulationEngine()
   return NextResponse.json({
     tenants: listDemoTenants(),
@@ -26,8 +28,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { user, error } = await requirePlatformAdminApi()
-  if (error || !user) return error
+  // All mutating actions require the write capability; simulation.read is
+  // observer-only and must never authorize create/run/reset.
+  const gate = await requirePlatformAdminApi("simulation.manage")
+  if (!gate.ok) return gate.response
+  const user = gate.profile
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const action = String(body.action ?? "")
 
@@ -81,6 +86,23 @@ export async function POST(request: Request) {
     }
 
     if (action === "reset") {
+      // Destructive: tenant.manage is an authorization requirement, not proof
+      // of recent MFA — a second, higher-privilege capability on top of
+      // simulation.manage plus a fresh, server-verified step-up (see
+      // /api/platform/mfa/step-up and @synapse/auth hasRecentVerifiedMfa)
+      // are both required before this can proceed.
+      if (!roleHasCapability(user.platformRole, "tenant.manage")) {
+        return NextResponse.json(
+          { code: "PLATFORM_FORBIDDEN", error: "Resetting demo tenants requires tenant.manage in addition to simulation.manage" },
+          { status: 403 },
+        )
+      }
+      if (!(await hasRecentVerifiedMfa(user.id, user.sessionId))) {
+        return NextResponse.json(
+          { code: "MFA_STEP_UP_REQUIRED", error: "Resetting demo tenants requires a recent MFA step-up. Call /api/platform/mfa/step-up first." },
+          { status: 403 },
+        )
+      }
       const tenantId = String(body.tenantId ?? "")
       const removed = resetDemoTenant(tenantId, user.id)
       await logPlatformEvent({

@@ -1,4 +1,4 @@
-﻿-- Public schema demo tables (matches app queries using demo_* prefix)
+-- Public schema demo tables (matches app queries using demo_* prefix)
 -- Run in Supabase SQL editor
 
 create table if not exists public.demo_departments (

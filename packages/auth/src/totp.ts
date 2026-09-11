@@ -56,11 +56,20 @@ async function totpCode(secret: string, counter: number): Promise<string> {
   return num.toString().padStart(6, '0')
 }
 
+export function currentTotpTimeStep(nowMs: number = Date.now()): number {
+  return Math.floor(nowMs / 1000 / 30)
+}
+
 export async function verifyTotp(secret: string, code: string): Promise<boolean> {
-  if (!/^\d{6}$/.test(code)) return false
-  const t = Math.floor(Date.now() / 1000 / 30)
+  return (await matchingTotpTimeStep(secret, code)) !== null
+}
+
+/** Like verifyTotp, but returns the actual time-step the code matched (for replay-protection bookkeeping) instead of a bare boolean. */
+export async function matchingTotpTimeStep(secret: string, code: string): Promise<number | null> {
+  if (!/^\d{6}$/.test(code)) return null
+  const t = currentTotpTimeStep()
   for (const d of [-1, 0, 1]) {
-    if (await totpCode(secret, t + d) === code) return true
+    if (await totpCode(secret, t + d) === code) return t + d
   }
-  return false
+  return null
 }

@@ -1,0 +1,32 @@
+-- Materialized from production supabase_migrations.schema_migrations
+-- project qfqakzmjatszisuqjwon on 2026-09-11 (read-only dump).
+-- Remote version: 20260830082047  name: opd_prescription_capabilities_v2
+-- DO NOT edit to "fix" history; additive follow-ups belong in new migrations.
+
+INSERT INTO capabilities (module, resource, action, description)
+SELECT v.module, v.resource, v.action, v.description
+FROM (VALUES
+  ('opd', 'prescription', 'create', 'Create clinical prescription'),
+  ('opd', 'prescription', 'read',   'View clinical prescriptions'),
+  ('dispensing', 'prescription', 'verify',   'Verify clinical prescription'),
+  ('dispensing', 'prescription', 'dispense', 'Dispense clinical prescription')
+) AS v(module, resource, action, description)
+WHERE NOT EXISTS (
+  SELECT 1 FROM capabilities c
+  WHERE c.module = v.module AND c.resource = v.resource AND c.action = v.action
+);
+
+INSERT INTO role_capabilities (role, facility_type, capability_id)
+SELECT g.role, g.facility_type, c.id
+FROM (VALUES
+  ('doctor',           'hospital', 'opd',         'prescription', 'create'),
+  ('doctor',           'hospital', 'opd',         'prescription', 'read'),
+  ('clinical_officer', 'hospital', 'opd',         'prescription', 'create'),
+  ('clinical_officer', 'hospital', 'opd',         'prescription', 'read'),
+  ('pharmacist',       'hospital', 'dispensing',  'prescription', 'verify'),
+  ('pharmacist',       'hospital', 'dispensing',  'prescription', 'dispense'),
+  ('pharmacist',       'hospital', 'opd',         'prescription', 'read')
+) AS g(role, facility_type, module, resource, action)
+JOIN capabilities c
+  ON c.module = g.module AND c.resource = g.resource AND c.action = g.action
+ON CONFLICT (role, facility_type, capability_id) DO NOTHING;

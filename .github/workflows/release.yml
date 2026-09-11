@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full commit SHA that passed required CI
+        required: true
+        type: string
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  release:
+    if: >-
+      ${{
+        (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+        github.event_name == 'workflow_dispatch'
+      }}
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.source_sha }}
+      SOURCE_REPOSITORY: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name || github.repository }}
+      SOURCE_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || '' }}
+      SOURCE_EVENT: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.event || '' }}
+      CI_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || '' }}
+    steps:
+      - name: Validate release provenance and required CI
+        uses: actions/github-script@v7
+        env:
+          RELEASE_SHA: ${{ env.RELEASE_SHA }}
+          SOURCE_REPOSITORY: ${{ env.SOURCE_REPOSITORY }}
+          SOURCE_BRANCH: ${{ env.SOURCE_BRANCH }}
+          SOURCE_EVENT: ${{ env.SOURCE_EVENT }}
+          CI_RUN_ID: ${{ env.CI_RUN_ID }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const sha = process.env.RELEASE_SHA;
+            if (!/^[0-9a-f]{40}$/i.test(sha)) core.setFailed(`Invalid release SHA: ${sha}`);
+            if (process.env.SOURCE_REPOSITORY !== `${owner}/${repo}`) core.setFailed("Release source repository is not this repository");
+            if (context.eventName === "workflow_run" && (process.env.SOURCE_BRANCH !== "main" || process.env.SOURCE_EVENT !== "push")) {
+              core.setFailed("Automatic release requires a successful CI push on main");
+            }
+            const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
+              owner, repo, workflow_id: "ci.yml", head_sha: sha, status: "completed", per_page: 100
+            });
+            const passing = runs.find((run) => run.conclusion === "success" && run.event === "push" && run.head_branch === "main");
+            if (!passing) core.setFailed(`No successful required CI run found for ${sha}`);
+            core.info(`Release source ${sha} verified by CI run ${passing?.id ?? process.env.CI_RUN_ID ?? "unknown"}`);
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify source SHA and CI result
+        run: test "$RELEASE_SHA" = "$(git rev-parse HEAD)"
+
+      - name: Schema compatibility comparison
+        run: npm run db:check
+
+      - name: Vercel deployment smoke check
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: |
+          mkdir -p artifacts/readiness
+          if [ -z "$PRODUCTION_URL" ]; then
+            printf '{"status":"BLOCKED","reason":"PRODUCTION_URL is not configured","sha":"%s"}\n' "$RELEASE_SHA" > artifacts/readiness/deployment-smoke.json
+            exit 0
+          fi
+          status=$(curl --silent --show-error --location --max-time 15 --output /tmp/deployment-body --write-out '%{http_code}' "$PRODUCTION_URL")
+          if [[ "$status" =~ ^2[0-9][0-9]$|^3[0-9][0-9]$|^401$|^403$ ]]; then
+            printf '{"status":"PASS","http_status":%s,"sha":"%s","url":"%s"}\n' "$status" "$RELEASE_SHA" "$PRODUCTION_URL" > artifacts/readiness/deployment-smoke.json
+          else
+            printf '{"status":"FAIL","http_status":%s,"sha":"%s","url":"%s"}\n' "$status" "$RELEASE_SHA" "$PRODUCTION_URL" > artifacts/readiness/deployment-smoke.json
+            exit 1
+          fi
+
+      - name: Publish evidence
+        if: always()
+        run: |
+          mkdir -p artifacts/readiness
+          printf '{"sha":"%s","generated_at":"%s","workflow":"%s"}\n' "$RELEASE_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$GITHUB_WORKFLOW" > artifacts/readiness/release-evidence.json
+
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence-${{ env.RELEASE_SHA }}
+          path: artifacts/readiness
+          if-no-files-found: error

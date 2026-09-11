@@ -1,4 +1,4 @@
-name: CI
+name: Deployment
 
 on:
   push:
@@ -56,42 +56,10 @@ jobs:
       - name: Lint web app
         run: npm run lint --workspace @synapse/web
 
-  # Apply reviewed production migrations before acceptance. A missing access
-  # token blocks protected main rather than testing against stale schema.
-  db-migrations:
-    needs: verify
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Link production Supabase project
-        run: npx supabase link --project-ref qfqakzmjatszisuqjwon
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Review pending migrations
-        run: npx supabase db push --dry-run
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Apply production migrations
-        run: npx supabase db push
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
   # Protected-main acceptance gate. This remains fail-closed: a missing or
   # partial database configuration must stop the release before deployment.
   db-acceptance:
-    needs: [verify, db-migrations]
+    needs: verify
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
@@ -132,7 +100,7 @@ jobs:
   # Enable with repository variable ENABLE_VERCEL_CLI_DEPLOY=true and secret VERCEL_TOKEN.
   # Note: secrets cannot be referenced in job-level `if` — use a repo variable gate instead.
   deploy-vercel:
-    needs: [verify, db-migrations, db-acceptance]
+    needs: [verify, db-acceptance]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && vars.ENABLE_VERCEL_CLI_DEPLOY == 'true'
     steps:
@@ -157,33 +125,3 @@ jobs:
 
       - name: Deploy prebuilt output
         run: npx vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
-
-  # Enable by setting repository variable ENABLE_DB_PUSH=true and secret SUPABASE_ACCESS_TOKEN
-  db-push:
-    needs: [verify, db-migrations, db-acceptance]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && vars.ENABLE_DB_PUSH == 'true'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "npm"
-
-      - run: npm ci
-
-      - name: Link Supabase project
-        run: npx supabase link --project-ref qfqakzmjatszisuqjwon
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Push migrations (dry-run first)
-        run: npx supabase db push --dry-run
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Push migrations
-        run: npx supabase db push
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-09-11T06:26:08.421578+00:00",
+  "supabaseProjectId": "qfqakzmjatszisuqjwon",
+  "sourceShaFull": "fb4b58182ce8b0a15bd996b12de83379153aa24c",
+  "operator": "ebrine",
+  "operatorConfirmed": true,
+  "action": "supabase db push --linked",
+  "appliedMigrations": [
+    "20260908120000_lab_reports_release_artifacts.sql",
+    "20260909100000_manual_subscription_grants.sql",
+    "20260909130000_scope_pharmacy_receipts_to_tenant.sql",
+    "20260910120000_facility_invitations_token_hash.sql",
+    "20260910130000_facility_invitations_acceptance_tx.sql",
+    "20260911100000_session_bound_mfa_assurance.sql"
+  ],
+  "liveLogPath": "artifacts/readiness/db-push-live-2026-09-11.txt",
+  "liveLogSha256": "f1dd32d2382adc9c5c7959f6d7fa6f1849bc87d6e8f0d66ee62d456c890a7cac",
+  "notice": "facility_invitation_audit_platform_only policy did not exist (DROP IF EXISTS skipped)",
+  "dryRunAfterApply": "empty (no further pending)"
+}

@@ -1,0 +1,11 @@
+Initialising login role...
+Connecting to remote database...
+Skipping migration demo_schema_init.sql... (file name must match pattern "<timestamp>_name.sql")
+Do you want to push these migrations to the remote database?
+ • 20260911120000_fix_invite_acceptance_verification_status.sql
+
+ [Y/n] y
+Applying migration 20260911120000_fix_invite_acceptance_verification_status.sql...
+Finished supabase db push.
+A new version of Supabase CLI is available: v2.117.0 (currently installed v2.107.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
