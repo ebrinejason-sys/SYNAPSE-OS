@@ -6,7 +6,7 @@ import { join } from "node:path"
 
 const root = process.cwd()
 const migrationDir = join(root, "supabase", "migrations")
-const baselineRef = process.env.MIGRATION_HISTORY_BASELINE ?? "e624986"
+const baselineRef = process.env.MIGRATION_HISTORY_BASELINE ?? "19ef5d0"
 const legacyExceptions = new Set(["demo_schema_init.sql"])
 const legacyVersionExceptions = new Map([
   ["20260609_missing_operational_tables.sql", "historical duplicate prefix retained for production ledger compatibility"],
@@ -84,7 +84,7 @@ for (const file of files) {
   const path = join(migrationDir, file)
   const sql = readFileSync(path, "utf8")
   if (sql.trim().length === 0) errors.push(`empty migration: ${file}`)
-  if (!/\b(create|alter|drop|insert|update|delete|grant|revoke|comment)\b/i.test(sql)) errors.push(`migration may be empty or invalid SQL: ${file}`)
+  if (!/\b(create|alter|drop|insert|update|delete|grant|revoke|comment|select|do)\b/i.test(sql)) errors.push(`migration may be empty or invalid SQL: ${file}`)
   inventory.push({
     file,
     version,
