@@ -17,6 +17,7 @@ const legacyVersionExceptions = new Map([
 // must correspond to a specific commit-reviewed justification.
 const reviewedModificationExceptions = new Map([
   // ["20260101_example.sql", "reason + reviewing PR link"],
+  ["20260524_public_demo_schema.sql", "stripped a leading UTF-8 BOM that made this file fail to apply via `supabase db reset`/`start` (\"syntax error at or near ''\"); no SQL statement content was changed, verified via byte-for-byte diff excluding the 3-byte BOM prefix"],
 ])
 const reviewedBaselineUnavailableExceptions = new Set([
   // "some-ref" — only ever add with an accompanying reviewed justification.

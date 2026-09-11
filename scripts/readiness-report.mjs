@@ -78,6 +78,7 @@ const expectedEnvironment = process.env.READINESS_EXPECTED_ENVIRONMENT ?? null
 
 const health = await readJson("health-smoke.json")
 const migrationHistory = await readJson("migration-history.json")
+const reconciliationEvidence = await readJson("reconciliation-evidence-check.json")
 
 const buildStatusRaw = process.env.BUILD_STATUS ?? "UNKNOWN"
 const buildFreshness = freshness(process.env.BUILD_COMPLETED_AT ?? null)
@@ -123,6 +124,19 @@ const allPass = statuses.every(isPass)
 const reconciliationBlocked = checks.migrationCompatibility.reconciliation !== undefined && checks.migrationCompatibility.reconciliation !== null
 const overall = anyFail ? "FAIL" : allPass ? "PASS" : "BLOCKED"
 
+// Deliberately NOT part of `checks` / the overall PASS calculation: operator
+// confirmation plus bound evidence is informational, never authorization to
+// apply a production migration (see scripts/check-reconciliation-evidence.mjs).
+const reconciliationEvidenceSummary = reconciliationEvidence
+  ? {
+      status: "INFORMATIONAL_ONLY",
+      operatorConfirmed: reconciliationEvidence.operatorConfirmed ?? false,
+      boundEvidenceVerified: reconciliationEvidence.boundEvidenceVerified ?? false,
+      problems: reconciliationEvidence.problems ?? [],
+      evidence: "artifacts/readiness/reconciliation-evidence-check.json",
+    }
+  : { status: "NOT_CONFIGURED", evidence: "missing reconciliation-evidence-check.json — run npm run db:reconciliation:check" }
+
 const report = {
   overall,
   generatedAt: new Date().toISOString(),
@@ -133,6 +147,7 @@ const report = {
   untrackedFileCount: identity.untrackedCount,
   checks,
   remoteMigrationReconciliation: "BLOCKED_OPERATOR_CONTROLLED",
+  reconciliationEvidence: reconciliationEvidenceSummary,
   notes: reconciliationBlocked
     ? "remote migration ledger reconciliation remains a separate, explicit operator-controlled action and never contributes a PASS"
     : null,

@@ -1,3 +1,11 @@
+-- SUPERSEDED: the actually-applied additive design uses different column
+-- names (facility_invitations.token_hash / redeemed_by / department_id) and
+-- adds transactional acceptance functions. See
+-- supabase/migrations/20260910120000_facility_invitations_token_hash.sql and
+-- supabase/migrations/20260910130000_facility_invitations_acceptance_tx.sql,
+-- and docs/engineering/FACILITY_INVITATION_HARDENING.md for current status.
+-- Kept only as a historical record of the earlier proposal.
+--
 -- Reviewable proposal only. Do not apply until the remote migration ledger is reconciled.
 ALTER TABLE public.facility_invitations
   ADD COLUMN IF NOT EXISTS invite_token_hash TEXT,

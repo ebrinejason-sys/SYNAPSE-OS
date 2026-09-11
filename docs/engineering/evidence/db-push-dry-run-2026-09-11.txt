@@ -1,0 +1,14 @@
+Initialising login role...
+DRY RUN: migrations will *not* be pushed to the database.
+Connecting to remote database...
+Skipping migration demo_schema_init.sql... (file name must match pattern "<timestamp>_name.sql")
+Would push these migrations:
+ • 20260908120000_lab_reports_release_artifacts.sql
+ • 20260909100000_manual_subscription_grants.sql
+ • 20260909130000_scope_pharmacy_receipts_to_tenant.sql
+ • 20260910120000_facility_invitations_token_hash.sql
+ • 20260910130000_facility_invitations_acceptance_tx.sql
+ • 20260911100000_session_bound_mfa_assurance.sql
+Finished supabase db push.
+A new version of Supabase CLI is available: v2.117.0 (currently installed v2.107.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

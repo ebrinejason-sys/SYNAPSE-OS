@@ -1,0 +1,194 @@
+# Migration reconciliation map — 2026-09-11
+Project: `qfqakzmjatszisuqjwon` (SYNAPSE_OS)
+Generated: 2026-09-11T06:19:26.625258+00:00
+Git HEAD: `fb4b58182ce8b0a15bd996b12de83379153aa24c`
+
+## Counts
+- **remoteRows**: 151
+- **localFiles**: 80
+- **EXACT_MATCH**: 3
+- **VERSION_MATCH_CONTENT_DIFF**: 9
+- **NAME_MATCH_VERSION_DRIFT**: 31
+- **SEMANTIC_MATCH_VERSION_DRIFT**: 14
+- **REMOTE_ONLY**: 94
+- **LOCAL_ONLY**: 23
+- **contentEqualPairs**: 17
+- **localOnlyAfterLastRemote**: 6
+- **localOnlyHistoricalOrUnmapped**: 17
+
+## Pending NEW local migrations (version > last remote `20260907123159`)
+These are the only candidates to *apply* after history repair — do not re-run historical SQL.
+
+- `20260908120000_lab_reports_release_artifacts.sql`
+- `20260909100000_manual_subscription_grants.sql`
+- `20260909130000_scope_pharmacy_receipts_to_tenant.sql`
+- `20260910120000_facility_invitations_token_hash.sql`
+- `20260910130000_facility_invitations_acceptance_tx.sql`
+- `20260911100000_session_bound_mfa_assurance.sql`
+
+## Exact / semantic matches (contentEqual)
+- `EXACT_MATCH` remote `20260706073556` `create_hospital_leads` ↔ `20260706073556_create_hospital_leads.sql`
+- `EXACT_MATCH` remote `20260907083310` `laboratory_control_plane_capabilities` ↔ `20260907083310_laboratory_control_plane_capabilities.sql`
+- `EXACT_MATCH` remote `20260907115038` `laboratory_role_capability_alignment` ↔ `20260907115038_laboratory_role_capability_alignment.sql`
+- `SEMANTIC_MATCH_VERSION_DRIFT` remote `20260716104232` `add_mobile_push_tokens` ↔ `20260704000001_add_mobile_push_tokens.sql`
+- `SEMANTIC_MATCH_VERSION_DRIFT` remote `20260716104221` `custom_auth_profile_ids` ↔ `20260613000004_custom_auth_profile_ids.sql`
+- `SEMANTIC_MATCH_VERSION_DRIFT` remote `20260613171512` `email_activation_gate` ↔ `20260613000005_email_activation_gate.sql`
+- `SEMANTIC_MATCH_VERSION_DRIFT` remote `20260903092150` `facility_domain_records` ↔ `20260903140000_facility_domain_records.sql`
+- `SEMANTIC_MATCH_VERSION_DRIFT` remote `20260614084545` `password_reset_tokens` ↔ `20260614000001_password_reset_tokens.sql`
+- `SEMANTIC_MATCH_VERSION_DRIFT` remote `20260714172600` `pharm_plans_canonical_pricing` ↔ `20260714120000_pharm_plans_canonical_pricing.sql`
+- `SEMANTIC_MATCH_VERSION_DRIFT` remote `20260810093356` `pharmacy_inventory_authority` ↔ `20260805130000_pharmacy_inventory_authority.sql`
+- `SEMANTIC_MATCH_VERSION_DRIFT` remote `20260810093434` `pharmacy_rls_tenant_isolation` ↔ `20260807130000_pharmacy_rls_tenant_isolation.sql`
+- `SEMANTIC_MATCH_VERSION_DRIFT` remote `20260810093436` `pharmacy_stock_authority_and_perms` ↔ `20260807120000_pharmacy_stock_authority_and_perms.sql`
+- `SEMANTIC_MATCH_VERSION_DRIFT` remote `20260830071642` `platform_access_governance` ↔ `20260830140000_platform_access_governance.sql`
+- `SEMANTIC_MATCH_VERSION_DRIFT` remote `20260612055938` `profiles_custom_auth_columns` ↔ `20260612000002_profiles_custom_auth_columns.sql`
+- `SEMANTIC_MATCH_VERSION_DRIFT` remote `20260612055951` `rls_helper_functions` ↔ `20260612000003_rls_helper_functions.sql`
+- `SEMANTIC_MATCH_VERSION_DRIFT` remote `20260715120935` `subscription_invoices` ↔ `20260714210000_subscription_invoices.sql`
+- `SEMANTIC_MATCH_VERSION_DRIFT` remote `20260612055928` `synapse_sessions` ↔ `20260612000001_synapse_sessions.sql`
+
+## Name match, content differs (needs human review)
+- remote `20260615122022` `add_admin_contact_to_pharmacy_onboarding` ↔ `20260615000003_add_admin_contact_to_pharmacy_onboarding.sql`
+- remote `20260615112752` `add_pharmacy_admin_role` ↔ `20260615000002_add_pharmacy_admin_role.sql`
+- remote `20260830074132` `add_platform_observer_role` ↔ `20260830150000_add_platform_observer_role.sql`
+- remote `20260716110812` `backfill_missing_baseline_tables` ↔ `20260716000001_backfill_missing_baseline_tables.sql`
+- remote `20260613104631` `emergency_auth_rls_convergence` ↔ `20260613000002_emergency_auth_rls_convergence.sql`
+- remote `20260830115410` `encounter_amendments_and_guards` ↔ `20260830180000_encounter_amendments_and_guards.sql`
+- remote `20260830082558` `encounter_signing` ↔ `20260830170000_encounter_signing.sql`
+- remote `20260902163050` `facility_provisioning_runs` ↔ `20260902120000_facility_provisioning_runs.sql`
+- remote `20260907100539` `feature_flags_postgrest_conflict_target` ↔ `20260907100429_feature_flags_postgrest_conflict_target.sql`
+- remote `20260715192400` `fix_complete_pharmacy_sale_generated_line_total` ↔ `20260715000001_fix_complete_pharmacy_sale_generated_line_total.sql`
+- remote `20260725103907` `fix_complete_sale_pending_then_complete` ↔ `20260725140000_fix_complete_sale_pending_then_complete.sql`
+- remote `20260823105846` `generate_synapse_id_person_compat` ↔ `20260822120000_generate_synapse_id_person_compat.sql`
+- remote `20260613072631` `has_capability_function` ↔ `20260613000001_has_capability_function.sql`
+- remote `20260830081931` `hospital_acceptance_infrastructure` ↔ `20260830120000_hospital_acceptance_infrastructure.sql`
+- remote `20260716104338` `hospital_module_registry_seed` ↔ `20260704120000_hospital_module_registry_seed.sql`
+- remote `20260902163011` `hospital_onboarding_tables` ↔ `20260901180000_hospital_onboarding_tables.sql`
+- remote `20260902170756` `lab_lims_wave1_devices` ↔ `20260902180000_lab_lims_wave1_devices.sql`
+- remote `20260613104742` `lock_down_auth_rls_helpers_anon_execute` ↔ `20260613000003_lock_down_auth_rls_helpers_anon_execute.sql`
+- remote `20260725102530` `pharmacy_capability_roles` ↔ `20260725130000_pharmacy_capability_roles.sql`
+- remote `20260823105809` `pharmacy_cashier_sessions_v1` ↔ `20260823120000_pharmacy_cashier_sessions_v1.sql`
+- remote `20260621013812` `pharmacy_custom_domains` ↔ `20260621000001_pharmacy_custom_domains.sql`
+- remote `20260611084450` `pharmacy_domain_provisioning` ↔ `20260611_pharmacy_domain_provisioning.sql`
+- remote `20260810093707` `pharmacy_pilot_authority_hardening` ↔ `20260810120000_pharmacy_pilot_authority_hardening.sql`
+- remote `20260810093112` `pharmacy_printer_preferences` ↔ `20260810140000_pharmacy_printer_preferences.sql`
+- remote `20260725095606` `pharmacy_sale_idempotency` ↔ `20260725120000_pharmacy_sale_idempotency.sql`
+- remote `20260810093114` `pharmacy_settings_receipt_identity` ↔ `20260806120000_pharmacy_settings_receipt_identity.sql`
+- remote `20260823105807` `pharmacy_stock_transfers_execute` ↔ `20260819120000_pharmacy_stock_transfers_execute.sql`
+- remote `20260801181742` `pos_sale_idempotency_in_rpc` ↔ `20260730120000_pos_sale_idempotency_in_rpc.sql`
+- remote `20260827231454` `project_golden_intelligence_icd11` ↔ `20260828120000_project_golden_intelligence_icd11.sql`
+- remote `20260620223902` `subscription_billing_flutterwave` ↔ `20260620000001_subscription_billing_flutterwave.sql`
+- remote `20260827231349` `synapse_exchange_lab_pathways_simulation` ↔ `20260828090000_synapse_exchange_lab_pathways_simulation.sql`
+
+## Remote-only (in production ledger, no local file bound)
+- `20260410211144` `dduka_dash_schema_v2`
+- `20260410211427` `seed_data`
+- `20260503150842` `extend_profiles_role_enum_superadmin`
+- `20260503175422` `create_demo_schema`
+- `20260503175446` `seed_demo_departments`
+- `20260604163130` `add_tenant_performance_indexes`
+- `20260503175518` `seed_demo_patients`
+- `20260503191458` `create_demo_auth_user`
+- `20260504041852` `demo_tables_in_public_schema`
+- `20260504045522` `fix_demo_rls_use_jwt_email`
+- `20260612061012` `fix_zero_policy_facility_resource_logs`
+- `20260612142246` `add_encounter_status_column`
+- `20260604163142` `add_missing_platform_tables`
+- `20260604163152` `custom_jwt_tenant_hook`
+- `20260605150957` `add_synapse_id_core_tables`
+- `20260605193131` `fix_rls_8_exposed_tables`
+- `20260605193214` `add_tenant_id_indexes_batch`
+- `20260605193303` `seed_demo_labs_and_modules`
+- `20260605194256` `enable_rls_on_8_exposed_tables`
+- `20260612061014` `fix_zero_policy_surveillance_reports`
+- `20260612154149` `tensor_multitenancy_capability_lattice`
+- `20260605194359` `add_tenant_id_indexes_all_70_tables`
+- `20260605194536` `seed_demo_lab_results_and_upsert_modules`
+- `20260606070858` `phase2_7_consumer_health_tables`
+- `20260607100048` `create_professional_leads`
+- `20260607111937` `custom_otp_and_newsletter`
+- `20260612061031` `fix_zero_policy_newsletter_subscribers`
+- `20260612154805` `reasoning_engine_tables_and_functions`
+- `20260607130305` `synapse_app_mobile_schema`
+- `20260608134937` `pharmacy_core_tables`
+- `20260608135011` `pharmacy_transactions_and_orders`
+- `20260608135026` `pharmacy_audit_and_notifications`
+- `20260608135056` `pharmacy_rls_policies`
+- `20260608165417` `add_password_hash_to_pharmacy_customers`
+- `20260609000112` `add_missing_synapse_operational_tables`
+- `20260609154759` `tenant_facility_compatibility_columns`
+- `20260611084534` `pharmacy_orders_patient_compatibility`
+- `20260611084554` `pharmacy_network_rls_policies_retry`
+- `20260611141817` `pharmacy_tenant_columns`
+- `20260611141830` `pharmacy_rls_fix_locked_tables`
+- `20260611141844` `pharmacy_onboarding_table`
+- `20260611141915` `pharmacy_network_inventory_trigger`
+- `20260611154006` `pharmacy_onboarding_rls_and_printer_type`
+- `20260612060857` `fix_zero_policy_auth_otps`
+- `20260612060902` `fix_zero_policy_mfa_enrollments`
+- `20260612060916` `fix_zero_policy_health_bulletins`
+- `20260612060922` `fix_zero_policy_drug_shortage_alerts`
+- `20260612060928` `fix_zero_policy_refill_reminders`
+- `20260612060935` `fix_zero_policy_body_register`
+- `20260612060940` `fix_zero_policy_housekeeping_tasks`
+- `20260612060945` `fix_zero_policy_partograph_records`
+- `20260612061003` `fix_zero_policy_visitor_log`
+- `20260612061028` `fix_zero_policy_sdg_reports`
+- `20260612230501` `capability_lattice_extension_phase2`
+- `20260612230655` `subscriptions_and_feature_gates`
+- `20260612231111` `pharmacy_pos_tables`
+- `20260612231409` `insurance_copilot_tables`
+- `20260612231541` `longitudinal_patient_intelligence`
+- `20260612231920` `rls_phi_hardening`
+- `20260614192359` `allow_public_invite_lookup`
+- `20260616145543` `add_pharmacy_staff_ceo_to_role_check`
+- `20260621193519` `add_sms_credits_to_tenants`
+- `20260621193522` `add_phone_to_profiles`
+- `20260703185455` `create_complete_pharmacy_sale_rpc`
+- `20260718183718` `nda_batch_manufacturer_and_sale_item_audit`
+- `20260718183725` `sales_receipt_void_offline_and_session_variance`
+- `20260718183749` `append_only_sales_guard_and_batch_sale_rules`
+- `20260718183757` `reprint_log_and_stock_adjustment_hardening`
+- `20260718183806` `tenant_tax_efris_settings_and_vat_category`
+- `20260810093859` `pharmacy_rpc_revoke_client_execute`
+- `20260817164805` `synapse_network_identity_foundations`
+- `20260817164837` `synapse_network_identity_foundations_persons`
+- `20260817164848` `synapse_network_identity_foundations_profile`
+- `20260817164902` `synapse_network_identity_foundations_mpi_consent`
+- `20260817164946` `synapse_network_identity_foundations_links_scope`
+- `20260817164959` `synapse_network_identity_foundations_pharmacy_interop`
+- `20260817165015` `synapse_network_identity_foundations_rls`
+- `20260817165055` `fix_generate_synapse_id_text_ascii`
+- `20260823105821` `pharmacy_stock_transfer_rpcs`
+- `20260823105844` `pharmacy_stock_transfer_receive_rpc`
+- `20260827231417` `synapse_exchange_events_and_lab_safety`
+- `20260827231431` `synapse_exchange_pathways_simulation_control`
+- `20260827231440` `synapse_exchange_rls`
+- `20260828164925` `clinical_intelligence_sessions`
+- `20260828165013` `domain_event_log`
+- `20260828165136` `pathway_dka_pneumonia_seeds`
+- `20260828165138` `pathway_slug_aliases_malaria_sepsis`
+- `20260828165139` `domain_event_log_wave1`
+- `20260828174832` `platform_control_plane_core`
+- `20260828175203` `platform_control_plane_audit_incidents`
+- `20260828175226` `platform_control_plane_ops_tables`
+- `20260830082047` `opd_prescription_capabilities_v2`
+- `20260903090143` `fix_departments_tenant_scoped_unique`
+- `20260907123159` `backfill_canonical_hospital_locations`
+
+## Local-only historical/unmapped (do NOT apply blindly)
+- `20260511_production_schema.sql`
+- `20260524_public_demo_schema.sql`
+- `20260609_missing_operational_tables.sql`
+- `20260609_pharmacy_network_onboarding.sql`
+- `20260612000004_fix_zero_policy_tables.sql`
+- `20260615000001_support_tickets.sql`
+- `20260722060000_platform_document_settings.sql`
+- `20260722080000_platform_billing_documents.sql`
+- `20260830160000_opd_prescription_capabilities.sql`
+- `20260830190000_emergency_vertical_slice.sql`
+- `20260831180000_hospital_billing_payments.sql`
+- `20260903120000_departments_tenant_scoped_unique.sql`
+- `20260904130000_clinical_action_boundaries.sql`
+- `20260904140000_lab_edge_heartbeat.sql`
+- `20260904150000_laboratory_facility_profile.sql`
+- `20260905100000_close_negative_rbac_gaps.sql`
+- `20260905110000_clinical_workspace_capabilities.sql`

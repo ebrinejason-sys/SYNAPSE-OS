@@ -1,17 +1,17 @@
 // Server-verifiable "recent MFA" assurance, built on the existing
 // mfa_enrollments table (see packages/auth/src/totp.ts and
 // apps/web/src/app/api/auth/mfa/*). No new token format: recency is proven
-// by a durable, server-written timestamp (last_used_at), not by a claim the
+// by a durable, server-written session timestamp (mfa_assured_at), not by a claim the
 // caller presents. A capability like tenant.manage authorizes an action; it
 // is not evidence that the caller recently proved possession of their
 // authenticator, which is what destructive actions additionally require.
 
 import { supabaseAdmin } from '@synapse/db/admin'
-import { currentTotpTimeStep, verifyTotp } from './totp'
+import { matchingTotpTimeStep } from './totp'
 
 export const DESTRUCTIVE_ACTION_MFA_MAX_AGE_MS = 5 * 60 * 1000 // 5 minutes
 
-/** True only if the user has a verified authenticator whose most recent successful use is within maxAgeMs. */
+/** True only for this user's live session with recent server-recorded assurance. */
 export async function hasRecentVerifiedMfa(
   userId: string,
   sessionId: string,
@@ -38,7 +38,7 @@ export type StepUpMfaResult =
 
 /**
  * Explicit step-up: verifies a fresh TOTP code against the user's existing
- * enrollment and, on success, stamps last_used_at so a subsequent
+ * enrollment and, on success, stamps the session's mfa_assured_at so a subsequent
  * hasRecentVerifiedMfa check within maxAgeMs succeeds. This reuses the exact
  * authenticator/secret already established by the ordinary MFA enrollment
  * flow — no separate destructive-action credential is introduced.
@@ -65,15 +65,20 @@ export async function verifyStepUpMfa(userId: string, sessionId: string, code: s
   if (enrollmentError) return { ok: false, code: 'ENROLLMENT_READ_FAILED' }
   if (!enrollment) return { ok: false, code: 'NOT_ENROLLED' }
 
-  const valid = await verifyTotp(enrollment.secret as string, code)
-  if (!valid) return { ok: false, code: 'INVALID_CODE' }
+  const matchedStep = await matchingTotpTimeStep(enrollment.secret as string, code)
+  if (matchedStep === null) return { ok: false, code: 'INVALID_CODE' }
 
-  const { error: replayError } = await db.from('mfa_step_up_replays').insert({ session_id: sessionId, enrollment_id: enrollment.id, time_step: currentTotpTimeStep() })
+  // Global per-code single-use: the exact time-step that matched can never be
+  // redeemed again by this enrollment, in this session or any other.
+  const { error: replayError } = await db.from('mfa_step_up_replays').insert({ session_id: sessionId, enrollment_id: enrollment.id, time_step: matchedStep })
   if (replayError) {
     if (replayError.code === '23505') return { ok: false, code: 'REPLAYED_CODE' }
     return { ok: false, code: 'ASSURANCE_WRITE_FAILED' }
   }
-  const { error: assuranceError } = await db.from('synapse_sessions').update({ mfa_assured_at: new Date().toISOString() }).eq('id', sessionId).eq('user_id', userId).is('revoked_at', null)
-  if (assuranceError) return { ok: false, code: 'ASSURANCE_WRITE_FAILED' }
+  const now = new Date().toISOString()
+  const { data: assuredSession, error: assuranceError } = await db.from('synapse_sessions')
+    .update({ mfa_assured_at: now }).eq('id', sessionId).eq('user_id', userId)
+    .is('revoked_at', null).gt('expires_at', now).select('id').maybeSingle()
+  if (assuranceError || !assuredSession) return { ok: false, code: 'ASSURANCE_WRITE_FAILED' }
   return { ok: true }
 }

@@ -1,0 +1,21 @@
+=== Facility invitation acceptance: isolated Postgres tests ===
+Target: localhost:55432/postgres as postgres
+Fixtures seeded.
+PASS: new-account RPC executes and returns ok
+PASS: invited department persisted onto staff_scope_assignments
+PASS: professional privileges not prematurely granted (verification_status='unverified', onboarding_complete=f)
+PASS: wrong authenticated recipient is rejected
+PASS: invitation remains PENDING after wrong-recipient rejection (retry-safe)
+PASS: existing-user acceptance executes
+PASS: existing password is unchanged by acceptance
+PASS: second-facility acceptance executes for a profile with an existing home tenant
+PASS: multi-facility membership: profile now holds 2 active facility scopes (11111111-1111-1111-1111-111111111111,22222222-2222-2222-2222-222222222222)
+PASS: home tenant (profiles.tenant_id) is not overwritten by the additional facility acceptance
+PASS: concurrent redemption of one token has exactly one winner (5 parallel attempts -> 1 win, 4 rejected)
+PASS: concurrent redemption created exactly one membership row
+PASS: profile-write failure aborts the acceptance transaction
+PASS: failed acceptance leaves invitation PENDING and creates no additional membership row (full rollback)
+PASS: the same invitation can be retried successfully after the earlier failure
+PASS: anon/authenticated lack EXECUTE on the privileged RPCs; service_role retains it
+PASS: RLS: profile sees fewer rows than the true total and zero rows for an unrelated tenant's profile (real=7 visible=2)
+=== SUMMARY: 17 passed, 0 failed ===

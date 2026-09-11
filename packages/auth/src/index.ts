@@ -20,7 +20,7 @@ export {
 
 export { requireCapability, checkCapability, CapabilityError } from './capability'
 
-export { generateTotpSecret, totpUri, verifyTotp, currentTotpTimeStep } from './totp'
+export { generateTotpSecret, totpUri, verifyTotp, currentTotpTimeStep, matchingTotpTimeStep } from './totp'
 
 export {
   MFA_PENDING_COOKIE,

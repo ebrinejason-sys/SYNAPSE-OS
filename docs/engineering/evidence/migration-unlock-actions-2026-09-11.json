@@ -1,0 +1,465 @@
+{
+  "generatedAt": "2026-09-11T06:24:23.601176+00:00",
+  "supabaseProjectId": "qfqakzmjatszisuqjwon",
+  "createdRemoteMaterializations": [
+    "20260410211144_dduka_dash_schema_v2.sql",
+    "20260410211427_seed_data.sql",
+    "20260503150842_extend_profiles_role_enum_superadmin.sql",
+    "20260503175422_create_demo_schema.sql",
+    "20260503175446_seed_demo_departments.sql",
+    "20260604163130_add_tenant_performance_indexes.sql",
+    "20260503175518_seed_demo_patients.sql",
+    "20260503191458_create_demo_auth_user.sql",
+    "20260504041852_demo_tables_in_public_schema.sql",
+    "20260504045522_fix_demo_rls_use_jwt_email.sql",
+    "20260612061012_fix_zero_policy_facility_resource_logs.sql",
+    "20260612142246_add_encounter_status_column.sql",
+    "20260604163142_add_missing_platform_tables.sql",
+    "20260604163152_custom_jwt_tenant_hook.sql",
+    "20260605150957_add_synapse_id_core_tables.sql",
+    "20260605193131_fix_rls_8_exposed_tables.sql",
+    "20260605193214_add_tenant_id_indexes_batch.sql",
+    "20260605193303_seed_demo_labs_and_modules.sql",
+    "20260605194256_enable_rls_on_8_exposed_tables.sql",
+    "20260612061014_fix_zero_policy_surveillance_reports.sql",
+    "20260612154149_tensor_multitenancy_capability_lattice.sql",
+    "20260605194359_add_tenant_id_indexes_all_70_tables.sql",
+    "20260605194536_seed_demo_lab_results_and_upsert_modules.sql",
+    "20260606070858_phase2_7_consumer_health_tables.sql",
+    "20260607100048_create_professional_leads.sql",
+    "20260607111937_custom_otp_and_newsletter.sql",
+    "20260612061031_fix_zero_policy_newsletter_subscribers.sql",
+    "20260612154805_reasoning_engine_tables_and_functions.sql",
+    "20260607130305_synapse_app_mobile_schema.sql",
+    "20260608134937_pharmacy_core_tables.sql",
+    "20260608135011_pharmacy_transactions_and_orders.sql",
+    "20260608135026_pharmacy_audit_and_notifications.sql",
+    "20260608135056_pharmacy_rls_policies.sql",
+    "20260608165417_add_password_hash_to_pharmacy_customers.sql",
+    "20260609000112_add_missing_synapse_operational_tables.sql",
+    "20260609154759_tenant_facility_compatibility_columns.sql",
+    "20260611084450_pharmacy_domain_provisioning.sql",
+    "20260611084534_pharmacy_orders_patient_compatibility.sql",
+    "20260611084554_pharmacy_network_rls_policies_retry.sql",
+    "20260611141817_pharmacy_tenant_columns.sql",
+    "20260611141830_pharmacy_rls_fix_locked_tables.sql",
+    "20260611141844_pharmacy_onboarding_table.sql",
+    "20260611141915_pharmacy_network_inventory_trigger.sql",
+    "20260611154006_pharmacy_onboarding_rls_and_printer_type.sql",
+    "20260612055928_synapse_sessions.sql",
+    "20260612055938_profiles_custom_auth_columns.sql",
+    "20260612055951_rls_helper_functions.sql",
+    "20260612060857_fix_zero_policy_auth_otps.sql",
+    "20260612060902_fix_zero_policy_mfa_enrollments.sql",
+    "20260612060916_fix_zero_policy_health_bulletins.sql",
+    "20260612060922_fix_zero_policy_drug_shortage_alerts.sql",
+    "20260612060928_fix_zero_policy_refill_reminders.sql",
+    "20260612060935_fix_zero_policy_body_register.sql",
+    "20260612060940_fix_zero_policy_housekeeping_tasks.sql",
+    "20260612060945_fix_zero_policy_partograph_records.sql",
+    "20260612061003_fix_zero_policy_visitor_log.sql",
+    "20260612061028_fix_zero_policy_sdg_reports.sql",
+    "20260612230501_capability_lattice_extension_phase2.sql",
+    "20260612230655_subscriptions_and_feature_gates.sql",
+    "20260612231111_pharmacy_pos_tables.sql",
+    "20260612231409_insurance_copilot_tables.sql",
+    "20260612231541_longitudinal_patient_intelligence.sql",
+    "20260612231920_rls_phi_hardening.sql",
+    "20260613072631_has_capability_function.sql",
+    "20260613104631_emergency_auth_rls_convergence.sql",
+    "20260613104742_lock_down_auth_rls_helpers_anon_execute.sql",
+    "20260613171512_email_activation_gate.sql",
+    "20260614084545_password_reset_tokens.sql",
+    "20260614192359_allow_public_invite_lookup.sql",
+    "20260615112752_add_pharmacy_admin_role.sql",
+    "20260615122022_add_admin_contact_to_pharmacy_onboarding.sql",
+    "20260616145543_add_pharmacy_staff_ceo_to_role_check.sql",
+    "20260620223902_subscription_billing_flutterwave.sql",
+    "20260621013812_pharmacy_custom_domains.sql",
+    "20260621193519_add_sms_credits_to_tenants.sql",
+    "20260621193522_add_phone_to_profiles.sql",
+    "20260703185455_create_complete_pharmacy_sale_rpc.sql",
+    "20260714172600_pharm_plans_canonical_pricing.sql",
+    "20260715120935_subscription_invoices.sql",
+    "20260715192400_fix_complete_pharmacy_sale_generated_line_total.sql",
+    "20260716104221_custom_auth_profile_ids.sql",
+    "20260716104232_add_mobile_push_tokens.sql",
+    "20260716104338_hospital_module_registry_seed.sql",
+    "20260716110812_backfill_missing_baseline_tables.sql",
+    "20260718183718_nda_batch_manufacturer_and_sale_item_audit.sql",
+    "20260718183725_sales_receipt_void_offline_and_session_variance.sql",
+    "20260718183749_append_only_sales_guard_and_batch_sale_rules.sql",
+    "20260718183757_reprint_log_and_stock_adjustment_hardening.sql",
+    "20260718183806_tenant_tax_efris_settings_and_vat_category.sql",
+    "20260725095606_pharmacy_sale_idempotency.sql",
+    "20260725102530_pharmacy_capability_roles.sql",
+    "20260725103907_fix_complete_sale_pending_then_complete.sql",
+    "20260801181742_pos_sale_idempotency_in_rpc.sql",
+    "20260810093112_pharmacy_printer_preferences.sql",
+    "20260810093114_pharmacy_settings_receipt_identity.sql",
+    "20260810093356_pharmacy_inventory_authority.sql",
+    "20260810093434_pharmacy_rls_tenant_isolation.sql",
+    "20260810093436_pharmacy_stock_authority_and_perms.sql",
+    "20260810093707_pharmacy_pilot_authority_hardening.sql",
+    "20260810093859_pharmacy_rpc_revoke_client_execute.sql",
+    "20260817164805_synapse_network_identity_foundations.sql",
+    "20260817164837_synapse_network_identity_foundations_persons.sql",
+    "20260817164848_synapse_network_identity_foundations_profile.sql",
+    "20260817164902_synapse_network_identity_foundations_mpi_consent.sql",
+    "20260817164946_synapse_network_identity_foundations_links_scope.sql",
+    "20260817164959_synapse_network_identity_foundations_pharmacy_interop.sql",
+    "20260817165015_synapse_network_identity_foundations_rls.sql",
+    "20260817165055_fix_generate_synapse_id_text_ascii.sql",
+    "20260823105807_pharmacy_stock_transfers_execute.sql",
+    "20260823105809_pharmacy_cashier_sessions_v1.sql",
+    "20260823105821_pharmacy_stock_transfer_rpcs.sql",
+    "20260823105844_pharmacy_stock_transfer_receive_rpc.sql",
+    "20260823105846_generate_synapse_id_person_compat.sql",
+    "20260827231349_synapse_exchange_lab_pathways_simulation.sql",
+    "20260827231417_synapse_exchange_events_and_lab_safety.sql",
+    "20260827231431_synapse_exchange_pathways_simulation_control.sql",
+    "20260827231440_synapse_exchange_rls.sql",
+    "20260827231454_project_golden_intelligence_icd11.sql",
+    "20260828164925_clinical_intelligence_sessions.sql",
+    "20260828165013_domain_event_log.sql",
+    "20260828165136_pathway_dka_pneumonia_seeds.sql",
+    "20260828165138_pathway_slug_aliases_malaria_sepsis.sql",
+    "20260828165139_domain_event_log_wave1.sql",
+    "20260828174832_platform_control_plane_core.sql",
+    "20260828175203_platform_control_plane_audit_incidents.sql",
+    "20260828175226_platform_control_plane_ops_tables.sql",
+    "20260830071642_platform_access_governance.sql",
+    "20260830074132_add_platform_observer_role.sql",
+    "20260830081931_hospital_acceptance_infrastructure.sql",
+    "20260830082047_opd_prescription_capabilities_v2.sql",
+    "20260830082558_encounter_signing.sql",
+    "20260830115410_encounter_amendments_and_guards.sql",
+    "20260902163011_hospital_onboarding_tables.sql",
+    "20260902163050_facility_provisioning_runs.sql",
+    "20260902170756_lab_lims_wave1_devices.sql",
+    "20260903090143_fix_departments_tenant_scoped_unique.sql",
+    "20260903092150_facility_domain_records.sql",
+    "20260907100539_feature_flags_postgrest_conflict_target.sql",
+    "20260907123159_backfill_canonical_hospital_locations.sql"
+  ],
+  "createdCount": 139,
+  "skippedExistingVersion": [
+    {
+      "remote": "20260706073556_create_hospital_leads.sql",
+      "kept": "20260706073556_create_hospital_leads.sql"
+    },
+    {
+      "remote": "20260817120000_synapse_network_identity_foundations.sql",
+      "kept": "20260817120000_synapse_network_identity_foundations.sql"
+    },
+    {
+      "remote": "20260903123000_feature_flags.sql",
+      "kept": "20260903123000_feature_flags.sql"
+    },
+    {
+      "remote": "20260904090000_expand_facility_type_check.sql",
+      "kept": "20260904090000_expand_facility_type_check.sql"
+    },
+    {
+      "remote": "20260904093000_qualify_tenants_updated_at_trigger.sql",
+      "kept": "20260904093000_qualify_tenants_updated_at_trigger.sql"
+    },
+    {
+      "remote": "20260904100000_add_hospitals_updated_at.sql",
+      "kept": "20260904100000_add_hospitals_updated_at.sql"
+    },
+    {
+      "remote": "20260831190000_dhis2_export_pipeline.sql",
+      "kept": "20260831190000_dhis2_export_pipeline.sql"
+    },
+    {
+      "remote": "20260904110000_dhis2_simulation_mappings.sql",
+      "kept": "20260904110000_dhis2_simulation_mappings.sql"
+    },
+    {
+      "remote": "20260904120000_dhis2_global_simulation_org_unit.sql",
+      "kept": "20260904120000_dhis2_global_simulation_org_unit.sql"
+    },
+    {
+      "remote": "20260907083248_pharmacy_inventory_summary_invoker.sql",
+      "kept": "20260907083248_pharmacy_inventory_summary_invoker.sql"
+    },
+    {
+      "remote": "20260907083310_laboratory_control_plane_capabilities.sql",
+      "kept": "20260907083310_laboratory_control_plane_capabilities.sql"
+    },
+    {
+      "remote": "20260907115038_laboratory_role_capability_alignment.sql",
+      "kept": "20260907115038_laboratory_role_capability_alignment.sql"
+    }
+  ],
+  "quarantined": [
+    {
+      "from": "20260511_production_schema.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260511_production_schema.sql"
+    },
+    {
+      "from": "20260524_public_demo_schema.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260524_public_demo_schema.sql"
+    },
+    {
+      "from": "20260609_missing_operational_tables.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260609_missing_operational_tables.sql"
+    },
+    {
+      "from": "20260609_pharmacy_network_onboarding.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260609_pharmacy_network_onboarding.sql"
+    },
+    {
+      "from": "20260611_pharmacy_domain_provisioning.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260611_pharmacy_domain_provisioning.sql"
+    },
+    {
+      "from": "20260612000001_synapse_sessions.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260612000001_synapse_sessions.sql"
+    },
+    {
+      "from": "20260612000002_profiles_custom_auth_columns.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260612000002_profiles_custom_auth_columns.sql"
+    },
+    {
+      "from": "20260612000003_rls_helper_functions.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260612000003_rls_helper_functions.sql"
+    },
+    {
+      "from": "20260612000004_fix_zero_policy_tables.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260612000004_fix_zero_policy_tables.sql"
+    },
+    {
+      "from": "20260613000001_has_capability_function.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260613000001_has_capability_function.sql"
+    },
+    {
+      "from": "20260613000002_emergency_auth_rls_convergence.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260613000002_emergency_auth_rls_convergence.sql"
+    },
+    {
+      "from": "20260613000003_lock_down_auth_rls_helpers_anon_execute.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260613000003_lock_down_auth_rls_helpers_anon_execute.sql"
+    },
+    {
+      "from": "20260613000004_custom_auth_profile_ids.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260613000004_custom_auth_profile_ids.sql"
+    },
+    {
+      "from": "20260613000005_email_activation_gate.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260613000005_email_activation_gate.sql"
+    },
+    {
+      "from": "20260614000001_password_reset_tokens.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260614000001_password_reset_tokens.sql"
+    },
+    {
+      "from": "20260615000001_support_tickets.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260615000001_support_tickets.sql"
+    },
+    {
+      "from": "20260615000002_add_pharmacy_admin_role.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260615000002_add_pharmacy_admin_role.sql"
+    },
+    {
+      "from": "20260615000003_add_admin_contact_to_pharmacy_onboarding.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260615000003_add_admin_contact_to_pharmacy_onboarding.sql"
+    },
+    {
+      "from": "20260620000001_subscription_billing_flutterwave.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260620000001_subscription_billing_flutterwave.sql"
+    },
+    {
+      "from": "20260621000001_pharmacy_custom_domains.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260621000001_pharmacy_custom_domains.sql"
+    },
+    {
+      "from": "20260704000001_add_mobile_push_tokens.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260704000001_add_mobile_push_tokens.sql"
+    },
+    {
+      "from": "20260704120000_hospital_module_registry_seed.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260704120000_hospital_module_registry_seed.sql"
+    },
+    {
+      "from": "20260714120000_pharm_plans_canonical_pricing.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260714120000_pharm_plans_canonical_pricing.sql"
+    },
+    {
+      "from": "20260714210000_subscription_invoices.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260714210000_subscription_invoices.sql"
+    },
+    {
+      "from": "20260715000001_fix_complete_pharmacy_sale_generated_line_total.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260715000001_fix_complete_pharmacy_sale_generated_line_total.sql"
+    },
+    {
+      "from": "20260716000001_backfill_missing_baseline_tables.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260716000001_backfill_missing_baseline_tables.sql"
+    },
+    {
+      "from": "20260722060000_platform_document_settings.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260722060000_platform_document_settings.sql"
+    },
+    {
+      "from": "20260722080000_platform_billing_documents.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260722080000_platform_billing_documents.sql"
+    },
+    {
+      "from": "20260725120000_pharmacy_sale_idempotency.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260725120000_pharmacy_sale_idempotency.sql"
+    },
+    {
+      "from": "20260725130000_pharmacy_capability_roles.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260725130000_pharmacy_capability_roles.sql"
+    },
+    {
+      "from": "20260725140000_fix_complete_sale_pending_then_complete.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260725140000_fix_complete_sale_pending_then_complete.sql"
+    },
+    {
+      "from": "20260730120000_pos_sale_idempotency_in_rpc.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260730120000_pos_sale_idempotency_in_rpc.sql"
+    },
+    {
+      "from": "20260805130000_pharmacy_inventory_authority.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260805130000_pharmacy_inventory_authority.sql"
+    },
+    {
+      "from": "20260806120000_pharmacy_settings_receipt_identity.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260806120000_pharmacy_settings_receipt_identity.sql"
+    },
+    {
+      "from": "20260807120000_pharmacy_stock_authority_and_perms.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260807120000_pharmacy_stock_authority_and_perms.sql"
+    },
+    {
+      "from": "20260807130000_pharmacy_rls_tenant_isolation.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260807130000_pharmacy_rls_tenant_isolation.sql"
+    },
+    {
+      "from": "20260810120000_pharmacy_pilot_authority_hardening.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260810120000_pharmacy_pilot_authority_hardening.sql"
+    },
+    {
+      "from": "20260810140000_pharmacy_printer_preferences.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260810140000_pharmacy_printer_preferences.sql"
+    },
+    {
+      "from": "20260819120000_pharmacy_stock_transfers_execute.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260819120000_pharmacy_stock_transfers_execute.sql"
+    },
+    {
+      "from": "20260822120000_generate_synapse_id_person_compat.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260822120000_generate_synapse_id_person_compat.sql"
+    },
+    {
+      "from": "20260823120000_pharmacy_cashier_sessions_v1.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260823120000_pharmacy_cashier_sessions_v1.sql"
+    },
+    {
+      "from": "20260828090000_synapse_exchange_lab_pathways_simulation.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260828090000_synapse_exchange_lab_pathways_simulation.sql"
+    },
+    {
+      "from": "20260828120000_project_golden_intelligence_icd11.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260828120000_project_golden_intelligence_icd11.sql"
+    },
+    {
+      "from": "20260830120000_hospital_acceptance_infrastructure.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260830120000_hospital_acceptance_infrastructure.sql"
+    },
+    {
+      "from": "20260830140000_platform_access_governance.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260830140000_platform_access_governance.sql"
+    },
+    {
+      "from": "20260830150000_add_platform_observer_role.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260830150000_add_platform_observer_role.sql"
+    },
+    {
+      "from": "20260830160000_opd_prescription_capabilities.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260830160000_opd_prescription_capabilities.sql"
+    },
+    {
+      "from": "20260830170000_encounter_signing.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260830170000_encounter_signing.sql"
+    },
+    {
+      "from": "20260830180000_encounter_amendments_and_guards.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260830180000_encounter_amendments_and_guards.sql"
+    },
+    {
+      "from": "20260830190000_emergency_vertical_slice.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260830190000_emergency_vertical_slice.sql"
+    },
+    {
+      "from": "20260831180000_hospital_billing_payments.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260831180000_hospital_billing_payments.sql"
+    },
+    {
+      "from": "20260901180000_hospital_onboarding_tables.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260901180000_hospital_onboarding_tables.sql"
+    },
+    {
+      "from": "20260902120000_facility_provisioning_runs.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260902120000_facility_provisioning_runs.sql"
+    },
+    {
+      "from": "20260902180000_lab_lims_wave1_devices.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260902180000_lab_lims_wave1_devices.sql"
+    },
+    {
+      "from": "20260903120000_departments_tenant_scoped_unique.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260903120000_departments_tenant_scoped_unique.sql"
+    },
+    {
+      "from": "20260903140000_facility_domain_records.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260903140000_facility_domain_records.sql"
+    },
+    {
+      "from": "20260904130000_clinical_action_boundaries.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260904130000_clinical_action_boundaries.sql"
+    },
+    {
+      "from": "20260904140000_lab_edge_heartbeat.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260904140000_lab_edge_heartbeat.sql"
+    },
+    {
+      "from": "20260904150000_laboratory_facility_profile.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260904150000_laboratory_facility_profile.sql"
+    },
+    {
+      "from": "20260905100000_close_negative_rbac_gaps.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260905100000_close_negative_rbac_gaps.sql"
+    },
+    {
+      "from": "20260905110000_clinical_workspace_capabilities.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260905110000_clinical_workspace_capabilities.sql"
+    },
+    {
+      "from": "20260907100429_feature_flags_postgrest_conflict_target.sql",
+      "to": "supabase/migrations_quarantine_local_only_2026-09-11/20260907100429_feature_flags_postgrest_conflict_target.sql"
+    }
+  ],
+  "quarantinedCount": 62,
+  "keptPendingNew": [
+    "20260908120000_lab_reports_release_artifacts.sql",
+    "20260909100000_manual_subscription_grants.sql",
+    "20260909130000_scope_pharmacy_receipts_to_tenant.sql",
+    "20260910120000_facility_invitations_token_hash.sql",
+    "20260910130000_facility_invitations_acceptance_tx.sql",
+    "20260911100000_session_bound_mfa_assurance.sql"
+  ],
+  "keptAlignedToRemoteVersion": 151,
+  "pendingNewExpected": [
+    "20260908120000_lab_reports_release_artifacts.sql",
+    "20260909100000_manual_subscription_grants.sql",
+    "20260909130000_scope_pharmacy_receipts_to_tenant.sql",
+    "20260910120000_facility_invitations_token_hash.sql",
+    "20260910130000_facility_invitations_acceptance_tx.sql",
+    "20260911100000_session_bound_mfa_assurance.sql"
+  ],
+  "note": "No production migration was applied. Run supabase migration list / db push --dry-run next."
+}

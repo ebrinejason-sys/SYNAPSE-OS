@@ -52,6 +52,24 @@ jobs:
       - name: Control-plane tests
         run: npm run test:control-plane
 
+      - name: MFA session boundary tests
+        run: npx vitest run packages/auth/src/mfa-recency.test.ts
+
+      - name: Isolated PostgreSQL invitation acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/readiness
+          bash scripts/db-tests/run-isolated.sh 2>&1 | tee artifacts/readiness/invitation-postgres.log
+
+      - name: Retain PostgreSQL acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: invitation-postgres-${{ github.sha }}
+          path: artifacts/readiness/invitation-postgres.log
+          if-no-files-found: warn
+
       - name: Tenancy isolation tests
         run: npm run test:tenancy
 
