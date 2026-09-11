@@ -65,11 +65,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Product not found or inactive' }, { status: 400 })
   }
 
+  // Authoritative on-hand qty lives on pharmacy_product_batches (not a pharmacy_stock table).
   const { data: stockRows } = await db
-    .from('pharmacy_stock')
+    .from('pharmacy_product_batches')
     .select('quantity')
     .eq('tenant_id', pharmacy_tenant_id)
     .eq('product_id', product_id)
+    .eq('is_active', true)
 
   const availableStock = (stockRows ?? []).reduce(
     (sum: number, row: { quantity?: number }) => sum + Number(row.quantity ?? 0),
