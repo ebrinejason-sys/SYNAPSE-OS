@@ -255,7 +255,7 @@ describe("POST /api/hospital/pharmacy/dispense", () => {
       tableMock({
         clinical_prescriptions: { data: rxRow({ status: "verified", verifier_id: PHARMACIST, quantity: 10 }) },
         pharmacy_products: { data: { id: PRODUCT, price: 500, name: "Paracetamol 500mg", is_active: true } },
-        pharmacy_stock: { rows: [{ quantity: 2 }] },
+        pharmacy_product_batches: { rows: [{ quantity: 2 }] },
       }),
     )
 
@@ -273,7 +273,7 @@ describe("POST /api/hospital/pharmacy/dispense", () => {
       tableMock({
         clinical_prescriptions: { data: rxRow({ status: "active", quantity: 3 }) },
         pharmacy_products: { data: { id: PRODUCT, price: 500, name: "Paracetamol 500mg", is_active: true } },
-        pharmacy_stock: { rows: [{ quantity: 20 }] },
+        pharmacy_product_batches: { rows: [{ quantity: 20 }] },
         department_tasks: { data: { id: "task-1" } },
         billing_invoices: { data: null },
       }),
