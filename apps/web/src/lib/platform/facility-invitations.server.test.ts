@@ -146,7 +146,7 @@ function makeFakeDb(tables: Record<string, Record<string, unknown>[]>) {
         password_hash: args.p_password_hash,
         must_change_password: false,
         onboarding_complete: false,
-        verification_status: "unverified",
+        verification_status: "pending",
       })
       scopes.push({ profile_id: args.p_profile_id, tenant_id: invite.tenant_id, role: invite.role, department_id: invite.department_id ?? null, is_active: true })
       invite.status = "ACCEPTED"
@@ -202,14 +202,14 @@ describe("facility-invitations.server", () => {
   it("refuses to create an invitation when the schema is not compatible", async () => {
     fakeDb.__breakSchema()
     const { createFacilityInvitation } = await import("./facility-invitations.server")
-    const result = await createFacilityInvitation({ tenantId: "lab-1", email: "new@example.test", fullName: "New Person", role: "lab_tech", actorId: "admin-1" })
+    const result = await createFacilityInvitation({ tenantId: "lab-1", email: "new@example.test", fullName: "New Person", role: "lab_scientist", actorId: "admin-1" })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.code).toBe("SCHEMA_INCOMPATIBLE")
   })
 
   it("creates an invitation with a fresh identity, storing only a token hash and the invited department", async () => {
     const { createFacilityInvitation } = await import("./facility-invitations.server")
-    const result = await createFacilityInvitation({ tenantId: "lab-1", email: "new@example.test", fullName: "New Person", role: "lab_tech", departmentId: "dept-1", actorId: "admin-1" })
+    const result = await createFacilityInvitation({ tenantId: "lab-1", email: "new@example.test", fullName: "New Person", role: "lab_scientist", departmentId: "dept-1", actorId: "admin-1" })
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.token).toBeTruthy()
@@ -224,29 +224,29 @@ describe("facility-invitations.server", () => {
   it("allows invitation creation for an existing identity at an additional facility", async () => {
     const { createFacilityInvitation } = await import("./facility-invitations.server")
     fakeDb.__tables.profiles.push({ id: "existing-1", email: "taken@example.test", tenant_id: "other-tenant" })
-    const result = await createFacilityInvitation({ tenantId: "lab-1", email: "taken@example.test", fullName: "Taken Person", role: "lab_tech", actorId: "admin-1" })
+    const result = await createFacilityInvitation({ tenantId: "lab-1", email: "taken@example.test", fullName: "Taken Person", role: "lab_scientist", actorId: "admin-1" })
     expect(result.ok).toBe(true)
   })
 
   it("rejects a duplicate pending invitation for the same email and tenant", async () => {
     const { createFacilityInvitation } = await import("./facility-invitations.server")
-    const first = await createFacilityInvitation({ tenantId: "lab-1", email: "dup@example.test", fullName: "Dup Person", role: "lab_tech", actorId: "admin-1" })
+    const first = await createFacilityInvitation({ tenantId: "lab-1", email: "dup@example.test", fullName: "Dup Person", role: "lab_scientist", actorId: "admin-1" })
     expect(first.ok).toBe(true)
-    const second = await createFacilityInvitation({ tenantId: "lab-1", email: "dup@example.test", fullName: "Dup Person", role: "lab_tech", actorId: "admin-1" })
+    const second = await createFacilityInvitation({ tenantId: "lab-1", email: "dup@example.test", fullName: "Dup Person", role: "lab_scientist", actorId: "admin-1" })
     expect(second.ok).toBe(false)
     if (!second.ok) expect(second.code).toBe("INVITE_ALREADY_PENDING")
   })
 
   it("rejects invitations for a department outside the facility", async () => {
     const { createFacilityInvitation } = await import("./facility-invitations.server")
-    const result = await createFacilityInvitation({ tenantId: "lab-1", email: "x@example.test", fullName: "X Person", role: "lab_tech", departmentId: "dept-other", actorId: "admin-1" })
+    const result = await createFacilityInvitation({ tenantId: "lab-1", email: "x@example.test", fullName: "X Person", role: "lab_scientist", departmentId: "dept-other", actorId: "admin-1" })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.code).toBe("DEPARTMENT_OUT_OF_SCOPE")
   })
 
   it("registers a new account exactly once, never marking onboarding complete", async () => {
     const { createFacilityInvitation, registerFacilityInvitationNewAccount } = await import("./facility-invitations.server")
-    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "redeem@example.test", fullName: "Redeem Person", role: "lab_tech", actorId: "admin-1" })
+    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "redeem@example.test", fullName: "Redeem Person", role: "lab_scientist", actorId: "admin-1" })
     expect(created.ok).toBe(true)
     if (!created.ok) return
 
@@ -260,7 +260,7 @@ describe("facility-invitations.server", () => {
 
     const profile = fakeDb.__tables.profiles[0]
     expect(profile.onboarding_complete).toBe(false)
-    expect(profile.verification_status).toBe("unverified")
+    expect(profile.verification_status).toBe("pending")
 
     // Single-use, retry-safe: a second acceptance of the same token must not
     // create a second profile or a second scope assignment.
@@ -273,7 +273,7 @@ describe("facility-invitations.server", () => {
 
   it("rejects new-account registration when an account already exists for the email", async () => {
     const { createFacilityInvitation, registerFacilityInvitationNewAccount } = await import("./facility-invitations.server")
-    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "already@example.test", fullName: "Already Person", role: "lab_tech", actorId: "admin-1" })
+    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "already@example.test", fullName: "Already Person", role: "lab_scientist", actorId: "admin-1" })
     expect(created.ok).toBe(true)
     if (!created.ok) return
     fakeDb.__tables.profiles.push({ id: "existing-2", email: "already@example.test", tenant_id: "lab-1" })
@@ -286,7 +286,7 @@ describe("facility-invitations.server", () => {
   it("accepts for an existing, correctly-authenticated recipient without touching their password", async () => {
     const { createFacilityInvitation, acceptFacilityInvitationForExistingUser } = await import("./facility-invitations.server")
     fakeDb.__tables.profiles.push({ id: "existing-3", email: "member@example.test", tenant_id: null, password_hash: "original-hash" })
-    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "member@example.test", fullName: "Member Person", role: "lab_tech", actorId: "admin-1" })
+    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "member@example.test", fullName: "Member Person", role: "lab_scientist", actorId: "admin-1" })
     expect(created.ok).toBe(true)
     if (!created.ok) return
 
@@ -299,7 +299,7 @@ describe("facility-invitations.server", () => {
   it("rejects acceptance by the wrong authenticated recipient", async () => {
     const { createFacilityInvitation, acceptFacilityInvitationForExistingUser } = await import("./facility-invitations.server")
     fakeDb.__tables.profiles.push({ id: "wrong-1", email: "someone-else@example.test", tenant_id: null })
-    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "victim@example.test", fullName: "Victim Person", role: "lab_tech", actorId: "admin-1" })
+    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "victim@example.test", fullName: "Victim Person", role: "lab_scientist", actorId: "admin-1" })
     expect(created.ok).toBe(true)
     if (!created.ok) return
 
@@ -312,7 +312,7 @@ describe("facility-invitations.server", () => {
 
   it("rejects acceptance of an expired invitation", async () => {
     const { createFacilityInvitation, registerFacilityInvitationNewAccount } = await import("./facility-invitations.server")
-    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "exp@example.test", fullName: "Expired Person", role: "lab_tech", actorId: "admin-1" })
+    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "exp@example.test", fullName: "Expired Person", role: "lab_scientist", actorId: "admin-1" })
     expect(created.ok).toBe(true)
     if (!created.ok) return
     fakeDb.__tables.facility_invitations[0].expires_at = new Date(Date.now() - 1000).toISOString()
@@ -324,7 +324,7 @@ describe("facility-invitations.server", () => {
 
   it("rejects acceptance of a revoked invitation", async () => {
     const { createFacilityInvitation, registerFacilityInvitationNewAccount } = await import("./facility-invitations.server")
-    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "rev@example.test", fullName: "Revoked Person", role: "lab_tech", actorId: "admin-1" })
+    const created = await createFacilityInvitation({ tenantId: "lab-1", email: "rev@example.test", fullName: "Revoked Person", role: "lab_scientist", actorId: "admin-1" })
     expect(created.ok).toBe(true)
     if (!created.ok) return
     fakeDb.__tables.facility_invitations[0].status = "REVOKED"

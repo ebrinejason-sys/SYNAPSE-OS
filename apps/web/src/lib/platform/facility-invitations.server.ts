@@ -38,12 +38,10 @@ import { generateInviteToken, hashInviteToken } from "./membership.server"
 
 const LAB_ROLES = new Set([
   "hospital_admin",
-  "facility_admin",
-  "lab_tech",
+  "lab_admin",
+  "lab_technician",
   "lab_scientist",
   "billing_officer",
-  "quality_officer",
-  "instrument_manager",
 ])
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000

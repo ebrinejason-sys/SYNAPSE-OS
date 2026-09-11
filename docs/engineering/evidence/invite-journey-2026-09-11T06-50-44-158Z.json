@@ -1,0 +1,65 @@
+{
+  "generatedAt": "2026-09-11T06:50:44.159Z",
+  "supabaseProjectId": "qfqakzmjatszisuqjwon",
+  "journey": "facility-invitation-create-register-membership-audit",
+  "email": "invite-journey-2026-09-11T06-50-44@example.invalid",
+  "steps": [
+    {
+      "name": "schema_compatibility",
+      "at": "2026-09-11T06:50:45.470Z",
+      "compatible": true,
+      "inviteError": null,
+      "auditError": null
+    },
+    {
+      "name": "list_laboratories",
+      "at": "2026-09-11T06:50:46.252Z",
+      "count": 3,
+      "error": null,
+      "slugs": [
+        "synthetic-laboratory-20260904",
+        "testlab",
+        "synapse-pilot-lab"
+      ]
+    },
+    {
+      "name": "resolve_actor",
+      "at": "2026-09-11T06:50:46.620Z",
+      "actorId": "b3d53ff7-cf8e-45bd-9f0d-a8a4e92e39f5"
+    },
+    {
+      "name": "create_invitation",
+      "at": "2026-09-11T06:50:46.953Z",
+      "ok": true,
+      "invitationId": "50ea486b-add6-4076-acd8-61b8d0b5de74",
+      "status": "PENDING",
+      "tokenHashPrefix": "0fee6621",
+      "error": null
+    },
+    {
+      "name": "lookup_preview",
+      "at": "2026-09-11T06:50:48.057Z",
+      "found": true,
+      "status": "SENT",
+      "hasExistingAccount": false,
+      "tenantName": "Synthetic Acceptance Laboratory 20260904"
+    },
+    {
+      "name": "password_hash",
+      "at": "2026-09-11T06:50:48.220Z",
+      "ok": true
+    },
+    {
+      "name": "register_new_account_rpc",
+      "at": "2026-09-11T06:50:48.598Z",
+      "ok": false,
+      "profileId": null,
+      "tenantId": null,
+      "error": "new row for relation \"profiles\" violates check constraint \"profiles_role_check\""
+    }
+  ],
+  "ok": false,
+  "tenantId": "3af866ce-a4df-4574-8a3b-d9d8887dd861",
+  "tenantSlug": "synthetic-laboratory-20260904",
+  "tenantName": "Synthetic Acceptance Laboratory 20260904"
+}

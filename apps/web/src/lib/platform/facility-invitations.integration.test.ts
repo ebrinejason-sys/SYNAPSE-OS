@@ -77,7 +77,7 @@ describe.skipIf(!hasDb)("facility invitation acceptance (isolated DB)", () => {
     const { data: profile } = await db.from("profiles").select("onboarding_complete, verification_status, password_hash").eq("id", result.profileId).single()
     expect(profile.onboarding_complete).toBe(false)
     expect(profile.password_hash).toBeTruthy()
-    expect(profile.verification_status).toBe("unverified")
+    expect(profile.verification_status).toBe("pending")
 
     const { data: scopes } = await db.from("staff_scope_assignments").select("department_id, tenant_id, is_active").eq("profile_id", result.profileId)
     expect(scopes).toHaveLength(1)
