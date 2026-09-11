@@ -32,6 +32,7 @@
     "db:check": "node scripts/check-supabase-migrations.mjs",
     "db:history:check": "node scripts/check-migration-history.mjs",
     "db:reconciliation:check": "node scripts/check-reconciliation-evidence.mjs",
+    "test:opd-dispense-golden": "tsx --test packages/db/src/prescription-bridge.test.ts packages/db/src/opd-dispense-golden.test.ts",
     "test:migration-integrity": "node --test scripts/check-migration-history.test.mjs",
     "test:reconciliation-evidence": "node --test scripts/check-reconciliation-evidence.test.mjs",
     "test:tenancy": "vitest run apps/web/src/lib/tenant-routing.test.ts apps/web/src/lib/control-plane-security.test.ts",

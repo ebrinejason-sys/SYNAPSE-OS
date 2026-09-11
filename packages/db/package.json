@@ -38,6 +38,7 @@
     "./work-queue": "./src/work-queue.ts",
     "./work-queue-persist": "./src/work-queue-persist.ts",
     "./clinical-journey": "./src/clinical-journey.ts",
+    "./opd-dispense-golden": "./src/opd-dispense-golden.ts",
     "./lab-order-persist": "./src/lab-order-persist.ts",
     "./lab-result-persist": "./src/lab-result-persist.ts",
     "./lab-report": "./src/lab-report.ts",
