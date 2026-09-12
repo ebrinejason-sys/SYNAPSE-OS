@@ -21,6 +21,8 @@ export const SYNC_COMMAND_TYPES = [
   "pharmacy.stock.transfer.v1",
   "pharmacy.sale.reverse.v1",
   "identity.person.register.v1",
+  /** Offline clinical write-up draft queued on device; applied with idempotent replay */
+  "clinical.encounter.writeup.v1",
   /** Facility-side queued aggregate export; payload must already be privacy-gated */
   "public_health.dhis2_export.v1",
 ] as const
@@ -32,6 +34,7 @@ export const SYNC_AGGREGATE_TYPES = [
   "pharmacy_batch",
   "pharmacy_transfer",
   "person",
+  "encounter",
   "dhis2_export_job",
 ] as const
 
@@ -174,6 +177,9 @@ export function assertSyncCommand(command: SyncCommand): void {
 
 export function conflictPolicyFor(commandType: string): SyncConflictPolicy {
   if (commandType.startsWith("pharmacy.sale.") || commandType.startsWith("pharmacy.stock.")) {
+    return "idempotent_replay"
+  }
+  if (commandType.startsWith("clinical.encounter.")) {
     return "idempotent_replay"
   }
   if (commandType.startsWith("identity.")) return "human_review"

@@ -1,0 +1,98 @@
+{
+  "generatedAt": "2026-09-12T19:22:10.623Z",
+  "supabaseProjectId": "qfqakzmjatszisuqjwon",
+  "journey": "facility-referral-live-synthetic",
+  "fromSlug": "synthetic-hospital-20260903",
+  "toSlug": "synapse-acceptance-hospital-two",
+  "steps": [
+    {
+      "name": "select_tenants",
+      "at": "2026-09-12T19:22:13.287Z",
+      "ok": true,
+      "fromId": "550a956a-333b-4ac0-b5b7-9e7cad39879c",
+      "toId": "1ab3d7a6-0153-4e99-bca4-f34a52c9c456"
+    },
+    {
+      "name": "resolve_actors",
+      "at": "2026-09-12T19:22:15.314Z",
+      "ok": true,
+      "doctorId": "fa3e2da2-6d1d-4dec-9b4f-f12cec2dcad6",
+      "profileInsertError": null
+    },
+    {
+      "name": "create_encounter",
+      "at": "2026-09-12T19:22:16.566Z",
+      "ok": true,
+      "patientId": "bb25b45d-8003-489e-bbe2-2d4f12d81a4a",
+      "encounterId": "21e49848-aad1-493f-85c6-85f987d0fad2"
+    },
+    {
+      "name": "create_referral",
+      "at": "2026-09-12T19:22:16.945Z",
+      "ok": true,
+      "referralId": "d35bfb1d-9f4f-4c89-82fd-0cefe9714e89"
+    },
+    {
+      "name": "set_disposition_referral",
+      "at": "2026-09-12T19:22:17.537Z",
+      "ok": true,
+      "error": null
+    },
+    {
+      "name": "accept_referral",
+      "at": "2026-09-12T19:22:17.819Z",
+      "ok": true
+    },
+    {
+      "name": "assert",
+      "at": "2026-09-12T19:22:19.166Z",
+      "ok": true,
+      "checks": {
+        "referralCompleted": true,
+        "crossTenant": true,
+        "dispositionSetOrNoted": true,
+        "dispositionColumn": true
+      },
+      "finalRef": {
+        "id": "d35bfb1d-9f4f-4c89-82fd-0cefe9714e89",
+        "from_tenant_id": "550a956a-333b-4ac0-b5b7-9e7cad39879c",
+        "to_tenant_id": "1ab3d7a6-0153-4e99-bca4-f34a52c9c456",
+        "patient_id": "bb25b45d-8003-489e-bbe2-2d4f12d81a4a",
+        "encounter_id": "21e49848-aad1-493f-85c6-85f987d0fad2",
+        "status": "completed",
+        "speciality": "Internal Medicine",
+        "urgency": "URGENT",
+        "clinical_summary": "Persistent fever; synthetic live referral journey",
+        "fhir_bundle": null,
+        "consent_obtained": true,
+        "consent_method": "screen",
+        "accepted_by": "fa3e2da2-6d1d-4dec-9b4f-f12cec2dcad6",
+        "accepted_at": "2026-09-12T19:22:17.537+00:00",
+        "created_at": "2026-09-12T19:22:16.821704+00:00",
+        "updated_at": "2026-09-12T19:22:17.82+00:00",
+        "created_by": "fa3e2da2-6d1d-4dec-9b4f-f12cec2dcad6",
+        "rejected_reason": null,
+        "completed_at": "2026-09-12T19:22:17.82+00:00",
+        "cancelled_at": null,
+        "is_synthetic": true
+      },
+      "finalEnc": {
+        "disposition": "REFERRAL"
+      }
+    },
+    {
+      "name": "cleanup",
+      "at": "2026-09-12T19:22:21.914Z",
+      "ok": true
+    }
+  ],
+  "ok": true,
+  "fromId": "550a956a-333b-4ac0-b5b7-9e7cad39879c",
+  "toId": "1ab3d7a6-0153-4e99-bca4-f34a52c9c456",
+  "checks": {
+    "referralCompleted": true,
+    "crossTenant": true,
+    "dispositionSetOrNoted": true,
+    "dispositionColumn": true
+  }
+}

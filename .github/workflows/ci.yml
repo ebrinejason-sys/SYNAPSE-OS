@@ -42,6 +42,7 @@ jobs:
           npm run test:hospital-golden-journey
           npm run test:inpatient-lifecycle
           npm run test:referral-lifecycle
+          npm run test:clinical-offline-writeup
 
       - name: Platform admin guard audit
         run: node scripts/check-platform-admin-guards.mjs

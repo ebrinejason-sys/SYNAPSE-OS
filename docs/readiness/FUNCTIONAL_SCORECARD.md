@@ -65,3 +65,6 @@ Release-control gap: GitHub branch protection/rulesets unavailable on this priva
 
 ## 2026-09-12 — Hospital Golden Journey live
 Live synthetic PASS (write-up → dispense → disposition → sign). Domain lab branch + inpatient lifecycle foundation added. See evidence under `docs/engineering/evidence/hospital-golden-live-2026-09-12.md`.
+
+## 2026-09-12 — Referrals live + clinical offline
+Live two-tenant referral PASS; clinical offline write-up SyncCommand domain proof. See evidence under `docs/engineering/evidence/`.
