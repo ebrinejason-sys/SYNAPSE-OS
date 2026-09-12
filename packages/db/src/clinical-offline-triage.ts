@@ -28,8 +28,8 @@ export type TriageVitals = {
 
 export type TriageSnapshot = TriageVitals & {
   clinical_stage?: ClinicalStage | null
-  recordedAt?: string
-  recordedBy?: string
+  recordedAt?: string | null
+  recordedBy?: string | null
 }
 
 export type EncounterTriageAggregate = {
@@ -62,7 +62,7 @@ export function normalizeTriageSnapshot(
     notes: typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : null,
     clinical_stage: stage,
     recordedAt: input.recordedAt ?? new Date().toISOString(),
-    recordedBy: input.recordedBy ?? actorId ?? null,
+    recordedBy: (input.recordedBy ?? actorId ?? null) as string | null,
   }
 }
 
