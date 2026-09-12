@@ -3,11 +3,13 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { requirePlatformAdmin } from "../../../lib/platform/auth";
 import { getProductionTruth } from "../../../lib/platform/production-truth";
+import { getHospitalPilotRc1Pulse } from "../../../lib/platform/rc1-pulse";
 import { PlatformPageHeader } from "../_components/platform-page-header";
 
 export default async function DeploymentsPage() {
   await requirePlatformAdmin();
   const truth = await getProductionTruth();
+  const rc1 = getHospitalPilotRc1Pulse();
   const prodDeploy = truth.vercelDeployments.deployments[0];
 
   return (
@@ -22,6 +24,32 @@ export default async function DeploymentsPage() {
         <p className="text-xs uppercase text-muted-color">Release alignment</p>
         <p className="mt-2 font-mono text-lg font-semibold text-primary-color">{truth.releaseAlignment.status}</p>
         <p className="mt-1 text-xs text-muted-color">{truth.releaseAlignment.detail}</p>
+      </section>
+
+      <section className="rounded-xl border border-[#F97316]/40 bg-surface p-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-[#F97316]">Hospital Pilot RC1 pulse</p>
+            <p className="mt-2 font-mono text-2xl font-semibold text-primary-color">{rc1.status}</p>
+            <p className="mt-1 text-xs text-muted-color">{rc1.detail}</p>
+          </div>
+          <p className="font-mono text-sm text-secondary-color">
+            {rc1.passed}/{rc1.total} gates
+          </p>
+        </div>
+        <ul className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {rc1.gates.map((gate) => (
+            <li
+              key={gate.id}
+              className="rounded-lg border border-subtle px-3 py-2 text-xs text-secondary-color"
+            >
+              <span className={gate.status === "PASS" ? "text-emerald-400" : "text-amber-400"}>
+                {gate.status === "PASS" ? "PASS" : "MISS"}
+              </span>{" "}
+              <span className="text-primary-color">{gate.label}</span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

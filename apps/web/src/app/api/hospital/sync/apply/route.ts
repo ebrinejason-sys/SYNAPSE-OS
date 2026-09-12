@@ -16,6 +16,12 @@ import {
   isClinicalDisposition,
 } from '@synapse/db/clinical-offline-disposition'
 import {
+  CLINICAL_TRIAGE_COMMAND,
+  applyTriageSyncCommand,
+  triageFromEncounterMetadata,
+  vitalsInsertFromTriage,
+} from '@synapse/db/clinical-offline-triage'
+import {
   composeClinicalNote,
   writeupFromEncounterMetadata,
 } from '@synapse/db/clinical-writeup'
@@ -68,7 +74,8 @@ export async function POST(request: NextRequest) {
   const supported =
     command.aggregateType === 'encounter' &&
     (command.commandType === CLINICAL_WRITEUP_COMMAND ||
-      command.commandType === CLINICAL_DISPOSITION_COMMAND)
+      command.commandType === CLINICAL_DISPOSITION_COMMAND ||
+      command.commandType === CLINICAL_TRIAGE_COMMAND)
   if (!supported) {
     return NextResponse.json({ error: 'Unsupported sync command type' }, { status: 400 })
   }
@@ -129,7 +136,7 @@ export async function POST(request: NextRequest) {
   const encounterId = command.aggregateId
   const { data: encounter, error: loadError } = await db()
     .from('encounters')
-    .select('id, metadata, is_signed, chief_complaint, status, disposition, disposition_reason, disposition_by, disposition_at')
+    .select('id, metadata, is_signed, chief_complaint, status, clinical_stage, disposition, disposition_reason, disposition_by, disposition_at')
     .eq('id', encounterId)
     .eq('tenant_id', ctx.tenantId)
     .maybeSingle()
@@ -186,6 +193,44 @@ export async function POST(request: NextRequest) {
         revision: next.revision,
       }
       auditValue = { syncCommandId: command.commandId, writeup: true }
+    } else if (command.commandType === CLINICAL_TRIAGE_COMMAND) {
+      const next = applyTriageSyncCommand(
+        {
+          encounterId,
+          metadata: (encounter.metadata as Record<string, unknown>) ?? {},
+          clinicalStage: (encounter as { clinical_stage?: string | null }).clinical_stage ?? null,
+          isSigned: Boolean(encounter.is_signed),
+          revision: 0,
+        },
+        command,
+      )
+      const triage = triageFromEncounterMetadata(next.metadata)
+      updatePayload = {
+        metadata: next.metadata,
+        clinical_stage: next.clinicalStage,
+        updated_at: new Date().toISOString(),
+        status:
+          encounter.status === 'open' || !encounter.status ? 'in_progress' : encounter.status,
+      }
+      // Persist vitals row (best-effort companion to metadata.triage)
+      const vitalsRow = vitalsInsertFromTriage({
+        tenantId: ctx.tenantId,
+        encounterId,
+        triage,
+        actorId: ctx.userId,
+      })
+      const { error: vitalsError } = await db().from('vitals').insert(vitalsRow)
+      if (vitalsError) {
+        await markOutbox(outbox.id, ctx.tenantId, 'queued', vitalsError.message)
+        return NextResponse.json({ error: vitalsError.message, outcome: 'retry' }, { status: 503 })
+      }
+      serverResponse = {
+        encounterId,
+        triage,
+        clinicalStage: next.clinicalStage,
+        revision: next.revision,
+      }
+      auditValue = { syncCommandId: command.commandId, triage: true, clinicalStage: next.clinicalStage }
     } else {
       const disposition = String(command.payload.disposition ?? '')
       if (!isClinicalDisposition(disposition)) {

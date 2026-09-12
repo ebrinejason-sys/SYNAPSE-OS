@@ -53,3 +53,6 @@ Every feature: domain logic → HTTP/API proof → live synthetic journey → re
 - Stripped unused `LandingParticleField` (landing already quieted in #62).
 
 - Clinical offline disposition SyncCommand (`docs/engineering/evidence/clinical-offline-disposition-2026-09-12.md`).
+
+- Offline triage SyncCommand (`docs/engineering/evidence/clinical-offline-triage-2026-09-12.md`).
+- Admin Hospital Pilot RC1 pulse scoreboard (`docs/engineering/evidence/rc1-pulse-2026-09-12.md`).
