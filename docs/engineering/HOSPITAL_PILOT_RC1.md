@@ -50,3 +50,4 @@ Every feature: domain logic → HTTP/API proof → live synthetic journey → re
 - MFA step-up: schema + HTTP proofs + **live TOTP PASS** (`docs/engineering/evidence/mfa-step-up-live-2026-09-12.md`).
 
 - Admin SHA alignment (GitHub ↔ Vercel ↔ process ↔ migration ledger) (`docs/engineering/evidence/admin-sha-alignment-2026-09-12.md`).
+- Stripped unused `LandingParticleField` (landing already quieted in #62).
