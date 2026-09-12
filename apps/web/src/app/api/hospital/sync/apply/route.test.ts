@@ -10,6 +10,7 @@ const {
   assertSyncCommand,
   toSyncOutboxRow,
   applyWriteupSyncCommand,
+  applyDispositionSyncCommand,
   composeClinicalNote,
   writeupFromEncounterMetadata,
 } = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ const {
   assertSyncCommand: vi.fn(),
   toSyncOutboxRow: vi.fn(),
   applyWriteupSyncCommand: vi.fn(),
+  applyDispositionSyncCommand: vi.fn(),
   composeClinicalNote: vi.fn(),
   writeupFromEncounterMetadata: vi.fn(),
 }))
@@ -54,6 +56,21 @@ vi.mock('@synapse/db/sync-contract', () => ({
 vi.mock('@synapse/db/clinical-offline-writeup', () => ({
   CLINICAL_WRITEUP_COMMAND: 'clinical.encounter.writeup.v1',
   applyWriteupSyncCommand: (...args: unknown[]) => applyWriteupSyncCommand(...args),
+}))
+
+vi.mock('@synapse/db/clinical-offline-disposition', () => ({
+  CLINICAL_DISPOSITION_COMMAND: 'clinical.encounter.disposition.v1',
+  applyDispositionSyncCommand: (...args: unknown[]) => applyDispositionSyncCommand(...args),
+  isClinicalDisposition: (value: string) =>
+    [
+      'LOCAL_PHARMACY',
+      'EXTERNAL_PHARMACY',
+      'NO_MEDICATION',
+      'FURTHER_LAB',
+      'REFERRAL',
+      'FOLLOW_UP',
+      'CLINICAL_COMPLETE',
+    ].includes(value),
 }))
 
 vi.mock('@synapse/db/clinical-writeup', () => ({
@@ -400,4 +417,94 @@ describe('POST /api/hospital/sync/apply', () => {
     const json = await res.json()
     expect(json.reason).toBe('ENCOUNTER_SIGNED_IMMUTABLE')
   })
+
+  it('applies disposition SyncCommand', async () => {
+    requireHospitalStaffContext.mockResolvedValue({
+      tenantId: TENANT,
+      userId: USER,
+      hospitalId: FACILITY,
+    })
+    requireHospitalCapability.mockResolvedValue(null)
+    assertSyncCommand.mockImplementation(() => undefined)
+    hashPayload.mockResolvedValue('hash-ok')
+    toSyncOutboxRow.mockReturnValue({ idempotency_key: CMD })
+    applyDispositionSyncCommand.mockReturnValue({
+      encounterId: ENCOUNTER,
+      disposition: 'CLINICAL_COMPLETE',
+      dispositionReason: 'Offline complete',
+      dispositionBy: USER,
+      dispositionAt: '2026-09-12T21:00:00.000Z',
+      isSigned: false,
+      revision: 1,
+    })
+    logHospitalAudit.mockResolvedValue(undefined)
+
+    const findChain = chain({ data: null })
+    const insertChain = chain({
+      data: {
+        id: OUTBOX,
+        tenant_id: TENANT,
+        idempotency_key: CMD,
+        payload: {},
+        status: 'queued',
+        applied_at: null,
+        conflict_reason: null,
+      },
+    })
+    const syncingChain = chain({ data: null })
+    const encounterChain = chain({
+      data: {
+        id: ENCOUNTER,
+        metadata: {},
+        is_signed: false,
+        chief_complaint: 'Fever',
+        status: 'in_progress',
+        disposition: null,
+        disposition_reason: null,
+        disposition_by: null,
+        disposition_at: null,
+      },
+    })
+    const updateEncounterChain = chain({ data: null })
+    const appliedChain = chain({ data: null })
+
+    let outboxOps = 0
+    let encounterOps = 0
+    dbFrom.mockImplementation((table: string) => {
+      if (table === 'offline_mutation_outbox') {
+        outboxOps += 1
+        if (outboxOps === 1) return findChain
+        if (outboxOps === 2) return insertChain
+        if (outboxOps === 3) return syncingChain
+        return appliedChain
+      }
+      if (table === 'encounters') {
+        encounterOps += 1
+        if (encounterOps === 1) return encounterChain
+        return updateEncounterChain
+      }
+      return chain({ data: null })
+    })
+
+    const { POST } = await import('./route')
+    const res = await POST(
+      makeRequest({
+        command: makeCommand({
+          commandType: 'clinical.encounter.disposition.v1',
+          payload: {
+            encounter_id: ENCOUNTER,
+            disposition: 'CLINICAL_COMPLETE',
+            reason: 'Offline complete',
+          },
+        }),
+      }),
+    )
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.outcome).toBe('applied')
+    expect(json.result.disposition).toBe('CLINICAL_COMPLETE')
+    expect(applyDispositionSyncCommand).toHaveBeenCalled()
+    expect(applyWriteupSyncCommand).not.toHaveBeenCalled()
+  })
+
 })

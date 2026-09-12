@@ -59,7 +59,8 @@
     "./hospital-golden-journey": "./src/hospital-golden-journey.ts",
     "./inpatient-lifecycle": "./src/inpatient-lifecycle.ts",
     "./referral-lifecycle": "./src/referral-lifecycle.ts",
-    "./clinical-offline-writeup": "./src/clinical-offline-writeup.ts"
+    "./clinical-offline-writeup": "./src/clinical-offline-writeup.ts",
+    "./clinical-offline-disposition": "./src/clinical-offline-disposition.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",

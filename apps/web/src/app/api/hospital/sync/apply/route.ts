@@ -11,6 +11,11 @@ import {
   applyWriteupSyncCommand,
 } from '@synapse/db/clinical-offline-writeup'
 import {
+  CLINICAL_DISPOSITION_COMMAND,
+  applyDispositionSyncCommand,
+  isClinicalDisposition,
+} from '@synapse/db/clinical-offline-disposition'
+import {
   composeClinicalNote,
   writeupFromEncounterMetadata,
 } from '@synapse/db/clinical-writeup'
@@ -60,7 +65,11 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  if (command.commandType !== CLINICAL_WRITEUP_COMMAND || command.aggregateType !== 'encounter') {
+  const supported =
+    command.aggregateType === 'encounter' &&
+    (command.commandType === CLINICAL_WRITEUP_COMMAND ||
+      command.commandType === CLINICAL_DISPOSITION_COMMAND)
+  if (!supported) {
     return NextResponse.json({ error: 'Unsupported sync command type' }, { status: 400 })
   }
   if (command.tenantId !== ctx.tenantId || command.actorId !== ctx.userId) {
@@ -120,7 +129,7 @@ export async function POST(request: NextRequest) {
   const encounterId = command.aggregateId
   const { data: encounter, error: loadError } = await db()
     .from('encounters')
-    .select('id, metadata, is_signed, chief_complaint, status')
+    .select('id, metadata, is_signed, chief_complaint, status, disposition, disposition_reason, disposition_by, disposition_at')
     .eq('id', encounterId)
     .eq('tenant_id', ctx.tenantId)
     .maybeSingle()
@@ -137,7 +146,7 @@ export async function POST(request: NextRequest) {
     await markOutbox(outbox.id, ctx.tenantId, 'rejected', 'ENCOUNTER_SIGNED_IMMUTABLE')
     return NextResponse.json(
       {
-        error: 'Encounter is signed — write-up sync refused',
+        error: 'Encounter is signed — sync refused',
         outcome: 'rejected',
         reason: 'ENCOUNTER_SIGNED_IMMUTABLE',
       },
@@ -145,36 +154,102 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  let next
+  let updatePayload: Record<string, unknown>
+  let serverResponse: Record<string, unknown>
+  let auditValue: Record<string, unknown>
+
   try {
-    next = applyWriteupSyncCommand(
-      {
+    if (command.commandType === CLINICAL_WRITEUP_COMMAND) {
+      const next = applyWriteupSyncCommand(
+        {
+          encounterId,
+          metadata: (encounter.metadata as Record<string, unknown>) ?? {},
+          revision: 0,
+        },
+        command,
+      )
+      const writeup = writeupFromEncounterMetadata(next.metadata)
+      const metadata = {
+        ...next.metadata,
+        clinical_note: composeClinicalNote(writeup, encounter.chief_complaint),
+      }
+      updatePayload = {
+        metadata,
+        updated_at: new Date().toISOString(),
+        status:
+          encounter.status === 'open' || !encounter.status ? 'in_progress' : encounter.status,
+      }
+      serverResponse = {
         encounterId,
-        metadata: (encounter.metadata as Record<string, unknown>) ?? {},
-        revision: 0,
-      },
-      command,
-    )
+        writeup,
+        clinicalNote: metadata.clinical_note,
+        revision: next.revision,
+      }
+      auditValue = { syncCommandId: command.commandId, writeup: true }
+    } else {
+      const disposition = String(command.payload.disposition ?? '')
+      if (!isClinicalDisposition(disposition)) {
+        await markOutbox(outbox.id, ctx.tenantId, 'rejected', 'INVALID_DISPOSITION')
+        return NextResponse.json({ error: 'Invalid disposition', outcome: 'rejected' }, { status: 400 })
+      }
+      if (disposition === 'LOCAL_PHARMACY') {
+        const { data: prescription } = await db()
+          .from('clinical_prescriptions')
+          .select('id')
+          .eq('tenant_id', ctx.tenantId)
+          .eq('encounter_id', encounterId)
+          .eq('status', 'active')
+          .limit(1)
+          .maybeSingle()
+        if (!prescription) {
+          await markOutbox(outbox.id, ctx.tenantId, 'rejected', 'LOCAL_PHARMACY_REQUIRES_RX')
+          return NextResponse.json(
+            { error: 'Local Pharmacy requires an active prescription', outcome: 'rejected' },
+            { status: 409 },
+          )
+        }
+      }
+      const next = applyDispositionSyncCommand(
+        {
+          encounterId,
+          disposition: encounter.disposition ?? null,
+          dispositionReason: encounter.disposition_reason ?? null,
+          dispositionBy: encounter.disposition_by ?? null,
+          dispositionAt: encounter.disposition_at ?? null,
+          isSigned: Boolean(encounter.is_signed),
+          revision: 0,
+        },
+        command,
+      )
+      updatePayload = {
+        disposition: next.disposition,
+        disposition_reason: next.dispositionReason,
+        disposition_by: next.dispositionBy,
+        disposition_at: next.dispositionAt,
+        updated_at: new Date().toISOString(),
+      }
+      serverResponse = {
+        encounterId,
+        disposition: next.disposition,
+        reason: next.dispositionReason,
+        recordedAt: next.dispositionAt,
+        revision: next.revision,
+      }
+      auditValue = {
+        syncCommandId: command.commandId,
+        disposition: next.disposition,
+        reason: next.dispositionReason,
+      }
+    }
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'APPLY_FAILED'
     await markOutbox(outbox.id, ctx.tenantId, 'rejected', reason)
     return NextResponse.json({ error: reason, outcome: 'rejected' }, { status: 400 })
   }
 
-  const writeup = writeupFromEncounterMetadata(next.metadata)
-  const metadata = {
-    ...next.metadata,
-    clinical_note: composeClinicalNote(writeup, encounter.chief_complaint),
-  }
-
   const { error: updateError } = await db()
     .from('encounters')
-    .update({
-      metadata,
-      updated_at: new Date().toISOString(),
-      status:
-        encounter.status === 'open' || !encounter.status ? 'in_progress' : encounter.status,
-    })
+    .update(updatePayload)
     .eq('id', encounterId)
     .eq('tenant_id', ctx.tenantId)
     .eq('is_signed', false)
@@ -185,13 +260,6 @@ export async function POST(request: NextRequest) {
   }
 
   const appliedAt = new Date().toISOString()
-  const serverResponse = {
-    encounterId,
-    writeup,
-    clinicalNote: metadata.clinical_note,
-    revision: next.revision,
-  }
-
   await db()
     .from('offline_mutation_outbox')
     .update({
@@ -208,7 +276,7 @@ export async function POST(request: NextRequest) {
     action: 'UPDATE',
     tableName: 'encounters',
     recordId: encounterId,
-    newValue: { syncCommandId: command.commandId, writeup: true },
+    newValue: auditValue,
   })
 
   return NextResponse.json({
