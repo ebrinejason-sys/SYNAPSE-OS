@@ -1,6 +1,17 @@
 import "server-only";
 
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
 import { PRODUCT_MANIFEST, statusLabel, integrationLabel } from "@synapse/config/manifest";
+import { supabaseAdmin } from "@synapse/db/admin";
+import {
+  buildReleaseAlignment,
+  compareShas,
+  repoMigrationHeadFromFiles,
+  shortSha,
+  type ReleaseAlignment,
+  type ShaPairComparison,
+} from "./sha-alignment";
 import {
   ICD11_RELEASE,
   searchIcd11,
@@ -42,8 +53,12 @@ export type ProcessDeployTruth = {
   detail: string;
 };
 
-export type ShaComparisonTruth = {
-  status: "MATCH" | "BEHIND" | "UNKNOWN";
+export type ShaComparisonTruth = ShaPairComparison;
+
+export type MigrationHeadTruth = {
+  status: "HEALTHY" | "NOT_CONFIGURED" | "FAILED" | "UNKNOWN";
+  version: string | null;
+  name: string | null;
   detail: string;
 };
 
@@ -98,6 +113,9 @@ export type ProductionTruth = {
   githubMain: GitHubMainTruth;
   processDeploy: ProcessDeployTruth;
   shaComparison: ShaComparisonTruth;
+  releaseAlignment: ReleaseAlignment;
+  repoMigration: MigrationHeadTruth;
+  remoteMigration: MigrationHeadTruth;
   vercelDeployments: VercelDeploymentTruth;
   database: DatabaseTruth;
   openRouter: OpenRouterTruth;
@@ -105,11 +123,6 @@ export type ProductionTruth = {
   modules: ModuleReadinessItem[];
   checkedAt: string;
 };
-
-function shortSha(value: string | null | undefined): string | null {
-  if (!value) return null;
-  return value.slice(0, 7);
-}
 
 function githubToken(): string | null {
   return process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim() || null;
@@ -165,21 +178,6 @@ async function fetchGitHubMainSha(fetchImpl: typeof fetch = fetch): Promise<GitH
       detail: message,
     };
   }
-}
-
-function compareShas(githubSha: string | null, processSha: string | null): ShaComparisonTruth {
-  if (!githubSha || !processSha) {
-    return { status: "UNKNOWN", detail: "Need both GitHub main and process SHA to compare" };
-  }
-  const match =
-    githubSha === processSha ||
-    githubSha.startsWith(processSha) ||
-    processSha.startsWith(githubSha) ||
-    shortSha(githubSha) === shortSha(processSha);
-  if (match) {
-    return { status: "MATCH", detail: "Process SHA matches GitHub main" };
-  }
-  return { status: "BEHIND", detail: `Process ${shortSha(processSha)} ≠ main ${shortSha(githubSha)}` };
 }
 
 async function fetchVercelDeployments(fetchImpl: typeof fetch = fetch): Promise<VercelDeploymentTruth> {
@@ -432,17 +430,106 @@ function buildModuleReadiness(): ModuleReadinessItem[] {
   ];
 }
 
+
+function readRepoMigrationHead(): MigrationHeadTruth {
+  const candidates = [
+    join(process.cwd(), "supabase", "migrations"),
+    join(process.cwd(), "..", "..", "supabase", "migrations"),
+    join(process.cwd(), "..", "supabase", "migrations"),
+  ];
+  for (const dir of candidates) {
+    try {
+      const files = readdirSync(dir).filter((f) => f.endsWith(".sql"));
+      const version = repoMigrationHeadFromFiles(files);
+      if (version) {
+        const match = files.find((f) => f.startsWith(version));
+        const name = match ? match.replace(/\.sql$/, "").slice(version.length).replace(/^[_-]/, "") : null;
+        return {
+          status: "HEALTHY",
+          version,
+          name,
+          detail: `Repo head ${version}${name ? ` (${name})` : ""}`,
+        };
+      }
+    } catch {
+      // try next path
+    }
+  }
+  return {
+    status: "NOT_CONFIGURED",
+    version: null,
+    name: null,
+    detail: "supabase/migrations not readable on this process",
+  };
+}
+
+async function fetchRemoteMigrationHead(): Promise<MigrationHeadTruth> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabaseAdmin as any;
+    const { data, error } = await db.rpc("synapse_remote_migration_head");
+    if (error) {
+      return {
+        status: "FAILED",
+        version: null,
+        name: null,
+        detail: error.message?.includes("Could not find the function")
+          ? "RPC synapse_remote_migration_head not applied yet"
+          : error.message,
+      };
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    const version = row?.version ? String(row.version) : null;
+    const name = row?.name ? String(row.name) : null;
+    if (!version) {
+      return {
+        status: "UNKNOWN",
+        version: null,
+        name: null,
+        detail: "Remote migration ledger returned no rows",
+      };
+    }
+    return {
+      status: "HEALTHY",
+      version,
+      name,
+      detail: `Remote head ${version}${name ? ` (${name})` : ""}`,
+    };
+  } catch (error) {
+    return {
+      status: "FAILED",
+      version: null,
+      name: null,
+      detail: error instanceof Error ? error.message : "Remote migration probe failed",
+    };
+  }
+}
+
 export async function getProductionTruth(): Promise<ProductionTruth> {
-  const [githubMain, dbHealth, openRouter, icd11, vercelDeployments] = await Promise.all([
+  const [githubMain, dbHealth, openRouter, icd11, vercelDeployments, remoteMigration] = await Promise.all([
     fetchGitHubMainSha(),
     checkDatabaseLatency(),
     probeOpenRouter(),
     probeIcd11(),
     fetchVercelDeployments(),
+    fetchRemoteMigrationHead(),
   ]);
 
   const processSha = process.env.VERCEL_GIT_COMMIT_SHA?.trim() ?? null;
   const processEnv = process.env.VERCEL_ENV?.trim() ?? null;
+  const vercelSha = vercelDeployments.deployments[0]?.sha ?? null;
+  const repoMigration = readRepoMigrationHead();
+
+  const releaseAlignment = buildReleaseAlignment({
+    githubSha: githubMain.sha,
+    vercelSha,
+    processSha,
+    repoMigrationVersion: repoMigration.version,
+    remoteMigrationVersion: remoteMigration.version,
+  });
+
+  // Primary card comparison: GitHub main vs Vercel production (what operators care about).
+  const shaComparison = compareShas("GitHub main", githubMain.sha, "Vercel production", vercelSha);
 
   const database: DatabaseTruth = !dbHealth.ok
     ? { status: "OUTAGE", latencyMs: dbHealth.latencyMs, detail: "Tenant probe failed" }
@@ -468,7 +555,10 @@ export async function getProductionTruth(): Promise<ProductionTruth> {
         ? `${processEnv ?? "unknown env"} · ${shortSha(processSha)}`
         : "No VERCEL_GIT_COMMIT_SHA on this process",
     },
-    shaComparison: compareShas(githubMain.sha, processSha),
+    shaComparison,
+    releaseAlignment,
+    repoMigration,
+    remoteMigration,
     vercelDeployments,
     database,
     openRouter,

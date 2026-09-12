@@ -56,17 +56,20 @@ export async function GET() {
         },
         processDeploy: truth.processDeploy,
         shaComparison: truth.shaComparison,
+        releaseAlignment: truth.releaseAlignment,
+        repoMigration: truth.repoMigration,
+        remoteMigration: truth.remoteMigration,
         synapseProduction: prodDeploy
           ? {
               status: truth.vercelDeployments.status,
               shortSha: prodDeploy.shortSha,
-              match: truth.shaComparison.status,
+              match: truth.releaseAlignment.githubVsVercel.status,
               detail: truth.vercelDeployments.detail,
             }
           : {
               status: truth.vercelDeployments.status,
               shortSha: null,
-              match: truth.shaComparison.status,
+              match: truth.releaseAlignment.githubVsVercel.status,
               detail: truth.vercelDeployments.detail,
             },
         database: truth.database,
@@ -84,7 +87,16 @@ export async function GET() {
         ),
         dbSize: probe("NO_TELEMETRY", "Size metrics not wired to provider API"),
         activeConnections: probe("NO_TELEMETRY", "Connection count not available"),
-        lastMigration: probe("NO_TELEMETRY", "Migration registry not yet in control plane"),
+        lastMigration: truth.remoteMigration.status === "HEALTHY"
+          ? probe("CONFIGURED", truth.remoteMigration.detail, {
+              version: truth.remoteMigration.version,
+              name: truth.remoteMigration.name,
+              repoVersion: truth.repoMigration.version,
+              match: truth.releaseAlignment.repoVsRemoteMigration.status,
+            })
+          : truth.remoteMigration.status === "NOT_CONFIGURED"
+            ? probe("NOT_CONFIGURED", truth.remoteMigration.detail)
+            : probe("NO_TELEMETRY", truth.remoteMigration.detail),
         rlsCoverage: probe("NO_TELEMETRY", "Live RLS proof not available — do not treat static counts as coverage"),
       },
       vercel: truth.vercelDeployments.status === "NOT_CONFIGURED"

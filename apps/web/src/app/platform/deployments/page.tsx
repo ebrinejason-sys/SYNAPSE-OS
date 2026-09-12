@@ -15,8 +15,14 @@ export default async function DeploymentsPage() {
       <PlatformPageHeader
         eyebrow="Deployments"
         title="Production truth — where code is running"
-        description="GitHub main vs this process vs Vercel production. Missing credentials show NOT_CONFIGURED — never fake green."
+        description="GitHub main → Vercel production → this process → remote migration ledger. Missing credentials show NOT_CONFIGURED — never fake green."
       />
+
+      <section className="rounded-xl border border-subtle bg-surface p-4">
+        <p className="text-xs uppercase text-muted-color">Release alignment</p>
+        <p className="mt-2 font-mono text-lg font-semibold text-primary-color">{truth.releaseAlignment.status}</p>
+        <p className="mt-1 text-xs text-muted-color">{truth.releaseAlignment.detail}</p>
+      </section>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {[
@@ -26,19 +32,39 @@ export default async function DeploymentsPage() {
             detail: truth.githubMain.detail,
           },
           {
+            label: "Vercel production SHA",
+            value: prodDeploy?.shortSha ?? truth.vercelDeployments.status,
+            detail: truth.vercelDeployments.detail,
+          },
+          {
             label: "This process SHA",
             value: truth.processDeploy.shortSha ?? "NOT CONFIGURED",
             detail: truth.processDeploy.detail,
           },
           {
-            label: "SHA comparison",
-            value: truth.shaComparison.status,
-            detail: truth.shaComparison.detail,
+            label: "GitHub ↔ Vercel",
+            value: truth.releaseAlignment.githubVsVercel.status,
+            detail: truth.releaseAlignment.githubVsVercel.detail,
           },
           {
-            label: "Vercel production",
-            value: prodDeploy?.shortSha ?? truth.vercelDeployments.status,
-            detail: truth.vercelDeployments.detail,
+            label: "GitHub ↔ process",
+            value: truth.releaseAlignment.githubVsProcess.status,
+            detail: truth.releaseAlignment.githubVsProcess.detail,
+          },
+          {
+            label: "Repo migration head",
+            value: truth.repoMigration.version ?? truth.repoMigration.status,
+            detail: truth.repoMigration.detail,
+          },
+          {
+            label: "Remote migration head",
+            value: truth.remoteMigration.version ?? truth.remoteMigration.status,
+            detail: truth.remoteMigration.detail,
+          },
+          {
+            label: "Repo ↔ remote migrations",
+            value: truth.releaseAlignment.repoVsRemoteMigration.status,
+            detail: truth.releaseAlignment.repoVsRemoteMigration.detail,
           },
           {
             label: "Production state",
@@ -67,6 +93,7 @@ export default async function DeploymentsPage() {
               ["GITHUB_TOKEN / GH_TOKEN", truth.githubMain.status !== "NOT_CONFIGURED"],
               ["VERCEL_TOKEN + VERCEL_PROJECT_ID", truth.vercelDeployments.status !== "NOT_CONFIGURED"],
               ["VERCEL_GIT_COMMIT_SHA", Boolean(truth.processDeploy.sha)],
+              ["synapse_remote_migration_head RPC", truth.remoteMigration.status === "HEALTHY"],
             ] as const
           ).map(([label, ok]) => (
             <p key={label} className="text-sm text-secondary-color">

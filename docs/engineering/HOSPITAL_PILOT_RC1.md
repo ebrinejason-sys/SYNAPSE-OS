@@ -49,3 +49,4 @@ Every feature: domain logic → HTTP/API proof → live synthetic journey → re
 - HTTP hospital sync flush for write-up SyncCommand (`docs/engineering/evidence/hospital-sync-apply-writeup-2026-09-12.md`).
 - MFA step-up: schema + HTTP proofs + **live TOTP PASS** (`docs/engineering/evidence/mfa-step-up-live-2026-09-12.md`).
 
+- Admin SHA alignment (GitHub ↔ Vercel ↔ process ↔ migration ledger) (`docs/engineering/evidence/admin-sha-alignment-2026-09-12.md`).

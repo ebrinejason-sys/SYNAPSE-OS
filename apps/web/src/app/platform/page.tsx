@@ -305,9 +305,16 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
     {
       label: "Synapse OS Production",
       value: prodDeploy?.shortSha ?? productionTruth.vercelDeployments.status,
-      status: truthCardStatus("sha", productionTruth.shaComparison.status),
+      status: truthCardStatus("sha", productionTruth.releaseAlignment.githubVsVercel.status),
       href: "/platform/deployments",
-      detail: `${productionTruth.shaComparison.status} · ${productionTruth.vercelDeployments.detail}`,
+      detail: `${productionTruth.releaseAlignment.githubVsVercel.status} · ${productionTruth.vercelDeployments.detail}`,
+    },
+    {
+      label: "Release alignment",
+      value: productionTruth.releaseAlignment.status,
+      status: truthCardStatus("sha", productionTruth.releaseAlignment.status === "ALIGNED" ? "MATCH" : productionTruth.releaseAlignment.status === "DRIFT" ? "BEHIND" : "UNKNOWN"),
+      href: "/platform/deployments",
+      detail: productionTruth.releaseAlignment.detail,
     },
     {
       label: "Admin process",
@@ -315,6 +322,13 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
       status: productionTruth.processDeploy.sha ? "amber" : "slate",
       href: "/platform/deployments",
       detail: productionTruth.processDeploy.detail,
+    },
+    {
+      label: "Remote migration",
+      value: productionTruth.remoteMigration.version ?? productionTruth.remoteMigration.status,
+      status: truthCardStatus("sha", productionTruth.releaseAlignment.repoVsRemoteMigration.status),
+      href: "/platform/deployments",
+      detail: productionTruth.remoteMigration.detail,
     },
     {
       label: "Database",
