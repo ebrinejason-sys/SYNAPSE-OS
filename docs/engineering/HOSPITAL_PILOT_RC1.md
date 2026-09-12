@@ -58,3 +58,12 @@ Every feature: domain logic → HTTP/API proof → live synthetic journey → re
 - Admin Hospital Pilot RC1 pulse scoreboard (`docs/engineering/evidence/rc1-pulse-2026-09-12.md`).
 
 - Offline prescribe SyncCommand (`docs/engineering/evidence/clinical-offline-prescribe-2026-09-12.md`).
+
+
+## Lab depth beside hospital path (2026-09-12)
+
+Domain Lab golden journey proves specimen reject → replacement recollect, TAT measurement, human verify/release, amend + printable FINAL/AMENDED reports — reusing `LabWorkflow` and `lab-report` (no parallel stack).
+
+- Code: `packages/db/src/lab-golden-journey.ts`
+- Evidence: `docs/engineering/evidence/lab-golden-journey-2026-09-12.md`
+- CI: `npm run test:lab-golden-journey` (wired into `verify`)

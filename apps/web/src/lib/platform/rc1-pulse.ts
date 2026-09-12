@@ -35,6 +35,7 @@ const RC1_GATES: Array<{ id: string; label: string; evidence: string }> = [
   { id: "offline_disposition", label: "Offline disposition SyncCommand", evidence: "clinical-offline-disposition-2026-09-12.md" },
   { id: "offline_triage", label: "Offline triage SyncCommand", evidence: "clinical-offline-triage-2026-09-12.md" },
   { id: "offline_prescribe", label: "Offline prescribe SyncCommand", evidence: "clinical-offline-prescribe-2026-09-12.md" },
+  { id: "lab_golden", label: "Lab golden journey (specimen/TAT/amend)", evidence: "lab-golden-journey-2026-09-12.md" },
 ]
 
 function evidenceRoots(): string[] {
