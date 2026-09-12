@@ -43,3 +43,6 @@ Every feature: domain logic → HTTP/API proof → live synthetic journey → re
 
 - Referrals domain + HTTP/UI foundation (`docs/engineering/evidence/referral-lifecycle-2026-09-12.md`).
 - Disposition columns migration applied to pilot Supabase (2026-09-12).
+
+- Live two-tenant referral journey PASS (`docs/engineering/evidence/referral-live-2026-09-12.md`).
+- Clinical offline write-up SyncCommand slice (`docs/engineering/evidence/clinical-offline-writeup-2026-09-12.md`).
