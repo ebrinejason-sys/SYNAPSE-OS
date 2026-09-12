@@ -18,7 +18,7 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
-    "verify": "npm run db:check && npm run test:opd-dispense-golden && npm run test:encounter-close-gate && npm run verify:web && npm run verify:pharmacy && npm run test:control-plane && npm run test:tenancy && npm run test:lab-edge && npm run test:clinical-writeup && npm run test:hospital-closeout-golden && npm run test:hospital-golden-journey && npm run test:inpatient-lifecycle",
+    "verify": "npm run db:check && npm run test:opd-dispense-golden && npm run test:encounter-close-gate && npm run verify:web && npm run verify:pharmacy && npm run test:control-plane && npm run test:tenancy && npm run test:lab-edge && npm run test:clinical-writeup && npm run test:hospital-closeout-golden && npm run test:hospital-golden-journey && npm run test:inpatient-lifecycle && npm run test:referral-lifecycle",
     "verify:web": "node scripts/verify-web-build.mjs",
     "verify:pharmacy": "npm run type-check --workspace @synapse/pharmacy && npm run lint --workspace @synapse/pharmacy && npm run test:general --workspace @synapse/pharmacy && npm run build --workspace @synapse/pharmacy",
     "verify:control-plane": "npm run test:control-plane",
@@ -67,7 +67,8 @@
     "test:hospital-closeout-golden": "tsx --test packages/db/src/hospital-closeout-golden.test.ts packages/db/src/encounter-close-gate.test.ts",
     "test:hospital-golden-journey": "tsx --test packages/db/src/hospital-golden-journey.test.ts",
     "test:inpatient-lifecycle": "tsx --test packages/db/src/inpatient-lifecycle.test.ts",
-    "journey:hospital-golden-live": "node scripts/hospital-golden-live-journey.mjs"
+    "journey:hospital-golden-live": "node scripts/hospital-golden-live-journey.mjs",
+    "test:referral-lifecycle": "tsx --test packages/db/src/referral-lifecycle.test.ts"
   },
   "devDependencies": {
     "supabase": "^2.107.0",
