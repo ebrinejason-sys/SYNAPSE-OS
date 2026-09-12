@@ -1,0 +1,21 @@
+{
+  "generatedAt": "2026-09-12T19:48:20.405Z",
+  "supabaseProjectId": "qfqakzmjatszisuqjwon",
+  "journey": "mfa-step-up-live-probe",
+  "ok": true,
+  "checks": {
+    "mfa_enrollments_readable": true,
+    "synapse_sessions_readable": true,
+    "mfa_step_up_replays_readable": true,
+    "verifiedEnrollments": 2,
+    "platformAdminsWithMfa": 2,
+    "platformAdminProbe": "ok",
+    "liveTotpRoundTrip": "NOT_RUN_NEEDS_LIVE_AUTHENTICATOR_CODE",
+    "httpRouteProof": "apps/web/src/app/api/platform/mfa/step-up/route.test.ts",
+    "domainProof": "packages/auth/src/mfa-recency.test.ts"
+  },
+  "notes": [
+    "Schema/readiness verified. Live TOTP step-up still requires a human-held authenticator code for an enrolled platform admin — do not invent PASS.",
+    "HTTP POST /api/platform/mfa/step-up is covered by Vitest (auth, malformed code, incorrect, not enrolled, success)."
+  ]
+}

@@ -46,3 +46,6 @@ Every feature: domain logic → HTTP/API proof → live synthetic journey → re
 
 - Live two-tenant referral journey PASS (`docs/engineering/evidence/referral-live-2026-09-12.md`).
 - Clinical offline write-up SyncCommand slice (`docs/engineering/evidence/clinical-offline-writeup-2026-09-12.md`).
+- HTTP hospital sync flush for write-up SyncCommand (`docs/engineering/evidence/hospital-sync-apply-writeup-2026-09-12.md`).
+- MFA step-up: schema + HTTP route proofs; live TOTP still needs authenticator code (`docs/engineering/evidence/mfa-step-up-live-probe-2026-09-12.md`).
+
