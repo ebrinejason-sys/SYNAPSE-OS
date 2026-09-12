@@ -79,3 +79,6 @@ Live PASS: enrolled admin secret → TOTP → `verifyStepUpMfa` → `hasRecentVe
 
 ## 2026-09-12 — Admin SHA alignment
 Platform Admin production truth now compares GitHub main ↔ Vercel production ↔ process SHA and repo ↔ remote migration heads (RPC). Evidence: `docs/engineering/evidence/admin-sha-alignment-2026-09-12.md`.
+
+## 2026-09-12 — Landing cleanup
+Removed unused `LandingParticleField` component (no remaining imports).
