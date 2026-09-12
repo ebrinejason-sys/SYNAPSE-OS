@@ -3,7 +3,11 @@
 ## Current SHA alignment
 - GitHub `main`: update via `git rev-parse HEAD` after pull
 - Evidence journeys and CI must cite the SHA they ran against
-- Admin should eventually show: GitHub main SHA → Vercel deployed SHA → remote migration ledger head
+- Admin shows: GitHub main SHA → Vercel production SHA → process SHA → remote migration ledger head
+  - Implementation: `apps/web/src/lib/platform/sha-alignment.ts` + `production-truth.ts`
+  - UI: `/platform/deployments` + overview production-truth cards
+  - Remote ledger via `public.synapse_remote_migration_head()` (service_role)
+  - Evidence: `docs/engineering/evidence/admin-sha-alignment-2026-09-12.md`
 
 ## Branch protection — BLOCKED on this repo today
 GitHub API returns HTTP 403 for both classic branch protection and repository rulesets:

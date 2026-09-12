@@ -76,3 +76,6 @@ Live two-tenant referral PASS; clinical offline write-up SyncCommand domain proo
 
 ## 2026-09-12 — MFA step-up live TOTP
 Live PASS: enrolled admin secret → TOTP → `verifyStepUpMfa` → `hasRecentVerifiedMfa` on pilot session. Evidence: `docs/engineering/evidence/mfa-step-up-live-2026-09-12.md`.
+
+## 2026-09-12 — Admin SHA alignment
+Platform Admin production truth now compares GitHub main ↔ Vercel production ↔ process SHA and repo ↔ remote migration heads (RPC). Evidence: `docs/engineering/evidence/admin-sha-alignment-2026-09-12.md`.
