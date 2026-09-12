@@ -6,6 +6,7 @@
 import {
   recordEncounterOpened,
   recordEncounterSigned,
+  recordLabOrderPlaced,
   recordPrescriptionPlaced,
   recordTriageCompleted,
 } from "./clinical-journey"
@@ -16,6 +17,7 @@ import {
   writeupCompleteness,
 } from "./clinical-writeup"
 import { evaluateEncounterCloseGate } from "./encounter-close-gate"
+import { LabWorkflow } from "./lab-workflow"
 import {
   dispensePrescription,
   verifyPrescription,
@@ -58,6 +60,9 @@ export type HospitalGoldenInput = {
   quantity?: number
   availableStock?: number
   consultationFee?: number
+  /** When true, run lab order → collect → result → verify → release → doctor review before pharmacy. */
+  includeLab?: boolean
+  labTechId?: string
 }
 
 function step(
@@ -95,6 +100,8 @@ export function runHospitalGoldenJourney(input: HospitalGoldenInput = {}): Hospi
   const doctorId = input.doctorId ?? seeded.doctorId
   const nurseId = input.nurseId ?? seeded.nurseId
   const pharmacistId = input.pharmacistId ?? seeded.pharmacistId
+  const labTechId = input.labTechId ?? crypto.randomUUID()
+  const includeLab = Boolean(input.includeLab)
   const chiefComplaint = input.chiefComplaint ?? "fever and headache"
   const medicationDisplay = input.medicationDisplay ?? "Paracetamol 500mg"
   const dose = input.dose ?? "1 tablet TID x 3 days"
@@ -186,9 +193,75 @@ export function runHospitalGoldenJourney(input: HospitalGoldenInput = {}): Hospi
       }),
     )
 
+
+    // 4b) Optional lab branch (order → result → release → doctor review)
+    let queueAfterClinical = signed.queue
+    if (includeLab) {
+      const labPlaced = recordLabOrderPlaced({
+        queue: signed.queue,
+        tenantId,
+        hospitalId,
+        patientId,
+        encounterId,
+        requesterId: doctorId,
+        loincCode: "58413-6",
+        testName: "Malaria Pf antigen",
+        urgency: "ROUTINE",
+        correlationId: encounterId,
+        isSynthetic: true,
+      })
+      const lab = labPlaced.lab
+      const orderId = labPlaced.order.id
+      const accession = `SYN-${encounterId.slice(0, 8).toUpperCase()}`
+      lab.collect(orderId, accession, `BC-${accession}`, crypto.randomUUID())
+      lab.receive(orderId)
+      lab.enterResult({ resultId: crypto.randomUUID(), orderId, value: "Negative", analyzer: "synthetic" })
+      lab.verify(orderId, labTechId)
+      const released = lab.release(orderId)
+
+      // Open lab / unreviewed should block close
+      const blockedByLab = evaluateEncounterCloseGate({
+        encounterExists: true,
+        hospitalMatches: true,
+        status: "signed",
+        disposition: "CLINICAL_COMPLETE",
+        openLabOrderIds: [orderId],
+        invoice: { id: "inv-lab", status: "paid", totalAmount: 1, paidAmount: 1 },
+      })
+      if (blockedByLab.ok || blockedByLab.blocking !== "LAB") {
+        steps.push(step("lab_close_gate_blocks_open", "FAIL", "expected LAB block", { decision: blockedByLab }))
+        return { status: "FAIL", correlationId: encounterId, steps, clinicalNote, queue: labPlaced.queue }
+      }
+      const blockedByReview = evaluateEncounterCloseGate({
+        encounterExists: true,
+        hospitalMatches: true,
+        status: "signed",
+        disposition: "CLINICAL_COMPLETE",
+        unreviewedFinalResultIds: [released.id],
+        invoice: { id: "inv-lab", status: "paid", totalAmount: 1, paidAmount: 1 },
+      })
+      if (blockedByReview.ok || blockedByReview.blocking !== "DOCTOR_REVIEW") {
+        steps.push(step("lab_close_gate_blocks_unreviewed", "FAIL", "expected DOCTOR_REVIEW block", { decision: blockedByReview }))
+        return { status: "FAIL", correlationId: encounterId, steps, clinicalNote, queue: labPlaced.queue }
+      }
+
+      // Doctor reviews released result (domain: clears unreviewed set)
+      steps.push(
+        step("lab_order_to_release", "PASS", undefined, {
+          orderId,
+          resultId: released.id,
+          resultValue: released.resultValue,
+          orderStatus: lab.getOrder(orderId).status,
+        }),
+      )
+      steps.push(step("lab_doctor_review", "PASS", undefined, { resultId: released.id }))
+      queueAfterClinical = labPlaced.queue
+    }
+
     // 5–7) Prescribe → verify → dispense
     const placed = recordPrescriptionPlaced({
-      queue: signed.queue,
+      queue: queueAfterClinical,
+
       tenantId,
       hospitalId,
       patientId,

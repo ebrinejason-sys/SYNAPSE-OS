@@ -31,6 +31,7 @@ describe("hospital-golden-journey", () => {
       assert.ok(ids.includes(required), `missing step ${required}`)
     }
     assert.ok(result.steps.every((s) => s.status === "PASS"))
+    assert.ok(!ids.includes("lab_order_to_release"))
   })
 
   it("keeps one correlation id across the journey", () => {
@@ -38,5 +39,18 @@ describe("hospital-golden-journey", () => {
     const result = runHospitalGoldenJourney({ encounterId })
     assert.equal(result.status, "PASS")
     assert.equal(result.correlationId, encounterId)
+  })
+
+  it("optional lab branch blocks close until review then continues", () => {
+    const result = runHospitalGoldenJourney({
+      includeLab: true,
+      quantity: 3,
+      availableStock: 10,
+    })
+    assert.equal(result.status, "PASS", JSON.stringify(result.steps, null, 2))
+    const ids = result.steps.map((s) => s.id)
+    assert.ok(ids.includes("lab_order_to_release"))
+    assert.ok(ids.includes("lab_doctor_review"))
+    assert.ok(ids.includes("encounter_close_allowed"))
   })
 })
