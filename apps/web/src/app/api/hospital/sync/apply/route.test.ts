@@ -11,6 +11,9 @@ const {
   toSyncOutboxRow,
   applyWriteupSyncCommand,
   applyDispositionSyncCommand,
+  applyTriageSyncCommand,
+  triageFromEncounterMetadata,
+  vitalsInsertFromTriage,
   composeClinicalNote,
   writeupFromEncounterMetadata,
 } = vi.hoisted(() => ({
@@ -23,6 +26,9 @@ const {
   toSyncOutboxRow: vi.fn(),
   applyWriteupSyncCommand: vi.fn(),
   applyDispositionSyncCommand: vi.fn(),
+  applyTriageSyncCommand: vi.fn(),
+  triageFromEncounterMetadata: vi.fn(),
+  vitalsInsertFromTriage: vi.fn(),
   composeClinicalNote: vi.fn(),
   writeupFromEncounterMetadata: vi.fn(),
 }))
@@ -71,6 +77,13 @@ vi.mock('@synapse/db/clinical-offline-disposition', () => ({
       'FOLLOW_UP',
       'CLINICAL_COMPLETE',
     ].includes(value),
+}))
+
+vi.mock('@synapse/db/clinical-offline-triage', () => ({
+  CLINICAL_TRIAGE_COMMAND: 'clinical.encounter.triage.v1',
+  applyTriageSyncCommand: (...args: unknown[]) => applyTriageSyncCommand(...args),
+  triageFromEncounterMetadata: (...args: unknown[]) => triageFromEncounterMetadata(...args),
+  vitalsInsertFromTriage: (...args: unknown[]) => vitalsInsertFromTriage(...args),
 }))
 
 vi.mock('@synapse/db/clinical-writeup', () => ({
@@ -505,6 +518,95 @@ describe('POST /api/hospital/sync/apply', () => {
     expect(json.result.disposition).toBe('CLINICAL_COMPLETE')
     expect(applyDispositionSyncCommand).toHaveBeenCalled()
     expect(applyWriteupSyncCommand).not.toHaveBeenCalled()
+  })
+
+
+  it('applies triage SyncCommand and inserts vitals', async () => {
+    requireHospitalStaffContext.mockResolvedValue({
+      tenantId: TENANT,
+      userId: USER,
+      hospitalId: FACILITY,
+    })
+    requireHospitalCapability.mockResolvedValue(null)
+    assertSyncCommand.mockImplementation(() => undefined)
+    hashPayload.mockResolvedValue('hash-ok')
+    toSyncOutboxRow.mockReturnValue({ idempotency_key: CMD })
+    applyTriageSyncCommand.mockReturnValue({
+      encounterId: ENCOUNTER,
+      metadata: { triage: { clinical_stage: 'YELLOW', temperature_c: 38.4 } },
+      clinicalStage: 'YELLOW',
+      isSigned: false,
+      revision: 1,
+    })
+    triageFromEncounterMetadata.mockReturnValue({ clinical_stage: 'YELLOW', temperature_c: 38.4 })
+    vitalsInsertFromTriage.mockReturnValue({ encounter_id: ENCOUNTER, temperature_c: 38.4 })
+    logHospitalAudit.mockResolvedValue(undefined)
+
+    const findChain = chain({ data: null })
+    const insertChain = chain({
+      data: {
+        id: OUTBOX,
+        tenant_id: TENANT,
+        idempotency_key: CMD,
+        payload: {},
+        status: 'queued',
+        applied_at: null,
+        conflict_reason: null,
+      },
+    })
+    const syncingChain = chain({ data: null })
+    const encounterChain = chain({
+      data: {
+        id: ENCOUNTER,
+        metadata: {},
+        is_signed: false,
+        chief_complaint: 'Fever',
+        status: 'open',
+        clinical_stage: null,
+        disposition: null,
+      },
+    })
+    const updateEncounterChain = chain({ data: null })
+    const vitalsInsertChain = chain({ data: { id: 'vitals-1' } })
+    const appliedChain = chain({ data: null })
+
+    let outboxOps = 0
+    let encounterOps = 0
+    dbFrom.mockImplementation((table: string) => {
+      if (table === 'offline_mutation_outbox') {
+        outboxOps += 1
+        if (outboxOps === 1) return findChain
+        if (outboxOps === 2) return insertChain
+        if (outboxOps === 3) return syncingChain
+        return appliedChain
+      }
+      if (table === 'encounters') {
+        encounterOps += 1
+        if (encounterOps === 1) return encounterChain
+        return updateEncounterChain
+      }
+      if (table === 'vitals') return vitalsInsertChain
+      return chain({ data: null })
+    })
+
+    const { POST } = await import('./route')
+    const res = await POST(
+      makeRequest({
+        command: makeCommand({
+          commandType: 'clinical.encounter.triage.v1',
+          payload: {
+            encounter_id: ENCOUNTER,
+            triage: { clinical_stage: 'YELLOW', temperature_c: 38.4 },
+          },
+        }),
+      }),
+    )
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.outcome).toBe('applied')
+    expect(json.result.clinicalStage).toBe('YELLOW')
+    expect(applyTriageSyncCommand).toHaveBeenCalled()
+    expect(vitalsInsertFromTriage).toHaveBeenCalled()
   })
 
 })

@@ -85,3 +85,6 @@ Removed unused `LandingParticleField` component (no remaining imports).
 
 ## 2026-09-12 — Clinical offline disposition SyncCommand
 Domain + HTTP flush for `clinical.encounter.disposition.v1` via hospital sync apply. Evidence: `docs/engineering/evidence/clinical-offline-disposition-2026-09-12.md`.
+
+## 2026-09-12 — Surprise: offline triage + RC1 pulse
+`clinical.encounter.triage.v1` completes the offline clinical trio. Admin deployments page shows evidence-backed RC1 pulse. See `docs/engineering/evidence/clinical-offline-triage-2026-09-12.md` and `rc1-pulse-2026-09-12.md`.

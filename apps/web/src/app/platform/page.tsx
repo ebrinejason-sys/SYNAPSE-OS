@@ -16,6 +16,7 @@ import {
 import { OverviewCommandCenter, type OverviewCommandCenterData, type ProductionTruthCard } from "./_components/overview-command-center";
 import { PRODUCT_MANIFEST, overallPlatformHealth, statusLabel } from "@synapse/config/manifest";
 import { getProductionTruth } from "../../lib/platform/production-truth";
+import { getHospitalPilotRc1Pulse } from "../../lib/platform/rc1-pulse";
 
 type TenantRow = {
   id?: string;
@@ -294,6 +295,8 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
 
   const prodDeploy = productionTruth.vercelDeployments.deployments[0];
 
+  const rc1Pulse = getHospitalPilotRc1Pulse();
+
   const productionTruthCards: ProductionTruthCard[] = [
     {
       label: "GitHub main",
@@ -315,6 +318,13 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
       status: truthCardStatus("sha", productionTruth.releaseAlignment.status === "ALIGNED" ? "MATCH" : productionTruth.releaseAlignment.status === "DRIFT" ? "BEHIND" : "UNKNOWN"),
       href: "/platform/deployments",
       detail: productionTruth.releaseAlignment.detail,
+    },
+    {
+      label: "Hospital Pilot RC1",
+      value: `${rc1Pulse.status} · ${rc1Pulse.passed}/${rc1Pulse.total}`,
+      status: rc1Pulse.status === "PILOT_READY" ? "green" : rc1Pulse.status === "STRONG_YELLOW" ? "amber" : "slate",
+      href: "/platform/deployments",
+      detail: rc1Pulse.detail,
     },
     {
       label: "Admin process",
