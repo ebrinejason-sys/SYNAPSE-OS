@@ -62,3 +62,6 @@ Evidence that supersedes older “migration deadlock / no live clinical proof”
 Still RED / incomplete for RC1: full doctor write-up parity, inpatient lifecycle, referrals, clinical offline, and a single end-to-end Hospital Golden Journey (Reception→…→disposition/payment/close).
 
 Release-control gap: GitHub branch protection/rulesets unavailable on this private free-plan repo — see `docs/engineering/RELEASE_CONTROL.md`.
+
+## 2026-09-12 — Hospital Golden Journey live
+Live synthetic PASS (write-up → dispense → disposition → sign). Domain lab branch + inpatient lifecycle foundation added. See evidence under `docs/engineering/evidence/hospital-golden-live-2026-09-12.md`.

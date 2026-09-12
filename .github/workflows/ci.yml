@@ -40,6 +40,7 @@ jobs:
           npm run test:clinical-writeup
           npm run test:hospital-closeout-golden
           npm run test:hospital-golden-journey
+          npm run test:inpatient-lifecycle
 
       - name: Platform admin guard audit
         run: node scripts/check-platform-admin-guards.mjs

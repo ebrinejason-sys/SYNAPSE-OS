@@ -37,3 +37,6 @@ Every feature: domain logic → HTTP/API proof → live synthetic journey → re
 - Closeout golden: billing balance → payment → disposition → close (`docs/engineering/evidence/hospital-closeout-golden-2026-09-11.md`).
 
 - Full Hospital Golden Journey domain runner (`docs/engineering/evidence/hospital-golden-journey-2026-09-11.md`).
+
+- Live synthetic Hospital Golden Journey PASS (`docs/engineering/evidence/hospital-golden-live-2026-09-12.md`).
+- Domain golden optional lab branch + inpatient admit/transfer/discharge foundation.
