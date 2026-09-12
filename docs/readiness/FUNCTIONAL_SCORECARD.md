@@ -82,3 +82,6 @@ Platform Admin production truth now compares GitHub main ↔ Vercel production �
 
 ## 2026-09-12 — Landing cleanup
 Removed unused `LandingParticleField` component (no remaining imports).
+
+## 2026-09-12 — Clinical offline disposition SyncCommand
+Domain + HTTP flush for `clinical.encounter.disposition.v1` via hospital sync apply. Evidence: `docs/engineering/evidence/clinical-offline-disposition-2026-09-12.md`.

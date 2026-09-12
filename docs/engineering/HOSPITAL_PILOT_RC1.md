@@ -51,3 +51,5 @@ Every feature: domain logic → HTTP/API proof → live synthetic journey → re
 
 - Admin SHA alignment (GitHub ↔ Vercel ↔ process ↔ migration ledger) (`docs/engineering/evidence/admin-sha-alignment-2026-09-12.md`).
 - Stripped unused `LandingParticleField` (landing already quieted in #62).
+
+- Clinical offline disposition SyncCommand (`docs/engineering/evidence/clinical-offline-disposition-2026-09-12.md`).

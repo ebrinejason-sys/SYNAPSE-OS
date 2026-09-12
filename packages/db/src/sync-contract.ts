@@ -23,6 +23,8 @@ export const SYNC_COMMAND_TYPES = [
   "identity.person.register.v1",
   /** Offline clinical write-up draft queued on device; applied with idempotent replay */
   "clinical.encounter.writeup.v1",
+  /** Offline encounter disposition queued on device; applied with idempotent replay */
+  "clinical.encounter.disposition.v1",
   /** Facility-side queued aggregate export; payload must already be privacy-gated */
   "public_health.dhis2_export.v1",
 ] as const
