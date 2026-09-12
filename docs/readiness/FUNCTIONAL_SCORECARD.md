@@ -88,3 +88,6 @@ Domain + HTTP flush for `clinical.encounter.disposition.v1` via hospital sync ap
 
 ## 2026-09-12 — Surprise: offline triage + RC1 pulse
 `clinical.encounter.triage.v1` completes the offline clinical trio. Admin deployments page shows evidence-backed RC1 pulse. See `docs/engineering/evidence/clinical-offline-triage-2026-09-12.md` and `rc1-pulse-2026-09-12.md`.
+
+## 2026-09-12 — Clinical offline prescribe SyncCommand
+`clinical.encounter.prescribe.v1` domain + hospital sync apply. Evidence: `docs/engineering/evidence/clinical-offline-prescribe-2026-09-12.md`.

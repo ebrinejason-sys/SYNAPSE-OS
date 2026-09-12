@@ -27,6 +27,8 @@ export const SYNC_COMMAND_TYPES = [
   "clinical.encounter.disposition.v1",
   /** Offline nurse triage + vitals queued on device; applied with idempotent replay */
   "clinical.encounter.triage.v1",
+  /** Offline prescription placed on device; applied with idempotent replay */
+  "clinical.encounter.prescribe.v1",
   /** Facility-side queued aggregate export; payload must already be privacy-gated */
   "public_health.dhis2_export.v1",
 ] as const

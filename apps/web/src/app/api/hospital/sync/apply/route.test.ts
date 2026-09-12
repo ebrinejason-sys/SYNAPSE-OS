@@ -14,6 +14,8 @@ const {
   applyTriageSyncCommand,
   triageFromEncounterMetadata,
   vitalsInsertFromTriage,
+  applyPrescribeSyncCommand,
+  persistClinicalPrescriptionBestEffort,
   composeClinicalNote,
   writeupFromEncounterMetadata,
 } = vi.hoisted(() => ({
@@ -29,6 +31,8 @@ const {
   applyTriageSyncCommand: vi.fn(),
   triageFromEncounterMetadata: vi.fn(),
   vitalsInsertFromTriage: vi.fn(),
+  applyPrescribeSyncCommand: vi.fn(),
+  persistClinicalPrescriptionBestEffort: vi.fn(),
   composeClinicalNote: vi.fn(),
   writeupFromEncounterMetadata: vi.fn(),
 }))
@@ -84,6 +88,16 @@ vi.mock('@synapse/db/clinical-offline-triage', () => ({
   applyTriageSyncCommand: (...args: unknown[]) => applyTriageSyncCommand(...args),
   triageFromEncounterMetadata: (...args: unknown[]) => triageFromEncounterMetadata(...args),
   vitalsInsertFromTriage: (...args: unknown[]) => vitalsInsertFromTriage(...args),
+}))
+
+vi.mock('@synapse/db/clinical-offline-prescribe', () => ({
+  CLINICAL_PRESCRIBE_COMMAND: 'clinical.encounter.prescribe.v1',
+  applyPrescribeSyncCommand: (...args: unknown[]) => applyPrescribeSyncCommand(...args),
+}))
+
+vi.mock('@synapse/db/prescription-persist', () => ({
+  persistClinicalPrescriptionBestEffort: (...args: unknown[]) =>
+    persistClinicalPrescriptionBestEffort(...args),
 }))
 
 vi.mock('@synapse/db/clinical-writeup', () => ({
@@ -607,6 +621,109 @@ describe('POST /api/hospital/sync/apply', () => {
     expect(json.result.clinicalStage).toBe('YELLOW')
     expect(applyTriageSyncCommand).toHaveBeenCalled()
     expect(vitalsInsertFromTriage).toHaveBeenCalled()
+  })
+
+
+  it('applies prescribe SyncCommand and persists prescription', async () => {
+    requireHospitalStaffContext.mockResolvedValue({
+      tenantId: TENANT,
+      userId: USER,
+      hospitalId: FACILITY,
+    })
+    requireHospitalCapability.mockResolvedValue(null)
+    assertSyncCommand.mockImplementation(() => undefined)
+    hashPayload.mockResolvedValue('hash-ok')
+    toSyncOutboxRow.mockReturnValue({ idempotency_key: CMD })
+    const RX = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+    applyPrescribeSyncCommand.mockReturnValue({
+      aggregate: { encounterId: ENCOUNTER, isSigned: false, prescriptions: [], revision: 1 },
+      prescription: {
+        id: RX,
+        tenantId: TENANT,
+        patientId: '33333333-3333-4333-8333-333333333333',
+        encounterId: ENCOUNTER,
+        medicationDisplay: 'Amoxicillin 500mg',
+        dose: '1 capsule TID',
+        quantity: 15,
+        unit: 'capsule',
+        prescriberId: USER,
+        status: 'active',
+        isSynthetic: false,
+        correlationId: ENCOUNTER,
+      },
+    })
+    persistClinicalPrescriptionBestEffort.mockResolvedValue({ ok: true })
+    logHospitalAudit.mockResolvedValue(undefined)
+
+    const findChain = chain({ data: null })
+    const insertChain = chain({
+      data: {
+        id: OUTBOX,
+        tenant_id: TENANT,
+        idempotency_key: CMD,
+        payload: {},
+        status: 'queued',
+        applied_at: null,
+        conflict_reason: null,
+      },
+    })
+    const syncingChain = chain({ data: null })
+    const encounterChain = chain({
+      data: {
+        id: ENCOUNTER,
+        metadata: {},
+        is_signed: false,
+        chief_complaint: 'Fever',
+        status: 'in_progress',
+        patient_id: '33333333-3333-4333-8333-333333333333',
+        clinical_stage: 'YELLOW',
+        disposition: null,
+      },
+    })
+    const updateEncounterChain = chain({ data: null })
+    const appliedChain = chain({ data: null })
+
+    let outboxOps = 0
+    let encounterOps = 0
+    dbFrom.mockImplementation((table: string) => {
+      if (table === 'offline_mutation_outbox') {
+        outboxOps += 1
+        if (outboxOps === 1) return findChain
+        if (outboxOps === 2) return insertChain
+        if (outboxOps === 3) return syncingChain
+        return appliedChain
+      }
+      if (table === 'encounters') {
+        encounterOps += 1
+        if (encounterOps === 1) return encounterChain
+        return updateEncounterChain
+      }
+      return chain({ data: null })
+    })
+
+    const { POST } = await import('./route')
+    const res = await POST(
+      makeRequest({
+        command: makeCommand({
+          commandType: 'clinical.encounter.prescribe.v1',
+          payload: {
+            encounter_id: ENCOUNTER,
+            patient_id: '33333333-3333-4333-8333-333333333333',
+            prescription_id: RX,
+            medication_display: 'Amoxicillin 500mg',
+            dose: '1 capsule TID',
+            quantity: 15,
+            unit: 'capsule',
+          },
+        }),
+      }),
+    )
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.outcome).toBe('applied')
+    expect(json.result.prescriptionId).toBe(RX)
+    expect(applyPrescribeSyncCommand).toHaveBeenCalled()
+    expect(persistClinicalPrescriptionBestEffort).toHaveBeenCalled()
   })
 
 })
