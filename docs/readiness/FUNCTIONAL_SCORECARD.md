@@ -18,8 +18,8 @@ This scorecard is intentionally conservative. A capability cannot be GREEN from 
 | Billing / disposition | Y | Y | Y | Y | Partial | Y | Y | N | Partial | N/A | YELLOW | Policy and non-revenue paths |
 | Inpatient / discharge | Partial | Partial | Y | Y | Partial | Partial | Partial | N | Partial | N/A | RED | Admission-transfer-discharge lifecycle |
 | Referrals | N | Partial | Y | Partial | N | Partial | N | N | Missing | Partial | RED | Active pages are stubs |
-| Lab worklist | Y | Y | Y | Y | Y | Y | Y | N | Has | Partial | YELLOW | Full specimen and TAT journey |
-| Lab verification / release | Y | Y | Y | Y | Y | Y | Y | N | Has | Has | YELLOW | Amendment and printable report proof |
+| Lab worklist | Y | Y | Y | Y | Y | Y | Y | N | Has | Partial | YELLOW | Domain specimen+TAT golden PASS 2026-09-12; live TAT journey still open |
+| Lab verification / release | Y | Y | Y | Y | Y | Y | Y | N | Has | Has | YELLOW | Domain amend+printable report PASS 2026-09-12; live release journey still open |
 | Lab Edge / analyzer | Y | Y | Y | Y | Partial | Y | Y | N | Better | Partial | YELLOW | End-to-end cloud acceptance |
 | FHIR Lab output | Partial | Y | Y | Y | N/A | Y | Y | N | Better | Partial | YELLOW | Released-result authorization proof |
 | Platform Admin | Y | Y | Y | Y | Y | Y | Y | N | N/A | N/A | YELLOW | Unified readiness evidence |
@@ -47,7 +47,7 @@ This scorecard is intentionally conservative. A capability cannot be GREEN from 
 - Remote migrations: DRIFT until `20260908120000` and `20260909100000` are applied and verified.
 - Dependency security: YELLOW; 77 audit findings are classified in [DEPENDENCY_SECURITY_AUDIT_2026.md](DEPENDENCY_SECURITY_AUDIT_2026.md).
 
-The functional rows remain conservative. Infrastructure proof does not promote clinical write-up, inpatient, referrals, offline, Lab TAT, or ALIS quality/inventory rows to GREEN.
+The functional rows remain conservative. 2026-09-12: Lab domain golden (`lab-golden-journey-2026-09-12.md`) landed for specimen/TAT/amend/report; LIVE_PROOF stays N until a live pilot journey. Infrastructure proof does not promote clinical write-up, inpatient, referrals, offline, Lab TAT, or ALIS quality/inventory rows to GREEN.
 
 
 ## 2026-09-11 UPDATE
