@@ -22,6 +22,11 @@ import {
   vitalsInsertFromTriage,
 } from '@synapse/db/clinical-offline-triage'
 import {
+  CLINICAL_PRESCRIBE_COMMAND,
+  applyPrescribeSyncCommand,
+} from '@synapse/db/clinical-offline-prescribe'
+import { persistClinicalPrescriptionBestEffort } from '@synapse/db/prescription-persist'
+import {
   composeClinicalNote,
   writeupFromEncounterMetadata,
 } from '@synapse/db/clinical-writeup'
@@ -75,7 +80,8 @@ export async function POST(request: NextRequest) {
     command.aggregateType === 'encounter' &&
     (command.commandType === CLINICAL_WRITEUP_COMMAND ||
       command.commandType === CLINICAL_DISPOSITION_COMMAND ||
-      command.commandType === CLINICAL_TRIAGE_COMMAND)
+      command.commandType === CLINICAL_TRIAGE_COMMAND ||
+      command.commandType === CLINICAL_PRESCRIBE_COMMAND)
   if (!supported) {
     return NextResponse.json({ error: 'Unsupported sync command type' }, { status: 400 })
   }
@@ -136,7 +142,7 @@ export async function POST(request: NextRequest) {
   const encounterId = command.aggregateId
   const { data: encounter, error: loadError } = await db()
     .from('encounters')
-    .select('id, metadata, is_signed, chief_complaint, status, clinical_stage, disposition, disposition_reason, disposition_by, disposition_at')
+    .select('id, metadata, is_signed, chief_complaint, status, clinical_stage, patient_id, disposition, disposition_reason, disposition_by, disposition_at')
     .eq('id', encounterId)
     .eq('tenant_id', ctx.tenantId)
     .maybeSingle()
@@ -231,6 +237,44 @@ export async function POST(request: NextRequest) {
         revision: next.revision,
       }
       auditValue = { syncCommandId: command.commandId, triage: true, clinicalStage: next.clinicalStage }
+    } else if (command.commandType === CLINICAL_PRESCRIBE_COMMAND) {
+      const applied = applyPrescribeSyncCommand(
+        {
+          encounterId,
+          isSigned: Boolean(encounter.is_signed),
+          prescriptions: [],
+          revision: 0,
+        },
+        command,
+      )
+      if (encounter.patient_id && applied.prescription.patientId !== encounter.patient_id) {
+        await markOutbox(outbox.id, ctx.tenantId, 'rejected', 'PATIENT_MISMATCH')
+        return NextResponse.json({ error: 'Patient does not match encounter', outcome: 'rejected' }, { status: 400 })
+      }
+      const persistRx = await persistClinicalPrescriptionBestEffort(db(), applied.prescription)
+      if (!persistRx.ok) {
+        await markOutbox(outbox.id, ctx.tenantId, 'queued', persistRx.error)
+        return NextResponse.json({ error: persistRx.error, outcome: 'retry' }, { status: 503 })
+      }
+      updatePayload = {
+        updated_at: new Date().toISOString(),
+        status:
+          encounter.status === 'open' || !encounter.status ? 'in_progress' : encounter.status,
+      }
+      serverResponse = {
+        encounterId,
+        prescriptionId: applied.prescription.id,
+        medicationDisplay: applied.prescription.medicationDisplay,
+        quantity: applied.prescription.quantity,
+        unit: applied.prescription.unit,
+        status: applied.prescription.status,
+        revision: applied.aggregate.revision,
+      }
+      auditValue = {
+        syncCommandId: command.commandId,
+        prescriptionId: applied.prescription.id,
+        medicationDisplay: applied.prescription.medicationDisplay,
+      }
     } else {
       const disposition = String(command.payload.disposition ?? '')
       if (!isClinicalDisposition(disposition)) {

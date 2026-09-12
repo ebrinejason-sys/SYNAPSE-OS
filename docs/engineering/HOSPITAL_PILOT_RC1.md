@@ -56,3 +56,5 @@ Every feature: domain logic → HTTP/API proof → live synthetic journey → re
 
 - Offline triage SyncCommand (`docs/engineering/evidence/clinical-offline-triage-2026-09-12.md`).
 - Admin Hospital Pilot RC1 pulse scoreboard (`docs/engineering/evidence/rc1-pulse-2026-09-12.md`).
+
+- Offline prescribe SyncCommand (`docs/engineering/evidence/clinical-offline-prescribe-2026-09-12.md`).
