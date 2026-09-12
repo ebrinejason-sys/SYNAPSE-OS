@@ -40,3 +40,6 @@ Every feature: domain logic → HTTP/API proof → live synthetic journey → re
 
 - Live synthetic Hospital Golden Journey PASS (`docs/engineering/evidence/hospital-golden-live-2026-09-12.md`).
 - Domain golden optional lab branch + inpatient admit/transfer/discharge foundation.
+
+- Referrals domain + HTTP/UI foundation (`docs/engineering/evidence/referral-lifecycle-2026-09-12.md`).
+- Disposition columns migration applied to pilot Supabase (2026-09-12).

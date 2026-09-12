@@ -57,7 +57,8 @@
     "./clinical-writeup": "./src/clinical-writeup.ts",
     "./hospital-closeout-golden": "./src/hospital-closeout-golden.ts",
     "./hospital-golden-journey": "./src/hospital-golden-journey.ts",
-    "./inpatient-lifecycle": "./src/inpatient-lifecycle.ts"
+    "./inpatient-lifecycle": "./src/inpatient-lifecycle.ts",
+    "./referral-lifecycle": "./src/referral-lifecycle.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",
