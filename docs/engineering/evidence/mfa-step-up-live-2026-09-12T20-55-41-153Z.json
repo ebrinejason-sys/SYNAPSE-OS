@@ -1,0 +1,49 @@
+{
+  "generatedAt": "2026-09-12T20:55:46.106Z",
+  "supabaseProjectId": "qfqakzmjatszisuqjwon",
+  "journey": "mfa-step-up-live-totp",
+  "ok": true,
+  "email": "ebrinetushabe@gmail.com",
+  "userId": "7c7e2db0-94fb-499b-88ad-b75383977f6f",
+  "sessionId": "312a11cd-3603-4009-93cf-425f3ac5b443",
+  "enrollmentId": "895b9447-6929-4828-b42d-67ffda27117a",
+  "codeSource": "generated_from_enrolled_secret_service_role",
+  "steps": [
+    {
+      "name": "load_profile",
+      "ok": true,
+      "userId": "7c7e2db0-94fb-499b-88ad-b75383977f6f",
+      "email": "ebrinetushabe@gmail.com",
+      "is_admin": true
+    },
+    {
+      "name": "load_enrollment",
+      "ok": true,
+      "enrollmentId": "895b9447-6929-4828-b42d-67ffda27117a",
+      "hasSecret": true
+    },
+    {
+      "name": "load_live_session",
+      "ok": true,
+      "sessionId": "312a11cd-3603-4009-93cf-425f3ac5b443",
+      "expires_at": "2026-09-14T10:09:30.072+00:00"
+    },
+    {
+      "name": "generate_totp",
+      "ok": true,
+      "note": "generated from enrolled secret (not logged)"
+    },
+    {
+      "name": "verifyStepUpMfa",
+      "ok": true
+    },
+    {
+      "name": "hasRecentVerifiedMfa",
+      "ok": true
+    }
+  ],
+  "notes": [
+    "Live TOTP step-up PASS via real verifyStepUpMfa + hasRecentVerifiedMfa against pilot DB.",
+    "Code generated from enrolled secret (service role); secret and code are not retained in evidence."
+  ]
+}

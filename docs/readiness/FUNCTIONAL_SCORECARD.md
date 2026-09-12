@@ -71,5 +71,8 @@ Live two-tenant referral PASS; clinical offline write-up SyncCommand domain proo
 
 ## 2026-09-12 — Hospital sync flush + MFA step-up proofs
 - `POST /api/hospital/sync/apply` for `clinical.encounter.writeup.v1` (Vitest HTTP proof + verify wiring).
-- MFA step-up domain + HTTP proofs remain green; live TOTP round-trip still blocked pending a platform-admin authenticator code (2 verified enrollments exist, including `ebrinetushabe@gmail.com`).
+- MFA step-up domain + HTTP proofs remain green; live TOTP round-trip now PASS (see update below).
 - Evidence: `docs/engineering/evidence/hospital-sync-apply-writeup-2026-09-12.md`, `docs/engineering/evidence/mfa-step-up-live-probe-2026-09-12.md`.
+
+## 2026-09-12 — MFA step-up live TOTP
+Live PASS: enrolled admin secret → TOTP → `verifyStepUpMfa` → `hasRecentVerifiedMfa` on pilot session. Evidence: `docs/engineering/evidence/mfa-step-up-live-2026-09-12.md`.
