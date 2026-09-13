@@ -340,5 +340,64 @@ describe("facility-invitations.server", () => {
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.code).toBe("INVITE_NOT_FOUND")
   })
+
+  it("looks up provisioned raw-token invites and treats null password as activation", async () => {
+    const { lookupFacilityInvitation } = await import("./facility-invitations.server")
+    fakeDb.__tables.tenants.push({ id: "hosp-1", name: "Synapsetest", facility_type: "hospital" })
+    fakeDb.__tables.profiles.push({ id: "prov-1", email: "admin@example.test", tenant_id: "hosp-1", password_hash: null })
+    fakeDb.__tables.facility_invitations.push({
+      id: "inv-raw-1",
+      tenant_id: "hosp-1",
+      email: "admin@example.test",
+      full_name: "Admin Person",
+      role: "hospital_admin",
+      invite_token: "raw-token-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      token_hash: null,
+      status: "SENT",
+      expires_at: new Date(Date.now() + 86400000).toISOString(),
+      profile_id: "prov-1",
+      tenants: { name: "Synapsetest" },
+    })
+
+    const missing = await lookupFacilityInvitation("missing-token")
+    expect(missing.ok).toBe(false)
+
+    const found = await lookupFacilityInvitation("raw-token-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    expect(found.ok).toBe(true)
+    if (!found.ok) return
+    expect(found.storage).toBe("invite_token")
+    expect(found.hasExistingAccount).toBe(false)
+    expect(found.email).toBe("admin@example.test")
+  })
+
+  it("activates a provisioned raw-token invite by setting the pre-created profile password", async () => {
+    const { redeemFacilityInvitation } = await import("./facility-invitations.server")
+    fakeDb.__tables.tenants.push({ id: "hosp-1", name: "Synapsetest", facility_type: "hospital" })
+    fakeDb.__tables.profiles.push({ id: "prov-1", email: "admin@example.test", tenant_id: "hosp-1", password_hash: null })
+    fakeDb.__tables.facility_invitations.push({
+      id: "inv-raw-2",
+      tenant_id: "hosp-1",
+      email: "admin@example.test",
+      full_name: "Admin Person",
+      role: "hospital_admin",
+      invite_token: "raw-token-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      token_hash: null,
+      status: "SENT",
+      expires_at: new Date(Date.now() + 86400000).toISOString(),
+      profile_id: "prov-1",
+      tenants: { name: "Synapsetest" },
+    })
+
+    const result = await redeemFacilityInvitation({
+      token: "raw-token-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      password: "supersecret1",
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.profileId).toBe("prov-1")
+    expect(fakeDb.__tables.profiles[0].password_hash).toBeTruthy()
+    expect(fakeDb.__tables.facility_invitations[0].status).toBe("ACCEPTED")
+    expect(fakeDb.__tables.staff_scope_assignments.some((s: { tenant_id: string }) => s.tenant_id === "hosp-1")).toBe(true)
+  })
 })
 
