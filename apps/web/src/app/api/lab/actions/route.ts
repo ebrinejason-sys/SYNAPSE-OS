@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { hasPlatformAdminAccess } from "@/lib/platform/auth"
 import { getSimulationEngine } from "@/lib/platform/simulation-runtime"
 import { requireHospitalStaffContext } from "@/lib/hospital-dept"
-import { isContextError, requireHospitalCapability, gateHospitalModule } from "@/lib/hospital-shared"
+import { isContextError, requireHospitalCapability, gateHospitalModule, requireHospitalAudit, HospitalAuditRequiredError } from "@/lib/hospital-shared"
 import { executeHospitalLabAction } from "@/lib/hospital-lab-db"
 
 export const dynamic = "force-dynamic"
@@ -96,6 +96,8 @@ export async function POST(request: Request) {
   const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, "lab")
   if (moduleBlock) return moduleBlock
 
+  const REQUIRED_AUDIT_ACTIONS = new Set(["verify", "release", "amend"])
+
   try {
     const outcome = await executeHospitalLabAction({
       ctx,
@@ -104,6 +106,33 @@ export async function POST(request: Request) {
       actorId: ctx.userId,
       extra: body,
     })
+
+    if (REQUIRED_AUDIT_ACTIONS.has(action)) {
+      try {
+        await requireHospitalAudit({
+          ctx,
+          action: action === "verify" ? "LAB_RESULT_VERIFIED" : action === "release" ? "LAB_REPORT_RELEASED" : "LAB_RESULT_AMENDED",
+          tableName: "lab_orders",
+          recordId: orderId,
+          newValue: {
+            action,
+            orderStatus: outcome.order?.status ?? null,
+            resultId: outcome.result?.id ?? null,
+            resultStatus: outcome.result?.status ?? null,
+          },
+        })
+      } catch (err) {
+        // Domain write may already be committed; refuse client-visible success so
+        // the caller retries. LabWorkflow transitions are idempotent for verify/
+        // release; amend creates a new result row only when values change.
+        const message = err instanceof HospitalAuditRequiredError ? err.message : "AUDIT_REQUIRED_FAILED"
+        return NextResponse.json(
+          { error: message, code: "AUDIT_REQUIRED_FAILED", outcome: "retry" },
+          { status: 503 },
+        )
+      }
+    }
+
     const response: {
       order: typeof outcome.order
       result: typeof outcome.result

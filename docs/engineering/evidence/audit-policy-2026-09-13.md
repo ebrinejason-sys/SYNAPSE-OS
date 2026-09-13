@@ -12,7 +12,7 @@ Environment: disposable-rc1 (not production / not LIVE_PROOF).
 Required today:
 
 - `POST /api/hospital/sync/apply` write-up, triage, prescribe, disposition
-- Intended next (same helper): lab verify / release / amend
+- `POST /api/lab/actions` for `verify` / `release` / `amend` (`LAB_RESULT_VERIFIED` / `LAB_REPORT_RELEASED` / `LAB_RESULT_AMENDED`)
 
 Best-effort remains on non-transition paths (page views, list loads).
 
@@ -30,3 +30,11 @@ Lost-ack after a successful audit+apply: outbox is `applied`, replay returns `ou
 ## Shared-device / outbox wrap
 
 Parked outbox wrap material is HMAC-SHA256 of `SYNAPSE_JWT_SECRET` over `tenantId|actorId`, issued only on authenticated context/write-up GETs. Another signed-in user receives different material and cannot unwrap. Residual: XSS or the same OS profile can still read origin storage.
+
+## Lab actions retry
+
+`POST /api/lab/actions` for verify/release/amend:
+
+1. Domain write via `executeHospitalLabAction` may commit first.
+2. If `requireHospitalAudit` fails, response is `503` with `code: AUDIT_REQUIRED_FAILED` and `outcome: retry` (no 200 body).
+3. Client/operator must retry the same action. Verify/release are idempotent in LabWorkflow when already in the target state; amend should only create a new result when values change.

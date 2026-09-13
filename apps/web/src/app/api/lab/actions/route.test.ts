@@ -7,6 +7,7 @@ const {
   requireHospitalStaffContext,
   requireHospitalCapability,
   gateHospitalModule,
+  requireHospitalAudit,
   executeHospitalLabAction,
   getSimulationEngine,
 } = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const {
   requireHospitalStaffContext: vi.fn(),
   requireHospitalCapability: vi.fn(),
   gateHospitalModule: vi.fn(),
+  requireHospitalAudit: vi.fn(),
   executeHospitalLabAction: vi.fn(),
   getSimulationEngine: vi.fn(),
 }))
@@ -33,11 +35,19 @@ vi.mock("@/lib/hospital-dept", () => ({
 
 vi.mock("@/lib/hospital-shared", async () => {
   const { NextResponse } = await import("next/server")
+  class HospitalAuditRequiredError extends Error {
+    constructor(message: string) {
+      super(message)
+      this.name = "HospitalAuditRequiredError"
+    }
+  }
   return {
     isContextError: (value: unknown): value is InstanceType<typeof NextResponse> =>
       value instanceof NextResponse,
     requireHospitalCapability: (...args: unknown[]) => requireHospitalCapability(...args),
     gateHospitalModule: (...args: unknown[]) => gateHospitalModule(...args),
+    requireHospitalAudit: (...args: unknown[]) => requireHospitalAudit(...args),
+    HospitalAuditRequiredError,
   }
 })
 
@@ -72,6 +82,7 @@ describe("POST /api/lab/actions", () => {
     hasPlatformAdminAccess.mockReturnValue(false)
     requireHospitalCapability.mockResolvedValue(null)
     gateHospitalModule.mockResolvedValue(null)
+    requireHospitalAudit.mockResolvedValue(undefined)
     executeHospitalLabAction.mockResolvedValue({
       order: { id: ORDER, tenantId: TENANT_A, status: "COLLECTED" },
       result: null,
@@ -204,4 +215,46 @@ describe("POST /api/lab/actions", () => {
       }),
     )
   })
+  it("requires durable audit before verify success", async () => {
+    getCurrentUser.mockResolvedValue({ id: USER, role: "lab_scientist", email: "s@example.test" })
+    requireHospitalStaffContext.mockResolvedValue(staff("lab_scientist"))
+    executeHospitalLabAction.mockResolvedValue({
+      order: { id: ORDER, tenantId: TENANT_A, status: "VERIFIED" },
+      result: { id: "result-1", status: "VERIFIED" },
+      warnings: [],
+    })
+    const { POST } = await import("./route")
+    const res = await POST(
+      new Request("https://synapseos.tech/api/lab/actions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ orderId: ORDER, action: "verify" }),
+      }),
+    )
+    expect(res.status).toBe(200)
+    expect(requireHospitalAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "LAB_RESULT_VERIFIED", recordId: ORDER }),
+    )
+  })
+
+  it("refuses verify success when required audit fails (retry)", async () => {
+    getCurrentUser.mockResolvedValue({ id: USER, role: "lab_scientist", email: "s@example.test" })
+    requireHospitalStaffContext.mockResolvedValue(staff("lab_scientist"))
+    const { HospitalAuditRequiredError } = await import("@/lib/hospital-shared")
+    requireHospitalAudit.mockRejectedValue(new HospitalAuditRequiredError("audit insert failed"))
+    const { POST } = await import("./route")
+    const res = await POST(
+      new Request("https://synapseos.tech/api/lab/actions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ orderId: ORDER, action: "verify" }),
+      }),
+    )
+    expect(res.status).toBe(503)
+    const body = await res.json()
+    expect(body.code).toBe("AUDIT_REQUIRED_FAILED")
+    expect(body.outcome).toBe("retry")
+    expect(executeHospitalLabAction).toHaveBeenCalled()
+  })
+
 })
