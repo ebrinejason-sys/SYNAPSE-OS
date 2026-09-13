@@ -1,68 +1,49 @@
----
-result: PARTIAL
-environment: disposable-rc1
-sha: 385b9c7e60e089eb68c70d540957213fd534d0fa
-scope: browser-lab-ui+offline-writeup-partial
-recordedAt: 
-proofKind: browser
-browserLabJourney: PASS
-browserOfflineWriteup: PARTIAL
-rc1Complete: false
----
+# RC1 browser lab + offline acceptance (disposable-rc1)
 
-# Browser + security acceptance (disposable-rc1) — 2026-09-13
-
-## Environment (reduced schema — NOT production parity)
-- Branch tip before these commits: ``
-- Next `http://127.0.0.1:3011` + PostgREST `54321` + `/rest/v1` proxy `54322`
-- Disposable Postgres docker label `synapse.disposable-test=true` (name confirmed via `docker ps` + inspect, not blind `/tmp` rm)
-- Missing full migration history tables (e.g. `department_tasks`, `synapse_domain_events`, `billing_invoices`) — journeyWarnings only; HTTP/browser PASS ≠ full schema reproducibility
-- Pilot project `qfqakzmjatszisuqjwon` **not** touched; no push/PR/deploy
+- **Branch:** `feat/rc1-lab-offline-acceptance`
+- **Baseline tip when evidence captured:** post-blocker commits on this branch (see git log after `3df6697`)
+- **Env:** disposable Postgres `synapse-rc1-lab-1433489` + PostgREST + Node `/rest/v1` proxy `:54322` + Next `:3011`
+- **Not:** pilot/production Supabase, full migration parity, LIVE_PROOF, or deploy
 
 ## Commands
-- `node scripts/rc1-browser-lab-acceptance.mjs`
-- `node scripts/rc1-browser-offline-writeup.mjs`
-- Concurrent replace: two parallel `POST /api/opd/lab-orders` with same `replaces_lab_order_id` → **201 + 409**, one open child
-- Cross-facility replace → **404** `Replaced lab order not found`
-- Cross-facility collect → **400** `LAB_ORDER_NOT_FOUND`
-- Signed encounter sync/apply → **409** `ENCOUNTER_SIGNED_IMMUTABLE`
-- Focused: `npm run test:lab-actions` (6), `test:rc1-pulse` (4), `test:clinical-offline-writeup` (1), `test:hospital-sync-apply` (11), close route (3) — all PASS
-- `npm run type-check --workspace @synapse/web` — PASS
-- `npm run lint --workspace @synapse/web` — **FAIL tooling**: ESLint 9 `ajv` `defaultMeta` TypeError (environment), not a rule violation report
 
-## Lab browser UI — PASS
-Screenshots under `docs/engineering/evidence/browser-2026-09-13/`.
-Flow exercised via Playwright against real pages `/lab/orders`, `/lab/verify`, `/lab/results`, `/encounter/{id}/notes`:
-collect → receive → **Reject** (new UI) → doctor replacement → collect/receive/enter → lab_tech verify denied → scientist verify/release → **Amend** (new UI).
-DB: parent `REJECTED`; child `AMENDED` with `replaces_lab_order_id`; result `Negative`/`corrected` v2; reports FINAL v1 + AMENDED v2.
+```bash
+node scripts/rc1-browser-lab-acceptance.mjs
+node scripts/rc1-browser-offline-writeup.mjs
+npx vitest run apps/web/src/app/api/hospital/sync/apply/route.test.ts \
+  apps/web/src/lib/clinical-offline/local-storage-outbox-store.test.ts
+npm run lint --workspace @synapse/web
+```
 
-## Offline browser — PARTIAL
-PASS: offline save shows queued/not server-saved; AES-GCM ciphertext in tenant+actor localStorage key; no plaintext HPI; session key in sessionStorage while active; no other-actor keys; reconnect UI usable; **Sign out parks outbox + clears session key + retains keyMaterial for same-actor restore**.
-LIMIT: Playwright cannot `reload` while `setOffline(true)` (`ERR_INTERNET_DISCONNECTED`) — used storage surrogate.
-NOT DONE: lost-ack/retry UI matrix, conflict UI surfacing, facility switch, prescribe UI E2E, full flush-after-reconnect assertion of single server row.
+## Results
 
-## Security review
-### Encrypted outbox
-- Key in `sessionStorage`; ciphertext in `localStorage` scoped `tenantId:actorId`.
-- Logout parks + clears live key; park blob now includes `keyMaterial` so same actor can restore after re-login (**residual risk**: same browser profile can read park+key from localStorage — better than silent PHI loss; not a cross-user web session leak if park keys differ by actor).
-- XSS while logged in can still read session key (inherent to browser crypto).
+| Area | Result | Notes |
+| --- | --- | --- |
+| Lab browser UI journey | **PASS** 12/12 | collect→reject→replacement→result→tech deny→sci release→amend; cross-facility collect 400; unauth denied |
+| Offline queue + encrypt | **PASS** | AES-GCM outbox; no plaintext HPI in localStorage |
+| Real disconnected reload | **PASS** | SW v3 caches notes shell + `/_next/static`; encrypted draft snapshot restores queued HPI |
+| Reconnect UI | **PASS** | notes usable after `setOffline(false)` |
+| Logout park wrap | **PASS** | ciphertext + wrap/wrapIv; **no** `keyMaterial`; session key cleared |
+| Required audit (unit) | **PASS** | sync/apply refuses `ok:true` when `requireHospitalAudit` fails; outbox left queued for idempotent retry |
+| ESLint/ajv | **PASS** | `nest-eslint-ajv6` nests ajv@6.12.6; `npm run lint --workspace @synapse/web` exit 0 |
+| `verify:web` | **PASS** | type-check + next build OK during full verify attempt |
+| Full `npm run verify` | **FAIL (env)** | `verify:pharmacy` 4 integration suites fail against reduced disposable schema (missing `dob` / `pharmacy_products` / `hospitals`). `test:control-plane` invitation integration 7 fails similarly (`createFacilityInvitation` → ok false). Domain unit suites after pharmacy **PASS**. |
+| Reduced schema ≠ prod | **NOT VERIFIED** as production | documented |
 
-### logHospitalAudit
-- Replaced invalid `.catch` on PostgREST builder with try/catch; still **best-effort** (does not fail clinical writes if `audit_log` missing). Disposable DB lacked `audit_log` initially — created for acceptance. Does **not** claim immutable audit under reduced schema.
+## Shared-device threat model (parked outbox)
 
-### Route consolidation `[encounterId]` → `[id]`
-- No leftover `[encounterId]` directory; close/disposition/sign/write-up/amend under `[id]`; close tests PASS.
+- Wrap material = HMAC-SHA256(`SYNAPSE_JWT_SECRET`, `tenantId|actorId`) issued only on authenticated context/write-up GET.
+- Another signed-in user gets different wrap material and cannot unwrap parked ciphertext.
+- Residual: XSS or same OS user/profile can read origin storage (IndexedDB/localStorage/sessionStorage). Not OS multi-user isolation.
 
-### Replacement constraints
-- Concurrent open replacements: one succeeds, one 409.
-- Cross-facility parent: 404.
+## Audit policy
 
-## Remaining blockers (RC1 not complete)
-1. Prescribe offline UI E2E
-2. Offline conflict / lost-ack / facility-switch browser matrix
-3. Full `npm run verify` + production build confirmation
-4. Lint toolchain repair (ajv/eslint)
-5. Disposable ≠ production schema; do not promote LIVE_PROOF from this alone without named full-stack env
+See `docs/engineering/evidence/audit-policy-2026-09-13.md`.
 
-## Staging recommendation
-**No-go** for RC1 finish line / production-ready. Disposable browser lab path is strong evidence for lab UI+auth negatives; offline is partial; reduced schema caveats apply.
+## Screenshots / logs
+
+`docs/engineering/evidence/browser-2026-09-13/` including `12-offline-reload.png`, `14-after-logout-park.png`, `offline-browser-log.txt`, `lab-browser-log.txt`.
+
+## RC1 stance
+
+**No-go** for production/LIVE_PROOF. Disposable browser + HTTP evidence is strong for the vertical slices tested; full verify is blocked by disposable schema coupling; lost-ack / signed-record UI+DB matrix and facility-switch E2E remain thinner than a release gate.

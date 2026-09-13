@@ -1,0 +1,12 @@
+PASS tech worklist loads order — Synapse Lab worklistNew external referralOrder → collection → receipt → result → verification. Verified results are neve
+PASS browser patient card visible
+PASS collect+receive via UI
+PASS reject via UI — Synapse Lab worklistNew external referralOrder → collection → receipt → result → verification. Verified results are never silently overwritten. AI cannot releas
+PASS doctor notes page — ← EncounterClinical write-upChief complaint: RC1 browser lab11% complete1/9 sectionsHistory of present illnessFilledOnse
+PASS doctor replacement order — {"status":409,"body":{"error":"Open replacement already exists for this rejected order","existingOrderId":"7fe8b7e0-ffac-4b2e-8bbd-72e196472f16"}}
+PASS replacement collect/receive/enter via UI
+PASS lab_tech verify denied in UI — Synapse Lab worklistNew external referralOrder → collection → receipt → result → verification. Verified results are never silently overwritten. AI cannot release laboratory results
+PASS scientist verify/release via UI
+PASS amend via results UI
+PASS cross-facility collect denied — {"status":400,"body":{"error":"LAB_ORDER_NOT_FOUND"}}
+PASS unauth worklist denied — SynapseOSWelcome backSign in to your Synapse accountPasswordEmail CodePhone CodeEmail addressPasswordForgot password?Sig

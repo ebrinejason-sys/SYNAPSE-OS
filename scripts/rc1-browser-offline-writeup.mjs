@@ -18,8 +18,40 @@ await context.addCookies([
 const page = await context.newPage()
 
 await page.goto(`${BASE}/encounter/${ENC}/notes`, { waitUntil: 'networkidle' })
+await page.evaluate(async () => {
+  if (!('serviceWorker' in navigator)) return
+  const regs = await navigator.serviceWorker.getRegistrations()
+  for (const r of regs) await r.update()
+  const keys = await caches.keys()
+  // Drop v1 shells so network-first v2 can populate
+  await Promise.all(keys.filter((k) => k.includes('shell-v1') || k.includes('api-v1')).map((k) => caches.delete(k)))
+})
+await page.reload({ waitUntil: 'networkidle' })
+await page.waitForFunction(() => {
+  const t = document.querySelector('main')?.textContent || ''
+  return /Clinical write-up/i.test(t) && !/Loading clinical write-up/i.test(t)
+}, { timeout: 20000 })
+// Warm SW asset cache: ensure controller + second pass so /_next/static chunks are stored.
+await page.evaluate(async () => {
+  if (!('serviceWorker' in navigator)) return
+  await navigator.serviceWorker.register('/sw-hospital-clinical.js')
+  await navigator.serviceWorker.ready
+})
+await page.reload({ waitUntil: 'networkidle' })
+await page.waitForFunction(() => {
+  const t = document.querySelector('main')?.textContent || ''
+  return /Clinical write-up/i.test(t) && !/Loading clinical write-up/i.test(t)
+}, { timeout: 20000 })
+const assetCacheCount = await page.evaluate(async () => {
+  const keys = await caches.keys()
+  const assetKey = keys.find((k) => k.includes('assets'))
+  if (!assetKey) return 0
+  const cache = await caches.open(assetKey)
+  return (await cache.keys()).length
+})
+step('SW cached next static assets', assetCacheCount > 0, `assets=${assetCacheCount}`)
 await page.screenshot({ path: `${OUT}/10-offline-notes-online.png`, fullPage: true })
-step('notes page online', /Clinical write-up|write-up/i.test(await page.textContent('main') || ''))
+step('notes page online', /Clinical write-up/i.test(await page.textContent('main') || '') && !/Loading clinical write-up/i.test(await page.textContent('main') || ''))
 
 await page.context().setOffline(true)
 const stamp = `Browser offline HPI ${Date.now()}`
@@ -61,8 +93,42 @@ if (outboxKeys[0]) {
 }
 step('session crypto key in sessionStorage while active', !!sessionKey)
 
-// Simulate "reload offline" by re-reading storage (Playwright cannot document-reload while offline)
-step('offline reload surrogate: storage still present', outboxKeys.length >= 1)
+// Real disconnected reload (service worker + encrypted draft snapshot).
+// Wait for SW control then reload while still offline.
+await page.waitForTimeout(500)
+const swReady = await page.evaluate(async () => {
+  if (!('serviceWorker' in navigator)) return false
+  const reg = await navigator.serviceWorker.getRegistration()
+  return Boolean(reg)
+})
+const preReload = await page.evaluate(() => ({
+  identitySession: sessionStorage.getItem('synapse.hospital.clinical.identity.v1'),
+  identityLocal: localStorage.getItem('synapse.hospital.clinical.identity.v1'),
+  sessionKey: !!sessionStorage.getItem('synapse.hospital.clinical.sessionKey.v1'),
+  draftKeys: Object.keys(localStorage).filter((k) => k.includes('writeup-draft')),
+  online: navigator.onLine,
+}))
+step('pre-reload identity+draft present', !!(preReload.identitySession || preReload.identityLocal) && preReload.draftKeys.length > 0 && preReload.sessionKey, JSON.stringify(preReload).slice(0, 240))
+step('service worker registered for offline shell', swReady)
+let reloadOk = false
+let reloadText = ''
+try {
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 20000 })
+  await page.waitForFunction(() => {
+    const t = document.querySelector('main')?.textContent || ''
+    return t && !/^\s*Loading clinical write-up/i.test(t)
+  }, { timeout: 15000 }).catch(() => null)
+  await page.waitForTimeout(500)
+  reloadText = (await page.textContent('main')) || ''
+  const stillLoading = /^\s*Loading clinical write-up/i.test(reloadText)
+  reloadOk = !stillLoading && /Clinical write-up|Showing last local draft|Queued offline|pending offline|write-up unavailable|Failed to load/i.test(reloadText)
+  step('real offline reload leaves loading state', reloadOk, reloadText.slice(0, 220))
+  step('offline reload keeps queued stamp visible', reloadText.includes(stamp), reloadText.slice(0, 180))
+} catch (err) {
+  step('real offline reload leaves loading state', false, String(err).slice(0, 200))
+  step('offline reload keeps queued stamp visible', false, 'reload threw')
+}
+await page.screenshot({ path: `${OUT}/12-offline-reload.png`, fullPage: true })
 
 // Account switch surrogate: other actor key absent
 const otherActorLeak = Object.keys(storageOffline.ls).some((k) => k.includes('hospital.clinical') && k.includes('a1111111'))
@@ -70,32 +136,24 @@ step('no other-actor outbox keys visible', !otherActorLeak)
 
 await page.context().setOffline(false)
 await page.reload({ waitUntil: 'networkidle' })
-await page.waitForTimeout(2000)
+await page.waitForTimeout(2500)
 await page.evaluate(() => {
   const buttons = [...document.querySelectorAll('button')]
-  const b = buttons.find((x) => /sync|flush|retry/i.test(x.textContent || ''))
+  const b = buttons.find((x) => /sync|flush|retry|save/i.test(x.textContent || ''))
   if (b) b.click()
 })
-await page.waitForTimeout(1500)
+await page.waitForTimeout(2000)
 await page.screenshot({ path: `${OUT}/13-offline-reconnected.png`, fullPage: true })
 const online = await page.textContent('main')
 step('reconnect UI still usable', /write-up|HPI|Clinical/i.test(online || ''), (online || '').slice(0, 180))
 
 // Logout park
-await page.goto(`${BASE}/lab/orders`, { waitUntil: 'networkidle' })
-const signedOut = await page.evaluate(async () => {
-  // Seed a fake pending by keeping existing storage then call park via sign-out helper path
-  const res = await fetch('/api/auth/logout', { method: 'POST' })
-  return res.status
-})
-// Use UI sign out with park helper — re-auth first
 await context.clearCookies()
 await context.addCookies([
   { name: 'synapse_session', value: token, domain: '127.0.0.1', path: '/', sameSite: 'Lax' },
   { name: 'synapse_session', value: token, domain: 'localhost', path: '/', sameSite: 'Lax' },
 ])
 await page.goto(`${BASE}/lab/orders`, { waitUntil: 'networkidle' })
-// put a dummy parked marker by calling park through page if module not exposed — check signOut button uses helper
 const hasSignOut = await page.getByRole('button', { name: /Sign out/i }).count()
 step('lab sign out control present', hasSignOut > 0)
 if (hasSignOut) {
@@ -122,6 +180,7 @@ if (hasSignOut) {
       checkpoints: {},
     }))
     sessionStorage.setItem('synapse.hospital.clinical.sessionKey.v1', btoa('12345678901234567890123456789012'))
+    sessionStorage.setItem('synapse.hospital.clinical.wrapMaterial.v1', btoa('wrap-material-actor-a-32-bytes!!'))
   })
   await page.getByRole('button', { name: /Sign out/i }).click()
   await page.waitForTimeout(1000)
@@ -136,7 +195,8 @@ if (hasSignOut) {
   step('logout clears live session key', !after.key)
   if (after.parked) {
     const park = JSON.parse(after.parked)
-    step('park retains keyMaterial for same-actor restore', typeof park.keyMaterial === 'string' && park.keyMaterial.length > 0)
+    step('park has no raw keyMaterial', park.keyMaterial == null)
+    step('park has wrap ciphertext for restore', typeof park.wrap === 'string' && typeof park.wrapIv === 'string')
   }
   await page.screenshot({ path: `${OUT}/14-after-logout-park.png`, fullPage: true })
 }
