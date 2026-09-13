@@ -1,7 +1,7 @@
 ---
 result: PARTIAL
 environment: disposable-rc1
-sha: 
+sha: b61ac4854645daefebbc5472d701cf393cb7cd71
 scope: browser-lab-ui+offline-writeup-partial
 recordedAt: 
 proofKind: browser
