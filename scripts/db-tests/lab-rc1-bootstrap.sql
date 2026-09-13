@@ -228,3 +228,6 @@ create table if not exists public.audit_log (
   created_by uuid,
   created_at timestamptz not null default now()
 );
+
+alter table public.tenants add column if not exists status text not null default 'active';
+

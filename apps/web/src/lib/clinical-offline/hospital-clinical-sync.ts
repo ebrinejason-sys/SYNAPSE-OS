@@ -20,6 +20,7 @@ import {
   getOrCreateHospitalDeviceId,
   getParkedHospitalClinicalCount,
   parkHospitalClinicalOutbox,
+  restoreParkedHospitalClinicalOutbox,
 } from './local-storage-outbox-store'
 
 export type HospitalClinicalSyncContext = {
@@ -140,6 +141,10 @@ export function isBrowserOffline(): boolean {
 
 export function parkHospitalClinicalQueueForUser(ctx: HospitalClinicalSyncContext) {
   return parkHospitalClinicalOutbox(ctx.tenantId, ctx.actorId)
+}
+
+export function restoreHospitalClinicalQueueForUser(ctx: HospitalClinicalSyncContext) {
+  return restoreParkedHospitalClinicalOutbox(ctx.tenantId, ctx.actorId)
 }
 
 export function parkedHospitalClinicalCount(ctx: HospitalClinicalSyncContext) {

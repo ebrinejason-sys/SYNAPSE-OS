@@ -25,16 +25,39 @@ type ResultRow = {
 export default function LabResultsPage() {
   const [rows, setRows] = useState<ResultRow[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [amendValue, setAmendValue] = useState("Negative")
+  const [busy, setBusy] = useState<string | null>(null)
+
+  async function refresh() {
+    const res = await fetch("/api/lab/results", { cache: "no-store" })
+    if (!res.ok) throw new Error("unauthorized")
+    const data = (await res.json()) as { results: ResultRow[] }
+    setRows(data.results ?? [])
+    setError(null)
+  }
 
   useEffect(() => {
-    fetch("/api/lab/results", { cache: "no-store" })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("unauthorized")
-        const data = (await res.json()) as { results: ResultRow[] }
-        setRows(data.results ?? [])
-      })
-      .catch(() => setError("Sign in as lab staff to load results."))
+    refresh().catch(() => setError("Sign in as lab staff to load results."))
   }, [])
+
+  async function amend(orderId: string) {
+    setBusy(orderId)
+    setError(null)
+    try {
+      const res = await fetch("/api/lab/actions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ orderId, action: "amend", value: amendValue, note: "Amended from results UI" }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "amend_failed")
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "amend_failed")
+    } finally {
+      setBusy(null)
+    }
+  }
 
   return (
     <main className="clinical-page p-8">
@@ -56,6 +79,14 @@ export default function LabResultsPage() {
       </div>
 
       {error ? <p className="mt-4 text-sm text-amber-300">{error}</p> : null}
+      <label className="mt-4 block text-xs text-muted-color">
+        Amend value
+        <input
+          value={amendValue}
+          onChange={(e) => setAmendValue(e.target.value)}
+          className="ml-2 rounded border border-subtle bg-elevated px-2 py-1 text-primary-color"
+        />
+      </label>
 
       <div className="mt-8 overflow-x-auto">
         <table className="w-full text-left text-sm">
@@ -67,6 +98,7 @@ export default function LabResultsPage() {
               <th className="px-2 py-2">Flags</th>
               <th className="px-2 py-2">Source</th>
               <th className="px-2 py-2">Status</th>
+              <th className="px-2 py-2">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -102,6 +134,20 @@ export default function LabResultsPage() {
                   {r.analyzer ? <p className="text-muted-color">{r.analyzer}</p> : null}
                 </td>
                 <td className="px-2 py-3 text-xs uppercase">{r.status}</td>
+                <td className="px-2 py-3">
+                  {["final", "corrected", "FINAL", "AMENDED", "released"].includes(r.status) || r.verified_at ? (
+                    <button
+                      type="button"
+                      disabled={busy === r.lab_order_id}
+                      className="rounded border border-edge px-2 py-1 text-xs disabled:opacity-50"
+                      onClick={() => amend(r.lab_order_id)}
+                    >
+                      Amend
+                    </button>
+                  ) : (
+                    <span className="text-xs text-muted-color">—</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

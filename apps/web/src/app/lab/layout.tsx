@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { Beaker, ClipboardList, FlaskConical, Gauge, Microscope, ShieldCheck } from "lucide-react"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { SynapseLogo } from "@/components/SynapseLogo"
+import { signOutHospitalClinical } from "@/lib/clinical-offline/sign-out-hospital"
 
 const links = [
   { href: "/lab/orders", label: "Worklist", icon: ClipboardList },
@@ -34,7 +35,7 @@ export default function LabLayout({ children }: { children: React.ReactNode }) {
   }, [])
 
   async function signOut() {
-    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined)
+    await signOutHospitalClinical()
     router.push("/login")
     router.refresh()
   }

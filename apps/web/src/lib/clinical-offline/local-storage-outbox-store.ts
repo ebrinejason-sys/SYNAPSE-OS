@@ -54,6 +54,8 @@ type ParkedBucket = {
   tenantId: string
   actorId: string
   records: Record<string, StoredRecord>
+  /** Session AES key material so the same actor can restore after re-login. Cleared from sessionStorage on park. */
+  keyMaterial: string | null
 }
 
 const PREFIX = 'synapse.hospital.clinical.outbox.v2'
@@ -152,17 +154,19 @@ export function parkHospitalClinicalOutbox(tenantId: string, actorId: string): {
     window.localStorage.removeItem(storageKey(tenantId, actorId))
     return { parked: 0, parkKey: '' }
   }
-  const parked: ParkedBucket = {
+  const parked: Omit<ParkedBucket, 'keyMaterial'> = {
     version: 2,
     parkedAt: new Date().toISOString(),
     tenantId,
     actorId,
     records: Object.fromEntries(pending.map((r) => [r.commandId, r])),
   }
+  const keyMat = window.sessionStorage?.getItem(SESSION_KEY_MATERIAL) ?? null
+  const parkedWithKey: ParkedBucket = { ...parked, keyMaterial: keyMat }
   const key = parkKey(tenantId, actorId)
-  window.localStorage.setItem(key, JSON.stringify(parked))
+  window.localStorage.setItem(key, JSON.stringify(parkedWithKey))
   window.localStorage.removeItem(storageKey(tenantId, actorId))
-  // Drop session crypto key so another browser user cannot decrypt parked ciphertext.
+  // Drop live session key; same actor restores via keyMaterial in the park blob.
   window.sessionStorage?.removeItem(SESSION_KEY_MATERIAL)
   return { parked: pending.length, parkKey: key }
 }
@@ -185,6 +189,33 @@ export function discardParkedHospitalClinicalOutbox(tenantId: string, actorId: s
   window.localStorage.removeItem(parkKey(tenantId, actorId))
 }
 
+/** Restore parked outbox for the same actor after re-login (reinstalls crypto key). */
+export function restoreParkedHospitalClinicalOutbox(tenantId: string, actorId: string): {
+  restored: number
+} {
+  if (typeof window === 'undefined' || !window.localStorage) return { restored: 0 }
+  const key = parkKey(tenantId, actorId)
+  const raw = window.localStorage.getItem(key)
+  if (!raw) return { restored: 0 }
+  try {
+    const parked = JSON.parse(raw) as ParkedBucket
+    if (parked.tenantId !== tenantId || parked.actorId !== actorId) return { restored: 0 }
+    if (parked.keyMaterial) {
+      window.sessionStorage?.setItem(SESSION_KEY_MATERIAL, parked.keyMaterial)
+    }
+    const active = readBucket(tenantId, actorId)
+    for (const [id, row] of Object.entries(parked.records ?? {})) {
+      if (!active.records[id]) active.records[id] = row
+    }
+    writeBucket(tenantId, actorId, active)
+    window.localStorage.removeItem(key)
+    return { restored: Object.keys(parked.records ?? {}).length }
+  } catch {
+    return { restored: 0 }
+  }
+}
+
+
 export function clearHospitalClinicalOutbox(tenantId: string, actorId: string): void {
   // Backward-compatible name: park instead of destroy.
   parkHospitalClinicalOutbox(tenantId, actorId)
@@ -206,6 +237,7 @@ export class LocalStorageSyncOutboxStore implements SyncOutboxStore {
   ) {}
 
   async initialize(): Promise<void> {
+    restoreParkedHospitalClinicalOutbox(this.tenantId, this.actorId)
     writeBucket(this.tenantId, this.actorId, readBucket(this.tenantId, this.actorId))
     await getSessionCryptoKey()
   }
