@@ -29,12 +29,11 @@ describe('facility staff security and laboratory landing', () => {
     expect(route).not.toContain('hashPassword')
     expect(route).not.toContain('tempPassword')
   })
-  it('keeps redeem on the hardened register helper (no legacy password overwrite)', () => {
+  it('keeps redeem on the invitation redeem helper (no inline password overwrite)', () => {
     const redeem = readFileSync(join(process.cwd(), 'apps/web/src/app/api/invite/facility/redeem/route.ts'), 'utf8')
-    expect(redeem).toContain('registerFacilityInvitationNewAccount')
-    expect(redeem).toContain('lookupFacilityInvitation')
+    expect(redeem).toContain('redeemFacilityInvitation')
     expect(redeem).not.toMatch(/\.eq\([\"']invite_token[\"']\)/)
-expect(redeem).not.toMatch(/invite_token:\s/)
+    expect(redeem).not.toMatch(/invite_token:\s/)
     expect(redeem).not.toContain('password_hash')
     expect(redeem).not.toContain('onboarding_complete: true')
   })
