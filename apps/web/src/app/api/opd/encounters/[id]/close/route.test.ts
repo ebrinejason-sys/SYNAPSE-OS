@@ -77,7 +77,7 @@ function tableMock(handlers: Record<string, { data?: unknown; error?: unknown }>
   }
 }
 
-describe("POST /api/opd/encounters/[encounterId]/close", () => {
+describe("POST /api/opd/encounters/[id]/close", () => {
   beforeEach(() => {
     requireHospitalCapability.mockResolvedValue(null)
     gateHospitalModule.mockResolvedValue(null)
@@ -95,7 +95,7 @@ describe("POST /api/opd/encounters/[encounterId]/close", () => {
     requireHospitalStaffContext.mockResolvedValue(denied)
     const { POST } = await import("./route")
     const res = await POST(new NextRequest("https://synapseos.tech/api/opd/encounters/x/close", { method: "POST" }), {
-      params: Promise.resolve({ encounterId: ENCOUNTER }),
+      params: Promise.resolve({ id: ENCOUNTER }),
     })
     expect(res.status).toBe(401)
     expect(dbFrom).not.toHaveBeenCalled()
@@ -117,7 +117,7 @@ describe("POST /api/opd/encounters/[encounterId]/close", () => {
     )
     const { POST } = await import("./route")
     const res = await POST(new NextRequest("https://synapseos.tech/api/opd/encounters/x/close", { method: "POST" }), {
-      params: Promise.resolve({ encounterId: ENCOUNTER }),
+      params: Promise.resolve({ id: ENCOUNTER }),
     })
     expect(res.status).toBe(409)
     const json = await res.json()
@@ -140,7 +140,7 @@ describe("POST /api/opd/encounters/[encounterId]/close", () => {
     )
     const { POST } = await import("./route")
     const res = await POST(new NextRequest("https://synapseos.tech/api/opd/encounters/x/close", { method: "POST" }), {
-      params: Promise.resolve({ encounterId: ENCOUNTER }),
+      params: Promise.resolve({ id: ENCOUNTER }),
     })
     expect(res.status).toBe(200)
     const json = await res.json()

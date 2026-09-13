@@ -10,7 +10,7 @@ import { publishTimelineEvent } from '@synapse/db/identity-persist'
 const DISPOSITIONS = ['LOCAL_PHARMACY', 'EXTERNAL_PHARMACY', 'NO_MEDICATION', 'FURTHER_LAB', 'REFERRAL', 'FOLLOW_UP', 'CLINICAL_COMPLETE'] as const
 export const dynamic = 'force-dynamic'
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ encounterId: string }> }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireHospitalStaffContext()
   if (isContextError(ctx)) return ctx
   const cap = await requireHospitalCapability(ctx, 'encounter', 'disposition', 'opd')
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ enc
   const body = await req.json().catch(() => null) as { disposition?: string; reason?: string } | null
   const disposition = body?.disposition
   if (!disposition || !DISPOSITIONS.includes(disposition as typeof DISPOSITIONS[number])) return NextResponse.json({ error: 'Valid disposition is required' }, { status: 400 })
-  const { encounterId } = await params
+  const { id: encounterId } = await params
   const db = supabaseAdmin as any
   const { data: encounter } = await db.from('encounters').select('id, tenant_id, hospital_id, patient_id, disposition').eq('id', encounterId).eq('tenant_id', ctx.tenantId).maybeSingle()
   if (!encounter || encounter.hospital_id !== ctx.hospitalId) return NextResponse.json({ error: 'Encounter not found' }, { status: 404 })

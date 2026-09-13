@@ -11,7 +11,7 @@ import { publishTimelineEvent } from '@synapse/db/identity-persist'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ encounterId: string }> }) {
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireHospitalStaffContext()
   if (isContextError(ctx)) return ctx
   const cap = await requireHospitalCapability(ctx, 'encounter', 'close', 'opd')
@@ -19,7 +19,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ en
   const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, 'opd')
   if (moduleBlock) return moduleBlock
 
-  const { encounterId } = await params
+  const { id: encounterId } = await params
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
 
