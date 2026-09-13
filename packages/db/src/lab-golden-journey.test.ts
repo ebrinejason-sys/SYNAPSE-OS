@@ -12,6 +12,7 @@ describe("lab-golden-journey", () => {
     assert.equal(result.correlationId, "lab-golden-corr-1")
     assert.equal(result.rejectedOrder?.status, "REJECTED")
     assert.equal(result.rejectedOrder?.rejectionReason, "hemolyzed")
+    assert.equal(result.releasedOrder?.replacesLabOrderId, result.rejectedOrder?.id)
     assert.equal(result.releasedOrder?.status, "AMENDED")
     assert.equal(result.amendment?.previousValue, "Negative")
     assert.equal(result.amendment?.newValue, "Positive")

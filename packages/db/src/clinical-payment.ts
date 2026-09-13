@@ -68,10 +68,7 @@ export async function recordEncounterPayment(
   const currentPaid = Number(invoice.paid_amount ?? 0)
   const balanceDue = Math.max(0, totalAmount - currentPaid)
 
-  if (balanceDue <= 0) throw new Error("INVOICE_ALREADY_PAID")
-  if (input.amount <= 0) throw new Error("INVALID_AMOUNT")
-  if (input.amount > balanceDue + 0.001) throw new Error("AMOUNT_EXCEEDS_BALANCE")
-
+  // Idempotent retries must win over ALREADY_PAID — same key returns the original row.
   const idempotencyKey = input.idempotencyKey?.trim() || null
   if (idempotencyKey) {
     const { data: existing, error: existingError } = await db
@@ -97,6 +94,10 @@ export async function recordEncounterPayment(
       }
     }
   }
+
+  if (balanceDue <= 0) throw new Error("INVOICE_ALREADY_PAID")
+  if (input.amount <= 0) throw new Error("INVALID_AMOUNT")
+  if (input.amount > balanceDue + 0.001) throw new Error("AMOUNT_EXCEEDS_BALANCE")
 
   const paymentId = crypto.randomUUID()
   const receiptNumber = kampalaReceiptSeq()

@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   let query = db
     .from('lab_orders')
     .select(
-      'id, tenant_id, encounter_id, patient_id, person_id, loinc_code, test_name, urgency, status, workflow_status, ordered_by, ordered_at, correlation_id, care_plan_id, accession_number, is_synthetic, created_at',
+      'id, tenant_id, encounter_id, patient_id, person_id, loinc_code, test_name, urgency, status, workflow_status, ordered_by, ordered_at, correlation_id, care_plan_id, accession_number, is_synthetic, replaces_lab_order_id, created_at',
     )
     .eq('tenant_id', ctx.tenantId)
     .order('ordered_at', { ascending: false })
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { encounter_id, patient_id, loinc_code, test_name, urgency, care_plan_id, person_id } = parsed.data
+  const { encounter_id, patient_id, loinc_code, test_name, urgency, care_plan_id, person_id, replaces_lab_order_id } = parsed.data
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
@@ -105,6 +105,39 @@ export async function POST(req: NextRequest) {
     orderId = journey.order.id
     labTaskId = journey.labTask.id
     correlationId = journey.correlationId
+
+    if (replaces_lab_order_id) {
+      const { data: prior, error: priorError } = await db
+        .from('lab_orders')
+        .select('id, workflow_status, patient_id, encounter_id')
+        .eq('id', replaces_lab_order_id)
+        .eq('tenant_id', ctx.tenantId)
+        .maybeSingle()
+      if (priorError) return NextResponse.json({ error: priorError.message }, { status: 500 })
+      if (!prior) return NextResponse.json({ error: 'Replaced lab order not found' }, { status: 404 })
+      if (prior.patient_id !== patient_id || prior.encounter_id !== encounter_id) {
+        return NextResponse.json({ error: 'Replacement must share patient and encounter' }, { status: 400 })
+      }
+      if (String(prior.workflow_status) !== 'REJECTED') {
+        return NextResponse.json({ error: 'Replacement only allowed for REJECTED orders' }, { status: 400 })
+      }
+      const { data: openReplacement, error: openError } = await db
+        .from('lab_orders')
+        .select('id')
+        .eq('tenant_id', ctx.tenantId)
+        .eq('replaces_lab_order_id', replaces_lab_order_id)
+        .not('workflow_status', 'in', '(CANCELLED,REJECTED,RELEASED,AMENDED)')
+        .limit(1)
+        .maybeSingle()
+      if (openError) return NextResponse.json({ error: openError.message }, { status: 500 })
+      if (openReplacement) {
+        return NextResponse.json(
+          { error: 'Open replacement already exists for this rejected order', existingOrderId: openReplacement.id },
+          { status: 409 },
+        )
+      }
+      journey.order.replacesLabOrderId = replaces_lab_order_id
+    }
 
     const persistOrder = await persistLabOrderBestEffort(db, journey.order)
     const persistQueue = await persistWorkQueueArtifactsBestEffort(db, {

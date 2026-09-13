@@ -98,6 +98,7 @@ function placeOrder(
     orderedBy: string
     orderedAt: string
     correlationId: string
+    replacesLabOrderId?: string | null
   },
 ): LabOrder {
   return lab.createOrder({
@@ -113,6 +114,7 @@ function placeOrder(
     orderedAt: input.orderedAt,
     isSynthetic: true,
     correlationId: input.correlationId,
+    replacesLabOrderId: input.replacesLabOrderId ?? null,
   })
 }
 
@@ -203,6 +205,7 @@ export function runLabGoldenJourney(input?: {
       orderedBy,
       orderedAt,
       correlationId,
+      replacesLabOrderId: rejectOrderId,
     })
     steps.push(
       step("recollect_replacement_order", "PASS", undefined, {

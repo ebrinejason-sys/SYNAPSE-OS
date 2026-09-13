@@ -1,6 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import {
+  flushHospitalClinicalOutbox,
+  isBrowserOffline,
+  queueTriageOffline,
+  type HospitalClinicalSyncContext,
+} from '@/lib/clinical-offline/hospital-clinical-sync'
 
 type NursingPatient = {
   id: string
@@ -29,6 +35,7 @@ export function NursingBoardPanel({ slug }: NursingBoardPanelProps) {
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [syncContext, setSyncContext] = useState<HospitalClinicalSyncContext | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch('/api/nurse/ward', { credentials: 'include' })
@@ -42,6 +49,13 @@ export function NursingBoardPanel({ slug }: NursingBoardPanelProps) {
 
   useEffect(() => {
     load().catch((err) => setError(err instanceof Error ? err.message : 'Unable to load nursing board'))
+    void fetch('/api/hospital/sync/context')
+      .then(async (res) => {
+        if (!res.ok) return
+        const body = await res.json()
+        if (body.syncContext) setSyncContext(body.syncContext)
+      })
+      .catch(() => undefined)
   }, [load])
 
   function chooseTask(taskId: string) {
@@ -81,7 +95,25 @@ export function NursingBoardPanel({ slug }: NursingBoardPanelProps) {
     setSaving(true)
     setError(null)
     setStatus(null)
+    const triage = {
+      temperature_c: vitals.temperature ? Number(vitals.temperature) : null,
+      heart_rate: vitals.heartRate ? Number(vitals.heartRate) : null,
+      bp_systolic: vitals.bpSys ? Number(vitals.bpSys) : null,
+      bp_diastolic: vitals.bpDia ? Number(vitals.bpDia) : null,
+      spo2: vitals.spo2 ? Number(vitals.spo2) : null,
+          }
     try {
+      if (isBrowserOffline()) {
+        if (!syncContext) throw new Error('Offline queue unavailable (missing sync context)')
+        if (!vitals.encounterId) throw new Error('Encounter required for offline triage')
+        const queued = await queueTriageOffline(syncContext, {
+          encounterId: vitals.encounterId,
+          triage,
+        })
+        if (!queued.ok) throw new Error(queued.error)
+        setStatus('Queued offline triage/vitals — not server-saved until reconnect')
+        return
+      }
       const res = await fetch('/api/nurse/vitals', {
         method: 'POST',
         credentials: 'include',
@@ -99,6 +131,7 @@ export function NursingBoardPanel({ slug }: NursingBoardPanelProps) {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Unable to save vitals')
       setStatus(`Vitals recorded for encounter ${String(data.vitalsId).slice(0, 8)}.`)
+      if (syncContext) await flushHospitalClinicalOutbox(syncContext)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save vitals')
     } finally {

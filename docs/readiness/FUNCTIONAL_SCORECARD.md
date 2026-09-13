@@ -1,7 +1,8 @@
 # SYNAPSE Functional Scorecard
 
-Date: 2026-09-11
-Baseline: `76d80e92876e30ca1fe628acc9d30dd30fdf674a`
+Date: 2026-09-13
+Baseline (historical): `76d80e92876e30ca1fe628acc9d30dd30fdf674a`
+Reconciled against working tree; cite `git rev-parse HEAD` for current SHA. Domain/HTTP PASS ≠ LIVE_PROOF.
 
 
 This scorecard is intentionally conservative. A capability cannot be GREEN from route presence alone. `LIVE_PROOF` requires an executable journey or acceptance artifact on the current SHA.
@@ -12,20 +13,20 @@ This scorecard is intentionally conservative. A capability cannot be GREEN from 
 | Identity / Synapse ID | Y | Y | Y | Y | Y | Y | Y | N | Has | Partial | YELLOW | Cross-facility crosswalk proof |
 | Queue / visit | Y | Y | Y | Y | Y | Y | Y | N | Partial | N/A | YELLOW | Durable status journey |
 | Triage | Y | Y | Y | Y | Y | Y | Y | N | Partial | N/A | YELLOW | Full vital and danger-sign coverage |
-| Clinical write-up | Partial | Partial | Y | Y | Partial | Partial | Partial | N | Partial | N/A | RED | HPI/PMH/ROS/exam/plan/signature parity |
+| Clinical write-up | Y | Y | Y | Partial | Y | Y | Y | Partial | Partial | N/A | YELLOW | Online write-up + offline queue bridge; live offline recovery NOT VERIFIED |
 | Orders and result review | Y | Y | Y | Y | Y | Y | Y | N | Has | Partial | YELLOW | Cross-module golden proof |
 | Pharmacy bridge | Y | Y | Y | Y | Y | Y | Y | Y | Has | N/A | YELLOW | Live synthetic decrement+idempotency proven 2026-09-11; still needs full Hospital Golden closeout |
 | Billing / disposition | Y | Y | Y | Y | Partial | Y | Y | N | Partial | N/A | YELLOW | Policy and non-revenue paths |
 | Inpatient / discharge | Partial | Partial | Y | Y | Partial | Partial | Partial | N | Partial | N/A | RED | Admission-transfer-discharge lifecycle |
-| Referrals | N | Partial | Y | Partial | N | Partial | N | N | Missing | Partial | RED | Active pages are stubs |
-| Lab worklist | Y | Y | Y | Y | Y | Y | Y | N | Has | Partial | YELLOW | Domain specimen+TAT golden PASS 2026-09-12; live TAT journey still open |
-| Lab verification / release | Y | Y | Y | Y | Y | Y | Y | N | Has | Has | YELLOW | Domain amend+printable report PASS 2026-09-12; live release journey still open |
+| Referrals | Y | Y | Y | Partial | Partial | Y | Y | Y | Missing | Partial | YELLOW | Live two-tenant PASS 2026-09-12 (service-role script — not browser auth proof) |
+| Lab worklist | Y | Y | Y | Partial | Y | Y | Y | N | Has | Partial | YELLOW | Domain+HTTP auth PASS; browser/DB/RLS acceptance NOT VERIFIED |
+| Lab verification / release | Y | Y | Y | Partial | Y | Y | Y | N | Has | Has | YELLOW | Amend wired in hospital-lab-db; live browser release NOT VERIFIED |
 | Lab Edge / analyzer | Y | Y | Y | Y | Partial | Y | Y | N | Better | Partial | YELLOW | End-to-end cloud acceptance |
 | FHIR Lab output | Partial | Y | Y | Y | N/A | Y | Y | N | Better | Partial | YELLOW | Released-result authorization proof |
 | Platform Admin | Y | Y | Y | Y | Y | Y | Y | N | N/A | N/A | YELLOW | Unified readiness evidence |
 | Subscriptions / grants | Y | Y | Y | Y | Y | Y | Y | N | N/A | N/A | YELLOW | Production acceptance evidence |
 | Security / tenancy | Y | Partial | Y | Partial | N/A | Y | Y | Partial | N/A | N/A | YELLOW | Expand direct-ID negative tests |
-| Offline | Partial | Partial | Y | Partial | Partial | Partial | Partial | N | N/A | Partial | RED | Clinical offline scope and replay |
+| Offline | Partial | Partial | Y | Partial | Partial | Y | Partial | N | N/A | Partial | YELLOW | SyncCommand+sync/apply+browser write-up queue bridge; browser disconnect acceptance NOT VERIFIED |
 
 ## Scorecard Rules
 
@@ -91,3 +92,18 @@ Domain + HTTP flush for `clinical.encounter.disposition.v1` via hospital sync ap
 
 ## 2026-09-12 — Clinical offline prescribe SyncCommand
 `clinical.encounter.prescribe.v1` domain + hospital sync apply. Evidence: `docs/engineering/evidence/clinical-offline-prescribe-2026-09-12.md`.
+
+
+## 2026-09-13 — Acceptance honesty (Lab + Offline)
+
+| Layer | Lab | Offline clinical |
+|---|---|---|
+| Domain tests | PASS (`test:lab-golden-journey`) | PASS (writeup/triage/prescribe/disposition) |
+| HTTP/API tests | PASS auth boundaries (`test:lab-actions`); mocked | PASS sync/apply mocked (`test:hospital-sync-apply`) |
+| Real DB persistence | NOT VERIFIED this slice (no disposable lab journey run recorded) | Outbox table used by sync/apply; browser localStorage queue is durable per actor |
+| Browser acceptance | NOT VERIFIED — see `docs/engineering/MANUAL_ACCEPTANCE_LAB_OFFLINE.md` | NOT VERIFIED — same manual doc |
+| Role / tenant isolation | HTTP mocked PASS; RLS live NOT VERIFIED | Server apply uses session tenant/actor; client tenantId not trusted |
+| Outstanding blocker | Live specimen/TAT/amend through app on disposable DB | Disconnect/reload/reconnect browser run; triage/prescribe/disposition UI offline hooks |
+| Next action | Execute manual lab procedure on disposable env; record SHA | Execute manual offline procedure; wire remaining command UIs if needed |
+
+RC1 Admin pulse now labels each gate `domain` | `http` | `live`. Evidence file presence alone never implies live workflow PASS.

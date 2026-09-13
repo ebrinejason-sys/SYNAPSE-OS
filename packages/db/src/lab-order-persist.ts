@@ -36,6 +36,7 @@ export function labOrderToRow(order: LabOrder): Record<string, unknown> {
     is_synthetic: order.isSynthetic,
     simulation_run_id: order.simulationRunId ?? null,
     data_classification: order.isSynthetic ? "synthetic" : "production",
+    replaces_lab_order_id: order.replacesLabOrderId ?? null,
   }
 }
 
@@ -62,6 +63,7 @@ export function rowToLabOrder(row: Record<string, unknown>): LabOrder {
     isSynthetic: Boolean(row.is_synthetic),
     simulationRunId: (row.simulation_run_id as string | null) ?? null,
     correlationId: String(row.correlation_id ?? row.encounter_id),
+    replacesLabOrderId: (row.replaces_lab_order_id as string | null) ?? null,
   }
 }
 

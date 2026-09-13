@@ -123,6 +123,13 @@ export default function LabOrdersPage() {
                   </button>
                   <button
                     type="button"
+                    className="rounded-lg border border-rose-500/40 px-3 py-1 text-xs text-rose-300"
+                    onClick={() => act(order.id, "reject", { reason: "hemolyzed", note: "Rejected from worklist" })}
+                  >
+                    Reject
+                  </button>
+                  <button
+                    type="button"
                     className="rounded-lg border border-edge px-3 py-1 text-xs"
                     onClick={() => act(order.id, "enter_result", { value })}
                   >

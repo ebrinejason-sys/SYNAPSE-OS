@@ -31,7 +31,7 @@ import {
   writeupFromEncounterMetadata,
 } from '@synapse/db/clinical-writeup'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { isContextError, requireHospitalCapability, logHospitalAudit } from '@/lib/hospital-shared'
+import { isContextError, requireHospitalCapability, requireHospitalAudit, HospitalAuditRequiredError } from '@/lib/hospital-shared'
 import { requireHospitalStaffContext } from '@/lib/hospital-dept'
 
 export const dynamic = 'force-dynamic'
@@ -349,6 +349,35 @@ export async function POST(request: NextRequest) {
   }
 
   const appliedAt = new Date().toISOString()
+
+  // Required audit before client-visible success. Domain write may already be
+  // committed; on audit failure we leave outbox syncing/queued so retry is
+  // idempotent (same commandId + payloadHash → replay once audited).
+  try {
+    await requireHospitalAudit({
+      ctx,
+      action: 'UPDATE',
+      tableName: 'encounters',
+      recordId: encounterId,
+      newValue: auditValue,
+    })
+  } catch (err) {
+    const message = err instanceof HospitalAuditRequiredError ? err.message : 'AUDIT_REQUIRED_FAILED'
+    await db()
+      .from('offline_mutation_outbox')
+      .update({
+        status: 'queued',
+        conflict_reason: `AUDIT_REQUIRED:${message}`,
+        payload: { envelope: command, serverResponse },
+      })
+      .eq('id', outbox.id)
+      .eq('tenant_id', ctx.tenantId)
+    return NextResponse.json(
+      { error: 'AUDIT_REQUIRED_FAILED', outcome: 'retry', reason: message },
+      { status: 503 },
+    )
+  }
+
   await db()
     .from('offline_mutation_outbox')
     .update({
@@ -359,14 +388,6 @@ export async function POST(request: NextRequest) {
     })
     .eq('id', outbox.id)
     .eq('tenant_id', ctx.tenantId)
-
-  await logHospitalAudit({
-    ctx,
-    action: 'UPDATE',
-    tableName: 'encounters',
-    recordId: encounterId,
-    newValue: auditValue,
-  })
 
   return NextResponse.json({
     ok: true,

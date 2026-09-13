@@ -4,7 +4,13 @@
  */
 
 import { supabaseAdmin } from '@synapse/db/admin'
-import { LabWorkflow, type LabOrder, type LabResult } from '@synapse/db/lab-workflow'
+import {
+  LabWorkflow,
+  SPECIMEN_REJECTION_REASONS,
+  type LabOrder,
+  type LabResult,
+  type SpecimenRejectionReason,
+} from '@synapse/db/lab-workflow'
 import { rowToLabOrder, persistLabOrderBestEffort } from '@synapse/db/lab-order-persist'
 import { WorkQueue } from '@synapse/db/work-queue'
 import { rowToDepartmentTask, persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
@@ -172,14 +178,32 @@ export async function executeHospitalLabAction(params: {
         .eq('tenant_id', params.ctx.tenantId)
     }
   } else if (params.action === 'reject') {
-    lab.reject(params.orderId, 'other', String(params.extra?.reason ?? 'rejected'))
+    const rawReason = String(params.extra?.reason ?? params.extra?.rejectionReason ?? 'other')
+    const reason = (SPECIMEN_REJECTION_REASONS as readonly string[]).includes(rawReason)
+      ? (rawReason as SpecimenRejectionReason)
+      : ('other' as SpecimenRejectionReason)
+    const note = String(params.extra?.note ?? params.extra?.rejectionNote ?? rawReason)
+    lab.reject(params.orderId, reason, note)
     if (order.specimenId) {
       await db
         .from('lab_specimens')
-        .update({ status: 'rejected', updated_at: new Date().toISOString() })
+        .update({
+          status: 'rejected',
+          rejection_reason: reason,
+          rejection_note: note,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', order.specimenId)
         .eq('tenant_id', params.ctx.tenantId)
     }
+  } else if (params.action === 'amend') {
+    result = lab.amend({
+      amendmentId: crypto.randomUUID(),
+      orderId: params.orderId,
+      newValue: String(params.extra?.value ?? params.extra?.newValue ?? ''),
+      reason: String(params.extra?.reason ?? 'amendment'),
+      amendedBy: params.actorId,
+    }).result
   } else if (params.action === 'enter_result') {
     enteredBy = params.actorId
     resultSource = typeof params.extra?.source === 'string' ? String(params.extra.source) : 'MANUAL'
@@ -393,6 +417,65 @@ export async function executeHospitalLabAction(params: {
           releasedBy: params.actorId,
         }),
       )
+    }
+  }
+
+
+  if (params.action === 'amend' && result) {
+    const report = buildLabReportArtifact({
+      id: crypto.randomUUID(),
+      tenantId: params.ctx.tenantId,
+      facilityId: params.ctx.hospitalId,
+      patientId: updated.patientId,
+      encounterId: updated.encounterId,
+      orderId: params.orderId,
+      clinicalResultId: result.id,
+      accession: updated.accessionNumber ?? params.orderId,
+      testName: updated.testName,
+      loincCode: updated.loincCode,
+      reportedAt: new Date().toISOString(),
+      resultValue: result.resultValue,
+      unit: result.unit,
+      referenceRange: result.referenceRange,
+      abnormalFlag: result.flag,
+      isCritical: result.isCritical,
+      verifiedBy: result.verifiedBy ?? params.actorId,
+      version: result.version,
+      status: 'AMENDED',
+      amendmentReason: String(params.extra?.reason ?? 'amendment'),
+    })
+    const { data: prior } = await db
+      .from('lab_reports')
+      .select('id')
+      .eq('tenant_id', params.ctx.tenantId)
+      .eq('lab_order_id', params.orderId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const { error: amendReportError } = await db.from('lab_reports').insert({
+      id: report.id,
+      tenant_id: report.tenantId,
+      facility_id: report.facilityId,
+      patient_id: report.patientId,
+      encounter_id: report.encounterId,
+      lab_order_id: report.orderId,
+      clinical_result_id: report.clinicalResultId,
+      accession: report.accession,
+      status: 'AMENDED',
+      version: report.version,
+      report_type: 'LAB_RESULT',
+      generated_at: report.reportedAt,
+      generated_by: params.actorId,
+      verified_by: report.verifiedBy,
+      released_at: report.reportedAt,
+      supersedes_report_id: prior?.id ?? null,
+      amendment_reason: report.amendmentReason,
+      template_version: report.templateVersion,
+      html_snapshot: report.htmlSnapshot,
+      content_hash: report.contentHash,
+    })
+    if (amendReportError && !/duplicate|unique/i.test(amendReportError.message ?? '')) {
+      warnings.push(amendReportError.message)
     }
   }
 

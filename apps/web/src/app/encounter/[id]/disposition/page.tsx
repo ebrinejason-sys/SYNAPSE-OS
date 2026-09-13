@@ -2,7 +2,13 @@
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import {
+  flushHospitalClinicalOutbox,
+  isBrowserOffline,
+  queueDispositionOffline,
+  type HospitalClinicalSyncContext,
+} from '@/lib/clinical-offline/hospital-clinical-sync'
 
 const DISPOSITIONS = [
   { value: 'LOCAL_PHARMACY', label: 'Local pharmacy' },
@@ -21,11 +27,35 @@ export default function EncounterDispositionPage() {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
+  const [syncContext, setSyncContext] = useState<HospitalClinicalSyncContext | null>(null)
+
+  useEffect(() => {
+    void fetch('/api/hospital/sync/context')
+      .then(async (res) => {
+        if (!res.ok) return
+        const body = await res.json()
+        if (body.syncContext) setSyncContext(body.syncContext)
+      })
+      .catch(() => undefined)
+  }, [])
 
   async function submit() {
     setBusy(true)
     setStatus(null)
     try {
+      if (isBrowserOffline()) {
+        if (!syncContext) {
+          setStatus('Offline queue unavailable (missing sync context)')
+          return
+        }
+        const queued = await queueDispositionOffline(syncContext, {
+          encounterId: id,
+          disposition,
+          reason: reason.trim() || null,
+        })
+        setStatus(queued.ok ? 'Queued offline — not server-saved until reconnect' : queued.error)
+        return
+      }
       const res = await fetch(`/api/opd/encounters/${id}/disposition`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -33,6 +63,15 @@ export default function EncounterDispositionPage() {
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
+        if (syncContext && (res.status >= 500 || res.status === 0)) {
+          const queued = await queueDispositionOffline(syncContext, {
+            encounterId: id,
+            disposition,
+            reason: reason.trim() || null,
+          })
+          setStatus(queued.ok ? 'Save failed online; queued locally — not server-saved yet' : body.error || queued.error)
+          return
+        }
         setStatus(body.error || `Failed (${res.status})`)
         return
       }
@@ -41,8 +80,18 @@ export default function EncounterDispositionPage() {
           ? `Already recorded: ${body.disposition}`
           : `Recorded ${body.disposition}`,
       )
+      if (syncContext) await flushHospitalClinicalOutbox(syncContext)
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : 'Failed')
+      if (syncContext) {
+        const queued = await queueDispositionOffline(syncContext, {
+          encounterId: id,
+          disposition,
+          reason: reason.trim() || null,
+        })
+        setStatus(queued.ok ? 'Network error; queued locally — not server-saved yet' : (e instanceof Error ? e.message : 'Failed'))
+      } else {
+        setStatus(e instanceof Error ? e.message : 'Failed')
+      }
     } finally {
       setBusy(false)
     }
