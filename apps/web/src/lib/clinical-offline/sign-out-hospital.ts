@@ -2,26 +2,31 @@
 
 import {
   parkHospitalClinicalQueueForUser,
+  rememberHospitalClinicalContext,
   type HospitalClinicalSyncContext,
 } from './hospital-clinical-sync'
 
 /**
  * Park pending encrypted outbox for the current actor, then revoke the session.
- * Prefer calling with syncContext from /api/hospital/sync/context when available.
+ * Park stores ciphertext + HMAC-wrapped session key. Another signed-in user
+ * receives different wrap material and cannot unwrap or flush those drafts.
  */
 export async function signOutHospitalClinical(syncContext?: HospitalClinicalSyncContext | null): Promise<void> {
-  if (syncContext?.tenantId && syncContext.actorId) {
-    parkHospitalClinicalQueueForUser(syncContext)
-  } else {
+  let ctx = syncContext ?? null
+  if (!ctx?.tenantId || !ctx.actorId || !ctx.outboxWrapMaterial) {
     try {
       const res = await fetch('/api/hospital/sync/context', { cache: 'no-store' })
       if (res.ok) {
         const body = (await res.json()) as { syncContext?: HospitalClinicalSyncContext }
-        if (body.syncContext) parkHospitalClinicalQueueForUser(body.syncContext)
+        ctx = body.syncContext ?? ctx
       }
     } catch {
-      // Best-effort park; still logout.
+      // keep whatever identity we already had
     }
+  }
+  if (ctx?.tenantId && ctx.actorId) {
+    rememberHospitalClinicalContext(ctx)
+    await parkHospitalClinicalQueueForUser(ctx)
   }
   await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined)
 }

@@ -20,6 +20,8 @@ import {
   getOrCreateHospitalDeviceId,
   getParkedHospitalClinicalCount,
   parkHospitalClinicalOutbox,
+  rememberHospitalClinicalIdentity,
+  rememberOutboxWrapMaterial,
   restoreParkedHospitalClinicalOutbox,
 } from './local-storage-outbox-store'
 
@@ -27,6 +29,16 @@ export type HospitalClinicalSyncContext = {
   tenantId: string
   facilityId: string
   actorId: string
+  outboxWrapMaterial?: string | null
+}
+
+export function rememberHospitalClinicalContext(ctx: HospitalClinicalSyncContext): void {
+  rememberHospitalClinicalIdentity({
+    tenantId: ctx.tenantId,
+    actorId: ctx.actorId,
+    facilityId: ctx.facilityId,
+  })
+  if (ctx.outboxWrapMaterial) rememberOutboxWrapMaterial(ctx.outboxWrapMaterial)
 }
 
 export type QueueWriteupResult =
@@ -131,8 +143,8 @@ export function pendingHospitalClinicalSummary(ctx: HospitalClinicalSyncContext)
   return new LocalStorageSyncOutboxStore(ctx.tenantId, ctx.actorId).listPendingSummary()
 }
 
-export function clearHospitalClinicalQueueForUser(ctx: HospitalClinicalSyncContext): void {
-  clearHospitalClinicalOutbox(ctx.tenantId, ctx.actorId)
+export function clearHospitalClinicalQueueForUser(ctx: HospitalClinicalSyncContext) {
+  return clearHospitalClinicalOutbox(ctx.tenantId, ctx.actorId, ctx.outboxWrapMaterial)
 }
 
 export function isBrowserOffline(): boolean {
@@ -140,12 +152,14 @@ export function isBrowserOffline(): boolean {
 }
 
 export function parkHospitalClinicalQueueForUser(ctx: HospitalClinicalSyncContext) {
-  return parkHospitalClinicalOutbox(ctx.tenantId, ctx.actorId)
+  return parkHospitalClinicalOutbox(ctx.tenantId, ctx.actorId, ctx.outboxWrapMaterial)
 }
 
 export function restoreHospitalClinicalQueueForUser(ctx: HospitalClinicalSyncContext) {
-  return restoreParkedHospitalClinicalOutbox(ctx.tenantId, ctx.actorId)
+  if (ctx.outboxWrapMaterial) rememberOutboxWrapMaterial(ctx.outboxWrapMaterial)
+  return restoreParkedHospitalClinicalOutbox(ctx.tenantId, ctx.actorId, ctx.outboxWrapMaterial)
 }
+
 
 export function parkedHospitalClinicalCount(ctx: HospitalClinicalSyncContext) {
   return getParkedHospitalClinicalCount(ctx.tenantId, ctx.actorId)

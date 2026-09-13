@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { isContextError } from '@/lib/hospital-shared'
+import { hospitalOutboxWrapMaterial, isContextError } from '@/lib/hospital-shared'
 import { requireHospitalStaffContext } from '@/lib/hospital-dept'
 
 export const dynamic = 'force-dynamic'
@@ -14,6 +14,7 @@ export async function GET() {
       facilityId: ctx.hospitalId,
       actorId: ctx.userId,
       role: ctx.role,
+      outboxWrapMaterial: hospitalOutboxWrapMaterial(ctx.tenantId, ctx.userId),
     },
   })
 }

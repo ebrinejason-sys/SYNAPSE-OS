@@ -8,7 +8,7 @@ import {
   writeupCompleteness,
   writeupFromEncounterMetadata,
 } from '@synapse/db/clinical-writeup'
-import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '@/lib/hospital-shared'
+import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit, hospitalOutboxWrapMaterial } from '@/lib/hospital-shared'
 import { requireHospitalStaffContext } from '@/lib/hospital-dept'
 
 export const dynamic = 'force-dynamic'
@@ -75,6 +75,7 @@ export async function GET(
       tenantId: ctx.tenantId,
       facilityId: ctx.hospitalId,
       actorId: ctx.userId,
+      outboxWrapMaterial: hospitalOutboxWrapMaterial(ctx.tenantId, ctx.userId),
     },
   })
 }

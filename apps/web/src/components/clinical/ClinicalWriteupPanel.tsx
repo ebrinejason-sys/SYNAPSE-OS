@@ -8,8 +8,15 @@ import {
   isBrowserOffline,
   pendingHospitalClinicalSummary,
   queueWriteupOffline,
+  rememberHospitalClinicalContext,
   type HospitalClinicalSyncContext,
 } from '@/lib/clinical-offline/hospital-clinical-sync'
+import { readHospitalClinicalIdentity } from '@/lib/clinical-offline/local-storage-outbox-store'
+import {
+  clearWriteupDraftSnapshot,
+  readWriteupDraftSnapshot,
+  saveWriteupDraftSnapshot,
+} from '@/lib/clinical-offline/writeup-draft-snapshot'
 
 type Completeness = { filled: number; total: number; missing: string[] }
 
@@ -56,21 +63,86 @@ export function ClinicalWriteupPanel({
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
+    const offline = isBrowserOffline()
+    if (offline) {
+      try {
+        const identity = readHospitalClinicalIdentity()
+        if (identity) {
+          const snap = await readWriteupDraftSnapshot(identity.tenantId, identity.actorId, encounterId)
+          if (snap?.payload && snap.draft) {
+            setPayload(snap.payload as WriteupResponse)
+            setDraft(snap.draft as ClinicalWriteup)
+            setQueueNotice(snap.notice ?? 'Showing last local draft — not fetched from server (offline)')
+            try {
+              refreshPending({
+                tenantId: identity.tenantId,
+                actorId: identity.actorId,
+                facilityId: identity.facilityId ?? '',
+              })
+            } catch {
+              // pending summary is best-effort on offline restore
+            }
+            setLoading(false)
+            return
+          }
+        }
+      } catch {
+        // fall through to network / timeout path
+      }
+    }
     try {
-      const res = await fetch(`/api/opd/encounters/${encounterId}/write-up`)
+      const controller = new AbortController()
+      const timeoutMs = offline ? 2500 : 20000
+      const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+      let res: Response
+      try {
+        res = await fetch(`/api/opd/encounters/${encounterId}/write-up`, { signal: controller.signal })
+      } finally {
+        window.clearTimeout(timer)
+      }
       const body = (await res.json()) as WriteupResponse
       if (!res.ok) throw new Error(body.error || `Failed to load (${res.status})`)
       setPayload(body)
       setDraft(body.writeup)
       if (body.syncContext) {
+        rememberHospitalClinicalContext(body.syncContext)
         refreshPending(body.syncContext)
-        if (!isBrowserOffline()) {
+        await saveWriteupDraftSnapshot({
+          encounterId,
+          tenantId: body.syncContext.tenantId,
+          actorId: body.syncContext.actorId,
+          savedAt: new Date().toISOString(),
+          payload: body,
+          draft: body.writeup,
+        })
+        if (!offline) {
           void flushHospitalClinicalOutbox(body.syncContext).then(() => {
             refreshPending(body.syncContext!)
           })
         }
       }
     } catch (e) {
+      if (offline) {
+        let ctx: HospitalClinicalSyncContext | null = null
+        const identity = readHospitalClinicalIdentity()
+        if (identity) {
+          ctx = {
+            tenantId: identity.tenantId,
+            actorId: identity.actorId,
+            facilityId: identity.facilityId ?? '',
+          }
+        }
+        const snap = ctx
+          ? await readWriteupDraftSnapshot(ctx.tenantId, ctx.actorId, encounterId)
+          : null
+        if (snap?.payload && snap.draft) {
+          setPayload(snap.payload as WriteupResponse)
+          setDraft(snap.draft as ClinicalWriteup)
+          setQueueNotice(snap.notice ?? 'Showing last local draft — not fetched from server (offline)')
+          if (ctx) refreshPending(ctx)
+          return
+        }
+      }
       setError(e instanceof Error ? e.message : 'Failed to load write-up')
     } finally {
       setLoading(false)
@@ -80,6 +152,11 @@ export function ClinicalWriteupPanel({
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+    void navigator.serviceWorker.register('/sw-hospital-clinical.js').catch(() => undefined)
+  }, [])
 
   const dirty = useMemo(() => {
     if (!payload || !draft) return false
@@ -100,6 +177,7 @@ export function ClinicalWriteupPanel({
     refreshPending(ctx)
     if (summary.acknowledged > 0) {
       setQueueNotice(`Synced ${summary.acknowledged} queued change(s) to server`)
+      clearWriteupDraftSnapshot(ctx.tenantId, ctx.actorId, encounterId)
       await load()
     } else if (summary.conflicts > 0 || summary.rejected > 0) {
       setQueueNotice('Some queued changes need review (conflict or rejected)')
@@ -145,6 +223,17 @@ export function ClinicalWriteupPanel({
         })
         if (!queued.ok) throw new Error(queued.error)
         refreshPending(syncContext)
+        if (syncContext && payload) {
+          await saveWriteupDraftSnapshot({
+            encounterId,
+            tenantId: syncContext.tenantId,
+            actorId: syncContext.actorId,
+            savedAt: new Date().toISOString(),
+            payload,
+            draft,
+            notice: 'Queued offline — not server-saved until reconnect',
+          })
+        }
         setQueueNotice('Queued offline — not server-saved until reconnect')
         return
       }

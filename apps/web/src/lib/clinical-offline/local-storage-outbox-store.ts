@@ -2,11 +2,17 @@
  * Browser outbox for hospital clinical SyncCommands.
  *
  * Security model (RC1):
- * - Storage key is scoped by tenantId + actorId (isolation between users).
- * - Command payloads are AES-GCM encrypted with a session-scoped key in sessionStorage.
- *   Closing the tab drops the key; ciphertext remains but is unreadable without re-auth key install.
+ * - Storage key is scoped by tenantId + actorId.
+ * - Payloads are AES-GCM encrypted. The raw session key lives only in sessionStorage.
+ * - On park, the session key is wrapped with server-issued HMAC material
+ *   (`outboxWrapMaterial` from GET /api/hospital/sync/context). localStorage holds
+ *   ciphertext + wrap blob only — never keyMaterial or wrap material.
+ * - Restore unwraps only with the signed-in actor's wrap material. Another user
+ *   receives a different HMAC and cannot decrypt or flush the parked queue.
+ * - Shared-device residual: XSS or physical access to the same OS user/profile can
+ *   still read origin storage. That is documented; it is not OS multi-user isolation.
  * - Plaintext PHI is never written to localStorage.
- * - Logout parks pending items (does not silently discard). Another actor cannot decrypt or flush.
+ * - Logout parks pending items (does not silently discard).
  */
 
 'use client'
@@ -49,19 +55,103 @@ type StoredBucket = {
 }
 
 type ParkedBucket = {
-  version: 2
+  version: 3
   parkedAt: string
   tenantId: string
   actorId: string
   records: Record<string, StoredRecord>
-  /** Session AES key material so the same actor can restore after re-login. Cleared from sessionStorage on park. */
-  keyMaterial: string | null
+  wrap?: string
+  wrapIv?: string
 }
 
 const PREFIX = 'synapse.hospital.clinical.outbox.v2'
 const PARK_PREFIX = 'synapse.hospital.clinical.parked.v2'
 const DEVICE_KEY = 'synapse.hospital.clinical.deviceId.v1'
 const SESSION_KEY_MATERIAL = 'synapse.hospital.clinical.sessionKey.v1'
+const WRAP_MATERIAL_KEY = 'synapse.hospital.clinical.wrapMaterial.v1'
+const IDENTITY_KEY = 'synapse.hospital.clinical.identity.v1'
+
+export type HospitalClinicalIdentity = {
+  tenantId: string
+  actorId: string
+  facilityId?: string
+}
+
+export function rememberOutboxWrapMaterial(material: string | null | undefined): void {
+  if (typeof window === 'undefined' || !window.sessionStorage || !material) return
+  window.sessionStorage.setItem(WRAP_MATERIAL_KEY, material)
+}
+
+export function readOutboxWrapMaterial(): string | null {
+  if (typeof window === 'undefined' || !window.sessionStorage) return null
+  return window.sessionStorage.getItem(WRAP_MATERIAL_KEY)
+}
+
+export function rememberHospitalClinicalIdentity(identity: HospitalClinicalIdentity): void {
+  if (typeof window === 'undefined') return
+  const raw = JSON.stringify(identity)
+  window.sessionStorage?.setItem(IDENTITY_KEY, raw)
+  // localStorage mirror so offline reload can locate encrypted drafts even if
+  // sessionStorage is empty; it is not a wrap secret.
+  window.localStorage?.setItem(IDENTITY_KEY, raw)
+}
+
+export function readHospitalClinicalIdentity(): HospitalClinicalIdentity | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw =
+      window.sessionStorage?.getItem(IDENTITY_KEY) || window.localStorage?.getItem(IDENTITY_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as HospitalClinicalIdentity
+    if (!parsed.tenantId || !parsed.actorId) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+export function clearHospitalClinicalSessionSecrets(): void {
+  if (typeof window === 'undefined' || !window.sessionStorage) return
+  window.sessionStorage.removeItem(SESSION_KEY_MATERIAL)
+  window.sessionStorage.removeItem(WRAP_MATERIAL_KEY)
+  window.sessionStorage.removeItem(IDENTITY_KEY)
+}
+
+async function importWrapKey(material: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey('raw', bytesFromB64(material), 'AES-GCM', false, [
+    'encrypt',
+    'decrypt',
+  ])
+}
+
+export async function wrapSessionKeyWithMaterial(
+  material: string,
+  rawB64: string,
+): Promise<{ wrap: string; wrapIv: string }> {
+  const wrapKey = await importWrapKey(material)
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrapKey, bytesFromB64(rawB64))
+  return { wrap: b64FromBytes(new Uint8Array(cipher)), wrapIv: b64FromBytes(iv) }
+}
+
+export async function unwrapSessionKeyWithMaterial(
+  material: string,
+  wrap: string,
+  wrapIv: string,
+): Promise<string | null> {
+  try {
+    const wrapKey = await importWrapKey(material)
+    const plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: bytesFromB64(wrapIv) },
+      wrapKey,
+      bytesFromB64(wrap),
+    )
+    return b64FromBytes(new Uint8Array(plain))
+  } catch {
+    return null
+  }
+}
+
 
 function storageKey(tenantId: string, actorId: string): string {
   return `${PREFIX}:${tenantId}:${actorId}`
@@ -114,6 +204,24 @@ async function encryptCommand(command: SyncCommand): Promise<{ encryptedCommand:
   return { encryptedCommand: b64FromBytes(new Uint8Array(cipher)), iv: b64FromBytes(iv) }
 }
 
+export async function encryptJsonBlob(value: unknown): Promise<{ cipher: string; iv: string }> {
+  const key = await getSessionCryptoKey()
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const plain = new TextEncoder().encode(JSON.stringify(value))
+  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plain)
+  return { cipher: b64FromBytes(new Uint8Array(cipher)), iv: b64FromBytes(iv) }
+}
+
+export async function decryptJsonBlob<T>(cipher: string, iv: string): Promise<T> {
+  const key = await getSessionCryptoKey()
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: bytesFromB64(iv) },
+    key,
+    bytesFromB64(cipher),
+  )
+  return JSON.parse(new TextDecoder().decode(plain)) as T
+}
+
 async function decryptCommand(encryptedCommand: string, iv: string): Promise<SyncCommand> {
   const key = await getSessionCryptoKey()
   const plain = await crypto.subtle.decrypt(
@@ -142,33 +250,49 @@ function writeBucket(tenantId: string, actorId: string, bucket: StoredBucket): v
   window.localStorage.setItem(storageKey(tenantId, actorId), JSON.stringify(bucket))
 }
 
-/** Park pending work on logout — never silent discard. */
-export function parkHospitalClinicalOutbox(tenantId: string, actorId: string): {
+/** Park pending work on logout — never silent discard. Ciphertext only in localStorage. */
+export async function parkHospitalClinicalOutbox(
+  tenantId: string,
+  actorId: string,
+  wrapMaterial?: string | null,
+): Promise<{
   parked: number
   parkKey: string
-} {
-  if (typeof window === 'undefined' || !window.localStorage) return { parked: 0, parkKey: '' }
+  wrapped: boolean
+}> {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return { parked: 0, parkKey: '', wrapped: false }
+  }
   const bucket = readBucket(tenantId, actorId)
   const pending = Object.values(bucket.records).filter((r) => r.status !== 'acknowledged')
   if (pending.length === 0) {
     window.localStorage.removeItem(storageKey(tenantId, actorId))
-    return { parked: 0, parkKey: '' }
+    clearHospitalClinicalSessionSecrets()
+    return { parked: 0, parkKey: '', wrapped: false }
   }
-  const parked: Omit<ParkedBucket, 'keyMaterial'> = {
-    version: 2,
+  const material = wrapMaterial || readOutboxWrapMaterial()
+  const keyMat = window.sessionStorage?.getItem(SESSION_KEY_MATERIAL)
+  let wrap: string | undefined
+  let wrapIv: string | undefined
+  if (keyMat && material) {
+    const wrapped = await wrapSessionKeyWithMaterial(material, keyMat)
+    wrap = wrapped.wrap
+    wrapIv = wrapped.wrapIv
+  }
+  const parked: ParkedBucket = {
+    version: 3,
     parkedAt: new Date().toISOString(),
     tenantId,
     actorId,
     records: Object.fromEntries(pending.map((r) => [r.commandId, r])),
+    wrap,
+    wrapIv,
   }
-  const keyMat = window.sessionStorage?.getItem(SESSION_KEY_MATERIAL) ?? null
-  const parkedWithKey: ParkedBucket = { ...parked, keyMaterial: keyMat }
   const key = parkKey(tenantId, actorId)
-  window.localStorage.setItem(key, JSON.stringify(parkedWithKey))
+  window.localStorage.setItem(key, JSON.stringify(parked))
   window.localStorage.removeItem(storageKey(tenantId, actorId))
-  // Drop live session key; same actor restores via keyMaterial in the park blob.
-  window.sessionStorage?.removeItem(SESSION_KEY_MATERIAL)
-  return { parked: pending.length, parkKey: key }
+  clearHospitalClinicalSessionSecrets()
+  return { parked: pending.length, parkKey: key, wrapped: Boolean(wrap && wrapIv) }
 }
 
 export function getParkedHospitalClinicalCount(tenantId: string, actorId: string): number {
@@ -189,20 +313,47 @@ export function discardParkedHospitalClinicalOutbox(tenantId: string, actorId: s
   window.localStorage.removeItem(parkKey(tenantId, actorId))
 }
 
-/** Restore parked outbox for the same actor after re-login (reinstalls crypto key). */
-export function restoreParkedHospitalClinicalOutbox(tenantId: string, actorId: string): {
+/** Restore parked outbox for the same actor after re-login (unwraps with that actor's wrap material). */
+export async function restoreParkedHospitalClinicalOutbox(
+  tenantId: string,
+  actorId: string,
+  wrapMaterial?: string | null,
+): Promise<{
   restored: number
-} {
+}> {
   if (typeof window === 'undefined' || !window.localStorage) return { restored: 0 }
   const key = parkKey(tenantId, actorId)
   const raw = window.localStorage.getItem(key)
   if (!raw) return { restored: 0 }
   try {
-    const parked = JSON.parse(raw) as ParkedBucket
+    const parked = JSON.parse(raw) as ParkedBucket & { keyMaterial?: string | null }
     if (parked.tenantId !== tenantId || parked.actorId !== actorId) return { restored: 0 }
+    // Refuse legacy v2 parks that stored raw keyMaterial beside ciphertext.
     if (parked.keyMaterial) {
-      window.sessionStorage?.setItem(SESSION_KEY_MATERIAL, parked.keyMaterial)
+      delete parked.keyMaterial
+      window.localStorage.setItem(
+        key,
+        JSON.stringify({
+          version: 3,
+          parkedAt: parked.parkedAt,
+          tenantId: parked.tenantId,
+          actorId: parked.actorId,
+          records: parked.records,
+          wrap: parked.wrap,
+          wrapIv: parked.wrapIv,
+        }),
+      )
     }
+    const material = wrapMaterial || readOutboxWrapMaterial()
+    if (!material || !parked.wrap || !parked.wrapIv) {
+      return { restored: 0 }
+    }
+    const unwrapped = await unwrapSessionKeyWithMaterial(material, parked.wrap, parked.wrapIv)
+    if (!unwrapped) {
+      return { restored: 0 }
+    }
+    window.sessionStorage?.setItem(SESSION_KEY_MATERIAL, unwrapped)
+    rememberOutboxWrapMaterial(material)
     const active = readBucket(tenantId, actorId)
     for (const [id, row] of Object.entries(parked.records ?? {})) {
       if (!active.records[id]) active.records[id] = row
@@ -215,10 +366,12 @@ export function restoreParkedHospitalClinicalOutbox(tenantId: string, actorId: s
   }
 }
 
-
-export function clearHospitalClinicalOutbox(tenantId: string, actorId: string): void {
-  // Backward-compatible name: park instead of destroy.
-  parkHospitalClinicalOutbox(tenantId, actorId)
+export async function clearHospitalClinicalOutbox(
+  tenantId: string,
+  actorId: string,
+  wrapMaterial?: string | null,
+): Promise<{ parked: number; parkKey: string; wrapped: boolean }> {
+  return parkHospitalClinicalOutbox(tenantId, actorId, wrapMaterial)
 }
 
 export function getOrCreateHospitalDeviceId(): string {
@@ -237,7 +390,7 @@ export class LocalStorageSyncOutboxStore implements SyncOutboxStore {
   ) {}
 
   async initialize(): Promise<void> {
-    restoreParkedHospitalClinicalOutbox(this.tenantId, this.actorId)
+    await restoreParkedHospitalClinicalOutbox(this.tenantId, this.actorId)
     writeBucket(this.tenantId, this.actorId, readBucket(this.tenantId, this.actorId))
     await getSessionCryptoKey()
   }
