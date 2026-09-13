@@ -219,8 +219,36 @@ export async function markFacilityInvitationSent(invitationId: string): Promise<
 }
 
 export type FacilityInvitationLookup =
-  | { ok: true; email: string; tenantName: string; hasExistingAccount: boolean }
+  | {
+      ok: true
+      email: string
+      tenantName: string
+      /** True only when a profile already has a usable password — provisioned admins with null password_hash must activate via redeem. */
+      hasExistingAccount: boolean
+      /** Hospital/pharmacy provision still persists invite_token; platform staff invites use token_hash only. */
+      storage: "token_hash" | "invite_token"
+    }
   | { ok: false; status: number; code: string; error: string }
+
+type FacilityInviteRow = {
+  email: string
+  status: string
+  expires_at: string
+  tenant_id: string
+  profile_id?: string | null
+  role?: string | null
+  tenants?: { name?: string } | null
+}
+
+function invitationStatusError(invite: FacilityInviteRow): FacilityInvitationLookup | null {
+  if (invite.status === "REVOKED") return { ok: false, status: 410, code: "INVITE_REVOKED", error: "This invitation was revoked" }
+  if (invite.status === "ACCEPTED") return { ok: false, status: 409, code: "INVITE_ALREADY_USED", error: "This invitation has already been used" }
+  if (new Date(invite.expires_at) < new Date()) return { ok: false, status: 410, code: "INVITE_EXPIRED", error: "This invitation has expired" }
+  if (!["PENDING", "SENT"].includes(invite.status)) {
+    return { ok: false, status: 409, code: "INVITE_ALREADY_USED", error: "This invitation has already been used" }
+  }
+  return null
+}
 
 /** Read-only preview so the client can route to the correct acceptance UI (sign-in vs. registration) without redeeming the token. */
 export async function lookupFacilityInvitation(token: string): Promise<FacilityInvitationLookup> {
@@ -228,22 +256,46 @@ export async function lookupFacilityInvitation(token: string): Promise<FacilityI
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
   const tokenHash = hashInviteToken(token)
-  const { data: invite, error } = await db
+
+  const hashed = await db
     .from("facility_invitations")
-    .select("email, status, expires_at, tenant_id, tenants(name)")
+    .select("email, status, expires_at, tenant_id, profile_id, role, tenants(name)")
     .eq("token_hash", tokenHash)
     .maybeSingle()
-  if (error || !invite) return { ok: false, status: 404, code: "INVITE_NOT_FOUND", error: "Invalid invitation" }
-  if (invite.status === "REVOKED") return { ok: false, status: 410, code: "INVITE_REVOKED", error: "This invitation was revoked" }
-  if (invite.status === "ACCEPTED") return { ok: false, status: 409, code: "INVITE_ALREADY_USED", error: "This invitation has already been used" }
-  if (new Date(invite.expires_at) < new Date()) return { ok: false, status: 410, code: "INVITE_EXPIRED", error: "This invitation has expired" }
 
-  const { data: existingProfile } = await db.from("profiles").select("id").eq("email", invite.email).maybeSingle()
+  let invite: FacilityInviteRow | null = hashed.data ?? null
+  let storage: "token_hash" | "invite_token" = "token_hash"
+
+  if (!invite) {
+    const legacy = await db
+      .from("facility_invitations")
+      .select("email, status, expires_at, tenant_id, profile_id, role, tenants(name)")
+      .eq("invite_token", token)
+      .maybeSingle()
+    invite = legacy.data ?? null
+    storage = "invite_token"
+  }
+
+  if (!invite) return { ok: false, status: 404, code: "INVITE_NOT_FOUND", error: "Invalid invitation" }
+  const statusErr = invitationStatusError(invite)
+  if (statusErr) return statusErr
+
+  const { data: existingProfile } = await db
+    .from("profiles")
+    .select("id, password_hash")
+    .eq("email", invite.email)
+    .maybeSingle()
+
+  // Provision creates the profile before the invite email is sent, with password_hash null.
+  // Those must show the password form (not "sign in"), so only count password-bearing profiles.
+  const hasExistingAccount = Boolean(existingProfile?.password_hash)
+
   return {
     ok: true,
     email: invite.email,
     tenantName: invite.tenants?.name ?? "",
-    hasExistingAccount: Boolean(existingProfile),
+    hasExistingAccount,
+    storage,
   }
 }
 
@@ -323,3 +375,135 @@ export async function registerFacilityInvitationNewAccount(params: {
   }
   return { ok: true, profileId: data.profile_id, tenantId: data.tenant_id }
 }
+
+/**
+ * Legacy hospital/pharmacy provision path: invite_token is stored plaintext and a
+ * profile row already exists (often with password_hash null). Activate by setting
+ * the password, binding staff scope, and marking the invitation ACCEPTED.
+ * Hardened token_hash invites must not use this path.
+ */
+export async function activateProvisionedFacilityInvitation(params: {
+  token: string
+  password: string
+}): Promise<AcceptFacilityInvitationResult> {
+  if (!params.token) return { ok: false, status: 400, code: "INVALID_INPUT", error: "Missing invitation token" }
+  if (!params.password || params.password.length < 8) {
+    return { ok: false, status: 400, code: "INVALID_INPUT", error: "Password must be at least 8 characters" }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any
+  const { data: invite } = await db
+    .from("facility_invitations")
+    .select("id, email, status, expires_at, tenant_id, profile_id, role, invite_token, token_hash")
+    .eq("invite_token", params.token)
+    .maybeSingle()
+
+  if (!invite || invite.token_hash) {
+    return { ok: false, status: 404, code: "INVITE_NOT_FOUND", error: "Invalid invitation" }
+  }
+  if (invite.status === "REVOKED") return { ok: false, status: 410, code: "INVITE_REVOKED", error: "This invitation was revoked" }
+  if (invite.status === "ACCEPTED") return { ok: false, status: 409, code: "INVITE_ALREADY_USED", error: "This invitation has already been used" }
+  if (new Date(invite.expires_at) < new Date()) {
+    await db.from("facility_invitations").update({ status: "EXPIRED", updated_at: new Date().toISOString() }).eq("id", invite.id)
+    return { ok: false, status: 410, code: "INVITE_EXPIRED", error: "This invitation has expired" }
+  }
+  if (!["PENDING", "SENT"].includes(invite.status)) {
+    return { ok: false, status: 409, code: "INVITE_ALREADY_USED", error: "This invitation has already been used" }
+  }
+  if (!invite.profile_id) {
+    return { ok: false, status: 409, code: "PROFILE_NOT_FOUND", error: "Invite has no linked profile" }
+  }
+
+  const { data: profile } = await db.from("profiles").select("id, tenant_id, password_hash").eq("id", invite.profile_id).maybeSingle()
+  if (!profile) return { ok: false, status: 404, code: "PROFILE_NOT_FOUND", error: "Session profile could not be found" }
+  if (profile.password_hash) {
+    return {
+      ok: false,
+      status: 409,
+      code: "IDENTITY_EXISTS",
+      error: "An account already exists for this email; sign in to accept this invitation",
+    }
+  }
+
+  const { data: activeScopes } = await db
+    .from("staff_scope_assignments")
+    .select("tenant_id")
+    .eq("profile_id", invite.profile_id)
+    .eq("is_active", true)
+  const activeTenantIds = ((activeScopes ?? []) as Array<{ tenant_id: string | null }>).map((s) => s.tenant_id)
+  if (!canBindInviteToTenant(profile.tenant_id, activeTenantIds, invite.tenant_id)) {
+    return { ok: false, status: 409, code: "IDENTITY_SCOPE_CONFLICT", error: "This account is already associated with another facility" }
+  }
+
+  const passwordHash = await hashPassword(params.password)
+  const now = new Date().toISOString()
+  const { error: profileErr } = await db
+    .from("profiles")
+    .update({
+      tenant_id: invite.tenant_id,
+      password_hash: passwordHash,
+      must_change_password: false,
+      password_changed_at: now,
+      email_verified_at: now,
+      onboarding_complete: true,
+      updated_at: now,
+    })
+    .eq("id", invite.profile_id)
+  if (profileErr) return { ok: false, status: 500, code: "ACCEPT_FAILED", error: profileErr.message ?? "Failed to accept invitation" }
+
+  if (!activeTenantIds.includes(invite.tenant_id)) {
+    const { error: scopeError } = await db.from("staff_scope_assignments").insert({
+      profile_id: invite.profile_id,
+      tenant_id: invite.tenant_id,
+      role: invite.role,
+      is_active: true,
+    })
+    if (scopeError) {
+      return { ok: false, status: 500, code: "ACCEPT_FAILED", error: "Failed to bind staff access to this facility" }
+    }
+  }
+
+  const { error: inviteErr } = await db
+    .from("facility_invitations")
+    .update({
+      status: "ACCEPTED",
+      accepted_at: now,
+      redeemed_by: invite.profile_id,
+      updated_at: now,
+    })
+    .eq("id", invite.id)
+    .in("status", ["PENDING", "SENT"])
+  if (inviteErr) return { ok: false, status: 500, code: "ACCEPT_FAILED", error: inviteErr.message ?? "Failed to accept invitation" }
+
+  await db.from("facility_invitation_audit").insert({
+    invitation_id: invite.id,
+    event: "ACCEPTED_PROVISIONED_PROFILE",
+    actor_profile_id: invite.profile_id,
+    metadata: { tenant_id: invite.tenant_id, role: invite.role, storage: "invite_token" },
+  })
+
+  return { ok: true, profileId: invite.profile_id, tenantId: invite.tenant_id }
+}
+
+/** Redeem helper: routes provisioned raw-token invites to activation, hashed invites to new-account registration. */
+export async function redeemFacilityInvitation(params: {
+  token: string
+  password: string
+}): Promise<AcceptFacilityInvitationResult> {
+  const preview = await lookupFacilityInvitation(params.token)
+  if (!preview.ok) return preview
+  if (preview.hasExistingAccount) {
+    return {
+      ok: false,
+      status: 409,
+      code: "IDENTITY_EXISTS",
+      error: "An account already exists for this email; sign in to accept this invitation",
+    }
+  }
+  if (preview.storage === "invite_token") {
+    return activateProvisionedFacilityInvitation(params)
+  }
+  return registerFacilityInvitationNewAccount(params)
+}
+
