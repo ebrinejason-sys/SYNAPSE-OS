@@ -231,3 +231,35 @@ create table if not exists public.audit_log (
 
 alter table public.tenants add column if not exists status text not null default 'active';
 
+
+-- Clinical prescriptions (offline prescribe sync) — from 20260827231431 excerpt
+create table if not exists public.clinical_prescriptions (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references public.tenants(id),
+  pharmacy_tenant_id uuid references public.tenants(id),
+  patient_id uuid,
+  person_id uuid,
+  encounter_id uuid,
+  care_plan_id uuid,
+  medication_display text not null,
+  dose text,
+  quantity numeric not null default 1,
+  unit text not null default 'unit',
+  prescriber_id uuid,
+  verifier_id uuid,
+  dispenser_id uuid,
+  status text not null default 'active'
+    check (status in ('active','verified','dispensed','cancelled','returned')),
+  hospital_drug_order_id uuid,
+  pharmacy_order_id uuid,
+  correlation_id uuid,
+  is_synthetic boolean not null default false,
+  simulation_run_id uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists clinical_prescriptions_pharm_queue_idx
+  on public.clinical_prescriptions (pharmacy_tenant_id, status, created_at desc);
+create index if not exists clinical_prescriptions_encounter_idx
+  on public.clinical_prescriptions (tenant_id, encounter_id);
+grant select, insert, update on public.clinical_prescriptions to anon, authenticated, service_role;
