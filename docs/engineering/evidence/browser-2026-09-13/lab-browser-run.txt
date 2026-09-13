@@ -1,0 +1,20 @@
+PASS tech worklist loads order — Synapse Lab worklistNew external referralOrder → collection → receipt → result → verification. Verified results are neve
+PASS browser patient card visible
+PASS collect+receive via UI
+PASS reject via UI — Synapse Lab worklistNew external referralOrder → collection → receipt → result → verification. Verified results are never silently overwritten. AI cannot releas
+PASS doctor notes page — ← EncounterClinical write-upChief complaint: RC1 browser lab0% complete0/9 sectionsHistory of present illnessEmptyOnset,
+PASS doctor replacement order — {"status":201,"body":{"orderId":"92e862d6-0b6e-4cd7-a59a-200da6b27dc7","correlationId":"c3333333-3333-4333-8333-333333333302","labTaskId":"45bd52af-abdc-4d58-9c64-731a5598ed6c","journeyWarnings":["Could not find the tabl
+PASS replacement collect/receive/enter via UI
+PASS lab_tech verify denied in UI — Synapse Lab worklistNew external referralOrder → collection → receipt → result → verification. Verified results are never silently overwritten. AI cannot release laboratory results
+PASS scientist verify/release via UI
+PASS amend via results UI
+page.evaluate: TypeError: Failed to fetch
+    at eval (eval at evaluate (:291:30), <anonymous>:2:23)
+    at UtilityScript.evaluate (<anonymous>:293:16)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
+    at /home/ebrine/Desktop/SYNAPSE-OS/scripts/rc1-browser-lab-acceptance.mjs:177:30
+    at withRole (/home/ebrine/Desktop/SYNAPSE-OS/scripts/rc1-browser-lab-acceptance.mjs:34:18)
+    at async main (/home/ebrine/Desktop/SYNAPSE-OS/scripts/rc1-browser-lab-acceptance.mjs:176:3)
+
+PASS cross-facility collect denied — {"status":400,"body":{"error":"LAB_ORDER_NOT_FOUND"}}
+PASS unauth worklist denied

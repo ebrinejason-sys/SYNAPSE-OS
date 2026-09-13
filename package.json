@@ -83,11 +83,12 @@
     "journey:referral-live": "node scripts/referral-live-journey.mjs"
   },
   "devDependencies": {
+    "ajv6": "npm:ajv@6.12.6",
+    "playwright": "^1.55.0",
     "supabase": "^2.107.0",
     "turbo": "^2.0.0",
     "typescript": "~5.8.2",
-    "vercel": "^54.14.2",
-    "ajv6": "npm:ajv@6.12.6"
+    "vercel": "^54.14.2"
   },
   "overrides": {
     "@eslint/eslintrc": {
