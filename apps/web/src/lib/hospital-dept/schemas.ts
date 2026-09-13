@@ -29,6 +29,7 @@ export const labOrderCreateSchema = z.object({
   urgency: z.enum(['STAT', 'URGENT', 'ROUTINE']).optional(),
   care_plan_id: z.string().uuid().optional(),
   person_id: z.string().uuid().optional(),
+  replaces_lab_order_id: z.string().uuid().optional(),
 })
 
 export const prescriptionCreateSchema = z.object({

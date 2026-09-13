@@ -67,3 +67,14 @@ Domain Lab golden journey proves specimen reject → replacement recollect, TAT 
 - Code: `packages/db/src/lab-golden-journey.ts`
 - Evidence: `docs/engineering/evidence/lab-golden-journey-2026-09-12.md`
 - CI: `npm run test:lab-golden-journey` (wired into `verify`)
+
+
+## 2026-09-13 — Lab + offline acceptance connections
+
+Implemented (not live-browser-verified):
+- Hospital web offline write-up queue → SyncRuntime → `POST /api/hospital/sync/apply`
+- Lab `amend` + structured reject reasons in `hospital-lab-db`; `replaces_lab_order_id` migration (unapplied on pilot until authorized)
+- Lab actions HTTP auth Vitest suite
+- RC1 pulse `proofKind` (domain/http/live) + live counts in Admin UI
+
+Manual acceptance: `docs/engineering/MANUAL_ACCEPTANCE_LAB_OFFLINE.md`

@@ -20,6 +20,7 @@
     "./offline": "./src/offline.ts",
     "./sync-contract": "./src/sync-contract.ts",
     "./sync-runtime": "./src/sync-runtime.ts",
+    "./memory-sync-outbox-store": "./src/memory-sync-outbox-store.ts",
     "./contracts": "./src/contracts.ts",
     "./errors": "./src/errors.ts",
     "./cashier-session": "./src/cashier-session.ts",

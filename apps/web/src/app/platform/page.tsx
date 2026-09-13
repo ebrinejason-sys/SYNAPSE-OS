@@ -321,7 +321,7 @@ async function getOverviewData(): Promise<OverviewCommandCenterData> {
     },
     {
       label: "Hospital Pilot RC1",
-      value: `${rc1Pulse.status} · ${rc1Pulse.passed}/${rc1Pulse.total}`,
+      value: `${rc1Pulse.status} · ${rc1Pulse.passed}/${rc1Pulse.total} (live ${rc1Pulse.livePassed}/${rc1Pulse.liveTotal})`,
       status: rc1Pulse.status === "PILOT_READY" ? "green" : rc1Pulse.status === "STRONG_YELLOW" ? "amber" : "slate",
       href: "/platform/deployments",
       detail: rc1Pulse.detail,

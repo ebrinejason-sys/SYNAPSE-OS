@@ -70,6 +70,12 @@ export async function GET(
     clinicalNote: meta.clinical_note ?? composeClinicalNote(writeup, encounter.chief_complaint),
     writeup,
     completeness: writeupCompleteness(writeup),
+    // Auth identity for offline SyncCommand construction — never trust client-supplied tenant/actor on apply.
+    syncContext: {
+      tenantId: ctx.tenantId,
+      facilityId: ctx.hospitalId,
+      actorId: ctx.userId,
+    },
   })
 }
 

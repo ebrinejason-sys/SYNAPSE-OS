@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { ClinicalWriteup } from '@synapse/db/clinical-writeup'
+import {
+  flushHospitalClinicalOutbox,
+  isBrowserOffline,
+  pendingHospitalClinicalSummary,
+  queueWriteupOffline,
+  type HospitalClinicalSyncContext,
+} from '@/lib/clinical-offline/hospital-clinical-sync'
 
 type Completeness = { filled: number; total: number; missing: string[] }
 
@@ -14,6 +21,7 @@ type WriteupResponse = {
   clinicalNote: string
   writeup: ClinicalWriteup
   completeness: Completeness
+  syncContext?: HospitalClinicalSyncContext
   error?: string
 }
 
@@ -40,6 +48,8 @@ export function ClinicalWriteupPanel({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<string | null>(null)
+  const [queueNotice, setQueueNotice] = useState<string | null>(null)
+  const [pendingCount, setPendingCount] = useState(0)
   const [payload, setPayload] = useState<WriteupResponse | null>(null)
   const [draft, setDraft] = useState<ClinicalWriteup | null>(null)
 
@@ -52,6 +62,14 @@ export function ClinicalWriteupPanel({
       if (!res.ok) throw new Error(body.error || `Failed to load (${res.status})`)
       setPayload(body)
       setDraft(body.writeup)
+      if (body.syncContext) {
+        refreshPending(body.syncContext)
+        if (!isBrowserOffline()) {
+          void flushHospitalClinicalOutbox(body.syncContext).then(() => {
+            refreshPending(body.syncContext!)
+          })
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load write-up')
     } finally {
@@ -68,11 +86,34 @@ export function ClinicalWriteupPanel({
     return SECTIONS.some(({ key }) => (draft[key] ?? '') !== (payload.writeup[key] ?? ''))
   }, [draft, payload])
 
+  function refreshPending(ctx: HospitalClinicalSyncContext | undefined) {
+    if (!ctx) {
+      setPendingCount(0)
+      return
+    }
+    const summary = pendingHospitalClinicalSummary(ctx)
+    setPendingCount(summary.pending + summary.conflicts + summary.rejected)
+  }
+
+  async function flushPending(ctx: HospitalClinicalSyncContext) {
+    const summary = await flushHospitalClinicalOutbox(ctx)
+    refreshPending(ctx)
+    if (summary.acknowledged > 0) {
+      setQueueNotice(`Synced ${summary.acknowledged} queued change(s) to server`)
+      await load()
+    } else if (summary.conflicts > 0 || summary.rejected > 0) {
+      setQueueNotice('Some queued changes need review (conflict or rejected)')
+    }
+  }
+
   async function save() {
     if (!draft || payload?.isSigned) return
     setSaving(true)
     setError(null)
-    try {
+    setQueueNotice(null)
+    const syncContext = payload?.syncContext
+
+    const tryOnline = async () => {
       const res = await fetch(`/api/opd/encounters/${encounterId}/write-up`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -87,11 +128,43 @@ export function ClinicalWriteupPanel({
               writeup: body.writeup,
               clinicalNote: body.clinicalNote ?? prev.clinicalNote,
               completeness: body.completeness,
+              syncContext: body.syncContext ?? prev.syncContext,
             }
           : prev,
       )
       setDraft(body.writeup)
       setSavedAt(new Date().toLocaleTimeString())
+    }
+
+    try {
+      if (isBrowserOffline()) {
+        if (!syncContext) throw new Error('Offline queue unavailable (missing sync context)')
+        const queued = await queueWriteupOffline(syncContext, {
+          encounterId,
+          writeup: draft,
+        })
+        if (!queued.ok) throw new Error(queued.error)
+        refreshPending(syncContext)
+        setQueueNotice('Queued offline — not server-saved until reconnect')
+        return
+      }
+
+      try {
+        await tryOnline()
+        if (syncContext) {
+          await flushPending(syncContext)
+        }
+      } catch (onlineError) {
+        // Network/server failure while appearing online: durable local queue, never claim saved.
+        if (!syncContext) throw onlineError
+        const queued = await queueWriteupOffline(syncContext, {
+          encounterId,
+          writeup: draft,
+        })
+        if (!queued.ok) throw onlineError
+        refreshPending(syncContext)
+        setQueueNotice('Save failed online; queued locally — not server-saved yet')
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed')
     } finally {
@@ -196,7 +269,11 @@ export function ClinicalWriteupPanel({
         >
           Orders
         </Link>
-        {savedAt ? <span className="text-xs text-muted-color">Last saved {savedAt}</span> : null}
+        {savedAt ? <span className="text-xs text-muted-color">Last server-saved {savedAt}</span> : null}
+        {queueNotice ? <span className="text-xs text-amber-700 dark:text-amber-300">{queueNotice}</span> : null}
+        {pendingCount > 0 ? (
+          <span className="text-xs text-amber-700 dark:text-amber-300">{pendingCount} pending offline</span>
+        ) : null}
       </div>
     </div>
   )

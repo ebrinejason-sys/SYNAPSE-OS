@@ -31,7 +31,8 @@ export async function POST(request: Request) {
       } else if (action === "receive") {
         engine.lab.receive(orderId)
       } else if (action === "reject") {
-        engine.lab.reject(orderId, "other", String(body.reason ?? "rejected"))
+        const reason = String(body.reason ?? "other")
+        engine.lab.reject(orderId, reason as "other", String(body.note ?? body.reason ?? "rejected"))
       } else if (action === "enter_result") {
         engine.lab.enterResult({
           resultId: crypto.randomUUID(),
@@ -77,10 +78,10 @@ export async function POST(request: Request) {
       if (enterFallback) return enterFallback
       cap = null
     }
-  } else if (action === "verify" || action === "release") {
+  } else if (action === "verify" || action === "release" || action === "amend") {
     if (["lab_tech", "lab_technician"].includes(user.role ?? "")) {
       return NextResponse.json(
-        { error: "lab_tech cannot verify or release; lab_scientist required" },
+        { error: "lab_tech cannot verify, release, or amend; lab_scientist required" },
         { status: 403 },
       )
     }

@@ -34,9 +34,12 @@ export default async function DeploymentsPage() {
             <p className="mt-1 text-xs text-muted-color">{rc1.detail}</p>
           </div>
           <p className="font-mono text-sm text-secondary-color">
-            {rc1.passed}/{rc1.total} gates
+            {rc1.passed}/{rc1.total} files · live {rc1.livePassed}/{rc1.liveTotal}
           </p>
         </div>
+        <p className="mt-2 text-[11px] text-muted-color">
+          File presence ≠ live workflow. Domain/http PASS is not browser/RLS acceptance.
+        </p>
         <ul className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {rc1.gates.map((gate) => (
             <li
@@ -46,6 +49,7 @@ export default async function DeploymentsPage() {
               <span className={gate.status === "PASS" ? "text-emerald-400" : "text-amber-400"}>
                 {gate.status === "PASS" ? "PASS" : "MISS"}
               </span>{" "}
+              <span className="uppercase tracking-wide text-muted-color">{gate.proofKind}</span>{" "}
               <span className="text-primary-color">{gate.label}</span>
             </li>
           ))}
