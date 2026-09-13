@@ -46,8 +46,16 @@ export default async function DeploymentsPage() {
               key={gate.id}
               className="rounded-lg border border-subtle px-3 py-2 text-xs text-secondary-color"
             >
-              <span className={gate.status === "PASS" ? "text-emerald-400" : "text-amber-400"}>
-                {gate.status === "PASS" ? "PASS" : "MISS"}
+              <span
+                className={
+                  gate.status === "PASS"
+                    ? "text-emerald-400"
+                    : gate.status === "STALE" || gate.status === "UNVERIFIED"
+                      ? "text-orange-400"
+                      : "text-amber-400"
+                }
+              >
+                {gate.status}
               </span>{" "}
               <span className="uppercase tracking-wide text-muted-color">{gate.proofKind}</span>{" "}
               <span className="text-primary-color">{gate.label}</span>
