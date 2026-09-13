@@ -8,12 +8,18 @@
 
 import { SyncRuntime, classifyApplyHttpFailure, type SyncApplyResult, type SyncFlushSummary } from '@synapse/db/sync-runtime'
 import { buildWriteupSyncCommand } from '@synapse/db/clinical-offline-writeup'
+import { buildDispositionSyncCommand } from '@synapse/db/clinical-offline-disposition'
+import { buildTriageSyncCommand } from '@synapse/db/clinical-offline-triage'
+import { buildPrescribeSyncCommand } from '@synapse/db/clinical-offline-prescribe'
 import type { ClinicalWriteup } from '@synapse/db/clinical-writeup'
 import type { SyncCommand } from '@synapse/db/sync-contract'
 import {
   LocalStorageSyncOutboxStore,
   clearHospitalClinicalOutbox,
+  discardParkedHospitalClinicalOutbox,
   getOrCreateHospitalDeviceId,
+  getParkedHospitalClinicalCount,
+  parkHospitalClinicalOutbox,
 } from './local-storage-outbox-store'
 
 export type HospitalClinicalSyncContext = {
@@ -130,4 +136,97 @@ export function clearHospitalClinicalQueueForUser(ctx: HospitalClinicalSyncConte
 
 export function isBrowserOffline(): boolean {
   return typeof navigator !== 'undefined' && navigator.onLine === false
+}
+
+export function parkHospitalClinicalQueueForUser(ctx: HospitalClinicalSyncContext) {
+  return parkHospitalClinicalOutbox(ctx.tenantId, ctx.actorId)
+}
+
+export function parkedHospitalClinicalCount(ctx: HospitalClinicalSyncContext) {
+  return getParkedHospitalClinicalCount(ctx.tenantId, ctx.actorId)
+}
+
+export function discardParkedHospitalClinicalQueue(ctx: HospitalClinicalSyncContext) {
+  discardParkedHospitalClinicalOutbox(ctx.tenantId, ctx.actorId)
+}
+
+
+export async function queueDispositionOffline(
+  ctx: HospitalClinicalSyncContext,
+  input: { encounterId: string; disposition: string; reason?: string | null; commandId?: string },
+): Promise<QueueWriteupResult> {
+  try {
+    const command = await buildDispositionSyncCommand({
+      commandId: input.commandId,
+      tenantId: ctx.tenantId,
+      facilityId: ctx.facilityId,
+      deviceId: getOrCreateHospitalDeviceId(),
+      actorId: ctx.actorId,
+      encounterId: input.encounterId,
+      disposition: input.disposition as never,
+      reason: input.reason ?? null,
+    })
+    const record = await runtimeFor(ctx).commit(command)
+    return { ok: true, state: 'queued', commandId: record.command.commandId, offline: true }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'OFFLINE_QUEUE_FAILED' }
+  }
+}
+
+export async function queueTriageOffline(
+  ctx: HospitalClinicalSyncContext,
+  input: {
+    encounterId: string
+    triage: Record<string, unknown>
+    commandId?: string
+  },
+): Promise<QueueWriteupResult> {
+  try {
+    const command = await buildTriageSyncCommand({
+      commandId: input.commandId,
+      tenantId: ctx.tenantId,
+      facilityId: ctx.facilityId,
+      deviceId: getOrCreateHospitalDeviceId(),
+      actorId: ctx.actorId,
+      encounterId: input.encounterId,
+      triage: input.triage as never,
+    })
+    const record = await runtimeFor(ctx).commit(command)
+    return { ok: true, state: 'queued', commandId: record.command.commandId, offline: true }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'OFFLINE_QUEUE_FAILED' }
+  }
+}
+
+export async function queuePrescribeOffline(
+  ctx: HospitalClinicalSyncContext,
+  input: {
+    encounterId: string
+    patientId: string
+    medicationDisplay: string
+    dose: string
+    quantity: number
+    unit?: string
+    commandId?: string
+  },
+): Promise<QueueWriteupResult> {
+  try {
+    const command = await buildPrescribeSyncCommand({
+      commandId: input.commandId,
+      tenantId: ctx.tenantId,
+      facilityId: ctx.facilityId,
+      deviceId: getOrCreateHospitalDeviceId(),
+      actorId: ctx.actorId,
+      encounterId: input.encounterId,
+      patientId: input.patientId,
+      medicationDisplay: input.medicationDisplay,
+      dose: input.dose,
+      quantity: input.quantity,
+      unit: input.unit,
+    })
+    const record = await runtimeFor(ctx).commit(command)
+    return { ok: true, state: 'queued', commandId: record.command.commandId, offline: true }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'OFFLINE_QUEUE_FAILED' }
+  }
 }

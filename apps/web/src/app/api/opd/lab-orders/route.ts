@@ -121,6 +121,21 @@ export async function POST(req: NextRequest) {
       if (String(prior.workflow_status) !== 'REJECTED') {
         return NextResponse.json({ error: 'Replacement only allowed for REJECTED orders' }, { status: 400 })
       }
+      const { data: openReplacement, error: openError } = await db
+        .from('lab_orders')
+        .select('id')
+        .eq('tenant_id', ctx.tenantId)
+        .eq('replaces_lab_order_id', replaces_lab_order_id)
+        .not('workflow_status', 'in', '(CANCELLED,REJECTED,RELEASED,AMENDED)')
+        .limit(1)
+        .maybeSingle()
+      if (openError) return NextResponse.json({ error: openError.message }, { status: 500 })
+      if (openReplacement) {
+        return NextResponse.json(
+          { error: 'Open replacement already exists for this rejected order', existingOrderId: openReplacement.id },
+          { status: 409 },
+        )
+      }
       journey.order.replacesLabOrderId = replaces_lab_order_id
     }
 
