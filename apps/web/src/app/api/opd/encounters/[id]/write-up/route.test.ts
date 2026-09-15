@@ -27,6 +27,7 @@ vi.mock('@/lib/hospital-shared', async () => {
     requireHospitalCapability: (...args: unknown[]) => requireHospitalCapability(...args),
     gateHospitalModule: (...args: unknown[]) => gateHospitalModule(...args),
     logHospitalAudit: (...args: unknown[]) => logHospitalAudit(...args),
+    hospitalOutboxWrapMaterial: () => 'synthetic-recovery-material',
   }
 })
 
@@ -106,6 +107,7 @@ describe('opd encounter write-up route', () => {
     })
     const body = await res.json()
     expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control')).toBe('private, no-store')
     expect(body.writeup.hpi).toBe('2 days fever')
     expect(body.completeness.filled).toBeGreaterThan(0)
   })

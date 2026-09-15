@@ -77,7 +77,7 @@ export async function GET(
       actorId: ctx.userId,
       outboxWrapMaterial: hospitalOutboxWrapMaterial(ctx.tenantId, ctx.userId),
     },
-  })
+  }, { headers: { 'Cache-Control': 'private, no-store', Vary: 'Cookie, Authorization' } })
 }
 
 export async function PUT(

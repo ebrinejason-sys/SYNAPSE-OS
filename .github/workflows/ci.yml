@@ -36,13 +36,28 @@ jobs:
       - name: OPD dispense golden journey (domain)
         run: npm run test:opd-dispense-golden
       - name: Encounter close-gate tests
-        run: npm run test:encounter-close-gate
+        run: |
+          npm run test:encounter-close-gate
           npm run test:clinical-writeup
           npm run test:hospital-closeout-golden
           npm run test:hospital-golden-journey
           npm run test:inpatient-lifecycle
           npm run test:referral-lifecycle
           npm run test:clinical-offline-writeup
+
+      - name: Clinical cache security regression
+        run: |
+          node --test scripts/clinical-cache-security.test.mjs
+          npx vitest run 'apps/web/src/app/api/opd/encounters/[id]/write-up/route.test.ts'
+
+      - name: Remaining RC1 domain and route regression suites
+        run: |
+          npm run test:lab-golden-journey
+          npm run test:memory-sync-outbox
+          npm run test:lab-actions
+          npm run test:clinical-offline-disposition
+          npm run test:clinical-offline-triage
+          npm run test:clinical-offline-prescribe
 
       - name: Platform admin guard audit
         run: node scripts/check-platform-admin-guards.mjs

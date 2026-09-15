@@ -1,5 +1,9 @@
 # SYNAPSE Functional Scorecard
 
+> Integration update 2026-09-15: disconnected notes document reload is gated.
+> The v3 plaintext clinical-response cache was removed; encrypted drafts remain.
+> Historical offline reload evidence must not be used to promote v4 readiness.
+
 Date: 2026-09-13
 Baseline (historical): `76d80e92876e30ca1fe628acc9d30dd30fdf674a`
 Reconciled against working tree; cite `git rev-parse HEAD` for current SHA. Domain/HTTP PASS ≠ LIVE_PROOF.

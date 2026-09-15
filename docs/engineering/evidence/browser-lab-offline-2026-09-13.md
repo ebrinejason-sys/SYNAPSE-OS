@@ -1,5 +1,10 @@
 # RC1 browser lab + offline acceptance (disposable-rc1)
 
+> Superseded for offline document reload by the 2026-09-15 integration security
+> repair: v3 cached authenticated HTML and clinical JSON/recovery material in
+> plaintext. v4 requires reconnection for notes reload and preserves encrypted
+> drafts. The historical PASS below is not current offline acceptance.
+
 - **Branch:** `feat/rc1-lab-offline-acceptance`
 - **Baseline tip when evidence captured:** post-blocker commits on this branch (see git log after `3df6697`)
 - **Env:** disposable Postgres `synapse-rc1-lab-1433489` + PostgREST + Node `/rest/v1` proxy `:54322` + Next `:3011`

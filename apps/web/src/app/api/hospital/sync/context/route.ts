@@ -16,5 +16,5 @@ export async function GET() {
       role: ctx.role,
       outboxWrapMaterial: hospitalOutboxWrapMaterial(ctx.tenantId, ctx.userId),
     },
-  })
+  }, { headers: { 'Cache-Control': 'private, no-store', Vary: 'Cookie, Authorization' } })
 }
