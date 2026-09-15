@@ -1,0 +1,19 @@
+PASS SW cached next static assets — assets=9
+PASS notes page online
+PASS clicked save while offline
+PASS offline save shows queued/not server-saved — ← EncounterClinical write-upChief complaint: RC1 browser lab11% complete1/9 sectionsHistory of present illnessFilledOnset, duration, character, associated symptomsBrowser offline HPI 1789282854916Past medical / surgical 
+PASS encrypted outbox persisted in localStorage — synapse.hospital.clinical.outbox.v2:94ec9fd8-17ac-4f40-8f82-429d44cb8b02:389ee4bb-4708-4f83-af6f-58c3c4253b9c
+PASS outbox payload encrypted (no plaintext HPI) — R/gffDNRey+35kRMotqrwr3q
+PASS outbox scoped to tenant+actor key — synapse.hospital.clinical.outbox.v2:94ec9fd8-17ac-4f40-8f82-429d44cb8b02:389ee4bb-4708-4f83-af6f-58c3c4253b9c
+PASS session crypto key in sessionStorage while active
+PASS pre-reload identity+draft present — {"identitySession":"{\"tenantId\":\"94ec9fd8-17ac-4f40-8f82-429d44cb8b02\",\"actorId\":\"389ee4bb-4708-4f83-af6f-58c3c4253b9c\",\"facilityId\":\"94ec9fd8-17ac-4f40-8f82-429d44cb8b02\"}","identityLocal":"{\"tenantId\":\"94ec9fd8-17ac-4f40-8f
+PASS service worker registered for offline shell
+PASS real offline reload leaves loading state — ← EncounterClinical write-upChief complaint: RC1 browser lab11% complete1/9 sectionsHistory of present illnessFilledOnset, duration, character, associated symptomsBrowser offline HPI 1789282854916Past medical / surgical 
+PASS offline reload keeps queued stamp visible — ← EncounterClinical write-upChief complaint: RC1 browser lab11% complete1/9 sectionsHistory of present illnessFilledOnset, duration, character, associated symptomsBrowser offline H
+PASS no other-actor outbox keys visible
+PASS reconnect UI still usable — ← EncounterClinical write-upChief complaint: RC1 browser lab11% complete1/9 sectionsHistory of present illnessFilledOnset, duration, character, associated symptomsBrowser offline H
+PASS lab sign out control present
+PASS logout parks pending outbox — parked=true live=false
+PASS logout clears live session key
+PASS park has no raw keyMaterial
+PASS park has wrap ciphertext for restore

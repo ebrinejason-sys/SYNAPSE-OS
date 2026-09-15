@@ -79,6 +79,8 @@ export type LabOrder = {
   isSynthetic: boolean
   simulationRunId?: string | null
   correlationId: string
+  /** Prior rejected order this replacement recollects; null for original orders. */
+  replacesLabOrderId?: string | null
 }
 
 export type LabResult = {

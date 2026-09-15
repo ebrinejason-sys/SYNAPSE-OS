@@ -5,6 +5,8 @@ const {
   requireHospitalStaffContext,
   requireHospitalCapability,
   logHospitalAudit,
+  requireHospitalAudit,
+  HospitalAuditRequiredError,
   dbFrom,
   hashPayload,
   assertSyncCommand,
@@ -18,10 +20,19 @@ const {
   persistClinicalPrescriptionBestEffort,
   composeClinicalNote,
   writeupFromEncounterMetadata,
-} = vi.hoisted(() => ({
+} = vi.hoisted(() => {
+  class HospitalAuditRequiredError extends Error {
+    constructor(message: string) {
+      super(message)
+      this.name = 'HospitalAuditRequiredError'
+    }
+  }
+  return {
   requireHospitalStaffContext: vi.fn(),
   requireHospitalCapability: vi.fn(),
   logHospitalAudit: vi.fn(),
+  requireHospitalAudit: vi.fn(),
+  HospitalAuditRequiredError,
   dbFrom: vi.fn(),
   hashPayload: vi.fn(),
   assertSyncCommand: vi.fn(),
@@ -35,7 +46,8 @@ const {
   persistClinicalPrescriptionBestEffort: vi.fn(),
   composeClinicalNote: vi.fn(),
   writeupFromEncounterMetadata: vi.fn(),
-}))
+  }
+})
 
 vi.mock('@/lib/hospital-dept', () => ({
   requireHospitalStaffContext: (...args: unknown[]) => requireHospitalStaffContext(...args),
@@ -48,6 +60,8 @@ vi.mock('@/lib/hospital-shared', async () => {
       value instanceof NextResponse,
     requireHospitalCapability: (...args: unknown[]) => requireHospitalCapability(...args),
     logHospitalAudit: (...args: unknown[]) => logHospitalAudit(...args),
+    requireHospitalAudit: (...args: unknown[]) => requireHospitalAudit(...args),
+    HospitalAuditRequiredError,
   }
 })
 
@@ -251,7 +265,7 @@ describe('POST /api/hospital/sync/apply', () => {
     })
     writeupFromEncounterMetadata.mockReturnValue({ hpi: 'Offline fever x2d' })
     composeClinicalNote.mockReturnValue('HPI: Offline fever x2d')
-    logHospitalAudit.mockResolvedValue(undefined)
+    requireHospitalAudit.mockResolvedValue(undefined)
 
     const findChain = chain({ data: null })
     const insertChain = chain({
@@ -325,7 +339,7 @@ describe('POST /api/hospital/sync/apply', () => {
     expect(json.commandId).toBe(CMD)
     expect(json.result.encounterId).toBe(ENCOUNTER)
     expect(applyWriteupSyncCommand).toHaveBeenCalled()
-    expect(logHospitalAudit).toHaveBeenCalled()
+    expect(requireHospitalAudit).toHaveBeenCalled()
   })
 
   it('replays an already-applied command idempotently', async () => {
@@ -464,7 +478,7 @@ describe('POST /api/hospital/sync/apply', () => {
       isSigned: false,
       revision: 1,
     })
-    logHospitalAudit.mockResolvedValue(undefined)
+    requireHospitalAudit.mockResolvedValue(undefined)
 
     const findChain = chain({ data: null })
     const insertChain = chain({
@@ -554,7 +568,7 @@ describe('POST /api/hospital/sync/apply', () => {
     })
     triageFromEncounterMetadata.mockReturnValue({ clinical_stage: 'YELLOW', temperature_c: 38.4 })
     vitalsInsertFromTriage.mockReturnValue({ encounter_id: ENCOUNTER, temperature_c: 38.4 })
-    logHospitalAudit.mockResolvedValue(undefined)
+    requireHospitalAudit.mockResolvedValue(undefined)
 
     const findChain = chain({ data: null })
     const insertChain = chain({
@@ -653,7 +667,7 @@ describe('POST /api/hospital/sync/apply', () => {
       },
     })
     persistClinicalPrescriptionBestEffort.mockResolvedValue({ ok: true })
-    logHospitalAudit.mockResolvedValue(undefined)
+    requireHospitalAudit.mockResolvedValue(undefined)
 
     const findChain = chain({ data: null })
     const insertChain = chain({
@@ -725,5 +739,80 @@ describe('POST /api/hospital/sync/apply', () => {
     expect(applyPrescribeSyncCommand).toHaveBeenCalled()
     expect(persistClinicalPrescriptionBestEffort).toHaveBeenCalled()
   })
+
+  it('refuses applied when required audit fails and leaves outbox for idempotent retry', async () => {
+    requireHospitalStaffContext.mockResolvedValue({
+      tenantId: TENANT,
+      userId: USER,
+      hospitalId: FACILITY,
+      role: 'doctor',
+    })
+    requireHospitalCapability.mockResolvedValue(null)
+    assertSyncCommand.mockImplementation(() => undefined)
+    hashPayload.mockResolvedValue('hash-ok')
+    toSyncOutboxRow.mockReturnValue({ idempotency_key: CMD })
+    applyWriteupSyncCommand.mockReturnValue({
+      encounterId: ENCOUNTER,
+      metadata: { writeup: { hpi: 'Offline fever x2d' } },
+      revision: 1,
+    })
+    writeupFromEncounterMetadata.mockReturnValue({ hpi: 'Offline fever x2d' })
+    composeClinicalNote.mockReturnValue('HPI: Offline fever x2d')
+    requireHospitalAudit.mockRejectedValue(new HospitalAuditRequiredError('audit insert failed'))
+
+    const findChain = chain({ data: null })
+    const insertChain = chain({
+      data: {
+        id: OUTBOX,
+        tenant_id: TENANT,
+        idempotency_key: CMD,
+        payload: {},
+        status: 'queued',
+        applied_at: null,
+        conflict_reason: null,
+      },
+    })
+    const syncingChain = chain({ data: null })
+    const encounterChain = chain({
+      data: {
+        id: ENCOUNTER,
+        metadata: {},
+        is_signed: false,
+        chief_complaint: 'Fever',
+        status: 'open',
+      },
+    })
+    const updateEncounterChain = chain({ data: null })
+    const queuedAgainChain = chain({ data: null })
+
+    let outboxOps = 0
+    let encounterOps = 0
+    dbFrom.mockImplementation((table: string) => {
+      if (table === 'offline_mutation_outbox') {
+        outboxOps += 1
+        if (outboxOps === 1) return findChain
+        if (outboxOps === 2) return insertChain
+        if (outboxOps === 3) return syncingChain
+        return queuedAgainChain
+      }
+      if (table === 'encounters') {
+        encounterOps += 1
+        if (encounterOps === 1) return encounterChain
+        return updateEncounterChain
+      }
+      return chain({ data: null })
+    })
+
+    const { POST } = await import('./route')
+    const res = await POST(makeRequest({ command: makeCommand() }))
+    expect(res.status).toBe(503)
+    const json = await res.json()
+    expect(json.ok).not.toBe(true)
+    expect(json.outcome).toBe('retry')
+    expect(json.error).toBe('AUDIT_REQUIRED_FAILED')
+    expect(requireHospitalAudit).toHaveBeenCalled()
+    expect(queuedAgainChain.update).toHaveBeenCalled()
+  })
+
 
 })
