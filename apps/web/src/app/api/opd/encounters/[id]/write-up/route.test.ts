@@ -108,6 +108,7 @@ describe('opd encounter write-up route', () => {
     const body = await res.json()
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('private, no-store')
+    expect(res.headers.get('vary')).toBe('Cookie, Authorization')
     expect(body.writeup.hpi).toBe('2 days fever')
     expect(body.completeness.filled).toBeGreaterThan(0)
   })
