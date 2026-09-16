@@ -148,6 +148,14 @@ export async function executeHospitalLabAction(params: {
   let resultSource = 'MANUAL'
 
   if (params.action === 'collect') {
+    // A retry must not allocate another specimen, reset its received status,
+    // or rewrite a previously verified result through the common persist path.
+    if (!['ORDERED', 'COLLECTION_PENDING', 'REJECTED', 'CANCELLED'].includes(order.status)) {
+      if (!order.specimenId || !order.accessionNumber || !order.barcode) {
+        throw new Error('LAB_COLLECT_RETRY_INCOMPLETE:specimen reconciliation required')
+      }
+      return { order, result: priorResults[0] ?? null, warnings }
+    }
     const accession =
       typeof params.extra?.accessionNumber === 'string' && params.extra.accessionNumber.trim()
         ? String(params.extra.accessionNumber).trim()

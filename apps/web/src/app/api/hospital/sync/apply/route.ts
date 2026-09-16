@@ -224,8 +224,11 @@ export async function POST(request: NextRequest) {
         encounterId,
         triage,
         actorId: ctx.userId,
+        // The outbox UUID is server-generated and stable across retries. Never
+        // use a client-selected UUID as a service-role upsert primary key.
+        id: outbox.id,
       })
-      const { error: vitalsError } = await db().from('vitals').insert(vitalsRow)
+      const { error: vitalsError } = await db().from('vitals').upsert(vitalsRow, { onConflict: 'id' })
       if (vitalsError) {
         await markOutbox(outbox.id, ctx.tenantId, 'queued', vitalsError.message)
         return NextResponse.json({ error: vitalsError.message, outcome: 'retry' }, { status: 503 })
@@ -461,10 +464,13 @@ function classifyExisting(
   command: SyncCommand,
 ): { row: ServerOutboxRow; replay: 'applied' | 'conflict' | 'rejected' | 'none' } {
   const prior = row.payload?.envelope
-  if (row.status === 'rejected') return { row, replay: 'rejected' }
-  if (prior && prior.payloadHash && prior.payloadHash !== command.payloadHash) {
+  if (!prior || ['tenantId', 'actorId', 'facilityId', 'aggregateType', 'aggregateId',
+    'commandType', 'schemaVersion', 'payloadHash', 'baseRevision'].some(
+      (key) => prior[key as keyof SyncCommand] !== command[key as keyof SyncCommand],
+    )) {
     return { row, replay: 'conflict' }
   }
+  if (row.status === 'rejected') return { row, replay: 'rejected' }
   if (row.status === 'applied') return { row, replay: 'applied' }
   return { row, replay: 'none' }
 }

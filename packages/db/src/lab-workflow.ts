@@ -350,6 +350,15 @@ export class LabWorkflow {
 
   collect(orderId: string, accessionNumber: string, barcode: string, specimenId: string): LabOrder {
     const order = this.getOrder(orderId)
+    // Retry after a committed collect (audit/network) must not mint a second specimen.
+    if (
+      order.status !== "ORDERED" &&
+      order.status !== "COLLECTION_PENDING" &&
+      order.status !== "REJECTED" &&
+      order.status !== "CANCELLED"
+    ) {
+      return order
+    }
     if (order.status === "ORDERED") {
       this.transition(orderId, "COLLECTION_PENDING")
     }
@@ -438,7 +447,8 @@ export class LabWorkflow {
 
   /**
    * Human lab verification only. There is intentionally no AI / model path.
-   * Accepts RESULT_ENTERED or VERIFICATION_PENDING; refuses every other status.
+   * First call requires RESULT_ENTERED or VERIFICATION_PENDING.
+   * Retry after a committed verify/release/amend is idempotent (audit-fail / lost-ack).
    */
   verify(orderId: string, verifierId: string, at = new Date().toISOString()): LabResult {
     if (!verifierId || verifierId.trim().length === 0) {
@@ -448,6 +458,11 @@ export class LabWorkflow {
       throw new Error("LAB_AI_CANNOT_VERIFY:AI actors cannot verify lab results")
     }
     const order = this.getOrder(orderId)
+    if (order.status === "VERIFIED" || order.status === "RELEASED" || order.status === "AMENDED") {
+      const existing = this.results.find((row) => row.labOrderId === orderId)
+      if (!existing) throw new Error("LAB_RESULT_NOT_FOUND")
+      return existing
+    }
     if (order.status !== "RESULT_ENTERED" && order.status !== "VERIFICATION_PENDING") {
       throw new Error(
         `LAB_VERIFY_REFUSED:expected RESULT_ENTERED or VERIFICATION_PENDING, got ${order.status}`,
@@ -467,6 +482,12 @@ export class LabWorkflow {
   }
 
   release(orderId: string, at = new Date().toISOString()): LabResult {
+    const order = this.getOrder(orderId)
+    if (order.status === "RELEASED") {
+      const existing = this.results.find((row) => row.labOrderId === orderId)
+      if (!existing) throw new Error("LAB_RESULT_NOT_FOUND")
+      return existing
+    }
     this.transition(orderId, "RELEASED")
     const result = this.results.find((row) => row.labOrderId === orderId)
     if (!result) throw new Error("LAB_RESULT_NOT_FOUND")
@@ -487,6 +508,14 @@ export class LabWorkflow {
     if (!result) throw new Error("LAB_RESULT_NOT_FOUND")
     if (result.status !== "final" && result.status !== "amended") {
       throw new Error("LAB_AMEND_REQUIRES_VERIFIED")
+    }
+    const prior = this.amendments.find((row) => row.id === params.amendmentId)
+    if (prior) {
+      if (prior.resultId !== result.id || prior.newValue !== params.newValue ||
+          prior.reason !== params.reason || prior.amendedBy !== params.amendedBy) {
+        throw new Error("LAB_AMEND_IDEMPOTENCY_CONFLICT")
+      }
+      return { result, amendment: prior }
     }
     const previousValue = result.resultValue
     const previousStatus = result.status

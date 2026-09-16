@@ -59,6 +59,13 @@ Every feature: domain logic → HTTP/API proof → live synthetic journey → re
 
 - Offline prescribe SyncCommand (`docs/engineering/evidence/clinical-offline-prescribe-2026-09-12.md`).
 
+## 2026-09-15 — Audit-fail retry + EHR continuity
+
+- Lab verify/release/collect domain retries preserve current state; amendment retries require the same amendment ID and content (`packages/db/src/lab-workflow.retry.test.ts`). Persisted HTTP amendment retry remains unproven.
+- Triage vitals use the server-generated outbox ID, not the client command ID, for stable retry upserts.
+- EHR continuity domain golden: one `persons.id` / Synapse ID across Hospital A → Lab B → Pharmacy C, issuer-scoped aliases, unauthorized facility D denied (`npm run test:ehr-continuity-golden`).
+- This EHR fixture is in-memory domain coverage, not persisted consent, RLS, or authenticated cross-facility acceptance.
+
 
 ## Lab depth beside hospital path (2026-09-12)
 
