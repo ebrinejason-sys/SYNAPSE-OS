@@ -93,8 +93,11 @@ export function vitalsInsertFromTriage(input: {
   encounterId: string
   triage: TriageSnapshot
   actorId: string
+  /** Server-owned stable id for retry upserts; never a client-selected primary key. */
+  id?: string
 }): Record<string, unknown> {
   return {
+    ...(input.id ? { id: input.id } : {}),
     tenant_id: input.tenantId,
     encounter_id: input.encounterId,
     bp_systolic: input.triage.bp_systolic,

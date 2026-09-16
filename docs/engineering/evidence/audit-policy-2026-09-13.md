@@ -23,7 +23,13 @@ PostgREST cannot wrap encounter update + audit insert in one transaction.
 1. Domain write may commit first.
 2. If required audit fails, the route returns `503` / `AUDIT_REQUIRED_FAILED` / `outcome: retry` and **does not** set `ok: true`.
 3. Server outbox stays `queued` with `conflict_reason=AUDIT_REQUIRED:…` (not `applied`).
-4. Retry of the same `commandId` + `payloadHash` re-enters apply (`classifyExisting` → `none` while not applied). Encounter update is idempotent; a second audit row may be inserted. That is preferred over silent success or a duplicate clinical mutation after a false `applied`.
+4. Retry of the same command identity and payload hash re-enters apply (`classifyExisting` → `none` while not applied). Current retry mechanisms (not transactional guarantees):
+   - write-up / disposition: same encounter columns overwritten
+   - prescribe: `clinical_prescriptions` upsert on `id`
+   - triage vitals: upsert on server-generated outbox ID as `vitals.id`, never the client-selected command ID
+   - lab verify / release / collect: return current state if already at or past the target
+   - lab amend: in-memory replay requires the same amendment ID, result, value, reason, and actor; HTTP adapter still generates a new ID and does not reload amendment history, so persisted retry safety is NOT established
+   - billing: `idempotency_key` is resolved before `INVOICE_ALREADY_PAID`
 
 Lost-ack after a successful audit+apply: outbox is `applied`, replay returns `outcome: replay` without rewriting the encounter.
 
@@ -37,4 +43,4 @@ Parked outbox wrap material is HMAC-SHA256 of `SYNAPSE_JWT_SECRET` over `tenantI
 
 1. Domain write via `executeHospitalLabAction` may commit first.
 2. If `requireHospitalAudit` fails, response is `503` with `code: AUDIT_REQUIRED_FAILED` and `outcome: retry` (no 200 body).
-3. Client/operator must retry the same action. Verify/release are idempotent in LabWorkflow when already in the target state; amend should only create a new result when values change.
+3. Verify/release/collect preserve domain state on retry. Collection's database adapter avoids creating a new specimen on a completed collection. Do not blindly retry amendments: persisted amendment idempotency still requires implementation and database acceptance.

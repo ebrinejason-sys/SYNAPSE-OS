@@ -163,6 +163,7 @@ function chain(result: { data?: unknown; error?: unknown; code?: string }) {
   for (const m of [
     'select',
     'insert',
+    'upsert',
     'update',
     'eq',
     'maybeSingle',
@@ -405,6 +406,32 @@ describe('POST /api/hospital/sync/apply', () => {
     expect(json.outcome).toBe('conflict')
   })
 
+  it.each([
+    { actorId: 'another-actor' },
+    { aggregateId: 'another-encounter' },
+    { commandType: 'clinical.encounter.triage.v1' },
+    { facilityId: 'another-facility' },
+    { baseRevision: 42 },
+  ])('refuses replay under a different stored command identity: %j', async (overrides) => {
+    requireHospitalStaffContext.mockResolvedValue({ tenantId: TENANT, userId: USER, hospitalId: FACILITY })
+    requireHospitalCapability.mockResolvedValue(null)
+    assertSyncCommand.mockImplementation(() => undefined)
+    hashPayload.mockResolvedValue('hash-ok')
+    dbFrom.mockReturnValue(chain({ data: {
+      id: OUTBOX, tenant_id: TENANT, idempotency_key: CMD,
+      payload: { envelope: makeCommand(overrides), serverResponse: { private: 'previous result' } },
+      status: 'applied', applied_at: null, conflict_reason: null,
+    } }))
+    const { POST } = await import('./route')
+    const res = await POST(makeRequest({ command: makeCommand() }))
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.outcome).toBe('conflict')
+    expect(body.result).toBeUndefined()
+    expect(applyWriteupSyncCommand).not.toHaveBeenCalled()
+    expect(dbFrom).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects sync against a signed encounter', async () => {
     requireHospitalStaffContext.mockResolvedValue({
       tenantId: TENANT,
@@ -549,7 +576,7 @@ describe('POST /api/hospital/sync/apply', () => {
   })
 
 
-  it('applies triage SyncCommand and inserts vitals', async () => {
+  it('applies triage using a server-owned vitals id, never the client command id', async () => {
     requireHospitalStaffContext.mockResolvedValue({
       tenantId: TENANT,
       userId: USER,
@@ -567,7 +594,7 @@ describe('POST /api/hospital/sync/apply', () => {
       revision: 1,
     })
     triageFromEncounterMetadata.mockReturnValue({ clinical_stage: 'YELLOW', temperature_c: 38.4 })
-    vitalsInsertFromTriage.mockReturnValue({ encounter_id: ENCOUNTER, temperature_c: 38.4 })
+    vitalsInsertFromTriage.mockReturnValue({ id: OUTBOX, tenant_id: TENANT, encounter_id: ENCOUNTER, temperature_c: 38.4 })
     requireHospitalAudit.mockResolvedValue(undefined)
 
     const findChain = chain({ data: null })
@@ -634,7 +661,14 @@ describe('POST /api/hospital/sync/apply', () => {
     expect(json.outcome).toBe('applied')
     expect(json.result.clinicalStage).toBe('YELLOW')
     expect(applyTriageSyncCommand).toHaveBeenCalled()
-    expect(vitalsInsertFromTriage).toHaveBeenCalled()
+    expect(vitalsInsertFromTriage).toHaveBeenCalledWith(expect.objectContaining({
+      id: OUTBOX, tenantId: TENANT, encounterId: ENCOUNTER, actorId: USER,
+    }))
+    expect(vitalsInsertChain.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ id: OUTBOX, tenant_id: TENANT, encounter_id: ENCOUNTER }),
+      { onConflict: 'id' },
+    )
+    expect(OUTBOX).not.toBe(CMD)
   })
 
 

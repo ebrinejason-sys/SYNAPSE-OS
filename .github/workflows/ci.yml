@@ -43,6 +43,10 @@ jobs:
           npm run test:hospital-golden-journey
           npm run test:inpatient-lifecycle
           npm run test:referral-lifecycle
+          npm run test:lab-golden-journey
+          npm run test:lab-workflow-retry
+          npm run test:ehr-continuity-golden
+          npm run test:clinical-payment
           npm run test:clinical-offline-writeup
 
       - name: Clinical cache security regression
