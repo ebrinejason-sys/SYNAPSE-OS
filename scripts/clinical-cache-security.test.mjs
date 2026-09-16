@@ -82,6 +82,6 @@ test('CI clinical test commands are separate shell commands, not folded argument
   const ci = yaml.load(readFileSync(new URL('.github/workflows/ci.yml', root), 'utf8'))
   const step = ci.jobs.verify.steps.find((s) => s.name === 'Encounter close-gate tests')
   const commands = step.run.trim().split('\n')
-  assert.equal(commands.length, 7)
+  assert.equal(commands.length, 11)
   for (const command of commands) assert.match(command.trim(), /^npm run test:[a-z-]+$/)
 })

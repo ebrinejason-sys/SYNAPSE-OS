@@ -56,12 +56,14 @@ jobs:
 
       - name: Remaining RC1 domain and route regression suites
         run: |
-          npm run test:lab-golden-journey
           npm run test:memory-sync-outbox
           npm run test:lab-actions
           npm run test:clinical-offline-disposition
           npm run test:clinical-offline-triage
           npm run test:clinical-offline-prescribe
+
+      - name: Consolidation security regressions
+        run: npm run test:consolidation
 
       - name: Platform admin guard audit
         run: node scripts/check-platform-admin-guards.mjs

@@ -22,6 +22,7 @@
     "verify:web": "node scripts/verify-web-build.mjs",
     "verify:pharmacy": "npm run type-check --workspace @synapse/pharmacy && npm run lint --workspace @synapse/pharmacy && npm run test:general --workspace @synapse/pharmacy && npm run build --workspace @synapse/pharmacy",
     "verify:control-plane": "npm run test:control-plane",
+    "test:consolidation": "node --test scripts/clinical-cache-security.test.mjs scripts/disposable-onboarding-target.test.mjs && vitest run apps/web/src/lib/hospital-lab-db.retry.test.ts apps/web/src/app/api/opd/encounters/[id]/write-up/route.test.ts",
     "verify:lab-edge": "npm run test:lab-edge",
     "test:workflow-safety": "node --test scripts/check-workflow-safety.test.mjs",
     "test:invitations:postgres": "bash scripts/db-tests/run-isolated.sh",
