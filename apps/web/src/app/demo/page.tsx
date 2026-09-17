@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { SynapseLogo } from "../../components/SynapseLogo";
+import { resetDemoPlayground } from "../../lib/demo/browser-repository";
 
 type Differential = {
   condition: string;
@@ -114,6 +115,13 @@ export default function DemoPage() {
   const [result, setResult] = useState<DiagnosisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function resetPlayground() {
+    await resetDemoPlayground();
+    setResult(null);
+    setError(null);
+    setStep(1);
+  }
 
   const showPregnancy = sex === "female" || sex === "unknown";
 
@@ -292,6 +300,9 @@ export default function DemoPage() {
               >
                 View Guide
               </Link>
+              <button type="button" onClick={resetPlayground} className="px-4 py-3 rounded-xl text-sm font-semibold" style={{ background: "var(--bg-surface)", color: "var(--text-secondary)", border: "1px solid var(--border-edge)" }}>
+                Reset Playground
+              </button>
             </div>
           </div>
           <div className="mt-4 pt-4 border-t flex flex-wrap gap-6 text-xs" style={{ borderColor: "var(--border-orange)", color: "var(--text-muted)" }}>
