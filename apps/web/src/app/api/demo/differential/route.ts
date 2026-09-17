@@ -228,6 +228,30 @@ async function tryDeepSeekDirect(prompt: string, timeoutMs: number): Promise<Pro
   }
 }
 
+async function tryNvidia(prompt: string, timeoutMs: number): Promise<ProviderResult | ProviderFailure | null> {
+  const key = process.env.NVIDIA_API_KEY?.trim();
+  if (!key) return null;
+  try {
+    const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: process.env.NVIDIA_MODEL?.trim() || "meta/llama-3.1-8b-instruct",
+        messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }],
+        temperature: 0.2,
+        max_tokens: 700,
+        response_format: { type: "json_object" },
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) return { provider: "nvidia", reason: `NVIDIA HTTP ${res.status}` };
+    const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+    return { data: parseClinicalDemoResponse(json.choices?.[0]?.message?.content ?? ""), provider: "nvidia", model: process.env.NVIDIA_MODEL?.trim() || "meta/llama-3.1-8b-instruct" };
+  } catch {
+    return { provider: "nvidia", reason: "NVIDIA did not return a usable response." };
+  }
+}
+
 function isResult(value: ProviderResult | ProviderFailure | null): value is ProviderResult {
   return Boolean(value && "data" in value);
 }
@@ -238,6 +262,9 @@ function getProviderChain(): Array<(prompt: string, timeoutMs: number) => Promis
   
   if (isOpenRouterConfigured()) {
     chain.push(tryOpenRouter);
+  }
+  if (process.env.NVIDIA_API_KEY?.trim()) {
+    chain.push(tryNvidia);
   }
   if (process.env.GEMINI_API_KEY?.trim()) {
     chain.push(tryGemini);
@@ -296,11 +323,12 @@ export async function POST(req: NextRequest) {
     openrouter: isOpenRouterConfigured(),
     gemini: Boolean(process.env.GEMINI_API_KEY?.trim()),
     deepseek: Boolean(process.env.DEEPSEEK_API_KEY?.trim()),
+    nvidia: Boolean(process.env.NVIDIA_API_KEY?.trim()),
   };
 
   if (!configured.openrouter && !configured.gemini && !configured.deepseek) {
     return NextResponse.json(
-      { error: "Clinical demo is not configured. Set OPENROUTER_API_KEY on the server." },
+      { error: "Clinical demo is not configured. Set an AI provider key on the server." },
       { status: 503 }
     );
   }
@@ -308,7 +336,7 @@ export async function POST(req: NextRequest) {
   const providerChain = getProviderChain();
   if (providerChain.length === 0) {
     return NextResponse.json(
-      { error: "Clinical demo is not configured. Set OPENROUTER_API_KEY on the server." },
+      { error: "Clinical demo is not configured. Set an AI provider key on the server." },
       { status: 503 }
     );
   }
