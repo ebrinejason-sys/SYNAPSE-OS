@@ -111,7 +111,18 @@ export function confirmIcd11Selection(params: {
 }
 
 export function whoApiConfigured(env: NodeJS.Dict<string> = process.env): boolean {
-  return Boolean(env.WHO_ICD_CLIENT_ID && env.WHO_ICD_CLIENT_SECRET)
+  return Boolean(resolveWhoCredentials(env))
+}
+
+function resolveWhoCredentials(env: NodeJS.Dict<string>): { clientId: string; clientSecret: string } | null {
+  const pairs = [
+    [env.WHO_ICD11_CLIENT_ID, env.WHO_ICD11_CLIENT_SECRET],
+    [env.WHO_ICD_CLIENT_ID, env.WHO_ICD_CLIENT_SECRET],
+  ]
+  for (const [clientId, clientSecret] of pairs) {
+    if (clientId?.trim() && clientSecret?.trim()) return { clientId: clientId.trim(), clientSecret: clientSecret.trim() }
+  }
+  return null
 }
 
 export async function searchWhoIcd11(
@@ -125,7 +136,8 @@ export async function searchWhoIcd11(
   const cache = options.cache ?? ICD11_SEED_CACHE
   const local = searchIcd11(query, cache)
   const env = options.env ?? process.env
-  if (!whoApiConfigured(env)) {
+  const credentials = resolveWhoCredentials(env)
+  if (!credentials) {
     return { hits: local, source: "cache", degraded: true }
   }
 
@@ -136,8 +148,8 @@ export async function searchWhoIcd11(
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         grant_type: "client_credentials",
-        client_id: env.WHO_ICD_CLIENT_ID ?? "",
-        client_secret: env.WHO_ICD_CLIENT_SECRET ?? "",
+        client_id: credentials.clientId,
+        client_secret: credentials.clientSecret,
         scope: "icdapi_access",
       }),
     })
