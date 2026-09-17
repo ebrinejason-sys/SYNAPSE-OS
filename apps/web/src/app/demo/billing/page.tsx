@@ -1,0 +1,2 @@
+import { DemoShell } from "../../../components/demo/DemoShell"
+export default function BillingDemoPage() { return <DemoShell title="Billing workspace"><div className="rounded-lg border bg-card p-5"><h2 className="font-semibold">Synthetic invoice · Amina Demo</h2><p className="mt-2 text-sm text-muted-foreground">Review charges and record a local demo payment.</p><button className="mt-4 rounded-md bg-primary px-4 py-2 text-primary-foreground">Record payment locally</button></div></DemoShell> }

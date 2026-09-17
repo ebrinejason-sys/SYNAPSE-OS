@@ -1,0 +1,2 @@
+import { DemoShell } from "../../../components/demo/DemoShell"
+export default function TimelineDemoPage() { return <DemoShell title="Amina Demo timeline"><ol className="space-y-3">{["Registered", "Triaged", "Clinical review", "Lab collected", "Prescription dispensed", "Paid and closed"].map((item, i) => <li key={item} className="rounded-lg border bg-card p-4"><span className="font-semibold">{i + 1}. {item}</span><p className="text-sm text-muted-foreground">Synthetic local event</p></li>)}</ol></DemoShell> }

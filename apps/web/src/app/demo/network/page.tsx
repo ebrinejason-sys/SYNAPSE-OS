@@ -1,0 +1,2 @@
+import { DemoShell } from "../../../components/demo/DemoShell"
+export default function NetworkDemoPage() { return <DemoShell title="Network and sync"><div className="rounded-lg border bg-card p-5"><p className="font-semibold">Online mode</p><p className="mt-2 text-sm text-muted-foreground">All playground records remain in this browser. Offline queue: 0 pending.</p><button className="mt-4 rounded-md border px-4 py-2">Simulate offline mode</button></div></DemoShell> }

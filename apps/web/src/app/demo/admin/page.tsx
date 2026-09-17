@@ -1,8 +1,2 @@
-export default function AdminDemoPage() {
-  return (
-    <main className="min-h-screen bg-base text-primary-color p-8">
-      <h1 className="font-display text-2xl">Admin Demo</h1>
-      <p className="text-muted-color mt-2">Coming soon.</p>
-    </main>
-  );
-}
+import { DemoShell } from "../../../components/demo/DemoShell"
+export default function AdminDemoPage() { return <DemoShell title="Facility overview"><div className="grid gap-4 sm:grid-cols-3">{["Demo Hospital", "Demo Lab", "Demo Pharmacy"].map(name => <div key={name} className="rounded-lg border bg-card p-4"><h2 className="font-semibold">{name}</h2><p className="text-sm text-muted-foreground">Synthetic · healthy</p></div>)}</div></DemoShell> }

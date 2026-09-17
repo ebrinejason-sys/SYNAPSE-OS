@@ -1,8 +1,2 @@
-export default function DoctorDemoPage() {
-  return (
-    <main className="min-h-screen bg-base text-primary-color p-8">
-      <h1 className="font-display text-2xl">Doctor Demo</h1>
-      <p className="text-muted-color mt-2">Coming soon.</p>
-    </main>
-  );
-}
+import { DemoShell } from "../../../components/demo/DemoShell"
+export default function DoctorDemoPage() { return <DemoShell title="Doctor workspace"><div className="rounded-lg border bg-card p-5 space-y-3"><h2 className="font-semibold">Amina Demo · DEMO-AMINA-001</h2><p className="text-sm text-muted-foreground">Review triage, write an assessment, and create a synthetic lab order.</p><textarea className="min-h-32 w-full rounded-md border bg-background p-3" placeholder="Clinical note (synthetic only)"/><div className="flex gap-3"><button className="rounded-md bg-primary px-4 py-2 text-primary-foreground">Save locally</button><a className="rounded-md border px-4 py-2" href="/demo/lab">Open Lab</a></div></div></DemoShell> }

@@ -1,8 +1,2 @@
-export default function PharmacistDemoPage() {
-  return (
-    <main className="min-h-screen bg-base text-primary-color p-8">
-      <h1 className="font-display text-2xl">Pharmacist Demo</h1>
-      <p className="text-muted-color mt-2">Coming soon.</p>
-    </main>
-  );
-}
+import { DemoShell } from "../../../components/demo/DemoShell"
+export default function PharmacistDemoPage() { return <DemoShell title="Pharmacy workspace"><div className="rounded-lg border bg-card p-5"><h2 className="font-semibold">Synthetic prescription queue</h2><p className="mt-2 text-sm text-muted-foreground">Amina Demo · Amoxicillin 250 mg · Verify before dispensing.</p><button className="mt-4 rounded-md bg-primary px-4 py-2 text-primary-foreground">Dispense locally</button></div></DemoShell> }

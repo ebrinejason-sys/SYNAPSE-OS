@@ -1,0 +1,2 @@
+import { DemoShell } from "../../../components/demo/DemoShell"
+export default function ReceptionDemoPage() { return <DemoShell title="Reception workspace"><div className="rounded-lg border bg-card p-5"><h2 className="font-semibold">Find patient</h2><p className="mt-2 text-sm text-muted-foreground">Amina Demo · DEMO-AMINA-001</p><button className="mt-4 rounded-md bg-primary px-4 py-2 text-primary-foreground">Start encounter locally</button></div></DemoShell> }

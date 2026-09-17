@@ -1,0 +1,2 @@
+import { DemoShell } from "../../../components/demo/DemoShell"
+export default function LabDemoPage() { return <DemoShell title="Laboratory workspace"><div className="rounded-lg border bg-card p-5"><h2 className="font-semibold">Amina Demo · pending orders</h2><p className="mt-2 text-sm text-muted-foreground">FBC · Malaria RDT · Blood glucose</p><button className="mt-4 rounded-md bg-primary px-4 py-2 text-primary-foreground">Collect specimen locally</button></div></DemoShell> }
