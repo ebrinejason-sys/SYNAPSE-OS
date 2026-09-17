@@ -57,23 +57,11 @@ export default function DemoLoginPage() {
     setLoading(true);
     setError(null);
     try {
-      // In a real implementation, this would call a server endpoint to create
-      // a short-lived synthetic demo session for the selected role
-      // For now, we'll redirect to the appropriate workspace
-      const roleMap: Record<string, string> = {
-        reception: "/dept/reception",
-        nurse: "/nurse",
-        doctor: "/doctor",
-        lab: "/lab",
-        pharmacist: "/pharmacy",
-        admin: "/platform",
-      };
-      
-      // Set a demo flag in sessionStorage for the guide to read
+      const response = await fetch("/api/demo/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: roleId }) });
+      if (!response.ok) throw new Error("Demo session unavailable");
       sessionStorage.setItem("synapse_demo_role", roleId);
       sessionStorage.setItem("synapse_demo_mode", "true");
-      
-      window.location.href = roleMap[roleId] ?? "/";
+      window.location.href = "/demo/workspace";
     } catch (e) {
       setError("Failed to start demo session. Please try again.");
     } finally {
