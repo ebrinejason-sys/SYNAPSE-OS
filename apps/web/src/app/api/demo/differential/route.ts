@@ -10,7 +10,7 @@ import {
 import { checkRateLimit, rateLimiters } from "../../../../lib/rate-limit";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 30;
 
 type DemoBody = {
   chiefComplaint: string;
@@ -91,7 +91,12 @@ ${withFollowUp ? "Include exactly 3 follow_up_questions that would most sharpen 
 const SYSTEM_PROMPT =
   "You are a clinical decision-support assistant. Reply with a single JSON object only. Never wrap it in markdown. Never include chain-of-thought.";
 
-async function tryOpenRouter(prompt: string): Promise<ProviderResult | ProviderFailure | null> {
+// Bounded provider execution: 12s per provider, total budget < Vercel 30s maxDuration
+const PROVIDER_TIMEOUT_MS = 12_000;
+// Total request budget: leave margin for Vercel overhead
+const TOTAL_REQUEST_BUDGET_MS = 25_000;
+
+async function tryOpenRouter(prompt: string, timeoutMs: number): Promise<ProviderResult | ProviderFailure | null> {
   const key = process.env.OPENROUTER_API_KEY?.trim();
   if (!key) return null;
 
@@ -102,12 +107,14 @@ async function tryOpenRouter(prompt: string): Promise<ProviderResult | ProviderF
   ];
   const referer = process.env.NEXT_PUBLIC_APP_URL ?? "https://synapseos.tech";
 
+  // Try JSON mode first
   const withJson = await completeOpenRouterChat({
     apiKey: key,
     messages,
     models,
     referer,
     jsonMode: true,
+    timeoutMs: timeoutMs,
   });
 
   if (withJson.ok) {
@@ -123,12 +130,14 @@ async function tryOpenRouter(prompt: string): Promise<ProviderResult | ProviderF
     }
   }
 
+  // Fallback model (non-JSON) if JSON mode failed
   const withoutJson = await completeOpenRouterChat({
     apiKey: key,
     messages,
     models,
     referer,
     jsonMode: false,
+    timeoutMs,
   });
 
   if (withoutJson.ok) {
@@ -148,27 +157,43 @@ async function tryOpenRouter(prompt: string): Promise<ProviderResult | ProviderF
   };
 }
 
-async function tryGemini(prompt: string): Promise<ProviderResult | ProviderFailure | null> {
+async function tryGemini(prompt: string, timeoutMs: number): Promise<ProviderResult | ProviderFailure | null> {
   const key = process.env.GEMINI_API_KEY?.trim();
   if (!key) return null;
+  
   try {
     const genAI = new GoogleGenAI({ apiKey: key });
-    const result = await genAI.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
+    // Use Promise.race for timeout handling since the SDK doesn't support AbortSignal directly
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("Gemini timed out")), timeoutMs);
     });
-    return {
-      data: parseClinicalDemoResponse(result.text ?? ""),
-      provider: "gemini",
-      model: "gemini-2.0-flash",
-    };
+    
+    try {
+      const contentPromise = genAI.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: prompt,
+      });
+      
+      const result = await Promise.race([contentPromise, timeoutPromise]);
+      return {
+        data: parseClinicalDemoResponse(result.text ?? ""),
+        provider: "gemini",
+        model: "gemini-2.0-flash",
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message === "Gemini timed out") {
+        return { provider: "gemini", reason: "Gemini timed out" };
+      }
+      console.warn("[demo/differential] Gemini failed", error instanceof Error ? error.message : error);
+      return { provider: "gemini", reason: "Gemini did not return a usable response." };
+    }
   } catch (error) {
-    console.warn("[demo/differential] Gemini failed", error instanceof Error ? error.message : error);
+    console.warn("[demo/differential] Gemini init failed", error instanceof Error ? error.message : error);
     return { provider: "gemini", reason: "Gemini did not return a usable response." };
   }
 }
 
-async function tryDeepSeekDirect(prompt: string): Promise<ProviderResult | ProviderFailure | null> {
+async function tryDeepSeekDirect(prompt: string, timeoutMs: number): Promise<ProviderResult | ProviderFailure | null> {
   const key = process.env.DEEPSEEK_API_KEY?.trim();
   if (!key) return null;
   try {
@@ -186,7 +211,7 @@ async function tryDeepSeekDirect(prompt: string): Promise<ProviderResult | Provi
         ],
         temperature: 0.3,
       }),
-      signal: AbortSignal.timeout(45_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) {
       return { provider: "deepseek", reason: `DeepSeek HTTP ${res.status}` };
@@ -207,7 +232,25 @@ function isResult(value: ProviderResult | ProviderFailure | null): value is Prov
   return Boolean(value && "data" in value);
 }
 
+// Provider priority: OpenRouter (primary) -> one fallback only
+function getProviderChain(): Array<(prompt: string, timeoutMs: number) => Promise<ProviderResult | ProviderFailure | null>> {
+  const chain: Array<(prompt: string, timeoutMs: number) => Promise<ProviderResult | ProviderFailure | null>> = [];
+  
+  if (isOpenRouterConfigured()) {
+    chain.push(tryOpenRouter);
+  }
+  if (process.env.GEMINI_API_KEY?.trim()) {
+    chain.push(tryGemini);
+  }
+  if (process.env.DEEPSEEK_API_KEY?.trim()) {
+    chain.push(tryDeepSeekDirect);
+  }
+  
+  return chain;
+}
+
 export async function POST(req: NextRequest) {
+  const requestStart = Date.now();
   const ip = req.headers.get("x-forwarded-for") ?? "unknown";
   const { success } = await checkRateLimit(rateLimiters.demoAi, ip);
   if (!success) {
@@ -262,9 +305,36 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const providerChain = getProviderChain();
+  if (providerChain.length === 0) {
+    return NextResponse.json(
+      { error: "Clinical demo is not configured. Set OPENROUTER_API_KEY on the server." },
+      { status: 503 }
+    );
+  }
+
+  // Use at most 2 providers: primary + one fallback
+  const providersToTry = providerChain.slice(0, 2);
   const failures: ProviderFailure[] = [];
-  for (const attempt of [tryOpenRouter, tryGemini, tryDeepSeekDirect]) {
-    const outcome = await attempt(prompt);
+
+  for (const attempt of providersToTry) {
+    // Check total budget before each attempt
+    const elapsed = Date.now() - requestStart;
+    const remainingBudget = TOTAL_REQUEST_BUDGET_MS - elapsed;
+    
+    if (remainingBudget <= 0) {
+      console.warn("[demo/differential] Total request budget exhausted");
+      break;
+    }
+    
+    // Use min of provider timeout and remaining budget
+    const attemptTimeout = Math.min(PROVIDER_TIMEOUT_MS, remainingBudget - 1000); // 1s buffer
+    
+    if (attemptTimeout <= 0) {
+      break;
+    }
+
+    const outcome = await attempt(prompt, attemptTimeout);
     if (isResult(outcome)) {
       return NextResponse.json({
         ...outcome.data,
