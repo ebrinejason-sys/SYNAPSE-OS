@@ -23,5 +23,6 @@ export * from "./simulation";
 export * from "./prescription-bridge";
 export * from "./identity-crosswalk";
 export * from "./edge-architecture";
+export * from "./tally-migration";
 export { logAudit, logPHIAccess } from './audit'
 export type { AuditEntry } from './audit'
