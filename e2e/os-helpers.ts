@@ -1,27 +1,27 @@
 import { expect, type Page } from "playwright/test"
-import { E2E_ROLE_EMAILS } from "../packages/auth/src/e2e-otp.ts"
 import { isAuthenticatedOsLocation } from "./os-location.ts"
 
 export const FACILITY_A = process.env.SYNAPSE_E2E_FACILITY_SLUG || "synapse-e2e-hospital"
 export const FACILITY_B = process.env.SYNAPSE_E2E_FACILITY_B_SLUG || "synapse-e2e-hospital-b"
 
-const ROLE_EMAIL_BY_KEY: Record<string, string> = {
-  receptionist: E2E_ROLE_EMAILS.receptionist,
-  nurse: E2E_ROLE_EMAILS.nurse,
-  doctor: E2E_ROLE_EMAILS.doctor,
-  lab_tech: E2E_ROLE_EMAILS.lab_tech,
-  lab_scientist: E2E_ROLE_EMAILS.lab_scientist,
-  pharmacist: E2E_ROLE_EMAILS.pharmacist,
-  billing_officer: E2E_ROLE_EMAILS.billing_officer,
-  hospital_admin: E2E_ROLE_EMAILS.hospital_admin,
-  doctor_b: E2E_ROLE_EMAILS.doctor_b,
-}
+/** Keep in sync with packages/auth/src/e2e-otp.ts — duplicated so Playwright does not import the auth package. */
+export const E2E_ROLE_EMAILS = {
+  receptionist: "reception.e2e@synapseos.invalid",
+  nurse: "nurse.e2e@synapseos.invalid",
+  doctor: "doctor.e2e@synapseos.invalid",
+  lab_tech: "labtech.e2e@synapseos.invalid",
+  lab_scientist: "labscientist.e2e@synapseos.invalid",
+  pharmacist: "pharmacist.e2e@synapseos.invalid",
+  billing_officer: "cashier.e2e@synapseos.invalid",
+  hospital_admin: "admin.e2e@synapseos.invalid",
+  doctor_b: "doctor.b.e2e@synapseos.invalid",
+} as const
 
 export function e2eEmail(role: string, facility = "a") {
   const envKey = `SYNAPSE_E2E_${role.toUpperCase()}_EMAIL`
   if (process.env[envKey]) return process.env[envKey]!
   if (facility === "b" && role === "doctor") return E2E_ROLE_EMAILS.doctor_b
-  return ROLE_EMAIL_BY_KEY[role] || E2E_ROLE_EMAILS.receptionist
+  return (E2E_ROLE_EMAILS as Record<string, string>)[role] || E2E_ROLE_EMAILS.receptionist
 }
 
 export function e2eConfigured() {
@@ -56,6 +56,11 @@ export async function expectAuthenticatedWorkspace(page: Page, slug: string) {
   await expect(page.locator("body")).not.toContainText("Coming soon.")
 }
 
+/**
+ * Signs in and lands on the facility OS shell.
+ * After OTP verify, navigates explicitly to /os/{slug}/dashboard so role-default
+ * redirects (/doctor, /nurse, external pharmacy) cannot skip the facility assertion.
+ */
 export async function loginOs(page: Page, email: string, password: string, slug = FACILITY_A) {
   await page.context().clearCookies()
   await page.goto(`/login?next=/os/${encodeURIComponent(slug)}/dashboard`)
@@ -67,5 +72,11 @@ export async function loginOs(page: Page, email: string, password: string, slug 
   await expect(page.getByRole("heading", { name: /check your email/i })).toBeVisible({ timeout: 15000 })
   await page.getByPlaceholder("000000").fill(e2eOtp())
   await page.getByRole("button", { name: /verify & sign in/i }).click()
+  // Wait until we leave the OTP step (session cookie set), then open facility shell.
+  await expect.poll(() => {
+    const path = new URL(page.url()).pathname
+    return path !== "/login" || !page.url().includes("check")
+  }, { timeout: 20000 }).toBeTruthy()
+  await page.goto(`/os/${encodeURIComponent(slug)}/dashboard`)
   await expectAuthenticatedWorkspace(page, slug)
 }

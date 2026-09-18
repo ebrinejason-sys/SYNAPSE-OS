@@ -81,20 +81,20 @@ function ErrorBox({ msg }: { msg: string }) {
       className="px-4 py-3 rounded-xl text-sm"
       style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444' }}
     >
-      {msg}
-    </div>
-  )
-}
-
 function NoticeBox({ msg }: { msg: string }) {
   return (
     <div
       className="px-4 py-3 rounded-xl text-sm"
       style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.22)', color: '#22C55E' }}
     >
-      {msg}
-    </div>
-  )
+function resolvePostAuthDestination(nextPath: string | null | undefined, redirectTo?: string): string {
+  const next = String(nextPath || '').trim()
+  // Honor deep-links into the facility OS shell (used by E2E and invite flows).
+  if (next.startsWith('/os/') && !next.startsWith('//') && !next.includes('://')) {
+    return next
+  }
+  const dest = String(redirectTo || next || '/os').trim()
+  return dest || '/os'
 }
 
 function LoginContent() {
@@ -203,7 +203,7 @@ function LoginContent() {
       if (!res.ok) { setError(data.error ?? 'Verification failed.'); return }
       if (data.mfaSetupRequired) { router.push('/platform/mfa'); return }
       if (data.mfaRequired) { router.push('/platform/mfa-verify'); return }
-      const dest = data.redirectTo ?? next
+      const dest = resolvePostAuthDestination(next, data.redirectTo)
       if (dest.startsWith('http')) { window.location.href = dest; return }
       router.push(dest)
     } catch {
@@ -263,7 +263,7 @@ function LoginContent() {
       if (!res.ok) { setError(data.error ?? 'Verification failed.'); return }
       if (data.mfaSetupRequired) { window.location.href = '/platform/mfa'; return }
       if (data.mfaRequired) { window.location.href = '/platform/mfa-verify'; return }
-      const dest = data.redirectTo ?? next
+      const dest = resolvePostAuthDestination(next, data.redirectTo)
       if (dest.startsWith('http')) { window.location.href = dest; return }
       window.location.href = dest
     } catch {

@@ -44,6 +44,12 @@ export function shouldSkipOtpEmailDelivery(input: {
 /**
  * Returns a fixed OTP from the protected acceptance environment only when
  * every gate passes. Never used for normal production users.
+ *
+ * IMPORTANT: these env vars must be present on the **Next.js server process**
+ * that issues OTPs. Setting them only on a Playwright runner that hits a remote
+ * base URL has no effect — configure them on the remote deployment (Vercel env
+ * for SYNAPSE_E2E_BASE_URL) as well as providing SYNAPSE_E2E_FIXED_OTP to the
+ * runner so the test can type the same code.
  */
 export function resolveE2eOtp(
   input: { email: string } & E2eOtpContext,
