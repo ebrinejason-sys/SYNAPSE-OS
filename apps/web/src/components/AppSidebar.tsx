@@ -5,24 +5,34 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
   LayoutDashboard, Stethoscope, UserRound, FlaskConical, Pill,
-  Users, ClipboardList, BarChart3, Settings, Menu, X,
+  Users, ClipboardList, Settings, Menu, X,
   HeartPulse, Activity, Package,
 } from 'lucide-react'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { ThemeToggle } from './ThemeToggle'
 import { SkipLink } from '@synapse/ui'
+import { appSidebarNav } from '../lib/production-navigation'
 
 const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs))
 
 const NAV_GROUPS = (tenantSlug?: string, role?: string) => {
-  const base = tenantSlug ? `/os/${tenantSlug}` : '/os'
+  const items = appSidebarNav(tenantSlug)
+  const byName = new Map(items.map((item) => [item.name, item]))
+  const withIcon = (name: string, icon: typeof LayoutDashboard) => {
+    const item = byName.get(name)
+    return {
+      name: item?.name ?? name,
+      href: item?.href ?? (tenantSlug ? `/os/${tenantSlug}/dashboard` : '/os'),
+      icon,
+    }
+  }
   const roleItems = role === 'receptionist'
     ? ['Patients', 'Encounters']
     : role === 'nurse'
-      ? ['Nursing', 'Patients', 'Tasks']
+      ? ['Nursing', 'Patients']
       : role === 'lab_tech' || role === 'lab_scientist' || role === 'lab_admin' || role === 'lab_supervisor' || role === 'facility_admin'
-        ? ['Laboratory', 'Tasks']
+        ? ['Laboratory']
         : role === 'pharmacist' || role === 'pharmacy_admin' || role === 'pharmacy_staff'
           ? ['Pharmacy', 'Inventory']
           : null
@@ -31,28 +41,27 @@ const NAV_GROUPS = (tenantSlug?: string, role?: string) => {
   {
     label: 'Clinical',
     items: [
-      { name: 'Dashboard', href: `${base}/dashboard`, icon: LayoutDashboard },
-      { name: 'Doctor', href: `${base}/clinical/queue`, icon: Stethoscope },
-      { name: 'Nursing', href: '/nurse/queue', icon: HeartPulse },
-      { name: 'Patients', href: `${base}/patients`, icon: UserRound },
+      withIcon('Dashboard', LayoutDashboard),
+      withIcon('Doctor', Stethoscope),
+      withIcon('Nursing', HeartPulse),
+      withIcon('Patients', UserRound),
     ],
   },
   {
     label: 'Departments',
     items: [
-      { name: 'Laboratory', href: '/lab/orders',         icon: FlaskConical },
-      { name: 'Pharmacy',   href: '/pharmacy/queue',     icon: Pill },
-      { name: 'Inventory',  href: '/admin/supply/orders', icon: Package },
-      { name: 'Encounters', href: `${base}/encounters/new`, icon: ClipboardList },
+      withIcon('Laboratory', FlaskConical),
+      withIcon('Pharmacy', Pill),
+      withIcon('Inventory', Package),
+      withIcon('Encounters', ClipboardList),
     ],
   },
   {
     label: 'Admin',
     items: [
-      { name: 'Staff',    href: '/admin/settings', icon: Users },
-      { name: 'Reports',  href: '/lab/reports',    icon: BarChart3 },
-      { name: 'Activity', href: '/audit',          icon: Activity },
-      { name: 'Settings', href: '/admin/settings', icon: Settings },
+      withIcon('Staff', Users),
+      withIcon('Activity', Activity),
+      withIcon('Settings', Settings),
     ],
   },
   ]

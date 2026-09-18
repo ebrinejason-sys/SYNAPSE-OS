@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-08-27",
+  "updated": "2026-09-18",
   "owner": "lead-architect",
   "status_values": ["OPERATIONAL", "PILOT_READY", "PARTIAL", "PLANNED"],
   "notes": "OPERATIONAL requires implementation + tests + security review + live/backend verification + failure-mode verification. Code existing is not enough.",
@@ -249,6 +249,42 @@
       "security_review": "unreviewed",
       "clinical_review": "n/a",
       "limitation": "In-process engine plus best-effort DB persist. Production reset is blocked."
+    },
+    {
+      "domain": "hospital",
+      "feature": "production_route_integrity",
+      "status": "PARTIAL",
+      "owner": "cursor-production-green",
+      "tests": ["scripts/check-route-integrity.mjs"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "partial",
+      "clinical_review": "n/a",
+      "limitation": "Nav integrity PASS. 78 ROADMAP pages still exist off-nav. Browser golden journey not live."
+    },
+    {
+      "domain": "hospital",
+      "feature": "canonical_facility_shell",
+      "status": "PARTIAL",
+      "owner": "cursor-production-green",
+      "tests": ["apps/web/src/lib/control-plane-security.test.ts", "packages/db/src/hospital-golden-journey.test.ts"],
+      "offline_support": true,
+      "mobile_support": false,
+      "security_review": "partial",
+      "clinical_review": "partial",
+      "limitation": "Doctor/nurse workspaces route to /os/[slug]. Live browser journey BLOCKED without synthetic credentials."
+    },
+    {
+      "domain": "platform",
+      "feature": "facility_lifecycle_control_plane",
+      "status": "PARTIAL",
+      "owner": "cursor-production-green",
+      "tests": ["packages/db/src/facility-lifecycle.test.ts"],
+      "offline_support": false,
+      "mobile_support": false,
+      "security_review": "partial",
+      "clinical_review": "n/a",
+      "limitation": "State machine and API added. Live impact counts depend on applied migration 20260918120000."
     }
   ]
 }

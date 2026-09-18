@@ -24,23 +24,23 @@ export interface ResolvedDashboard {
 
 // Role → base path (relative to tenant slug)
 const ROLE_BASE: Record<string, string> = {
-  doctor:                  'clinical',
-  clinical_officer:        'clinical',
-  nurse:                   'clinical',
-  pharmacist:              'pharmacy',
-  pharmacy_store_manager:  'pharmacy',
-  pharmacy_admin:          'pharmacy',
-  pharmacy_staff:          'pharmacy',
-  pharmacy_ceo:            'pharmacy',
+  doctor:                  'clinical/queue',
+  clinical_officer:        'clinical/queue',
+  nurse:                   'clinical/nursing',
+  pharmacist:              'clinical/dispense',
+  pharmacy_store_manager:  'clinical/dispense',
+  pharmacy_admin:          'clinical/dispense',
+  pharmacy_staff:          'clinical/dispense',
+  pharmacy_ceo:            'clinical/dispense',
   lab_tech:                'lab',
   lab_scientist:           'lab',
   lab_admin:               'lab',
   lab_supervisor:          'lab',
   facility_admin:          'lab',
   receptionist:            'patients',
-  hospital_admin:          'admin',
-  claims_officer:          'insurance',
-  insurance_officer:       'insurance',
+  hospital_admin:          'hospital-admin',
+  claims_officer:          'dashboard',
+  insurance_officer:       'dashboard',
 }
 
 // Facility type → available modules (what to show in nav regardless of role)
@@ -101,6 +101,22 @@ export function resolveDashboardForUser(ctx: DashboardContext): ResolvedDashboar
   })
 
   const quickActions = ROLE_QUICK_ACTIONS[role] ?? []
+
+  if (role === 'hospital_admin') {
+    return {
+      redirectPath: '/hospital/admin',
+      primaryModules,
+      quickActions,
+    }
+  }
+
+  if (roleBase === 'lab') {
+    return {
+      redirectPath: '/lab/orders',
+      primaryModules,
+      quickActions,
+    }
+  }
 
   return {
     redirectPath:   `/os/${tenantSlug}/${roleBase}`,

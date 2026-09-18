@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { SynapseLogo } from '../../../components/SynapseLogo'
 import { ThemeToggle } from '../../../components/ThemeToggle'
+import { SkipLink } from '@synapse/ui'
 
 const NAV = [
   { href: '/hospital/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -40,6 +41,7 @@ export default function HospitalAdminLayout({ children }: { children: React.Reac
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+      <SkipLink />
       <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[260px_1fr]">
         <aside
           className="border-r px-3 py-5 hidden lg:flex flex-col"
@@ -95,7 +97,7 @@ export default function HospitalAdminLayout({ children }: { children: React.Reac
               <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Hospital Admin</span>
             </div>
           </header>
-          <main className="flex-1 p-4 pb-24 lg:pb-6 lg:p-6">{children}</main>
+          <main id="main" tabIndex={-1} className="flex-1 p-4 pb-24 outline-none lg:pb-6 lg:p-6">{children}</main>
         </section>
       </div>
 

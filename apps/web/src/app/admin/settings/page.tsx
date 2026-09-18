@@ -11,10 +11,10 @@ export default function AdminSettingsPage() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {[
-          { href: '/admin/settings/branding', icon: Palette, title: 'Branding', desc: 'Logo, colors and hospital name', color: '#8B5CF6' },
-          { href: '/admin/settings/domain', icon: Globe, title: 'Custom Domain', desc: 'Set up your own subdomain', color: '#3B82F6' },
-          { href: '/admin/settings/guidelines', icon: BookOpen, title: 'Clinical Guidelines', desc: 'Upload protocols and SOPs', color: '#22C55E' },
-          { href: '/admin', icon: Building2, title: 'Hospital Profile', desc: 'Update contact and location info', color: '#F97316' },
+          { href: '/hospital/admin/settings', icon: Palette, title: 'Facility settings', desc: 'Canonical hospital profile, branding, and operations', color: '#8B5CF6' },
+          { href: '/admin/settings/mfa', icon: Globe, title: 'MFA', desc: 'Multi-factor authentication for this account', color: '#3B82F6' },
+          { href: '/hospital/admin', icon: Building2, title: 'Facility admin', desc: 'Staff, departments, wards, beds, and modules', color: '#F97316' },
+          { href: '/admin/account', icon: BookOpen, title: 'Account', desc: 'Signed-in operator account', color: '#22C55E' },
         ].map(card => (
           <Link key={card.href} href={card.href}
             className="flex items-start gap-4 rounded-2xl p-5 transition-all hover:border-orange-500/30"

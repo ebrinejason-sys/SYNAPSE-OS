@@ -5,23 +5,12 @@ import { SynapseLogo } from "../../../components/SynapseLogo";
 import Link from "next/link";
 import { getCurrentUser } from "../../../lib/auth/getCurrentUser";
 import { SkipLink, SynapseThemeToggle } from "@synapse/ui";
+import { facilityClinicalNav } from "../../../lib/production-navigation";
 
-const CLINICAL_LINKS = (slug: string) => [
-  { href: `/os/${slug}/clinical/queue`, label: "OPD queue" },
-  { href: `/os/${slug}/clinical/orders`, label: "Billing" },
-  { href: `/os/${slug}/clinical/tasks`, label: "My Work" },
-  { href: `/lab/orders`, label: "Lab worklist" },
-  { href: `/lab/staging`, label: "Analyzer staging" },
-  { href: `/lab/instruments`, label: "Instruments" },
-  { href: `/lab/mappings`, label: "Analyzer mappings" },
-  { href: `/lab/specimens`, label: "Specimens" },
-  { href: `/lab/results`, label: "Results" },
-  { href: `/lab/verify`, label: "Verification" },
-  { href: `/lab/reports`, label: "Reports" },
-  { href: `/hospital/admin/staff`, label: "People" },
-  { href: `/hospital/admin/departments`, label: "Departments" },
-  { href: `/os/${slug}/clinical/dispense`, label: "Dispense" },
-];
+const CLINICAL_LINKS = (slug: string) =>
+  facilityClinicalNav(slug)
+    .filter((item) => item.name !== "Dashboard" && item.name !== "Patients" && item.name !== "Import" && item.name !== "Timeline")
+    .map((item) => ({ href: item.href, label: item.name }));
 
 export default async function PortalLayout({
   children,
@@ -47,11 +36,11 @@ export default async function PortalLayout({
   const role = user?.role;
   const visibleClinical = clinical.filter(({ label }) => {
     if (!role || role === "hospital_admin" || role === "platform_admin") return true;
-    if (role === "receptionist") return ["My Work"].includes(label);
-    if (role === "nurse") return ["OPD queue", "My Work"].includes(label);
-    if (role === "doctor" || role === "clinical_officer") return ["OPD queue", "Billing", "My Work"].includes(label);
-    if (["lab_tech", "lab_scientist", "lab_admin", "lab_supervisor"].includes(role)) return ["Lab worklist", "Analyzer staging", "Instruments", "Analyzer mappings", "Specimens", "Results", "Verification", "Reports", "My Work"].includes(label);
-    if (role === "hospital_admin" || role === "facility_admin") return ["Lab worklist", "Analyzer staging", "Instruments", "Analyzer mappings", "Specimens", "Results", "Verification", "Reports", "People", "Departments", "My Work"].includes(label);
+    if (role === "receptionist") return ["My Work", "Referrals"].includes(label);
+    if (role === "nurse") return ["OPD queue", "Nursing", "My Work"].includes(label);
+    if (role === "doctor" || role === "clinical_officer") return ["OPD queue", "Billing", "My Work", "Referrals"].includes(label);
+    if (["lab_tech", "lab_scientist", "lab_admin", "lab_supervisor"].includes(role)) return ["Lab worklist", "Analyzer staging", "Instruments", "Analyzer mappings", "Specimens", "Results", "Verification", "My Work"].includes(label);
+    if (role === "hospital_admin" || role === "facility_admin") return ["Lab worklist", "Analyzer staging", "Instruments", "Analyzer mappings", "Specimens", "Results", "Verification", "People", "Departments", "Facility admin", "My Work"].includes(label);
     if (role.startsWith("pharmacy")) return ["Dispense"].includes(label);
     return true;
   });

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import {
-  UNIMPLEMENTED_FHIR_RESOURCES,
-  isFlagshipFhirResource,
+  classifyFhirHttpType,
   searchBundle,
   toFhirDiagnosticReport,
   toFhirObservation,
@@ -27,17 +26,15 @@ export async function requireFhirTenant() {
   return { user }
 }
 
-export function classifyFhirType(resource: string): "flagship" | "unimplemented" | "unknown" {
-  if ((UNIMPLEMENTED_FHIR_RESOURCES as readonly string[]).includes(resource)) return "unimplemented"
-  if (isFlagshipFhirResource(resource)) return "flagship"
-  return "unknown"
+export function classifyFhirType(resource: string) {
+  return classifyFhirHttpType(resource)
 }
 
 export async function handleFhirSearch(req: NextRequest, resource: string) {
   const classified = classifyFhirType(resource)
-  if (classified === "unimplemented") {
+  if (classified === "unimplemented" || classified === "flagship_unproven") {
     return operationOutcome(
-      `${resource} is not in the SYNAPSE flagship FHIR set and remains unimplemented.`,
+      `${resource} is not advertised on the SYNAPSE CapabilityStatement. Lab-backed Observation, Specimen, and DiagnosticReport are the proven subset.`,
       501,
       "not-supported",
     )
@@ -70,15 +67,56 @@ export async function handleFhirSearch(req: NextRequest, resource: string) {
     })
     return NextResponse.json(searchBundle(resources))
   }
+  if (resource === "Observation") {
+    const { data, error } = await db
+      .from("lab_results")
+      .select("id, patient_id, loinc_code, test_name, result_value, unit, reference_range, abnormal_flag, verified_at, released_to_patient_at, status")
+      .eq("tenant_id", auth.user.tenantId)
+      .eq("status", "final")
+      .not("released_to_patient_at", "is", null)
+      .limit(100)
+    if (error) return operationOutcome(error.message, 500)
+    const resources = (data ?? []).map((row: Record<string, unknown>) => toFhirObservation({
+      resourceType: "Observation",
+      id: String(row.id),
+      personId: String(row.patient_id),
+      code: String(row.loinc_code ?? ""),
+      display: String(row.test_name ?? "Observation"),
+      value: String(row.result_value ?? ""),
+      unit: row.unit as string | undefined,
+      referenceRange: row.reference_range as string | undefined,
+      provenance: "LAB_VERIFIED",
+    }, auth.user.tenantId!))
+    return NextResponse.json(searchBundle(resources))
+  }
+  if (resource === "Specimen") {
+    const { data, error } = await db
+      .from("lab_specimens")
+      .select("id, accession_number, barcode, patient_id, specimen_type, lab_order_id, encounter_id")
+      .eq("tenant_id", auth.user.tenantId)
+      .limit(100)
+    if (error) return operationOutcome(error.message, 500)
+    const resources = (data ?? []).map((row: Record<string, unknown>) => toFhirSpecimen({
+      resourceType: "Specimen",
+      id: String(row.id),
+      accession: String(row.accession_number ?? row.id),
+      barcode: row.barcode as string | undefined,
+      personId: String(row.patient_id ?? ""),
+      orderId: row.lab_order_id as string | undefined,
+      encounterId: row.encounter_id as string | undefined,
+      type: row.specimen_type as string | undefined,
+    }, auth.user.tenantId!))
+    return NextResponse.json(searchBundle(resources))
+  }
   void req
-  return NextResponse.json(searchBundle([]))
+  return operationOutcome(`${resource} search is not implemented`, 501, "not-supported")
 }
 
 export async function handleFhirRead(_req: NextRequest, resource: string, id: string) {
   const classified = classifyFhirType(resource)
-  if (classified === "unimplemented") {
+  if (classified === "unimplemented" || classified === "flagship_unproven") {
     return operationOutcome(
-      `${resource} is not in the SYNAPSE flagship FHIR set and remains unimplemented.`,
+      `${resource} is not advertised on the SYNAPSE CapabilityStatement. Lab-backed Observation, Specimen, and DiagnosticReport are the proven subset.`,
       501,
       "not-supported",
     )

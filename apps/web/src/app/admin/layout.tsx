@@ -4,24 +4,25 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   Activity, BedDouble, Building2, Calculator, ClipboardList,
   FileText, LayoutDashboard, Package, Settings, ShieldCheck,
-  Stethoscope, UserRound, Users, Wallet,
+  UserRound, Users, Wallet,
 } from 'lucide-react'
 import { SynapseLogo } from '../../components/SynapseLogo'
 import { ThemeToggle } from '../../components/ThemeToggle'
 
 const NAV = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { href: '/admin/staff', label: 'Staff', icon: Users },
-  { href: '/admin/departments', label: 'Departments', icon: Building2 },
-  { href: '/admin/beds', label: 'Beds', icon: BedDouble },
+  { href: '/hospital/admin', label: 'Facility admin', icon: LayoutDashboard, exact: true },
+  { href: '/admin', label: 'Ops dashboard', icon: ClipboardList, exact: true },
+  { href: '/hospital/admin/staff', label: 'Staff', icon: Users },
+  { href: '/hospital/admin/departments', label: 'Departments', icon: Building2 },
+  { href: '/hospital/admin/beds', label: 'Beds', icon: BedDouble },
   { href: '/admin/hr', label: 'HR', icon: Calculator },
   { href: '/admin/insurance', label: 'Insurance', icon: ShieldCheck },
   { href: '/admin/finance', label: 'Finance', icon: Wallet },
   { href: '/admin/supply', label: 'Supply', icon: Package },
-  { href: '/admin/lab', label: 'Lab', icon: Activity },
+  { href: '/lab/orders', label: 'Lab', icon: Activity },
   { href: '/admin/audit', label: 'Audit', icon: FileText },
   { href: '/admin/account', label: 'Account', icon: UserRound },
-  { href: '/admin/settings', label: 'Settings', icon: Settings },
+  { href: '/hospital/admin/settings', label: 'Settings', icon: Settings },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -93,7 +94,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <SynapseLogo size="xs" />
             <div className="flex items-center gap-2">
               <ThemeToggle />
-              <Stethoscope className="h-4 w-4" style={{ color: 'var(--brand-orange)' }} />
+              <ShieldCheck className="h-4 w-4" style={{ color: 'var(--brand-orange)' }} />
               <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Admin</span>
             </div>
           </header>

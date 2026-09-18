@@ -64,6 +64,30 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'Registration failed' }, { status: 500 })
 
+  let person: { id: string; synapseId: string } | null = null
+  try {
+    const { registerPersonForFacility } = await import('@synapse/db/identity-persist')
+    const names = parsed.data.full_name.trim().split(/\s+/)
+    person = await registerPersonForFacility({
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      localMrn: data.mrn,
+      sourceSystem: 'synapse-hospital-registration',
+      demographics: {
+        givenName: names[0],
+        familyName: names.slice(1).join(' ') || names[0],
+        fullName: parsed.data.full_name,
+        dateOfBirth: parsed.data.dob,
+        sex: parsed.data.sex,
+      },
+    })
+    if (person) {
+      await db.from('patients').update({ person_id: person.id }).eq('id', data.id).eq('tenant_id', ctx.tenantId)
+    }
+  } catch (error) {
+    console.error('[patients/register] person link failed', error)
+  }
+
   await logHospitalAudit({
     ctx,
     action: 'INSERT',
@@ -72,5 +96,5 @@ export async function POST(req: NextRequest) {
     newValue: data,
   })
 
-  return NextResponse.json({ patient: data }, { status: 201 })
+  return NextResponse.json({ patient: { ...data, person_id: person?.id ?? null, synapse_id: person?.synapseId ?? null } }, { status: 201 })
 }

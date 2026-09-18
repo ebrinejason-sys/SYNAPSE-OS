@@ -24,7 +24,13 @@ supabase/.temp/
 
 # Generated readiness/reconciliation evidence — regenerated per run, and the
 # reconciliation evidence file itself may contain operator-identifying data.
-/artifacts/
+/artifacts/*
+!/artifacts/readiness/
+/artifacts/readiness/*
+!/artifacts/readiness/PRODUCTION_GREEN_REPORT.json
+!/artifacts/readiness/web-route-manifest.json
+!/artifacts/readiness/route-integrity.json
+!/artifacts/readiness/db-acl-inventory.json
 
 # Temporary debug/probe scripts — may contain hardcoded production data
 scripts/_tmp_*
