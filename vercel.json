@@ -3,5 +3,19 @@
   "outputDirectory": "apps/web/.next",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "ignoreCommand": "node scripts/vercel-build-gate.mjs web"
+  "ignoreCommand": "node scripts/vercel-build-gate.mjs web",
+  "redirects": [
+    {
+      "source": "/demo",
+      "has": [{ "type": "host", "value": "demo.synapseos.tech" }],
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/demo/:path*",
+      "has": [{ "type": "host", "value": "demo.synapseos.tech" }],
+      "destination": "/:path*",
+      "permanent": false
+    }
+  ]
 }

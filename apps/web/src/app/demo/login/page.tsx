@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SynapseLogo } from "../../../components/SynapseLogo";
+import { demoHref } from "../../../lib/demo/paths";
 
 const ROLES = [
   {
@@ -88,7 +89,7 @@ export default function DemoLoginPage() {
       sessionStorage.setItem("synapse_demo_role", session.role);
       sessionStorage.setItem("synapse_demo_facility", session.facilityId);
       sessionStorage.setItem("synapse_demo_mode", "true");
-      window.location.href = "/demo/workspace";
+      window.location.href = demoHref("workspace");
     } catch (e) {
       setError("Failed to start demo session. Please try again.");
     } finally {

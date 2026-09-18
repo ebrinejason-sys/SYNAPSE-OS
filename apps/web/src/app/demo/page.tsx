@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { SynapseLogo } from "../../components/SynapseLogo";
 import { resetDemoPlayground } from "../../lib/demo/browser-repository";
+import { demoHref } from "../../lib/demo/paths";
 
 type Differential = {
   condition: string;
@@ -240,6 +241,10 @@ export default function DemoPage() {
             href="/demo/guide"
             className="text-sm font-medium"
             style={{ color: "var(--text-secondary)", textDecoration: "none" }}
+            onClick={(event) => {
+              event.preventDefault()
+              window.location.assign(demoHref("guide"))
+            }}
           >
             How the Test Drive works
           </Link>
@@ -247,6 +252,10 @@ export default function DemoPage() {
             href="/demo/feedback"
             className="text-sm font-medium"
             style={{ color: "var(--text-secondary)", textDecoration: "none" }}
+            onClick={(event) => {
+              event.preventDefault()
+              window.location.assign(demoHref("feedback"))
+            }}
           >
             Report feedback
           </Link>
@@ -296,18 +305,26 @@ export default function DemoPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3 shrink-0">
-              <Link
+              <a
                 href="/demo/login"
+                onClick={(event) => {
+                  event.preventDefault()
+                  window.location.assign(demoHref("login"))
+                }}
                 className="px-5 py-3 rounded-xl font-bold text-lg transition-all"
                 style={{ background: "var(--brand-orange)", color: "#07070A", textDecoration: "none", border: "none" }}
               >
                 Start Test Drive →
-              </Link>
-              <Link
-                href="/demo/guide"
-                className="px-5 py-3 rounded-xl font-bold text-lg transition-all flex items-center"
-                style={{ background: "transparent", color: "var(--brand-orange)", textDecoration: "none", border: "2px solid var(--brand-orange)" }}
-              >
+              </a>
+          <Link
+            href="/demo/guide"
+            className="px-5 py-3 rounded-xl font-bold text-lg transition-all flex items-center"
+            style={{ background: "transparent", color: "var(--brand-orange)", textDecoration: "none", border: "2px solid var(--brand-orange)" }}
+            onClick={(event) => {
+              event.preventDefault()
+              window.location.assign(demoHref("guide"))
+            }}
+          >
                 View Guide
               </Link>
               <button type="button" onClick={resetPlayground} className="px-4 py-3 rounded-xl text-sm font-semibold" style={{ background: "var(--bg-surface)", color: "var(--text-secondary)", border: "1px solid var(--border-edge)" }}>
