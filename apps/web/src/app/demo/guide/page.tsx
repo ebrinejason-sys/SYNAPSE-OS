@@ -1,6 +1,7 @@
 "use client";
 
-import { SynapseLogo } from "../../../components/SynapseLogo";
+import { DEMO_ROUTES, demoHref } from "../../../lib/demo/paths";
+import { DemoMast } from "../../../components/demo/DemoMast";
 
 const STEPS = [
   {
@@ -120,24 +121,20 @@ const STEPS = [
 
 export default function DemoGuidePage() {
   return (
-    <main style={{ minHeight: "100vh", background: "var(--bg-base)", color: "var(--text-primary)" }}>
-      <header
-        className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4"
-        style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--nav-glass)", backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 10 }}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <SynapseLogo size="sm" />
-          <span
-            className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
-            style={{ background: "rgba(249,115,22,0.15)", color: "var(--brand-orange)", border: "1px solid var(--border-orange)" }}
-          >
-            TEST DRIVE GUIDE
-          </span>
-        </div>
-        <a href="/demo/login" className="shrink-0 text-sm" style={{ color: "var(--brand-orange)" }}>
-          Start Test Drive →
+    <main className="min-h-screen">
+      <DemoMast badge="TEST DRIVE GUIDE">
+        <a
+          href={DEMO_ROUTES.login}
+          className="font-mono text-xs uppercase tracking-wider"
+          style={{ color: "var(--brand-orange)" }}
+          onClick={(event) => {
+            event.preventDefault()
+            window.location.assign(demoHref("login"))
+          }}
+        >
+          Start Test Drive
         </a>
-      </header>
+      </DemoMast>
 
       <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
         <div className="text-center mb-10">

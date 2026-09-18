@@ -2,9 +2,20 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { resetDemoPlayground, exportDemoPlayground, importDemoPlayground, getFacilities, getUsers, initializePlayground } from "../../lib/demo/browser-repository"
 import type { DemoFacility, DemoUser } from "../../lib/demo/entities"
-import { DEMO_ROUTES } from "../../lib/demo/paths"
+import { DEMO_ROUTES, demoHref } from "../../lib/demo/paths"
+import { DemoMast } from "./DemoMast"
+
+const STATIONS = [
+  { label: "Reception", href: DEMO_ROUTES.reception, leaf: "reception" },
+  { label: "Nurse", href: DEMO_ROUTES.nurse, leaf: "nurse" },
+  { label: "Doctor", href: DEMO_ROUTES.doctor, leaf: "doctor" },
+  { label: "Lab", href: DEMO_ROUTES.lab, leaf: "lab" },
+  { label: "Pharmacy", href: DEMO_ROUTES.pharmacist, leaf: "pharmacist" },
+  { label: "Billing", href: DEMO_ROUTES.billing, leaf: "billing" },
+] as const
 
 const ROLE_COLORS: Record<string, string> = {
   reception: "#3B82F6",
@@ -139,135 +150,108 @@ export function DemoShell({ title, children, currentRole, requiresRole }: DemoSh
 
   const roleColor = ROLE_COLORS[session?.role ?? ""] ?? "#6B7280"
   const currentFacility = facilities.find((f) => f.id === session?.facilityId)
+  const pathname = usePathname()
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      {/* Top Bar */}
-      <header className="sticky top-0 z-50 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold px-2 py-1 rounded bg-orange-500/10 text-orange-500 border border-orange-500/20">
-                SYNTHETIC PLAYGROUND
-              </span>
-              <div className="hidden sm:flex items-center gap-2 text-sm">
-                <span>{FACILITY_ICONS[currentFacility?.type ?? ""] ?? "🏥"}</span>
-                <span className="font-semibold">{session?.facilityName || "Loading..."}</span>
-                <span className="text-muted-foreground">·</span>
-                <span style={{ color: roleColor }}>{session?.userName || "..."}</span>
-              </div>
+    <main className="min-h-screen">
+      <DemoMast>
+        <div className="hidden items-center gap-2 font-mono text-xs sm:flex" style={{ color: "var(--text-secondary)" }}>
+          <span>{FACILITY_ICONS[currentFacility?.type ?? ""] ?? "▣"}</span>
+          <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{session?.facilityName || "Loading chart…"}</span>
+          <span aria-hidden="true">/</span>
+          <span style={{ color: roleColor }}>{session?.userName || "…"}</span>
+        </div>
+        <button
+          type="button"
+          onClick={toggleOnline}
+          className="px-3 py-1 text-xs font-semibold"
+          style={{
+            background: session?.online ? "rgba(15,118,110,0.12)" : "rgba(239,68,68,0.08)",
+            color: session?.online ? "var(--brand-teal)" : "#EF4444",
+            border: `2px solid ${session?.online ? "var(--brand-teal)" : "#EF4444"}`,
+          }}
+        >
+          {session?.online ? "On chart" : "Offline"}
+        </button>
+        {!session?.online && pendingSyncCount > 0 && (
+          <span className="border px-2 py-1 text-xs font-semibold">{pendingSyncCount} pending</span>
+        )}
+        <button
+          type="button"
+          onClick={() => setShowControls(!showControls)}
+          className="border bg-secondary px-3 py-1 text-xs font-semibold"
+        >
+          {showControls ? "Hide board" : "Open board"}
+        </button>
+      </DemoMast>
+
+      <div className="mx-auto max-w-5xl px-4 py-6">
+        <div className="demo-station-pack mb-5">
+        <nav className="demo-ledger" aria-label="Clinical stations">
+          {STATIONS.map((station) => (
+            <Link
+              key={station.href}
+              href={station.href}
+              aria-current={pathname?.startsWith(station.href) ? "page" : undefined}
+              onClick={(event) => {
+                event.preventDefault()
+                window.location.assign(demoHref(station.leaf))
+              }}
+            >
+              {station.label}
+            </Link>
+          ))}
+        </nav>
+
+        {showControls && (
+          <div className="demo-card mb-5 space-y-3 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Facility</span>
+              {facilities.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => switchFacility(f.id)}
+                  className="border px-3 py-1 text-xs font-medium"
+                  style={session?.facilityId === f.id ? { background: "var(--brand-orange)", color: "#07070A", borderColor: "var(--brand-orange)" } : undefined}
+                >
+                  {FACILITY_ICONS[f.type] ?? "▣"} {f.name}
+                </button>
+              ))}
             </div>
-
-            <div className="flex items-center gap-2">
-              {/* Online/Offline Toggle */}
-              <button
-                onClick={toggleOnline}
-                className="px-3 py-1 rounded text-xs font-semibold transition-colors"
-                style={{
-                  background: session?.online ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
-                  color: session?.online ? "#22C55E" : "#EF4444",
-                  border: `1px solid ${session?.online ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`
-                }}
-              >
-                {session?.online ? "🟢 ONLINE" : "🔴 OFFLINE"}
-              </button>
-
-              {/* Pending Sync */}
-              {!session?.online && pendingSyncCount > 0 && (
-                <span className="px-2 py-1 rounded text-xs font-semibold bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
-                  {pendingSyncCount} pending
-                </span>
-              )}
-
-              {/* Controls Toggle */}
-              <button
-                onClick={() => setShowControls(!showControls)}
-                className="px-3 py-1 rounded text-xs font-semibold bg-secondary hover:bg-secondary/80 transition-colors"
-              >
-                {showControls ? "Hide" : "Show"} Controls
-              </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Role</span>
+              {Array.from(new Set(users.map((u) => u.role))).map((role) => {
+                const user = users.find((u) => u.role === role)
+                return (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => switchRole(role)}
+                    className="border px-3 py-1 text-xs font-medium"
+                    style={session?.role === role ? { backgroundColor: ROLE_COLORS[role] ?? "#6B7280", color: "#fff", borderColor: ROLE_COLORS[role] ?? "#6B7280" } : undefined}
+                  >
+                    {user?.name}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Chart</span>
+              <button type="button" onClick={handleExport} className="border px-3 py-1 text-xs font-medium">Export</button>
+              <button type="button" onClick={handleImport} className="border px-3 py-1 text-xs font-medium">Import</button>
+              <button type="button" onClick={handleReset} className="border px-3 py-1 text-xs font-medium text-destructive">Reset</button>
             </div>
           </div>
+        )}
 
-          {/* Control Panel */}
-          {showControls && (
-            <div className="mt-3 pt-3 border-t space-y-3">
-              {/* Facility Switcher */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold text-muted-foreground">Facility:</span>
-                {facilities.map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => switchFacility(f.id)}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                      session?.facilityId === f.id
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-secondary hover:bg-secondary/80"
-                    }`}
-                  >
-                    {FACILITY_ICONS[f.type] ?? "🏢"} {f.name}
-                  </button>
-                ))}
-              </div>
-
-              {/* Role Switcher */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold text-muted-foreground">Role:</span>
-                {Array.from(new Set(users.map((u) => u.role))).map((role) => {
-                  const user = users.find((u) => u.role === role)
-                  return (
-                    <button
-                      key={role}
-                      onClick={() => switchRole(role)}
-                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                        session?.role === role
-                          ? "text-white"
-                          : "bg-secondary hover:bg-secondary/80"
-                      }`}
-                      style={session?.role === role ? {
-                        backgroundColor: ROLE_COLORS[role] ?? "#6B7280",
-                      } : {}}
-                    >
-                      {user?.name}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Actions */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold text-muted-foreground">Actions:</span>
-                <button
-                  onClick={handleExport}
-                  className="px-3 py-1 rounded text-xs font-medium bg-secondary hover:bg-secondary/80 transition-colors"
-                >
-                  💾 Export
-                </button>
-                <button
-                  onClick={handleImport}
-                  className="px-3 py-1 rounded text-xs font-medium bg-secondary hover:bg-secondary/80 transition-colors"
-                >
-                  📂 Import
-                </button>
-                <button
-                  onClick={handleReset}
-                  className="px-3 py-1 rounded text-xs font-medium bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
-                >
-                  🔄 Reset
-                </button>
-              </div>
+        <div className="demo-frame space-y-6 p-5 sm:p-7">
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b-2 pb-4" style={{ borderColor: "var(--demo-ink)" }}>
+            <div>
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: "var(--text-muted)" }}>Station chart</p>
+              <h1 className="font-display text-3xl font-bold tracking-tight">{title}</h1>
             </div>
-          )}
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-6">
-        <div className="max-w-5xl mx-auto space-y-6">
-          {/* Page Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-3xl font-bold">{title}</h1>
-            <nav className="flex flex-wrap gap-3 text-sm">
+            <nav className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs uppercase tracking-wider">
               <Link href={DEMO_ROUTES.home} className="hover:underline">Home</Link>
               <Link href={DEMO_ROUTES.workspace} className="hover:underline">Workspace</Link>
               <Link href={DEMO_ROUTES.timeline} className="hover:underline">Timeline</Link>
@@ -276,45 +260,35 @@ export function DemoShell({ title, children, currentRole, requiresRole }: DemoSh
             </nav>
           </div>
 
-          {/* How it works */}
-          <aside className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-4 text-sm" role="note">
-            <p className="font-semibold text-orange-600">How this playground works</p>
-            <ul className="mt-2 space-y-1 text-muted-foreground">
+          <aside className="demo-card p-4 text-sm" role="note">
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--brand-orange)" }}>How this playground works</p>
+            <ul className="mt-2 space-y-1" style={{ color: "var(--text-secondary)" }}>
               <li>Synthetic data only. Nothing here is a real patient, lab result, or payment.</li>
-              <li>State lives in this browser (IndexedDB). It does not write to production SYNAPSE.</li>
-              <li>Pick a role, walk Reception → Nurse → Doctor → Lab → Pharmacy → Billing, then open Timeline.</li>
-              <li>Use Show Controls to switch facility/role, go offline, export, or reset.</li>
+              <li>State lives in this browser. It does not write to production SYNAPSE.</li>
+              <li>Walk Reception → Nurse → Doctor → Lab → Pharmacy → Billing, then open Timeline.</li>
+              <li>Open board to switch facility or role, go offline, export, or reset.</li>
             </ul>
           </aside>
+
           {requiresRole && session && !requiresRole.includes(session.role) && (
-            <div className="rounded-lg border border-orange-500/20 bg-orange-500/10 p-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">⚠️</span>
-                <div>
-                  <p className="font-semibold text-orange-500">Role Mismatch</p>
-                  <p className="text-sm text-muted-foreground">
-                    This page expects: {requiresRole.join(", ")}. You are: {session.role}.
-                  </p>
-                </div>
-              </div>
+            <div className="demo-card p-4">
+              <p className="font-semibold" style={{ color: "var(--brand-orange)" }}>Role mismatch</p>
+              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                This page expects {requiresRole.join(", ")}. You are {session.role}.
+              </p>
             </div>
           )}
 
-          {/* Context Info */}
-          <div className="rounded-lg border bg-card p-4">
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold">Patient:</span>
-                <span>Amina Demo (SYN-UG-DEMO-0001)</span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <span>🔒 No real patient data</span>
-              </div>
+          <div className="demo-card flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+            <div>
+              <span className="font-mono text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Patient</span>
+              <p className="font-semibold">Amina Demo · SYN-UG-DEMO-0001</p>
             </div>
+            <span className="demo-stamp">No real patient data</span>
           </div>
 
-          {/* Page Content */}
-          {children}
+          <div className="demo-work space-y-6">{children}</div>
+        </div>
         </div>
       </div>
     </main>

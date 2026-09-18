@@ -1,0 +1,188 @@
+/* SYNAPSE Test Drive — OPD chart / ward ledger.
+   Strong teal-ink rules, double-lined forms, synthetic stamp. */
+
+.demo-surface {
+  --demo-ink: color-mix(in srgb, var(--brand-teal) 72%, var(--text-primary) 28%);
+  --demo-line: color-mix(in srgb, var(--brand-teal) 48%, var(--text-primary) 18%);
+  --demo-rule: color-mix(in srgb, var(--brand-teal) 22%, transparent);
+  --border-subtle: var(--demo-line);
+  --border-edge: var(--demo-ink);
+  --border-strong: var(--demo-ink);
+  --border: 172 32% 32%;
+  --radius: 0.35rem;
+  --synapse-border: var(--demo-ink);
+  min-height: 100vh;
+  color: var(--text-primary);
+  background-color: var(--bg-base);
+  background-image:
+    linear-gradient(var(--demo-rule) 1px, transparent 1px),
+    linear-gradient(90deg, var(--demo-rule) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-attachment: fixed;
+}
+
+[data-theme="light"] .demo-surface {
+  --demo-ink: #1a4540;
+  --demo-line: #3f6f69;
+  --demo-rule: rgba(26, 69, 64, 0.09);
+  --border: 172 42% 22%;
+  --border-orange: #c2410c;
+}
+
+.demo-surface .demo-mast {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  border-bottom: 2px solid var(--demo-ink);
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.demo-surface .demo-mast-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0.85rem 1.25rem;
+}
+
+.demo-surface .demo-stamp {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--brand-orange);
+  border: 2px solid var(--brand-orange);
+  padding: 0.2rem 0.5rem;
+  transform: rotate(-3deg);
+  background: color-mix(in srgb, var(--brand-orange) 8%, var(--bg-surface));
+}
+
+.demo-surface .demo-frame {
+  position: relative;
+  border: 2px solid var(--demo-ink);
+  background: var(--bg-surface);
+  box-shadow:
+    inset 0 0 0 5px var(--bg-surface),
+    inset 0 0 0 7px var(--demo-line);
+}
+
+.demo-surface .demo-frame::before,
+.demo-surface .demo-frame::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--demo-ink);
+  pointer-events: none;
+}
+
+.demo-surface .demo-frame::before {
+  top: -7px;
+  left: -7px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.demo-surface .demo-frame::after {
+  bottom: -7px;
+  right: -7px;
+  border-left: 0;
+  border-top: 0;
+}
+
+.demo-surface .demo-card {
+  border: 2px solid var(--demo-ink);
+  background: var(--bg-surface);
+  border-radius: 6px;
+}
+
+.demo-surface .demo-card:hover,
+.demo-surface .demo-card:focus-visible {
+  border-color: var(--brand-orange);
+  outline: none;
+}
+
+.demo-surface .demo-ledger {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  border: 2px solid var(--demo-ink);
+}
+
+.demo-surface .demo-station-pack .demo-ledger {
+  border-bottom: 0;
+}
+
+.demo-surface .demo-station-pack .demo-frame {
+  border-top-width: 0;
+}
+
+.demo-surface .demo-ledger a,
+.demo-surface .demo-ledger button {
+  min-width: 0;
+  padding: 0.55rem 0.4rem;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  border-right: 2px solid var(--demo-ink);
+}
+
+.demo-surface .demo-ledger > :last-child {
+  border-right: 0;
+}
+
+.demo-surface .demo-ledger a:hover,
+.demo-surface .demo-ledger a[aria-current="page"] {
+  color: var(--bg-ink);
+  background: var(--brand-orange);
+}
+
+.demo-surface .border {
+  border-width: 2px;
+  border-color: var(--demo-ink);
+}
+
+.demo-surface input,
+.demo-surface textarea,
+.demo-surface select {
+  border-width: 2px !important;
+  border-radius: 6px !important;
+}
+
+.demo-surface :focus-visible {
+  outline: 2px solid var(--brand-orange);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .demo-surface .demo-ledger {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .demo-surface .demo-ledger a:nth-child(3),
+  .demo-surface .demo-ledger button:nth-child(3) {
+    border-right: 0;
+  }
+
+  .demo-surface .demo-ledger a:nth-child(-n + 3),
+  .demo-surface .demo-ledger button:nth-child(-n + 3) {
+    border-bottom: 2px solid var(--demo-ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-surface .demo-stamp {
+    transform: none;
+  }
+}

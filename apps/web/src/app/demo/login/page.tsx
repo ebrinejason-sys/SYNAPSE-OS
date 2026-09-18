@@ -1,58 +1,58 @@
 "use client";
 
 import { useState } from "react";
-import { SynapseLogo } from "../../../components/SynapseLogo";
-import { demoHref } from "../../../lib/demo/paths";
+import { DEMO_ROUTES, demoHref } from "../../../lib/demo/paths";
+import { DemoMast } from "../../../components/demo/DemoMast";
 
 const ROLES = [
   {
     id: "reception",
-    label: "Enter as Reception",
-    description: "Register patients, start encounters, manage queue",
-    icon: "👥",
-    color: "#3B82F6",
+    code: "01 RX",
+    label: "Reception",
+    description: "Register patients, start encounters, manage the queue",
+    color: "#0F766E",
   },
   {
     id: "nurse",
-    label: "Enter as Nurse",
-    description: "Record vitals, triage patients, send to doctor",
-    icon: "🩺",
-    color: "#10B981",
+    code: "02 NS",
+    label: "Nurse",
+    description: "Record vitals, triage, send to the doctor",
+    color: "#0F766E",
   },
   {
     id: "doctor",
-    label: "Enter as Doctor",
-    description: "Clinical encounter, diagnosis, orders, prescriptions",
-    icon: "👨‍⚕️",
-    color: "#F59E0B",
+    code: "03 MD",
+    label: "Doctor",
+    description: "Encounter, diagnosis, orders, prescriptions",
+    color: "#C2410C",
   },
   {
     id: "lab",
-    label: "Enter as Lab",
+    code: "04 LB",
+    label: "Laboratory",
     description: "Process orders, enter results, verify and release",
-    icon: "🧪",
-    color: "#8B5CF6",
+    color: "#1D4E89",
   },
   {
     id: "pharmacist",
-    label: "Enter as Pharmacist",
-    description: "Verify prescriptions, dispense, manage inventory",
-    icon: "💊",
-    color: "#EC4899",
+    code: "05 PH",
+    label: "Pharmacy",
+    description: "Verify prescriptions, dispense, inventory",
+    color: "#7C3AED",
   },
   {
     id: "cashier",
-    label: "Enter as Cashier",
+    code: "06 CA",
+    label: "Cashier",
     description: "Invoice charges, take payment, close the visit",
-    icon: "💰",
-    color: "#0EA5E9",
+    color: "#0E7490",
   },
   {
     id: "admin",
-    label: "Enter as Facility Admin",
-    description: "Manage staff, view analytics, configure facility",
-    icon: "⚙️",
-    color: "#6B7280",
+    code: "07 AD",
+    label: "Facility admin",
+    description: "Staff, analytics, facility configuration",
+    color: "#334155",
   },
 ] as const;
 
@@ -98,107 +98,105 @@ export default function DemoLoginPage() {
   }
 
   return (
-    <main style={{ minHeight: "100vh", background: "var(--bg-base)", color: "var(--text-primary)" }}>
-      <header
-        className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4"
-        style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--nav-glass)", backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 10 }}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <SynapseLogo size="sm" />
-          <span
-            className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
-            style={{ background: "rgba(249,115,22,0.15)", color: "var(--brand-orange)", border: "1px solid var(--border-orange)" }}
-          >
-            SYNTHETIC DEMO
-          </span>
-        </div>
-        <a href="/demo/guide" className="shrink-0 text-sm" style={{ color: "var(--text-secondary)" }}>
-          View Guide →
-        </a>
-      </header>
-
-      <div className="max-w-4xl mx-auto px-4 py-12 sm:py-16">
-        <div className="text-center mb-12">
-          <h1 className="font-display font-bold text-3xl sm:text-4xl mb-4" style={{ letterSpacing: "-0.02em" }}>
-            Explore SYNAPSE Test Drive
-          </h1>
-          <p className="text-lg" style={{ color: "var(--text-secondary)", maxWidth: "600px", margin: "0 auto" }}>
-            This is a browser playground, not a live hospital. Choose a role and walk the connected SYNAPSE workflow with synthetic data.
-            No real patient records. No production database writes.
-          </p>
-        </div>
-
-        <div
-          className="p-4 rounded-2xl mb-8"
-          style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.25)" }}
+    <main className="min-h-screen">
+      <DemoMast>
+        <a
+          href={DEMO_ROUTES.guide}
+          className="font-mono text-xs uppercase tracking-wider"
+          style={{ color: "var(--text-secondary)" }}
+          onClick={(event) => {
+            event.preventDefault()
+            window.location.assign(demoHref("guide"))
+          }}
         >
-          <div className="flex items-center gap-2 mb-2">
-            <span style={{ color: "#EF4444", fontSize: "18px" }}>⚠</span>
-            <h3 className="font-bold" style={{ color: "#EF4444" }}>SYNTHETIC DEMO — NO REAL PATIENT DATA</h3>
-          </div>
-          <p className="text-sm" style={{ color: "#FCA5A5" }}>
-            All data in this environment is synthetic. The demo patient <strong>Amina Demo</strong> is a generated identity.
-            Actions here do not affect any real systems or patients.
-          </p>
-        </div>
+          How it works
+        </a>
+      </DemoMast>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {ROLES.map((role) => (
-            <button
-              key={role.id}
-              type="button"
-              onClick={() => handleLogin(role.id)}
-              disabled={loading}
-              className="group p-6 rounded-2xl text-left transition-all relative overflow-hidden"
-              style={{
-                background: selectedRole?.id === role.id ? `${role.color}15` : "var(--bg-surface)",
-                border: `2px solid ${selectedRole?.id === role.id ? role.color : "var(--border-edge)"}`,
-                cursor: loading ? "not-allowed" : "pointer",
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:py-12">
+        <div className="demo-frame p-6 sm:p-8">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.28em]" style={{ color: "var(--text-muted)" }}>
+            Duty roster · SYNAPSE Demo Hospital
+          </p>
+          <h1 className="font-display mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+            Take a station
+          </h1>
+          <p className="mt-3 max-w-2xl text-base" style={{ color: "var(--text-secondary)" }}>
+            This is a browser playground, not a live hospital. Choose a role and walk the connected SYNAPSE workflow with synthetic data. No real patient records. No production writes.
+          </p>
+
+          <aside className="demo-card mt-6 p-4">
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--brand-orange)" }}>
+              Synthetic — not for care
+            </p>
+            <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+              Amina Demo is a generated identity. Actions here do not affect any real systems or patients.
+            </p>
+          </aside>
+
+          <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {ROLES.map((role) => (
+              <button
+                key={role.id}
+                type="button"
+                onClick={() => handleLogin(role.id)}
+                disabled={loading}
+                className="demo-card p-5 text-left transition-colors"
+                style={{
+                  borderColor: selectedRole?.id === role.id ? role.color : undefined,
+                  cursor: loading ? "not-allowed" : "pointer",
+                }}
+              >
+                <p className="font-mono text-[10px] font-bold tracking-[0.18em]" style={{ color: role.color }}>{role.code}</p>
+                <h2 className="mt-2 text-lg font-bold">{role.label}</h2>
+                <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>{role.description}</p>
+              </button>
+            ))}
+            <a
+              href={DEMO_ROUTES.guide}
+              className="demo-card p-5"
+              style={{ textDecoration: "none", color: "inherit" }}
+              onClick={(event) => {
+                event.preventDefault()
+                window.location.assign(demoHref("guide"))
               }}
             >
-              <div className="flex items-start gap-4">
-                <div
-                  className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
-                  style={{ background: `${role.color}15`, color: role.color }}
-                >
-                  {role.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-lg truncate" style={{ color: "var(--text-primary)" }}>
-                    {role.label}
-                  </h3>
-                  <p className="text-sm mt-1 truncate" style={{ color: "var(--text-secondary)" }}>
-                    {role.description}
-                  </p>
-                </div>
-              </div>
-              {selectedRole?.id === role.id && (
-                <div className="absolute inset-0" style={{ background: `${role.color}05` }} />
-              )}
-            </button>
-          ))}
-        </div>
-
-        {error && (
-          <div
-            className="mt-6 px-4 py-3 rounded-xl text-sm text-center"
-            style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", color: "#EF4444" }}
-          >
-            {error}
+              <p className="font-mono text-[10px] font-bold tracking-[0.18em]" style={{ color: "var(--brand-orange)" }}>08 GJ</p>
+              <h2 className="mt-2 text-lg font-bold">Golden journey</h2>
+              <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>Eight stations. One synthetic patient. Read the chart before you start.</p>
+            </a>
           </div>
-        )}
 
-        <div className="mt-10 pt-6 border-t" style={{ borderColor: "var(--border-edge)" }}>
-          <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>
-            This is a synthetic test environment. 
-            <a href="/demo/guide" className="underline" style={{ color: "var(--brand-orange)" }}>
+          {error && (
+            <div className="demo-card mt-6 p-4 text-sm" style={{ color: "#EF4444" }}>
+              {error}
+            </div>
+          )}
+
+          <p className="mt-8 border-t-2 pt-4 font-mono text-xs" style={{ borderColor: "var(--demo-ink)", color: "var(--text-muted)" }}>
+            <a
+              href={DEMO_ROUTES.guide}
+              className="underline"
+              style={{ color: "var(--brand-orange)" }}
+              onClick={(event) => {
+                event.preventDefault()
+                window.location.assign(demoHref("guide"))
+              }}
+            >
               Read the tester guide
             </a>
-            {' '}or{' '}
-            <a href="/demo/feedback" className="underline" style={{ color: "var(--brand-orange)" }}>
-              report a problem
+            {" · "}
+            <a
+              href={DEMO_ROUTES.feedback}
+              className="underline"
+              style={{ color: "var(--brand-orange)" }}
+              onClick={(event) => {
+                event.preventDefault()
+                window.location.assign(demoHref("feedback"))
+              }}
+            >
+              Report a problem
             </a>
-            .
           </p>
         </div>
       </div>
