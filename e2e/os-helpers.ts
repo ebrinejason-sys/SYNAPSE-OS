@@ -71,12 +71,19 @@ export async function loginOs(page: Page, email: string, password: string, slug 
   await page.getByRole("button", { name: /^sign in$/i }).click()
   await expect(page.getByRole("heading", { name: /check your email/i })).toBeVisible({ timeout: 15000 })
   await page.getByPlaceholder("000000").fill(e2eOtp())
+  const verifyResponse = page.waitForResponse(
+    (res) => res.url().includes("/api/auth/email-otp/verify") && res.request().method() === "POST",
+    { timeout: 20000 },
+  )
   await page.getByRole("button", { name: /verify & sign in/i }).click()
-  // Wait until we leave the OTP step (session cookie set), then open facility shell.
-  await expect.poll(() => {
-    const path = new URL(page.url()).pathname
-    return path !== "/login" || !page.url().includes("check")
-  }, { timeout: 20000 }).toBeTruthy()
+  const res = await verifyResponse
+  if (!res.ok()) {
+    throw new Error(`OTP verify failed: HTTP ${res.status()}`)
+  }
+  // Session cookie is set; leave /login if the client has not navigated yet.
+  if (new URL(page.url()).pathname.includes("/login")) {
+    await page.waitForURL((url) => !url.pathname.includes("/login"), { timeout: 20000 }).catch(() => {})
+  }
   await page.goto(`/os/${encodeURIComponent(slug)}/dashboard`)
   await expectAuthenticatedWorkspace(page, slug)
 }
