@@ -13,58 +13,84 @@ Demo GREEN is unchanged. This campaign does not reopen Demo work.
 | Gate | Result |
 |---|---|
 | DB acceptance | **PASS** (main `35347838353`) |
-| Required CI | **PASS** on `81bc3c1`; this branch pending |
-| Production Golden Journey | **BLOCKED** (no `SYNAPSE_E2E_*` credentials in this environment) |
-| Same person / encounter continuity | **BLOCKED** (awaits browser journey) |
-| Tenant isolation | **PASS** domain (`isTenantScopeAllowed`); browser **BLOCKED** |
-| Role enforcement | **PASS** domain capability guards; browser API **BLOCKED** |
+| Required CI | pending this hardening SHA |
+| Production Golden Journey | **BLOCKED** until protected `production-acceptance` secrets exist |
+| Same person / encounter continuity | **BLOCKED** (awaits protected browser journey) |
+| Tenant isolation | **PASS** domain; browser **BLOCKED** |
+| Role enforcement | **PASS** domain capability guards; browser **BLOCKED** |
 | Signed record safety | **PASS** domain + sync apply tests |
 | Lab | **PASS** domain goldens; browser **BLOCKED** |
-| Pharmacy | **PASS** domain + live synthetic DB journey script exists; browser **BLOCKED** |
-| Billing | **PASS** domain close-gate / payment tests; browser **BLOCKED** |
+| Pharmacy | **PASS** domain; browser **BLOCKED** |
+| Billing | **PASS** domain; browser **BLOCKED** |
 | Admin | **BLOCKED** |
 | `/api/health/live` `/api/ready` | **FAIL** on live `synapseos.tech` (404 — OS deploy SHA is still `12a46f8`) |
 | `SUPABASE_DB_URL` | **OPERATOR_REQUIRED** |
-| Release workflow | **FIXED** on this branch (PR CI no longer fails Release); not yet on main |
+| Release workflow | **FIXED** on this branch (PR CI no longer fails Release) |
 | SHA alignment | **FAIL** (OS `12a46f8` ≠ main `81bc3c1`) |
 | Live unexplained 5xx (prior window) | **0** |
 | Production broken links | **0** |
-| FHIR / ICD11 / AI | **PASS / DEGRADED / DEGRADED** (contract tests; optional integrations) |
+| FHIR / ICD11 / AI | **PASS / DEGRADED / DEGRADED** |
 | Mobile | **BLOCKED_DEVICE** |
 | CORE OS GREEN | **NO** |
 
-## Fixture
+## Security architecture
 
-Identified existing synthetic hospital `synapse-acceptance-hospital-two` (staffed). This campaign adds an idempotent seed:
+Pull request CI no longer receives `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL`, or E2E auth secrets.
 
-```bash
-SYNAPSE_E2E_SEED=true SYNAPSE_E2E_PASSWORD='…' npm run seed:e2e-os
+Privileged Hospital Golden Journey runs only from:
+
+```text
+.github/workflows/os-e2e-acceptance.yml
 ```
 
-Creates:
+via `workflow_dispatch` / `workflow_call` against an exact reviewed SHA, using the protected GitHub Environment `production-acceptance`.
+
+E2E OTP is server-generated. Playwright never plants OTP rows and never hardcodes a reusable code. `SYNAPSE_E2E_FIXED_OTP` is used only when all of these are true:
+
+- `SYNAPSE_E2E_AUTH=true`
+- `SYNAPSE_E2E_ACCEPTANCE_ENV=true`
+- `VERCEL_ENV` is not `production`
+- tenant is synthetic
+- facility slug is `synapse-e2e-hospital` or `synapse-e2e-hospital-b`
+- email is on the explicit E2E allowlist
+
+Production users keep random OTP + existing rate limits.
+
+## Fixture
+
+Do not seed until this PR's security architecture is on a reviewed SHA.
+
+```bash
+SYNAPSE_E2E_SEED=true \
+SYNAPSE_E2E_SUPABASE_URL='…' \
+SYNAPSE_E2E_SERVICE_ROLE_KEY='…' \
+SYNAPSE_E2E_PASSWORD='…' \
+npm run seed:e2e-os
+```
+
+Creates only:
 
 - `synapse-e2e-hospital`
 - `synapse-e2e-hospital-b`
-- role users `e2e.<role>.a@synapseos.invalid`
-- canonical person **Amina E2E** + Synapse ID + patient row
+- role users `reception.e2e@synapseos.invalid` … `admin.e2e@synapseos.invalid`
+- canonical person **Amina E2E** exactly once
 
-Password is never printed. Operator must store it in GitHub secrets:
+Password hashing uses production `hashPassword` (bcrypt cost 12). The password is never printed.
+
+## Operator actions after this PR is security-green
+
+Configure the protected environment `production-acceptance` only. Do not put these on untrusted pull_request jobs:
 
 - `SYNAPSE_E2E_EMAIL`
 - `SYNAPSE_E2E_PASSWORD`
 - `SYNAPSE_E2E_FACILITY_SLUG=synapse-e2e-hospital`
-- `SYNAPSE_E2E_BASE_URL` (preview of this SHA, not the drifted production OS)
+- `SYNAPSE_E2E_BASE_URL` (preview of the reviewed SHA, not drifted production OS)
+- `SYNAPSE_E2E_FIXED_OTP`
+- `SYNAPSE_E2E_SUPABASE_URL`
+- `SYNAPSE_E2E_SERVICE_ROLE_KEY`
 
-Production login requires OTP. Synthetic tenants skip Resend delivery; Playwright plants a hashed OTP via service role.
+`SUPABASE_DB_URL` belongs in the protected production GitHub environment, never in PR CI.
 
 ## Promotion
 
-Do not promote OS until the hospital Playwright Golden Journey **PASS**es. Git production deploys remain skipped on purpose.
-
-## Operator actions
-
-1. Configure `SUPABASE_DB_URL` in the production GitHub environment. Do not print it.
-2. Run `npm run seed:e2e-os` with `SYNAPSE_E2E_SEED=true`.
-3. Set `SYNAPSE_E2E_*` GitHub secrets.
-4. Re-run required CI and the hospital Playwright job.
-5. Promote OS from the approved SHA through `ENABLE_VERCEL_CLI_DEPLOY` after db-acceptance.
+Do not promote OS until the protected Hospital Playwright Golden Journey **PASS**es. Git production deploys remain skipped on purpose.

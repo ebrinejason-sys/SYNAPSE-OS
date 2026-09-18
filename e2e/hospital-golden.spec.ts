@@ -54,12 +54,17 @@ test.describe("hospital golden journey", () => {
     await loginOs(page, e2eEmail("nurse"), password)
     await page.goto(`/os/${FACILITY_A}/clinical/nursing`)
     await expect(page.locator("body")).not.toContainText("Coming soon.")
+    await expect(page).not.toHaveURL(/too many|429/i)
 
     await loginOs(page, e2eEmail("doctor"), password)
     await page.goto(`/os/${FACILITY_A}/clinical/queue`)
     await expect(page.locator("body")).not.toContainText("Coming soon.")
 
     await loginOs(page, e2eEmail("lab_tech"), password)
+    await page.goto("/lab/orders")
+    await expect(page.locator("body")).not.toContainText("Coming soon.")
+
+    await loginOs(page, e2eEmail("lab_scientist"), password)
     await page.goto("/lab/orders")
     await expect(page.locator("body")).not.toContainText("Coming soon.")
 
@@ -71,6 +76,9 @@ test.describe("hospital golden journey", () => {
     await page.goto(`/os/${FACILITY_A}/clinical/orders`)
     await expect(page.locator("body")).not.toContainText("Coming soon.")
 
+    await page.goto(`/os/${FACILITY_A}/dashboard`)
+    await expect(page.locator("header")).toContainText(/synapse e2e hospital/i)
     expect(page.url()).toContain(`/os/${FACILITY_A}`)
+    await expect(page.getByText(/too many verification requests/i)).toHaveCount(0)
   })
 })

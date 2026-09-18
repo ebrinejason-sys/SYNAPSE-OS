@@ -1,0 +1,92 @@
+name: OS E2E Acceptance
+
+# Privileged synthetic hospital browser acceptance.
+# Never attach production service-role secrets to pull_request jobs.
+on:
+  workflow_dispatch:
+    inputs:
+      EXPECTED_SHA:
+        description: Exact git SHA that must match the checked-out commit
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      EXPECTED_SHA:
+        description: Exact git SHA that must match the checked-out commit
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  hospital-acceptance:
+    runs-on: ubuntu-latest
+    environment: production-acceptance
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enforce exact expected SHA
+        env:
+          EXPECTED_SHA: ${{ inputs.EXPECTED_SHA }}
+        run: |
+          set -euo pipefail
+          ACTUAL="$(git rev-parse HEAD)"
+          if [[ -z "${EXPECTED_SHA}" ]]; then
+            echo "EXPECTED_SHA is required"
+            exit 1
+          fi
+          if [[ "${ACTUAL}" != "${EXPECTED_SHA}" ]]; then
+            echo "Refusing to run: HEAD ${ACTUAL} != EXPECTED_SHA ${EXPECTED_SHA}"
+            exit 1
+          fi
+          echo "Acceptance SHA OK: ${ACTUAL}"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Require remote acceptance target
+        env:
+          SYNAPSE_E2E_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
+          PLAYWRIGHT_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
+        run: |
+          set -euo pipefail
+          TARGET="$(node --input-type=module -e "import { resolveE2eTarget } from './scripts/e2e-target.mjs'; const t = resolveE2eTarget(); if (t.mode !== 'remote') { console.error('Refusing to start localhost for privileged acceptance'); process.exit(1) }; console.log(t.baseURL)")"
+          echo "Remote target: ${TARGET}"
+
+      - name: Seed synthetic OS fixtures (idempotent)
+        env:
+          SYNAPSE_E2E_SEED: "true"
+          SYNAPSE_E2E_PASSWORD: ${{ secrets.SYNAPSE_E2E_PASSWORD }}
+          SYNAPSE_E2E_SUPABASE_URL: ${{ secrets.SYNAPSE_E2E_SUPABASE_URL }}
+          SYNAPSE_E2E_SERVICE_ROLE_KEY: ${{ secrets.SYNAPSE_E2E_SERVICE_ROLE_KEY }}
+        run: npm run seed:e2e-os
+
+      - name: Hospital Golden Journey (remote only)
+        env:
+          SYNAPSE_E2E_AUTH: "true"
+          SYNAPSE_E2E_ACCEPTANCE_ENV: "true"
+          SYNAPSE_E2E_FIXED_OTP: ${{ secrets.SYNAPSE_E2E_FIXED_OTP }}
+          SYNAPSE_E2E_EMAIL: ${{ secrets.SYNAPSE_E2E_EMAIL }}
+          SYNAPSE_E2E_PASSWORD: ${{ secrets.SYNAPSE_E2E_PASSWORD }}
+          SYNAPSE_E2E_FACILITY_SLUG: synapse-e2e-hospital
+          SYNAPSE_E2E_FACILITY_B_SLUG: synapse-e2e-hospital-b
+          SYNAPSE_E2E_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
+          PLAYWRIGHT_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SYNAPSE_E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SYNAPSE_E2E_ANON_KEY }}
+          SUPABASE_URL: ${{ secrets.SYNAPSE_E2E_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SYNAPSE_E2E_SERVICE_ROLE_KEY }}
+          SYNAPSE_JWT_SECRET: ${{ secrets.SYNAPSE_E2E_JWT_SECRET }}
+        run: |
+          node scripts/e2e-target.mjs
+          npm run test:e2e:hospital
+          npm run test:e2e:hospital:smoke

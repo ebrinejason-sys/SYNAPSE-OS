@@ -1,54 +1,71 @@
-import { createHash } from "node:crypto"
-import { createClient } from "@supabase/supabase-js"
 import { expect, type Page } from "playwright/test"
+import { E2E_ROLE_EMAILS } from "../packages/auth/src/e2e-otp.ts"
+import { isAuthenticatedOsLocation } from "./os-location.ts"
 
-export const E2E_OTP = "246801"
 export const FACILITY_A = process.env.SYNAPSE_E2E_FACILITY_SLUG || "synapse-e2e-hospital"
 export const FACILITY_B = process.env.SYNAPSE_E2E_FACILITY_B_SLUG || "synapse-e2e-hospital-b"
 
+const ROLE_EMAIL_BY_KEY: Record<string, string> = {
+  receptionist: E2E_ROLE_EMAILS.receptionist,
+  nurse: E2E_ROLE_EMAILS.nurse,
+  doctor: E2E_ROLE_EMAILS.doctor,
+  lab_tech: E2E_ROLE_EMAILS.lab_tech,
+  lab_scientist: E2E_ROLE_EMAILS.lab_scientist,
+  pharmacist: E2E_ROLE_EMAILS.pharmacist,
+  billing_officer: E2E_ROLE_EMAILS.billing_officer,
+  hospital_admin: E2E_ROLE_EMAILS.hospital_admin,
+  doctor_b: E2E_ROLE_EMAILS.doctor_b,
+}
+
 export function e2eEmail(role: string, facility = "a") {
-  return process.env[`SYNAPSE_E2E_${role.toUpperCase()}_EMAIL`] || `e2e.${role}.${facility}@synapseos.invalid`
+  const envKey = `SYNAPSE_E2E_${role.toUpperCase()}_EMAIL`
+  if (process.env[envKey]) return process.env[envKey]!
+  if (facility === "b" && role === "doctor") return E2E_ROLE_EMAILS.doctor_b
+  return ROLE_EMAIL_BY_KEY[role] || E2E_ROLE_EMAILS.receptionist
 }
 
 export function e2eConfigured() {
-  return Boolean(process.env.SYNAPSE_E2E_EMAIL && process.env.SYNAPSE_E2E_PASSWORD)
+  return Boolean(
+    process.env.SYNAPSE_E2E_EMAIL
+    && process.env.SYNAPSE_E2E_PASSWORD
+    && process.env.SYNAPSE_E2E_FIXED_OTP,
+  )
 }
 
-function hashOtp(otp: string) {
-  return createHash("sha256").update(otp).digest("hex")
+function e2eOtp() {
+  const otp = String(process.env.SYNAPSE_E2E_FIXED_OTP || "").trim()
+  if (!/^\d{6}$/.test(otp)) {
+    throw new Error("SYNAPSE_E2E_FIXED_OTP must be a 6-digit secret in the protected acceptance environment")
+  }
+  return otp
 }
 
-export function serviceDb() {
-  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) return null
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
+export async function cookieHeader(page: Page) {
+  const cookies = await page.context().cookies()
+  return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ")
 }
 
-export async function plantKnownOtp(email: string) {
-  const db = serviceDb()
-  if (!db) throw new Error("SUPABASE_SERVICE_ROLE_KEY required to plant synthetic OTP")
-  const { error } = await db.from("auth_otps").insert({
-    channel: "email",
-    target: email,
-    otp_hash: hashOtp(E2E_OTP),
-    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-    used: false,
-    attempts: 0,
-  })
-  if (error) throw new Error(error.message)
+export async function expectAuthenticatedWorkspace(page: Page, slug: string) {
+  await expect.poll(() => isAuthenticatedOsLocation(page.url(), slug), {
+    timeout: 20000,
+    message: `expected authenticated /os/${slug} workspace, not a login or next= URL`,
+  }).toBe(true)
+  await expect(page.getByRole("heading", { name: /welcome back|staff sign in|check your email/i })).toHaveCount(0)
+  await expect(page.locator("header")).toBeVisible()
+  await expect(page.getByRole("link", { name: /dashboard/i }).first()).toBeVisible()
+  await expect(page.locator("body")).not.toContainText("Coming soon.")
 }
 
 export async function loginOs(page: Page, email: string, password: string, slug = FACILITY_A) {
-  await page.goto(`/os/${slug}/login`)
-  await page.locator('input[type="email"], input[name="email"]').first().fill(email)
+  await page.context().clearCookies()
+  await page.goto(`/login?next=/os/${encodeURIComponent(slug)}/dashboard`)
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/login")
+  await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible()
+  await page.locator('input[type="email"]').first().fill(email)
   await page.locator('input[type="password"]').first().fill(password)
-  await page.getByRole("button", { name: /sign in|continue|log in/i }).first().click()
-  await plantKnownOtp(email)
-  const otp = page.getByPlaceholder("000000")
-  await expect(otp).toBeVisible({ timeout: 15000 })
-  await otp.fill(E2E_OTP)
-  await page.getByRole("button", { name: /verify|continue|sign in/i }).first().click()
-  await page.waitForURL(new RegExp(`/os/${slug}`), { timeout: 20000 })
-  await expect(page.locator("body")).not.toContainText("Coming soon.")
+  await page.getByRole("button", { name: /^sign in$/i }).click()
+  await expect(page.getByRole("heading", { name: /check your email/i })).toBeVisible({ timeout: 15000 })
+  await page.getByPlaceholder("000000").fill(e2eOtp())
+  await page.getByRole("button", { name: /verify & sign in/i }).click()
+  await expectAuthenticatedWorkspace(page, slug)
 }

@@ -5,6 +5,8 @@
   "core_os_green": "NO",
   "db_acceptance": "PASS",
   "required_ci": "PASS",
+  "pr83_security_hardening": "IN_PROGRESS",
+  "prod_service_role_exposed_to_pr_ci": "NO",
   "production_golden_journey": "BLOCKED",
   "same_person_continuity": "BLOCKED",
   "same_encounter_continuity": "BLOCKED",
