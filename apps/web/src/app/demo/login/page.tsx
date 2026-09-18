@@ -75,8 +75,16 @@ export default function DemoLoginPage() {
     setError(null);
     try {
       const session = ROLE_SESSION[roleId] ?? { role: "reception", facilityId: "demo-hospital" }
-      const response = await fetch("/api/demo/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: roleId === "lab" ? "lab" : session.role }) }).catch(() => null)
-      if (response && !response.ok && response.status !== 403) throw new Error("Demo session unavailable")
+      const controller = new AbortController()
+      const timeout = window.setTimeout(() => controller.abort(), 4000)
+      const response = await fetch("/api/demo/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: roleId === "lab" ? "lab" : session.role }),
+        signal: controller.signal,
+      }).catch(() => null)
+      window.clearTimeout(timeout)
+      if (response && !response.ok && response.status !== 403 && response.status !== 503) throw new Error("Demo session unavailable")
       sessionStorage.setItem("synapse_demo_role", session.role);
       sessionStorage.setItem("synapse_demo_facility", session.facilityId);
       sessionStorage.setItem("synapse_demo_mode", "true");

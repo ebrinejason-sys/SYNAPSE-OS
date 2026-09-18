@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { resetDemoPlayground, exportDemoPlayground, importDemoPlayground, getFacilities, getUsers } from "../../lib/demo/browser-repository"
+import { resetDemoPlayground, exportDemoPlayground, importDemoPlayground, getFacilities, getUsers, initializePlayground } from "../../lib/demo/browser-repository"
 import type { DemoFacility, DemoUser } from "../../lib/demo/entities"
 import { DEMO_ROUTES } from "../../lib/demo/paths"
 
@@ -56,28 +56,37 @@ export function DemoShell({ title, children, currentRole, requiresRole }: DemoSh
     const storedFacility = sessionStorage.getItem("synapse_demo_facility") || "demo-hospital"
     const storedRole = sessionStorage.getItem("synapse_demo_role") || "doctor"
     const storedOnline = sessionStorage.getItem("synapse_demo_online") !== "false"
-    
-    const facilities = await getFacilities()
-    const users = await getUsers()
+
+    try {
+      await initializePlayground()
+    } catch {
+      // IndexedDB can be blocked; still show a usable playground identity.
+    }
+
+    const facilities = await getFacilities().catch(() => [] as DemoFacility[])
+    const users = await getUsers().catch(() => [] as DemoUser[])
     const facility = facilities.find((f) => f.id === storedFacility)
     const user = users.find((u) => u.role === storedRole)
 
-    if (facility && user) {
-      setSession({
-        facilityId: facility.id,
-        facilityName: facility.name,
-        role: user.role,
-        userName: user.name,
-        userId: user.id,
-        online: storedOnline
-      })
-    }
+    setSession({
+      facilityId: facility?.id ?? storedFacility,
+      facilityName: facility?.name ?? "SYNAPSE Demo Hospital",
+      role: user?.role ?? storedRole,
+      userName: user?.name ?? "Demo visitor",
+      userId: user?.id ?? "demo-visitor",
+      online: storedOnline,
+    })
   }
 
   async function loadData() {
-    const [facs, usrs] = await Promise.all([getFacilities(), getUsers()])
-    setFacilities(facs)
-    setUsers(usrs)
+    try {
+      const [facs, usrs] = await Promise.all([getFacilities(), getUsers()])
+      setFacilities(facs)
+      setUsers(usrs)
+    } catch {
+      setFacilities([])
+      setUsers([])
+    }
   }
 
   async function switchFacility(facilityId: string) {
