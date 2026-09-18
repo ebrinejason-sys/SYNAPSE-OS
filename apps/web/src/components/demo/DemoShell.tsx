@@ -1,123 +1,103 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import Link from "next/link"
+import { useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
-import { resetDemoPlayground, exportDemoPlayground, importDemoPlayground, getFacilities, getUsers, initializePlayground } from "../../lib/demo/browser-repository"
-import type { DemoFacility, DemoUser } from "../../lib/demo/entities"
-import { DEMO_ROUTES, demoHref } from "../../lib/demo/paths"
+import {
+  exportDemoPlayground,
+  importDemoPlayground,
+  initializePlayground,
+  resetDemoPlayground,
+} from "../../lib/demo/browser-repository"
+import { demoHref } from "../../lib/demo/paths"
+import {
+  applyStationSession,
+  DEMO_STATIONS,
+  DEMO_TIP_STORAGE_KEY,
+  enterStation,
+  readDemoRole,
+  stationFromPath,
+  stationHref,
+  type DemoStationId,
+} from "../../lib/demo/stations"
+import { loadJourneyProgress, type JourneyProgress } from "../../lib/demo/journey-progress"
 import { DemoMast } from "./DemoMast"
+import { DemoThemeControl } from "./DemoThemeControl"
 
-const STATIONS = [
-  { label: "Reception", href: DEMO_ROUTES.reception, leaf: "reception" },
-  { label: "Nurse", href: DEMO_ROUTES.nurse, leaf: "nurse" },
-  { label: "Doctor", href: DEMO_ROUTES.doctor, leaf: "doctor" },
-  { label: "Lab", href: DEMO_ROUTES.lab, leaf: "lab" },
-  { label: "Pharmacy", href: DEMO_ROUTES.pharmacist, leaf: "pharmacist" },
-  { label: "Billing", href: DEMO_ROUTES.billing, leaf: "billing" },
-] as const
-
-const ROLE_COLORS: Record<string, string> = {
-  reception: "#3B82F6",
-  nurse: "#10B981",
-  doctor: "#F59E0B",
-  lab_technician: "#8B5CF6",
-  lab_scientist: "#8B5CF6",
-  pharmacist: "#EC4899",
-  cashier: "#6B7280",
-  admin: "#6B7280",
-}
-
-const FACILITY_ICONS: Record<string, string> = {
-  hospital: "🏥",
-  clinic: "🏥",
-  laboratory: "🧪",
-  pharmacy: "💊",
-}
-
-interface DemoSession {
-  facilityId: string
-  facilityName: string
-  role: string
-  userName: string
-  userId: string
-  online: boolean
+const ROLE_LABEL: Record<string, string> = {
+  reception: "Reception",
+  nurse: "Nurse",
+  doctor: "Doctor",
+  lab_technician: "Lab Technician",
+  lab_scientist: "Lab Scientist",
+  pharmacist: "Pharmacist",
+  cashier: "Cashier",
+  admin: "Admin",
 }
 
 interface DemoShellProps {
   title: string
+  description?: string
   children: React.ReactNode
-  currentRole?: string
   requiresRole?: string[]
 }
 
-export function DemoShell({ title, children, currentRole, requiresRole }: DemoShellProps) {
-  const [session, setSession] = useState<DemoSession | null>(null)
-  const [showControls, setShowControls] = useState(false)
-  const [facilities, setFacilities] = useState<DemoFacility[]>([])
-  const [users, setUsers] = useState<DemoUser[]>([])
-  const [pendingSyncCount, setPendingSyncCount] = useState(0)
+function initialSession() {
+  if (typeof window === "undefined") {
+    return { facilityName: "Demo Hospital", role: "reception", userName: "Visitor" }
+  }
+  const role = readDemoRole()
+  const facilityId = sessionStorage.getItem("synapse_demo_facility") || "demo-hospital"
+  const facilityName =
+    facilityId === "demo-lab" ? "Demo Lab" : facilityId === "demo-pharmacy" ? "Demo Pharmacy" : "Demo Hospital"
+  return { facilityName, role, userName: ROLE_LABEL[role] ?? "Visitor" }
+}
+
+export function DemoShell({ title, description, children, requiresRole }: DemoShellProps) {
+  const pathname = usePathname() || "/demo"
+  const search = typeof window !== "undefined" ? window.location.search : ""
+  const pathStation = stationFromPath(pathname, search)
+  const [session, setSession] = useState(initialSession)
+  const [ready, setReady] = useState(typeof window !== "undefined")
+  const [slow, setSlow] = useState(false)
+  const [tipDismissed, setTipDismissed] = useState(true)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [progress, setProgress] = useState<JourneyProgress | null>(null)
+  const railRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
-    loadSession()
-    loadData()
-  }, [])
+    const timer = window.setTimeout(() => setSlow(true), 4000)
+    applyStationSession(pathStation.id)
+    setSession(initialSession())
+    setTipDismissed(localStorage.getItem(DEMO_TIP_STORAGE_KEY) === "1")
+    void (async () => {
+      try {
+        await initializePlayground()
+        setProgress(await loadJourneyProgress())
+      } catch {
+        setProgress(null)
+      } finally {
+        setReady(true)
+        window.clearTimeout(timer)
+      }
+    })()
+    return () => window.clearTimeout(timer)
+  }, [pathStation.id])
 
-  async function loadSession() {
-    const storedFacility = sessionStorage.getItem("synapse_demo_facility") || "demo-hospital"
-    const storedRole = sessionStorage.getItem("synapse_demo_role") || "doctor"
-    const storedOnline = sessionStorage.getItem("synapse_demo_online") !== "false"
+  useEffect(() => {
+    const active = railRef.current?.querySelector("[aria-current='step'], [aria-current='page']")
+    if (active instanceof HTMLElement) active.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" })
+  }, [pathStation.id, progress])
 
-    try {
-      await initializePlayground()
-    } catch {
-      // IndexedDB can be blocked; still show a usable playground identity.
-    }
+  const mismatch = Boolean(requiresRole && session.role && !requiresRole.includes(session.role))
+  const expectedRole = requiresRole?.[0]
 
-    const facilities = await getFacilities().catch(() => [] as DemoFacility[])
-    const users = await getUsers().catch(() => [] as DemoUser[])
-    const facility = facilities.find((f) => f.id === storedFacility)
-    const user = users.find((u) => u.role === storedRole)
-
-    setSession({
-      facilityId: facility?.id ?? storedFacility,
-      facilityName: facility?.name ?? "SYNAPSE Demo Hospital",
-      role: user?.role ?? storedRole,
-      userName: user?.name ?? "Demo visitor",
-      userId: user?.id ?? "demo-visitor",
-      online: storedOnline,
-    })
-  }
-
-  async function loadData() {
-    try {
-      const [facs, usrs] = await Promise.all([getFacilities(), getUsers()])
-      setFacilities(facs)
-      setUsers(usrs)
-    } catch {
-      setFacilities([])
-      setUsers([])
-    }
-  }
-
-  async function switchFacility(facilityId: string) {
-    sessionStorage.setItem("synapse_demo_facility", facilityId)
-    await loadSession()
-  }
-
-  async function switchRole(role: string) {
-    sessionStorage.setItem("synapse_demo_role", role)
-    await loadSession()
-  }
-
-  async function toggleOnline() {
-    const newOnline = !session?.online
-    sessionStorage.setItem("synapse_demo_online", String(newOnline))
-    setSession(prev => prev ? { ...prev, online: newOnline } : null)
+  function dismissTip() {
+    localStorage.setItem(DEMO_TIP_STORAGE_KEY, "1")
+    setTipDismissed(true)
   }
 
   async function handleReset() {
-    if (!confirm("Reset all demo data? This will clear the playground and start fresh.")) return
+    if (!confirm("Reset the synthetic playground? Theme and tips are kept.")) return
     await resetDemoPlayground()
     window.location.reload()
   }
@@ -137,159 +117,127 @@ export function DemoShell({ title, children, currentRole, requiresRole }: DemoSh
     const input = document.createElement("input")
     input.type = "file"
     input.accept = ".json"
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0]
+    input.onchange = async (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0]
       if (!file) return
-      const text = await file.text()
-      const data = JSON.parse(text)
-      await importDemoPlayground(data)
+      await importDemoPlayground(JSON.parse(await file.text()))
       window.location.reload()
     }
     input.click()
   }
 
-  const roleColor = ROLE_COLORS[session?.role ?? ""] ?? "#6B7280"
-  const currentFacility = facilities.find((f) => f.id === session?.facilityId)
-  const pathname = usePathname()
-
   return (
     <main className="min-h-screen">
-      <DemoMast>
-        <div className="hidden items-center gap-2 font-mono text-xs sm:flex" style={{ color: "var(--text-secondary)" }}>
-          <span>{FACILITY_ICONS[currentFacility?.type ?? ""] ?? "▣"}</span>
-          <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{session?.facilityName || "Loading chart…"}</span>
-          <span aria-hidden="true">/</span>
-          <span style={{ color: roleColor }}>{session?.userName || "…"}</span>
+      <DemoMast badge="TEST DRIVE / SYNTHETIC">
+        <span className="demo-patient-chip">
+          {progress?.patientName ?? "Amina Demo"}
+        </span>
+        <select
+          aria-label="Switch demo facility"
+          className="demo-icon-btn max-w-[9.5rem]"
+          value={session.facilityName === "Demo Lab" ? "lab" : session.facilityName === "Demo Pharmacy" ? "pharmacist" : "reception"}
+          onChange={(event) => enterStation(event.target.value as DemoStationId)}
+        >
+          <option value="reception">Hospital</option>
+          <option value="lab">Lab</option>
+          <option value="pharmacist">Pharmacy</option>
+        </select>
+        <span className="hidden text-xs sm:inline" style={{ color: "var(--text-secondary)" }}>
+          {session.facilityName} · {ROLE_LABEL[session.role] ?? session.role}
+        </span>
+        <DemoThemeControl />
+        <div className="relative">
+          <button type="button" className="demo-icon-btn" aria-label="More playground actions" onClick={() => setMoreOpen((v) => !v)}>
+            More
+          </button>
+          {moreOpen ? (
+            <div className="demo-menu">
+              <button type="button" onClick={() => window.location.assign(demoHref("guide"))}>Guide</button>
+              <button type="button" onClick={handleExport}>Export</button>
+              <button type="button" onClick={handleImport}>Import</button>
+              <button type="button" onClick={() => window.location.assign(demoHref("network"))}>Network</button>
+              <button type="button" onClick={() => window.location.assign(demoHref("admin"))}>Admin</button>
+              <button type="button" className="text-destructive" onClick={handleReset}>Reset Playground</button>
+            </div>
+          ) : null}
         </div>
-        <button
-          type="button"
-          onClick={toggleOnline}
-          className="px-3 py-1 text-xs font-semibold"
-          style={{
-            background: session?.online ? "rgba(15,118,110,0.12)" : "rgba(239,68,68,0.08)",
-            color: session?.online ? "var(--brand-teal)" : "#EF4444",
-            border: `2px solid ${session?.online ? "var(--brand-teal)" : "#EF4444"}`,
-          }}
-        >
-          {session?.online ? "On chart" : "Offline"}
-        </button>
-        {!session?.online && pendingSyncCount > 0 && (
-          <span className="border px-2 py-1 text-xs font-semibold">{pendingSyncCount} pending</span>
-        )}
-        <button
-          type="button"
-          onClick={() => setShowControls(!showControls)}
-          className="border bg-secondary px-3 py-1 text-xs font-semibold"
-        >
-          {showControls ? "Hide board" : "Open board"}
-        </button>
       </DemoMast>
 
-      <div className="mx-auto max-w-5xl px-4 py-6">
-        <div className="demo-station-pack mb-5">
-        <nav className="demo-ledger" aria-label="Clinical stations">
-          {STATIONS.map((station) => (
-            <Link
-              key={station.href}
-              href={station.href}
-              aria-current={pathname?.startsWith(station.href) ? "page" : undefined}
-              onClick={(event) => {
-                event.preventDefault()
-                window.location.assign(demoHref(station.leaf))
-              }}
-            >
-              {station.label}
-            </Link>
-          ))}
+      <div className="mx-auto max-w-6xl px-4 py-4 sm:py-6">
+        <nav ref={railRef} className="demo-rail" aria-label="Golden journey stations">
+          {DEMO_STATIONS.map((station) => {
+            const done = progress?.complete[station.progressKey]
+            const current = progress?.current === station.progressKey
+            const active = pathStation.id === station.id
+            return (
+              <a
+                key={station.id}
+                href={stationHref(station.id)}
+                className={active ? "is-active" : undefined}
+                aria-current={active ? "page" : current ? "step" : undefined}
+                onClick={() => applyStationSession(station.id)}
+              >
+                <span>{done ? "✓ " : current ? "● " : ""}{station.label}</span>
+              </a>
+            )
+          })}
         </nav>
 
-        {showControls && (
-          <div className="demo-card mb-5 space-y-3 p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Facility</span>
-              {facilities.map((f) => (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => switchFacility(f.id)}
-                  className="border px-3 py-1 text-xs font-medium"
-                  style={session?.facilityId === f.id ? { background: "var(--brand-orange)", color: "#07070A", borderColor: "var(--brand-orange)" } : undefined}
-                >
-                  {FACILITY_ICONS[f.type] ?? "▣"} {f.name}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Role</span>
-              {Array.from(new Set(users.map((u) => u.role))).map((role) => {
-                const user = users.find((u) => u.role === role)
-                return (
-                  <button
-                    key={role}
-                    type="button"
-                    onClick={() => switchRole(role)}
-                    className="border px-3 py-1 text-xs font-medium"
-                    style={session?.role === role ? { backgroundColor: ROLE_COLORS[role] ?? "#6B7280", color: "#fff", borderColor: ROLE_COLORS[role] ?? "#6B7280" } : undefined}
-                  >
-                    {user?.name}
-                  </button>
-                )
-              })}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Chart</span>
-              <button type="button" onClick={handleExport} className="border px-3 py-1 text-xs font-medium">Export</button>
-              <button type="button" onClick={handleImport} className="border px-3 py-1 text-xs font-medium">Import</button>
-              <button type="button" onClick={handleReset} className="border px-3 py-1 text-xs font-medium text-destructive">Reset</button>
-            </div>
-          </div>
-        )}
+        <div className="demo-patient-strip" aria-label="Synthetic patient context">
+          <strong>{progress?.patientName ?? "Amina Demo"}</strong>
+          <span className="demo-stamp">SYNTHETIC CHART</span>
+          <span>{progress?.patientSex ?? "Female"} · {progress?.patientAge ?? "24y"}</span>
+          <span>Current visit: {progress?.visitLabel ?? "OPD"}</span>
+        </div>
 
-        <div className="demo-frame space-y-6 p-5 sm:p-7">
-          <div className="flex flex-wrap items-end justify-between gap-3 border-b-2 pb-4" style={{ borderColor: "var(--demo-ink)" }}>
-            <div>
-              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: "var(--text-muted)" }}>Station chart</p>
-              <h1 className="font-display text-3xl font-bold tracking-tight">{title}</h1>
+        {!tipDismissed ? (
+          <aside className="demo-tip" role="note">
+            <p>Tip: follow the station rail from Reception → Billing.</p>
+            <div className="flex gap-2">
+              <button type="button" className="demo-btn-secondary" onClick={dismissTip}>Dismiss</button>
+              <button type="button" className="demo-btn-secondary" onClick={() => window.location.assign(demoHref("guide"))}>Guide</button>
             </div>
-            <nav className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs uppercase tracking-wider">
-              <Link href={DEMO_ROUTES.home} className="hover:underline">Home</Link>
-              <Link href={DEMO_ROUTES.workspace} className="hover:underline">Workspace</Link>
-              <Link href={DEMO_ROUTES.timeline} className="hover:underline">Timeline</Link>
-              <Link href={DEMO_ROUTES.network} className="hover:underline">Network</Link>
-              <Link href={DEMO_ROUTES.guide} className="hover:underline">Guide</Link>
-            </nav>
-          </div>
-
-          <aside className="demo-card p-4 text-sm" role="note">
-            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--brand-orange)" }}>How this playground works</p>
-            <ul className="mt-2 space-y-1" style={{ color: "var(--text-secondary)" }}>
-              <li>Synthetic data only. Nothing here is a real patient, lab result, or payment.</li>
-              <li>State lives in this browser. It does not write to production SYNAPSE.</li>
-              <li>Walk Reception → Nurse → Doctor → Lab → Pharmacy → Billing, then open Timeline.</li>
-              <li>Open board to switch facility or role, go offline, export, or reset.</li>
-            </ul>
           </aside>
+        ) : null}
 
-          {requiresRole && session && !requiresRole.includes(session.role) && (
-            <div className="demo-card p-4">
-              <p className="font-semibold" style={{ color: "var(--brand-orange)" }}>Role mismatch</p>
+        <section className="demo-work mt-4 space-y-5">
+          <header>
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>Station</p>
+            <h1 className="font-display text-3xl font-bold tracking-tight">{title}</h1>
+            {description ? <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>{description}</p> : null}
+          </header>
+
+          {mismatch && expectedRole ? (
+            <div className="demo-card space-y-3 p-4">
+              <p className="font-semibold">You&apos;re currently using the {ROLE_LABEL[session.role] ?? session.role} role.</p>
               <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                This page expects {requiresRole.join(", ")}. You are {session.role}.
+                This station needs {ROLE_LABEL[expectedRole] ?? expectedRole}.
               </p>
+              <button
+                type="button"
+                className="demo-btn-primary"
+                onClick={() => {
+                  const station = DEMO_STATIONS.find((row) => row.role === expectedRole)
+                  enterStation((station?.id ?? "reception") as DemoStationId)
+                }}
+              >
+                Continue as {ROLE_LABEL[expectedRole] ?? expectedRole}
+              </button>
             </div>
+          ) : null}
+
+          {!ready && slow ? (
+            <div className="demo-card space-y-3 p-4">
+              <p>Still loading the synthetic chart.</p>
+              <div className="flex gap-2">
+                <button type="button" className="demo-btn-primary" onClick={() => window.location.reload()}>Retry</button>
+                <button type="button" className="demo-btn-secondary" onClick={handleReset}>Reset Playground</button>
+              </div>
+            </div>
+          ) : (
+            children
           )}
-
-          <div className="demo-card flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
-            <div>
-              <span className="font-mono text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Patient</span>
-              <p className="font-semibold">Amina Demo · SYN-UG-DEMO-0001</p>
-            </div>
-            <span className="demo-stamp">No real patient data</span>
-          </div>
-
-          <div className="demo-work space-y-6">{children}</div>
-        </div>
-        </div>
+        </section>
       </div>
     </main>
   )

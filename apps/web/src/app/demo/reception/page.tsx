@@ -2,16 +2,14 @@
 
 import { useState, useEffect } from "react"
 import { DemoShell } from "../../../components/demo/DemoShell"
-import Link from "next/link"
+import { applyStationSession } from "../../../lib/demo/stations"
 import { 
   initializePlayground, 
   getPersons, 
-  getPerson, 
   createEncounter, 
   queuePatient, 
   appendTimelineEvent, 
   appendAuditEvent,
-  getEncounters 
 } from "../../../lib/demo/browser-repository"
 
 export default function ReceptionDemoPage() {
@@ -141,10 +139,8 @@ export default function ReceptionDemoPage() {
 
   if (!initialized) {
     return (
-      <DemoShell title="Reception" requiresRole={["reception", "admin"]}>
-        <div className="text-center py-12 text-muted-foreground">
-          <p>Loading...</p>
-        </div>
+      <DemoShell title="Reception" description="Find Amina, start an OPD visit, send to triage." requiresRole={["reception", "admin"]}>
+        <div className="demo-card h-24" aria-hidden="true" />
       </DemoShell>
     )
   }
@@ -190,12 +186,13 @@ export default function ReceptionDemoPage() {
               >
                 Register Another Patient
               </button>
-              <Link
+              <a
+                className="demo-btn-primary"
                 href="/demo/nurse"
-                className="px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                onClick={() => applyStationSession("nurse")}
               >
-                Continue as Nurse →
-              </Link>
+                Continue as Nurse
+              </a>
             </div>
           </div>
         </div>
@@ -209,10 +206,12 @@ export default function ReceptionDemoPage() {
         {/* Patient Search */}
         <div className="rounded-lg border bg-card p-6">
           <h2 className="font-semibold text-lg mb-4">Patient Search</h2>
-          <div className="flex gap-3">
+            <div className="flex gap-3">
+            <label className="sr-only" htmlFor="patient-search">Search patients</label>
             <input
+              id="patient-search"
               type="text"
-              placeholder="Search by name, ID, or phone..."
+              placeholder="Search by name, ID, or phone"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -342,8 +341,9 @@ export default function ReceptionDemoPage() {
 
               {/* Chief Complaint */}
               <div>
-                <label className="block text-sm font-medium mb-2">Chief Complaint *</label>
+                <label htmlFor="chief-complaint" className="block text-sm font-medium mb-2">Chief Complaint *</label>
                 <textarea
+                  id="chief-complaint"
                   value={complaint}
                   onChange={(e) => setComplaint(e.target.value)}
                   placeholder="Enter patient's main complaint..."
@@ -381,7 +381,7 @@ export default function ReceptionDemoPage() {
                 <button
                   onClick={handleStartVisit}
                   disabled={submitting || !complaint.trim()}
-                  className="w-full px-6 py-3 rounded bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="demo-btn-primary w-full"
                 >
                   {submitting ? "Starting Visit..." : "Start Visit & Send to Triage"}
                 </button>
@@ -389,23 +389,6 @@ export default function ReceptionDemoPage() {
             </div>
           </div>
         )}
-
-        {/* Quick Guide */}
-        <div className="rounded-lg border bg-card p-6">
-          <h3 className="font-semibold mb-3 flex items-center gap-2">
-            <span>💡</span>
-            <span>Quick Guide</span>
-          </h3>
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <p>1. Search for existing patient or use the demo patient (Amina Demo)</p>
-            <p>2. Select visit type (Consultation, Procedure, Admission, or Referral)</p>
-            <p>3. Choose encounter type (OPD for outpatient, IPD for inpatient, Emergency, Follow-up)</p>
-            <p>4. Select payment category (Cash, Insurance, Government scheme, or Waiver)</p>
-            <p>5. Enter chief complaint - this is required</p>
-            <p>6. Set priority level if needed (Routine, Urgent, or Emergency)</p>
-            <p>7. Click "Start Visit" to create encounter and send to Triage queue</p>
-          </div>
-        </div>
       </div>
     </DemoShell>
   )

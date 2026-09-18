@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { DemoShell } from "../../../components/demo/DemoShell"
-import Link from "next/link"
+import { DemoEmptyState } from "../../../components/demo/DemoEmptyState"
+import { applyStationSession } from "../../../lib/demo/stations"
 import {
   getQueue,
   getPerson,
+  getPersons,
   getEncounter,
   getTriage,
   recordTriage,
@@ -50,7 +52,10 @@ export default function NurseDemoPage() {
 
   async function loadQueue() {
     const queue = await getQueue()
-    const triageQueue = queue.filter(q => q.queueType === "triage" && q.status === "waiting")
+    const persons = await getPersons()
+    const triageQueue = queue
+      .filter(q => q.queueType === "triage" && q.status === "waiting")
+      .map((item) => ({ ...item, personName: persons.find((p) => p.id === item.personId)?.name || "Patient" }))
     setQueueItems(triageQueue)
 
     if (triageQueue.length > 0 && !selectedItem) {
@@ -224,12 +229,13 @@ export default function NurseDemoPage() {
               >
                 Next Patient
               </button>
-              <Link
+              <a
+                className="demo-btn-primary"
                 href="/demo/doctor"
-                className="px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                onClick={() => applyStationSession("doctor")}
               >
-                Continue as Doctor →
-              </Link>
+                Continue as Doctor
+              </a>
             </div>
           </div>
         </div>
@@ -257,7 +263,7 @@ export default function NurseDemoPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-semibold">Encounter: {item.encounterId.slice(0, 8)}</p>
+                      <p className="font-semibold">{item.personName || "Patient"}</p>
                       <p className="text-sm text-muted-foreground">
                         Priority: {item.priority} · Position: {item.position}
                       </p>
@@ -273,11 +279,12 @@ export default function NurseDemoPage() {
         )}
 
         {queueItems.length === 0 && (
-          <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-            <p className="text-4xl mb-2">✅</p>
-            <p>No patients in triage queue</p>
-            <p className="text-sm mt-2">All caught up!</p>
-          </div>
+          <DemoEmptyState
+            title="No patients waiting for triage"
+            body="Start a visit at Reception so Amina appears in this queue."
+            primaryLabel="Start a visit at Reception"
+            primaryStation="reception"
+          />
         )}
 
         {/* Patient Info */}
@@ -322,8 +329,9 @@ export default function NurseDemoPage() {
                 <h3 className="font-medium mb-3">Vital Signs</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Temperature (°C)</label>
+                    <label htmlFor="vitals-temp" className="block text-sm font-medium mb-1">Temperature (°C)</label>
                     <input
+                      id="vitals-temp"
                       type="number"
                       step="0.1"
                       value={temperatureC}
@@ -333,8 +341,9 @@ export default function NurseDemoPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Heart Rate (bpm)</label>
+                    <label htmlFor="vitals-hr" className="block text-sm font-medium mb-1">Heart Rate (bpm)</label>
                     <input
+                      id="vitals-hr"
                       type="number"
                       value={heartRate}
                       onChange={(e) => setHeartRate(e.target.value)}
@@ -343,8 +352,9 @@ export default function NurseDemoPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">BP Systolic (mmHg)</label>
+                    <label htmlFor="vitals-sys" className="block text-sm font-medium mb-1">BP Systolic (mmHg)</label>
                     <input
+                      id="vitals-sys"
                       type="number"
                       value={bpSystolic}
                       onChange={(e) => setBpSystolic(e.target.value)}
@@ -353,8 +363,9 @@ export default function NurseDemoPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">BP Diastolic (mmHg)</label>
+                    <label htmlFor="vitals-dia" className="block text-sm font-medium mb-1">BP Diastolic (mmHg)</label>
                     <input
+                      id="vitals-dia"
                       type="number"
                       value={bpDiastolic}
                       onChange={(e) => setBpDiastolic(e.target.value)}
@@ -373,8 +384,9 @@ export default function NurseDemoPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">SpO₂ (%)</label>
+                    <label htmlFor="vitals-spo2" className="block text-sm font-medium mb-1">SpO₂ (%)</label>
                     <input
+                      id="vitals-spo2"
                       type="number"
                       value={spo2}
                       onChange={(e) => setSpo2(e.target.value)}
@@ -472,7 +484,7 @@ export default function NurseDemoPage() {
                 <button
                   onClick={handleSaveTriage}
                   disabled={submitting}
-                  className="w-full px-6 py-3 rounded bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="demo-btn-primary w-full"
                 >
                   {submitting ? "Saving..." : "Save Triage & Send to Doctor"}
                 </button>

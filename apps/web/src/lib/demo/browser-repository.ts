@@ -34,6 +34,7 @@ export const DEMO_STORES = [
 export type DemoStore = typeof DEMO_STORES[number]
 export type DemoState = Partial<Record<DemoStore, unknown[]>>
 import type { DemoEncounter, DemoPerson, DemoQueueItem, DemoTriage, DemoClinicalNote, DemoFacility, DemoUser } from "./entities"
+import { assertDemoPermission, currentDemoRole } from "./entities"
 const now = () => new Date().toISOString()
 async function put<T>(store: DemoStore, value: T) { const db = await openDb(); await new Promise<void>((resolve, reject) => { const tx = db.transaction(store, "readwrite"); tx.objectStore(store).put(value); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error) }); db.close(); return value }
 async function all<T>(store: DemoStore): Promise<T[]> { const db = await openDb(); return await new Promise<T[]>((resolve, reject) => { const r = db.transaction(store, "readonly").objectStore(store).getAll(); r.onsuccess = () => { db.close(); resolve(r.result as T[]) }; r.onerror = () => reject(r.error) }) }
@@ -42,12 +43,24 @@ export const getFacilities = () => all<DemoFacility>("facilities")
 export const getUsers = () => all<DemoUser>("users")
 export const getPersons = () => all<DemoPerson>("persons")
 export async function getPerson(id: string) { return (await getPersons()).find(p => p.id === id) }
-export async function createEncounter(input: Omit<DemoEncounter, "id"|"createdAt"|"updatedAt">) { return put<DemoEncounter>("encounters", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() }) }
+export async function createEncounter(input: Omit<DemoEncounter, "id"|"createdAt"|"updatedAt">) {
+  assertDemoPermission(currentDemoRole(), "canStartEncounter")
+  const existing = (await all<DemoEncounter>("encounters")).find((row) => row.personId === input.personId && row.status === "active")
+  if (existing) return existing
+  return put<DemoEncounter>("encounters", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+}
 export async function queuePatient(input: Omit<DemoQueueItem, "id"|"createdAt"|"updatedAt">) { return put<DemoQueueItem>("queues", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() }) }
 export const getQueue = () => all<DemoQueueItem>("queues")
-export async function recordTriage(input: Omit<DemoTriage, "id"|"createdAt"|"updatedAt">) { return put<DemoTriage>("triage", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() }) }
+export async function recordTriage(input: Omit<DemoTriage, "id"|"createdAt"|"updatedAt">) {
+  assertDemoPermission(currentDemoRole(), "canRecordTriage")
+  const existing = (await all<DemoTriage>("triage")).find((row) => row.encounterId === input.encounterId)
+  return put<DemoTriage>("triage", { ...input, id: existing?.id ?? crypto.randomUUID(), createdAt: existing?.createdAt ?? now(), updatedAt: now() })
+}
 export const getTriage = async (encounterId: string) => (await all<DemoTriage>("triage")).find(t => t.encounterId === encounterId)
-export async function saveClinicalNote(input: Omit<DemoClinicalNote, "id"|"createdAt"|"updatedAt"> & { id?: string }) { return put<DemoClinicalNote>("clinical_notes", { ...input, id: input.id ?? crypto.randomUUID(), createdAt: now(), updatedAt: now() }) }
+export async function saveClinicalNote(input: Omit<DemoClinicalNote, "id"|"createdAt"|"updatedAt"> & { id?: string }) {
+  assertDemoPermission(currentDemoRole(), input.status === "signed" ? "canSignClinicalNote" : "canWriteClinicalNote")
+  return put<DemoClinicalNote>("clinical_notes", { ...input, id: input.id ?? crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+}
 export const getClinicalNote = async (encounterId: string) => (await all<DemoClinicalNote>("clinical_notes")).find(n => n.encounterId === encounterId)
 
 // ============================================
@@ -62,31 +75,53 @@ import type {
 } from "./entities"
 
 // Lab workflow
-export const createOrder = async (input: Omit<DemoOrder, "id"|"createdAt"|"updatedAt">) => 
-  put<DemoOrder>("orders", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+export const createOrder = async (input: Omit<DemoOrder, "id"|"createdAt"|"updatedAt">) => {
+  assertDemoPermission(currentDemoRole(), "canOrderLab")
+  return put<DemoOrder>("orders", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+}
 export const getOrders = () => all<DemoOrder>("orders")
 export const getOrdersByFacility = async (facilityId: string) => 
   (await getOrders()).filter(o => o.destinationFacilityId === facilityId)
 export const updateOrder = async (id: string, updates: Partial<DemoOrder>) => {
+  if (updates.status === "verified") assertDemoPermission(currentDemoRole(), "canVerifyLabResult")
+  if (updates.status === "released") assertDemoPermission(currentDemoRole(), "canReleaseLabResult")
   const orders = await getOrders()
   const order = orders.find(o => o.id === id)
   if (!order) throw new Error("Order not found")
+  if (updates.status === "released" && order.status === "released") throw new Error("DEMO_DUPLICATE:lab_release")
+  if (updates.status === "verified" && (order.status === "verified" || order.status === "released")) throw new Error("DEMO_DUPLICATE:lab_verify")
   return put<DemoOrder>("orders", { ...order, ...updates, updatedAt: now() })
 }
 
-export const createSpecimen = async (input: Omit<DemoSpecimen, "id"|"createdAt"|"updatedAt">) =>
-  put<DemoSpecimen>("specimens", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+export const createSpecimen = async (input: Omit<DemoSpecimen, "id"|"createdAt"|"updatedAt">) => {
+  assertDemoPermission(currentDemoRole(), "canCollectSpecimen")
+  return put<DemoSpecimen>("specimens", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+}
 export const getSpecimens = () => all<DemoSpecimen>("specimens")
 
-export const createLabResult = async (input: Omit<DemoLabResult, "id"|"createdAt"|"updatedAt">) =>
-  put<DemoLabResult>("lab_results", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+export const createLabResult = async (input: Omit<DemoLabResult, "id"|"createdAt"|"updatedAt">) => {
+  if (input.status === "verified") assertDemoPermission(currentDemoRole(), "canVerifyLabResult")
+  else if (input.status === "released") assertDemoPermission(currentDemoRole(), "canReleaseLabResult")
+  else assertDemoPermission(currentDemoRole(), "canEnterLabResult")
+  return put<DemoLabResult>("lab_results", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+}
+export const updateLabResult = async (id: string, updates: Partial<DemoLabResult>) => {
+  if (updates.status === "verified") assertDemoPermission(currentDemoRole(), "canVerifyLabResult")
+  if (updates.status === "released") assertDemoPermission(currentDemoRole(), "canReleaseLabResult")
+  const result = (await getLabResults()).find((row) => row.id === id)
+  if (!result) throw new Error("Lab result not found")
+  if (updates.status === "released" && result.status === "released") throw new Error("DEMO_DUPLICATE:lab_release")
+  return put<DemoLabResult>("lab_results", { ...result, ...updates, updatedAt: now() })
+}
 export const getLabResults = () => all<DemoLabResult>("lab_results")
 export const getLabResultsByOrder = async (orderId: string) =>
   (await getLabResults()).filter(r => r.orderId === orderId)
 
 // Clinical workflow
-export const createDiagnosis = async (input: Omit<DemoDiagnosis, "id"|"createdAt"|"updatedAt">) =>
-  put<DemoDiagnosis>("diagnoses", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+export const createDiagnosis = async (input: Omit<DemoDiagnosis, "id"|"createdAt"|"updatedAt">) => {
+  assertDemoPermission(currentDemoRole(), "canWriteClinicalNote")
+  return put<DemoDiagnosis>("diagnoses", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+}
 export const getDiagnoses = () => all<DemoDiagnosis>("diagnoses")
 
 export const createObservation = async (input: Omit<DemoObservation, "id"|"createdAt"|"updatedAt">) =>
@@ -94,8 +129,10 @@ export const createObservation = async (input: Omit<DemoObservation, "id"|"creat
 export const getObservations = () => all<DemoObservation>("observations")
 
 // Prescription workflow
-export const createPrescription = async (input: Omit<DemoPrescription, "id"|"createdAt"|"updatedAt">) =>
-  put<DemoPrescription>("prescriptions", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+export const createPrescription = async (input: Omit<DemoPrescription, "id"|"createdAt"|"updatedAt">) => {
+  assertDemoPermission(currentDemoRole(), "canPrescribe")
+  return put<DemoPrescription>("prescriptions", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+}
 export const getPrescriptions = () => all<DemoPrescription>("prescriptions")
 export const getPrescriptionsByFacility = async (facilityId: string) =>
   (await getPrescriptions()).filter(p => p.facilityId === facilityId)
@@ -118,8 +155,18 @@ export const updateBatch = async (id: string, updates: Partial<DemoBatch>) => {
   return put<DemoBatch>("batches", { ...batch, ...updates, updatedAt: now() })
 }
 
-export const createDispense = async (input: Omit<DemoDispense, "id"|"createdAt"|"updatedAt">) =>
-  put<DemoDispense>("dispenses", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+export const createDispense = async (input: Omit<DemoDispense, "id"|"createdAt"|"updatedAt">) => {
+  assertDemoPermission(currentDemoRole(), "canDispense")
+  const existing = (await getDispenses()).find((row) => row.prescriptionId === input.prescriptionId)
+  if (existing) throw new Error("DEMO_DUPLICATE:dispense")
+  const batch = (await getBatches()).find((row) => row.id === input.batchId)
+  if (!batch) throw new Error("Batch not found")
+  if (batch.quantity < input.quantity) throw new Error("DEMO_INSUFFICIENT_STOCK")
+  await put("batches", { ...batch, quantity: batch.quantity - input.quantity, updatedAt: now() })
+  const prescription = (await getPrescriptions()).find((row) => row.id === input.prescriptionId)
+  if (prescription) await put("prescriptions", { ...prescription, status: "dispensed", updatedAt: now() })
+  return put<DemoDispense>("dispenses", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+}
 export const getDispenses = () => all<DemoDispense>("dispenses")
 
 // Billing
@@ -135,8 +182,12 @@ export const getInvoiceItems = () => all<DemoInvoiceItem>("invoice_items")
 export const getInvoiceItemsByInvoice = async (invoiceId: string) =>
   (await getInvoiceItems()).filter(i => i.invoiceId === invoiceId)
 
-export const createPayment = async (input: Omit<DemoPayment, "id"|"createdAt"|"updatedAt">) =>
-  put<DemoPayment>("payments", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+export const createPayment = async (input: Omit<DemoPayment, "id"|"createdAt"|"updatedAt">) => {
+  assertDemoPermission(currentDemoRole(), "canBill")
+  const existing = (await getPayments()).find((row) => row.invoiceId === input.invoiceId)
+  if (existing) return existing
+  return put<DemoPayment>("payments", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() })
+}
 export const getPayments = () => all<DemoPayment>("payments")
 
 // Exchange events (facility communication)

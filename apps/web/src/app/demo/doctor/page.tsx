@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { DemoShell } from "../../../components/demo/DemoShell"
-import Link from "next/link"
+import { DemoEmptyState } from "../../../components/demo/DemoEmptyState"
+import { applyStationSession } from "../../../lib/demo/stations"
 import {
   getQueue,
   getPerson,
@@ -13,16 +14,15 @@ import {
   createOrder,
   createPrescription,
   createDiagnosis,
-  queuePatient,
-  updateEncounter,
   appendTimelineEvent,
   appendAuditEvent,
   createExchangeEvent,
   createNotification,
-  getInventoryItems
+  getInventoryItems,
+  getLabResults,
 } from "../../../lib/demo/browser-repository"
 
-type Tab = "history" | "examination" | "assessment" | "investigations" | "prescriptions" | "disposition"
+type Tab = "history" | "examination" | "assessment" | "investigations" | "results" | "prescriptions" | "disposition"
 
 const LAB_TESTS = [
   { code: "FBC", name: "Full Blood Count", loinc: "58410-2" },
@@ -37,12 +37,17 @@ const LAB_TESTS = [
 
 export default function DoctorDemoPage() {
   const [queueItems, setQueueItems] = useState<any[]>([])
+  const [queueLoaded, setQueueLoaded] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [patient, setPatient] = useState<any>(null)
   const [encounter, setEncounter] = useState<any>(null)
   const [triage, setTriage] = useState<any>(null)
   const [clinicalNote, setClinicalNote] = useState<any>(null)
   const [medications, setMedications] = useState<any[]>([])
+  const [labResults, setLabResults] = useState<any[]>([])
+  const [resultsAcknowledged, setResultsAcknowledged] = useState(false)
+  const [labsOrdered, setLabsOrdered] = useState(false)
+  const [rxSent, setRxSent] = useState(false)
   
   const [activeTab, setActiveTab] = useState<Tab>("history")
   
@@ -96,6 +101,9 @@ export default function DoctorDemoPage() {
   useEffect(() => {
     loadQueue()
     loadMedications()
+    if (typeof window !== "undefined" && window.location.search.includes("stage=review")) {
+      setActiveTab("results")
+    }
   }, [])
 
   useEffect(() => {
@@ -112,6 +120,7 @@ export default function DoctorDemoPage() {
     if (doctorQueue.length > 0 && !selectedItem) {
       setSelectedItem(doctorQueue[0])
     }
+    setQueueLoaded(true)
   }
 
   async function loadMedications() {
@@ -122,17 +131,19 @@ export default function DoctorDemoPage() {
   async function loadPatientData() {
     if (!selectedItem) return
 
-    const [p, e, t, note] = await Promise.all([
+    const [p, e, t, note, results] = await Promise.all([
       getPerson(selectedItem.personId),
       getEncounter(selectedItem.encounterId),
       getTriage(selectedItem.encounterId),
-      getClinicalNote(selectedItem.encounterId)
+      getClinicalNote(selectedItem.encounterId),
+      getLabResults(),
     ])
 
     setPatient(p)
     setEncounter(e)
     setTriage(t)
     setClinicalNote(note)
+    setLabResults(results.filter((row) => row.encounterId === selectedItem.encounterId))
 
     // Load existing note data
     if (note) {
@@ -281,7 +292,7 @@ export default function DoctorDemoPage() {
 
       setSelectedTests([])
       setClinicalQuestion("")
-      alert(`Successfully ordered ${selectedTests.length} lab test(s)`)
+      setLabsOrdered(true)
     } catch (error) {
       console.error("Failed to order labs:", error)
       alert("Failed to order labs. Check console for details.")
@@ -299,7 +310,7 @@ export default function DoctorDemoPage() {
         const prescription = await createPrescription({
           encounterId: encounter.id,
           personId: patient.id,
-          facilityId: "demo-hospital",
+          facilityId: "demo-pharmacy",
           prescribedBy: "doctor-demo",
           medicationId: rx.medicationId,
           medicationName: rx.medicationName,
@@ -350,7 +361,7 @@ export default function DoctorDemoPage() {
       })
 
       setPrescriptions([])
-      alert(`Successfully prescribed ${prescriptions.length} medication(s)`)
+      setRxSent(true)
     } catch (error) {
       console.error("Failed to prescribe:", error)
       alert("Failed to prescribe. Check console for details.")
@@ -365,12 +376,25 @@ export default function DoctorDemoPage() {
       condition: newDifferential, 
       confidence: newDifferentialConfidence 
     }])
+    if (encounter && patient) {
+      void createDiagnosis({
+        encounterId: encounter.id,
+        personId: patient.id,
+        facilityId: "demo-hospital",
+        diagnosedBy: "doctor-demo",
+        condition: newDifferential.trim(),
+        icd11Code: "1F40",
+        icd11Title: newDifferential.trim(),
+        type: "primary",
+        certainty: newDifferentialConfidence === "high" ? "confirmed" : "probable",
+      }).catch((error) => console.error(error))
+    }
     setNewDifferential("")
   }
 
   function addPrescription() {
     if (medications.length === 0) return
-    const med = medications[0]
+    const med = medications.find((item) => /artemether|lumefantrine|coartem/i.test(`${item.name} ${item.genericName || ""}`)) ?? medications[0]
     setPrescriptions([...prescriptions, {
       medicationId: med.id,
       medicationName: med.name,
@@ -379,8 +403,8 @@ export default function DoctorDemoPage() {
       dose: "1",
       route: "Oral",
       frequency: "TDS",
-      duration: "7 days",
-      quantity: 21,
+      duration: "3 days",
+      quantity: 24,
       instructions: "Take with food"
     }])
   }
@@ -390,25 +414,28 @@ export default function DoctorDemoPage() {
     { id: "examination", label: "Examination", icon: "🔍" },
     { id: "assessment", label: "Assessment", icon: "🎯" },
     { id: "investigations", label: "Investigations", icon: "🧪" },
-    { id: "prescriptions", label: "Prescriptions", icon: "💊" },
+    { id: "results", label: "Results", icon: "📈" },
+    { id: "prescriptions", label: "Prescription", icon: "💊" },
     { id: "disposition", label: "Disposition", icon: "✅" },
   ]
 
   if (!selectedItem || !patient || !encounter) {
     return (
-      <DemoShell title="Doctor Workspace" requiresRole={["doctor", "admin"]}>
-        <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-          {queueItems.length === 0 ? (
-            <>
-              <p className="text-4xl mb-2">✅</p>
-              <p>No patients in queue</p>
-            </>
-          ) : (
-            <>
-              <p>Loading patient data...</p>
-            </>
-          )}
-        </div>
+      <DemoShell title="Doctor Workspace" description="Review triage, document, order labs, then prescribe." requiresRole={["doctor", "admin"]}>
+        {queueItems.length === 0 ? (
+          queueLoaded ? (
+          <DemoEmptyState
+            title="No patient ready for Doctor review"
+            body="Complete Reception and Triage first."
+            primaryLabel="Go to Reception"
+            primaryStation="reception"
+            secondaryLabel="Go to Nurse Queue"
+            secondaryStation="nurse"
+          />
+          ) : <div className="demo-card h-24" aria-hidden="true" />
+        ) : (
+          <div className="demo-card h-24" aria-hidden="true" />
+        )}
       </DemoShell>
     )
   }
@@ -421,7 +448,22 @@ export default function DoctorDemoPage() {
   return (
     <DemoShell title="Doctor Workspace" requiresRole={["doctor", "admin"]}>
       <div className="space-y-6">
-        {/* Patient Header */}
+        {labResults.some((row) => row.status === "released") && !resultsAcknowledged ? (
+          <div className="demo-card space-y-3 p-4">
+            <p className="font-bold">NEW LAB RESULT</p>
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Released results are ready for this visit.</p>
+            <button
+              type="button"
+              className="demo-btn-primary"
+              onClick={() => {
+                setActiveTab("results")
+                setResultsAcknowledged(true)
+              }}
+            >
+              Review Results
+            </button>
+          </div>
+        ) : null}
         <div className="rounded-lg border bg-card p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
@@ -527,8 +569,9 @@ export default function DoctorDemoPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2">History of Present Illness (HPI)</label>
+                <label htmlFor="doctor-hpi" className="block text-sm font-semibold mb-2">History of Present Illness (HPI)</label>
                 <textarea
+                  id="doctor-hpi"
                   value={hpi}
                   onChange={(e) => setHpi(e.target.value)}
                   rows={5}
@@ -612,8 +655,9 @@ export default function DoctorDemoPage() {
           {activeTab === "examination" && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">General Examination</label>
+                <label htmlFor="doctor-exam" className="block text-sm font-semibold mb-2">General Examination</label>
                 <textarea
+                  id="doctor-exam"
                   value={generalExam}
                   onChange={(e) => setGeneralExam(e.target.value)}
                   rows={5}
@@ -637,8 +681,9 @@ export default function DoctorDemoPage() {
           {activeTab === "assessment" && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">Clinical Assessment</label>
+                <label htmlFor="doctor-assessment" className="block text-sm font-semibold mb-2">Clinical Assessment</label>
                 <textarea
+                  id="doctor-assessment"
                   value={assessment}
                   onChange={(e) => setAssessment(e.target.value)}
                   rows={5}
@@ -677,6 +722,7 @@ export default function DoctorDemoPage() {
                     onChange={(e) => setNewDifferential(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addDifferential()}
                     placeholder="Add differential diagnosis..."
+                    aria-label="Add differential diagnosis"
                     className="flex-1 px-4 py-2 rounded border bg-background"
                   />
                   <select
@@ -772,13 +818,45 @@ export default function DoctorDemoPage() {
                     <button
                       onClick={handleOrderLabs}
                       disabled={submitting}
-                      className="w-full px-6 py-3 rounded bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      className="demo-btn-primary w-full"
                     >
                       {submitting ? "Ordering..." : `Order ${selectedTests.length} Test(s)`}
                     </button>
                   </div>
                 )}
+                {labsOrdered ? (
+                  <div className="mt-4 space-y-3">
+                    <p className="text-sm">Lab orders sent to Demo Lab.</p>
+                    <a className="demo-btn-primary" href="/demo/lab" onClick={() => applyStationSession("lab")}>
+                      Continue as Lab
+                    </a>
+                  </div>
+                ) : null}
               </div>
+            </div>
+          )}
+
+          {activeTab === "results" && (
+            <div className="space-y-4">
+              {labResults.length === 0 ? (
+                <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                  No lab results yet. Order tests, then continue as Lab.
+                </p>
+              ) : (
+                labResults.map((result) => (
+                  <div key={result.id} className="demo-card p-4">
+                    <p className="font-semibold">{result.testName}</p>
+                    <p className="text-sm">
+                      {result.value} {result.unit || ""} · {result.status} · {result.interpretation}
+                    </p>
+                  </div>
+                ))
+              )}
+              {labResults.some((row) => row.status === "released") ? (
+                <button type="button" className="demo-btn-primary" onClick={() => { setResultsAcknowledged(true); setActiveTab("assessment") }}>
+                  Acknowledge results
+                </button>
+              ) : null}
             </div>
           )}
 
@@ -872,12 +950,19 @@ export default function DoctorDemoPage() {
                     <button
                       onClick={handlePrescribe}
                       disabled={submitting}
-                      className="flex-1 px-6 py-2 rounded bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      className="demo-btn-primary flex-1"
                     >
                       {submitting ? "Prescribing..." : `Prescribe ${prescriptions.length} Medication(s)`}
                     </button>
                   )}
                 </div>
+                {rxSent ? (
+                  <div className="mt-4">
+                    <a className="demo-btn-primary" href="/demo/pharmacist" onClick={() => applyStationSession("pharmacist")}>
+                      Continue as Pharmacy
+                    </a>
+                  </div>
+                ) : null}
               </div>
             </div>
           )}
@@ -917,12 +1002,13 @@ export default function DoctorDemoPage() {
                   <h3 className="text-xl font-bold">Clinical Note Signed</h3>
                   <p className="text-sm text-muted-foreground">Documentation complete for this encounter</p>
                   <div className="pt-4">
-                    <Link
-                      href="/demo/workspace"
-                      className="inline-block px-6 py-3 rounded bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors"
+                    <a
+                      className="demo-btn-primary"
+                      href="/demo/lab"
+                      onClick={() => applyStationSession("lab")}
                     >
-                      Return to Workspace
-                    </Link>
+                      Continue as Lab
+                    </a>
                   </div>
                 </div>
               )}

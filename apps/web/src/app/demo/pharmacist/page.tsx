@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { DemoShell } from "../../../components/demo/DemoShell"
+import { DemoEmptyState } from "../../../components/demo/DemoEmptyState"
+import { applyStationSession } from "../../../lib/demo/stations"
 import {
   getPrescriptionsByFacility,
   getPerson,
   getEncounter,
   getBatchesByItem,
-  updateBatch,
-  updatePrescription,
   createDispense,
   appendTimelineEvent,
   appendAuditEvent
@@ -25,6 +25,7 @@ export default function PharmacistDemoPage() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [phase, setPhase] = useState<"review" | "batch" | "dispense">("review")
 
   useEffect(() => {
     loadPrescriptions()
@@ -98,7 +99,7 @@ export default function PharmacistDemoPage() {
 
     setSubmitting(true)
     try {
-      // Create dispense record
+      // Create dispense record (also decrements FEFO stock once)
       await createDispense({
         prescriptionId: selectedRx.id,
         encounterId: encounter.id,
@@ -110,16 +111,6 @@ export default function PharmacistDemoPage() {
         unitPrice: selectedBatch.salePrice,
         totalPrice: selectedBatch.salePrice * qty,
         dispensedAt: new Date().toISOString()
-      })
-
-      // Update batch quantity
-      await updateBatch(selectedBatch.id, {
-        quantity: selectedBatch.quantity - qty
-      })
-
-      // Update prescription status
-      await updatePrescription(selectedRx.id, {
-        status: "dispensed"
       })
 
       // Timeline event
@@ -167,10 +158,8 @@ export default function PharmacistDemoPage() {
 
   if (loading) {
     return (
-      <DemoShell title="Pharmacy" requiresRole={["pharmacist", "admin"]}>
-        <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-          <p>Loading...</p>
-        </div>
+      <DemoShell title="Pharmacy" description="Review the incoming prescription, pick the FEFO batch, dispense." requiresRole={["pharmacist", "admin"]}>
+        <div className="demo-card h-24" aria-hidden="true" />
       </DemoShell>
     )
   }
@@ -204,12 +193,13 @@ export default function PharmacistDemoPage() {
             </div>
           </div>
           <div className="pt-4">
-            <button
-              onClick={resetForm}
-              className="px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            <a
+              className="demo-btn-primary"
+              href="/demo/billing"
+              onClick={() => applyStationSession("billing")}
             >
-              Next Prescription
-            </button>
+              Continue as Billing
+            </a>
           </div>
         </div>
       </DemoShell>
@@ -218,12 +208,13 @@ export default function PharmacistDemoPage() {
 
   if (prescriptions.length === 0) {
     return (
-      <DemoShell title="Pharmacy" requiresRole={["pharmacist", "admin"]}>
-        <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-          <p className="text-4xl mb-2">💊</p>
-          <p>No active prescriptions</p>
-          <p className="text-sm mt-2">Waiting for doctor to prescribe medications</p>
-        </div>
+      <DemoShell title="Pharmacy" description="Review the incoming prescription, pick the FEFO batch, dispense." requiresRole={["pharmacist", "admin"]}>
+        <DemoEmptyState
+          title="No prescriptions waiting"
+          body="Continue as Doctor to prescribe for the synthetic patient."
+          primaryLabel="Continue as Doctor to prescribe"
+          primaryStation="doctor"
+        />
       </DemoShell>
     )
   }
@@ -329,14 +320,21 @@ export default function PharmacistDemoPage() {
               </div>
             </div>
 
-            {/* Batch Selection (FEFO) */}
+              {phase === "review" ? (
+                <button type="button" className="demo-btn-primary w-full" onClick={() => setPhase("batch")}>
+                  Review Prescription
+                </button>
+              ) : null}
+
+            {phase !== "review" ? (
+              <>
             <div className="rounded-lg border bg-card p-6">
-              <h2 className="font-semibold text-lg mb-4">Batch Selection (FEFO)</h2>
+              <h2 className="font-semibold text-lg mb-2">Select FEFO batch</h2>
+              <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>First expiry, first out. Earliest expiry is recommended.</p>
               
               {availableBatches.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
-                  <p className="text-4xl mb-2">⚠️</p>
-                  <p className="font-semibold text-red-500">Out of Stock</p>
+                  <p className="font-semibold" style={{ color: "var(--danger, #b91c1c)" }}>Out of Stock</p>
                   <p className="text-sm mt-2">No available batches for this medication</p>
                 </div>
               ) : (
@@ -348,6 +346,7 @@ export default function PharmacistDemoPage() {
                     return (
                       <button
                         key={batch.id}
+                        type="button"
                         onClick={() => setSelectedBatch(batch)}
                         className={`w-full p-4 rounded border text-left transition-colors ${
                           selectedBatch?.id === batch.id
@@ -383,17 +382,22 @@ export default function PharmacistDemoPage() {
                   })}
                 </div>
               )}
+              {phase === "batch" && selectedBatch ? (
+                <button type="button" className="demo-btn-primary mt-4 w-full" onClick={() => setPhase("dispense")}>
+                  Select Batch
+                </button>
+              ) : null}
             </div>
 
-            {/* Dispense */}
-            {selectedBatch && (
+            {selectedBatch && phase === "dispense" ? (
               <div className="rounded-lg border bg-card p-6">
                 <h2 className="font-semibold text-lg mb-4">Dispense</h2>
                 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Quantity to Dispense</label>
+                    <label htmlFor="dispense-qty" className="block text-sm font-medium mb-2">Quantity to Dispense</label>
                     <input
+                      id="dispense-qty"
                       type="number"
                       value={quantityToDispense}
                       onChange={(e) => setQuantityToDispense(e.target.value)}
@@ -418,34 +422,20 @@ export default function PharmacistDemoPage() {
                   </div>
 
                   <button
+                    type="button"
                     onClick={handleDispense}
                     disabled={submitting || !quantityToDispense || parseInt(quantityToDispense) <= 0}
-                    className="w-full px-6 py-3 rounded bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="demo-btn-primary w-full"
                   >
-                    {submitting ? "Dispensing..." : "Dispense Medication"}
+                    {submitting ? "Dispensing..." : "Dispense"}
                   </button>
                 </div>
               </div>
-            )}
+            ) : null}
+              </>
+            ) : null}
           </div>
         )}
-
-        {/* Quick Guide */}
-        <div className="rounded-lg border bg-card p-6">
-          <h3 className="font-semibold mb-3 flex items-center gap-2">
-            <span>💡</span>
-            <span>Pharmacy Workflow Guide</span>
-          </h3>
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <p>1. Review prescription queue - prescriptions sent by doctors</p>
-            <p>2. Select prescription to dispense</p>
-            <p>3. Verify patient details and prescription details</p>
-            <p>4. Select batch using FEFO (First Expiry, First Out) principle</p>
-            <p>5. Enter quantity to dispense (must not exceed prescribed quantity or available stock)</p>
-            <p>6. Dispense - this will update inventory and mark prescription as dispensed</p>
-            <p className="pt-2 font-semibold">🔐 RBAC: Only pharmacists can dispense medications</p>
-          </div>
-        </div>
       </div>
     </DemoShell>
   )

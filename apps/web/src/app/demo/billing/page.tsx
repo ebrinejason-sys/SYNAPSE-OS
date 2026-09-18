@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { DemoShell } from "../../../components/demo/DemoShell"
+import { DemoEmptyState } from "../../../components/demo/DemoEmptyState"
+import { applyStationSession } from "../../../lib/demo/stations"
 import {
   getEncounters,
   getPerson,
@@ -22,6 +24,7 @@ export default function BillingDemoPage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [paid, setPaid] = useState(false)
+  const [closed, setClosed] = useState(false)
 
   // Invoice items
   const [consultationFee, setConsultationFee] = useState("50000")
@@ -191,12 +194,6 @@ export default function BillingDemoPage() {
         receivedAt: new Date().toISOString()
       })
 
-      // Update encounter to completed
-      await updateEncounter(selectedEncounter.id, {
-        status: "completed",
-        completedAt: new Date().toISOString()
-      })
-
       await appendTimelineEvent({
         personId: patient.id,
         encounterId: selectedEncounter.id,
@@ -227,6 +224,32 @@ export default function BillingDemoPage() {
     }
   }
 
+  async function handleCloseVisit() {
+    if (!selectedEncounter) return
+    setSubmitting(true)
+    try {
+      await updateEncounter(selectedEncounter.id, {
+        status: "completed",
+        completedAt: new Date().toISOString()
+      })
+      await appendTimelineEvent({
+        personId: patient.id,
+        encounterId: selectedEncounter.id,
+        facilityId: "demo-hospital",
+        actorId: "cashier-demo",
+        eventType: "encounter_completed",
+        title: "Visit closed",
+        description: "Encounter completed after payment"
+      })
+      setClosed(true)
+    } catch (error) {
+      console.error("Failed to close visit:", error)
+      alert("Failed to close visit.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   function resetForm() {
     setPaid(false)
     setSelectedEncounter(null)
@@ -243,45 +266,24 @@ export default function BillingDemoPage() {
 
   if (loading) {
     return (
-      <DemoShell title="Billing" requiresRole={["cashier", "reception", "admin"]}>
-        <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-          <p>Loading...</p>
-        </div>
+      <DemoShell title="Billing" description="Care summary, payment, then close the visit." requiresRole={["cashier", "reception", "admin"]}>
+        <div className="demo-card h-24" aria-hidden="true" />
       </DemoShell>
     )
   }
 
-  if (paid) {
+  if (closed) {
     return (
-      <DemoShell title="Billing" requiresRole={["cashier", "reception", "admin"]}>
-        <div className="rounded-lg border bg-card p-8 text-center space-y-4">
-          <div className="text-6xl">✅</div>
-          <h2 className="text-2xl font-bold">Payment Received</h2>
-          <div className="space-y-2 text-left max-w-md mx-auto">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Patient:</span>
-              <span className="font-medium">{patient?.name}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Invoice:</span>
-              <span className="font-medium">{invoice?.invoiceNumber}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Method:</span>
-              <span className="font-medium">{paymentMethod}</span>
-            </div>
-            <div className="flex justify-between text-lg font-bold">
-              <span>Amount Paid:</span>
-              <span>UGX {invoice?.total.toLocaleString()}</span>
-            </div>
-          </div>
-          <div className="pt-4 space-y-3">
-            <p className="text-sm text-muted-foreground">Encounter closed successfully</p>
-            <button
-              onClick={resetForm}
-              className="px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              Next Patient
+      <DemoShell title="Billing" description="Care summary, payment, then close the visit." requiresRole={["cashier", "reception", "admin"]}>
+        <div className="demo-empty space-y-4 text-center">
+          <h2 className="text-2xl font-bold">Journey complete</h2>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Payment received and the visit is closed.</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <a className="demo-btn-primary" href="/demo/timeline" onClick={() => applyStationSession("timeline")}>
+              View Patient Timeline
+            </a>
+            <button type="button" className="demo-btn-secondary" onClick={() => window.location.assign("/demo/login")}>
+              Explore Another Role
             </button>
           </div>
         </div>
@@ -291,12 +293,13 @@ export default function BillingDemoPage() {
 
   if (encounters.length === 0) {
     return (
-      <DemoShell title="Billing" requiresRole={["cashier", "reception", "admin"]}>
-        <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-          <p className="text-4xl mb-2">💰</p>
-          <p>No active encounters</p>
-          <p className="text-sm mt-2">All encounters have been billed</p>
-        </div>
+      <DemoShell title="Billing" description="Care summary, payment, then close the visit." requiresRole={["cashier", "reception", "admin"]}>
+        <DemoEmptyState
+          title="No active encounter ready for billing"
+          body="Resume the patient journey from Reception to create a visit."
+          primaryLabel="Resume Patient Journey"
+          primaryStation="reception"
+        />
       </DemoShell>
     )
   }
@@ -419,15 +422,19 @@ export default function BillingDemoPage() {
 
               <div className="p-4 rounded bg-accent space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Subtotal:</span>
-                  <span className="font-semibold">UGX {subtotal.toLocaleString()}</span>
+                  <span>Consultation</span>
+                  <span className="font-semibold">UGX {(parseFloat(consultationFee) || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Discount:</span>
-                  <span className="font-semibold text-red-500">- UGX {discountAmount.toLocaleString()}</span>
+                  <span>Lab</span>
+                  <span className="font-semibold">UGX {(parseFloat(labFees) || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Medication</span>
+                  <span className="font-semibold">UGX {(parseFloat(medicationFees) || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-lg font-bold pt-2 border-t">
-                  <span>Total:</span>
+                  <span>Total</span>
                   <span>UGX {total.toLocaleString()}</span>
                 </div>
               </div>
@@ -495,13 +502,24 @@ export default function BillingDemoPage() {
                 </div>
               )}
 
-              <button
-                onClick={handlePayment}
-                disabled={submitting}
-                className="w-full px-6 py-3 rounded bg-green-500 text-white font-semibold hover:bg-green-600 transition-colors disabled:opacity-50"
-              >
-                {submitting ? "Processing..." : "Receive Payment & Close Encounter"}
-              </button>
+              {!paid ? (
+                <button
+                  onClick={handlePayment}
+                  disabled={submitting}
+                  className="demo-btn-primary w-full"
+                >
+                  {submitting ? "Processing..." : "Record Payment"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleCloseVisit}
+                  disabled={submitting}
+                  className="demo-btn-primary w-full"
+                >
+                  {submitting ? "Closing..." : "Close Visit"}
+                </button>
+              )}
             </div>
           </div>
         )}

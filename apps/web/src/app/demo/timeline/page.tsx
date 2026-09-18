@@ -269,8 +269,10 @@ export default function DemoTimelinePage() {
                                   <p className="text-sm text-muted-foreground mt-1">{event.description}</p>
                                 )}
                                 <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
-                                  <span>🏥 {event.facilityId}</span>
-                                  <span>👤 {event.actorId}</span>
+                                  <span>{formatDate(event.createdAt)}</span>
+                                  <span>{event.facilityId === "demo-lab" ? "Demo Lab" : event.facilityId === "demo-pharmacy" ? "Demo Pharmacy" : "Demo Hospital"}</span>
+                                  <span>{event.actorId}</span>
+                                  <span>{event.eventType}</span>
                                 </div>
                               </div>
                               <span className="text-xs text-muted-foreground whitespace-nowrap">

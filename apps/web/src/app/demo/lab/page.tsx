@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { DemoShell } from "../../../components/demo/DemoShell"
-import Link from "next/link"
+import { DemoEmptyState } from "../../../components/demo/DemoEmptyState"
+import { applyStationSession } from "../../../lib/demo/stations"
 import {
   getOrdersByFacility,
   getPerson,
@@ -11,6 +12,7 @@ import {
   createSpecimen,
   getSpecimens,
   createLabResult,
+  updateLabResult,
   getLabResultsByOrder,
   appendTimelineEvent,
   appendAuditEvent,
@@ -214,6 +216,7 @@ export default function LabDemoPage() {
       setResults([...results, result])
       setResultValue("")
       setResultUnit("")
+      setSelectedOrder({ ...selectedOrder, status: "processing" })
       await loadOrders()
     } catch (error) {
       console.error("Failed to enter result:", error)
@@ -230,8 +233,7 @@ export default function LabDemoPage() {
     try {
       for (const result of results) {
         if (result.status === "entered") {
-          await createLabResult({
-            ...result,
+          await updateLabResult(result.id, {
             verifiedBy: "lab-scientist-demo",
             verifiedAt: new Date().toISOString(),
             status: "verified"
@@ -251,6 +253,7 @@ export default function LabDemoPage() {
         description: selectedOrder.testName
       })
 
+      setSelectedOrder({ ...selectedOrder, status: "verified" })
       await loadOrderData()
       await loadOrders()
     } catch (error) {
@@ -268,8 +271,7 @@ export default function LabDemoPage() {
     try {
       for (const result of results) {
         if (result.status === "verified") {
-          await createLabResult({
-            ...result,
+          await updateLabResult(result.id, {
             releasedBy: "lab-scientist-demo",
             releasedAt: new Date().toISOString(),
             status: "released"
@@ -278,8 +280,6 @@ export default function LabDemoPage() {
       }
 
       await updateOrder(selectedOrder.id, { status: "released" })
-
-      // Send results back to hospital
       await createExchangeEvent({
         type: "lab_result",
         personId: selectedOrder.personId,
@@ -315,7 +315,7 @@ export default function LabDemoPage() {
 
       await loadOrderData()
       await loadOrders()
-      alert("Results released and sent to ordering facility!")
+      setSelectedOrder({ ...selectedOrder, status: "released" })
     } catch (error) {
       console.error("Failed to release results:", error)
       alert("Failed to release results")
@@ -340,24 +340,33 @@ export default function LabDemoPage() {
     cancelled: "bg-red-500/10 text-red-500"
   }
 
+  const statusLabel: Record<OrderStatus, string> = {
+    ordered: "New",
+    acknowledged: "New",
+    collected: "Collected",
+    processing: "Processing",
+    verified: "Verification",
+    released: "Released",
+    cancelled: "Cancelled"
+  }
+
   if (loading) {
     return (
-      <DemoShell title="Lab Worklist" requiresRole={["lab_technician", "lab_scientist", "admin"]}>
-        <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-          <p>Loading...</p>
-        </div>
+      <DemoShell title="Lab Worklist" description="Accept, collect, enter, then verify and release." requiresRole={["lab_technician", "lab_scientist", "admin"]}>
+        <div className="demo-card h-24" aria-hidden="true" />
       </DemoShell>
     )
   }
 
   if (orders.length === 0) {
     return (
-      <DemoShell title="Lab Worklist" requiresRole={["lab_technician", "lab_scientist", "admin"]}>
-        <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-          <p className="text-4xl mb-2">🧪</p>
-          <p>No lab orders</p>
-          <p className="text-sm mt-2">Waiting for doctor to order tests</p>
-        </div>
+      <DemoShell title="Lab Worklist" description="Accept, collect, enter, then verify and release." requiresRole={["lab_technician", "lab_scientist", "admin"]}>
+        <DemoEmptyState
+          title="No Lab orders"
+          body="Continue as Doctor to order tests for the synthetic patient."
+          primaryLabel="Continue as Doctor to order tests"
+          primaryStation="doctor"
+        />
       </DemoShell>
     )
   }
@@ -387,7 +396,7 @@ export default function LabDemoPage() {
                     </p>
                   </div>
                   <span className={`px-2 py-1 rounded text-xs font-semibold ${statusColor[order.status as OrderStatus]}`}>
-                    {order.status}
+                    {statusLabel[order.status as OrderStatus]}
                   </span>
                 </div>
               </button>
@@ -532,8 +541,9 @@ export default function LabDemoPage() {
                   <h3 className="font-medium">Step 3: Enter Results</h3>
                   <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Result Value *</label>
+                      <label htmlFor="lab-result-value" className="block text-sm font-medium mb-1">Result Value *</label>
                       <input
+                        id="lab-result-value"
                         type="text"
                         value={resultValue}
                         onChange={(e) => setResultValue(e.target.value)}
@@ -574,6 +584,18 @@ export default function LabDemoPage() {
                   </button>
                 </div>
               )}
+
+              {role !== "lab_scientist" && results.some((row) => row.status === "entered" || row.status === "verified") && selectedOrder.status !== "released" ? (
+                <div className="mt-4">
+                  <a className="demo-btn-primary w-full" href="/demo/lab" onClick={() => {
+                    sessionStorage.setItem("synapse_demo_role", "lab_scientist")
+                    sessionStorage.setItem("synapse_demo_facility", "demo-lab")
+                    sessionStorage.setItem("synapse_demo_mode", "true")
+                  }}>
+                    Continue as Lab Scientist
+                  </a>
+                </div>
+              ) : null}
 
               {/* Results Display */}
               {results.length > 0 && (
@@ -630,19 +652,21 @@ export default function LabDemoPage() {
                     disabled={submitting}
                     className="w-full px-6 py-3 rounded bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
                   >
-                    {submitting ? "Releasing..." : "📤 Release Results to Hospital"}
+                    {submitting ? "Releasing..." : "Verify & Release"}
                   </button>
                 </div>
               )}
 
               {/* Completed */}
               {selectedOrder.status === "released" && (
-                <div className="mt-4 p-6 rounded-lg border bg-card text-center space-y-2">
-                  <div className="text-4xl">✅</div>
+                <div className="mt-4 p-6 rounded-lg border bg-card text-center space-y-3">
                   <h3 className="font-bold">Results Released</h3>
                   <p className="text-sm text-muted-foreground">
-                    Results have been sent to {selectedOrder.sourceFacilityId}
+                    Results have been sent to Demo Hospital.
                   </p>
+                  <a className="demo-btn-primary" href="/demo/doctor?stage=review" onClick={() => applyStationSession("review")}>
+                    Continue as Doctor
+                  </a>
                 </div>
               )}
             </div>

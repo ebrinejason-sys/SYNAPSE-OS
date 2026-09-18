@@ -4,7 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { resetDemoPlayground } from "../../lib/demo/browser-repository";
 import { demoHref } from "../../lib/demo/paths";
+import { applyStationSession, enterStation } from "../../lib/demo/stations";
 import { DemoMast } from "../../components/demo/DemoMast";
+import { DemoThemeControl } from "../../components/demo/DemoThemeControl";
 
 type Differential = {
   condition: string;
@@ -246,6 +248,7 @@ export default function DemoPage() {
         >
           Feedback
         </Link>
+        <DemoThemeControl />
         <a
           href="https://synapseos.tech/apply"
           className="border px-3 py-1.5 text-xs font-bold"
@@ -256,62 +259,71 @@ export default function DemoPage() {
       </DemoMast>
 
       <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
-        <section className="demo-frame mb-8 p-6 sm:p-8">
+        <section className="demo-hero mb-8">
           <p className="font-mono text-[10px] font-bold uppercase tracking-[0.28em]" style={{ color: "var(--text-muted)" }}>
-            Form 01 · How this site works
+            SYNTHETIC TEST DRIVE
           </p>
-          <h1 className="font-display mt-2 text-3xl font-bold tracking-tight sm:text-4xl">SYNAPSE Test Drive</h1>
-          <ol className="mt-4 grid gap-3 text-sm sm:grid-cols-2" style={{ color: "var(--text-secondary)" }}>
-            <li className="demo-card p-3"><span className="font-mono text-[10px] font-bold tracking-widest" style={{ color: "var(--brand-orange)" }}>01</span><br />Synthetic playground — not a live hospital or EHR.</li>
-            <li className="demo-card p-3"><span className="font-mono text-[10px] font-bold tracking-widest" style={{ color: "var(--brand-orange)" }}>02</span><br />Start Test Drive, pick a station, walk Reception → Billing.</li>
-            <li className="demo-card p-3"><span className="font-mono text-[10px] font-bold tracking-widest" style={{ color: "var(--brand-orange)" }}>03</span><br />Data stays in this browser. Reset clears it. Nothing writes to production.</li>
-            <li className="demo-card p-3"><span className="font-mono text-[10px] font-bold tracking-widest" style={{ color: "var(--brand-orange)" }}>04</span><br />The Clinical AI panel is educational only — not a diagnosis.</li>
-          </ol>
+          <h1 className="font-display mt-2 text-3xl font-bold tracking-tight sm:text-5xl">SYNAPSE Test Drive</h1>
+          <p className="mt-3 max-w-2xl text-base" style={{ color: "var(--text-secondary)" }}>
+            Run one synthetic patient through Reception, Triage, Doctor, Lab, Pharmacy and Billing.
+          </p>
+          <p className="mt-2 text-sm font-medium" style={{ color: "var(--brand-orange)" }}>
+            DO NOT ENTER REAL PATIENT DATA
+          </p>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <a
-              href="/demo/login"
-              onClick={(event) => {
-                event.preventDefault()
-                window.location.assign(demoHref("login"))
-              }}
-              className="border px-5 py-3 text-sm font-bold"
-              style={{ background: "var(--brand-orange)", color: "#07070A", borderColor: "var(--brand-orange)", textDecoration: "none" }}
-            >
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <a className="demo-btn-primary" href={demoHref("login")}>
               Start Test Drive
             </a>
-            <Link
-              href="/demo/guide"
-              className="border px-5 py-3 text-sm font-bold"
-              style={{ color: "var(--text-primary)", textDecoration: "none" }}
-              onClick={(event) => {
-                event.preventDefault()
-                window.location.assign(demoHref("guide"))
+            <button
+              type="button"
+              className="demo-btn-secondary"
+              onClick={() => {
+                applyStationSession("reception")
+                window.location.assign(demoHref("reception"))
               }}
             >
-              View guide
-            </Link>
-            <button type="button" onClick={resetPlayground} className="border px-4 py-3 text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
-              Reset playground
+              Start Golden Journey
+            </button>
+            <button type="button" className="demo-btn-secondary" onClick={() => window.location.assign(demoHref("guide"))}>
+              View Guide
+            </button>
+            <button type="button" className="demo-btn-secondary" onClick={resetPlayground}>
+              Reset Playground
             </button>
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-0 border-t-2 pt-0 sm:grid-cols-4" style={{ borderColor: "var(--demo-ink)" }}>
-            {["Demo Hospital", "Demo Lab", "Demo Pharmacy", "Amina Demo"].map((item) => (
-              <div key={item} className="border-r-2 px-3 py-3 font-mono text-[11px] uppercase tracking-wider last:border-r-0" style={{ borderColor: "var(--demo-ink)", color: "var(--text-muted)" }}>
-                {item}
-              </div>
+          <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              { label: "Demo Hospital", station: "reception" as const },
+              { label: "Demo Lab", station: "lab" as const },
+              { label: "Demo Pharmacy", station: "pharmacist" as const },
+              { label: "Amina Demo", station: "reception" as const },
+            ].map((item) => (
+              <button key={item.label} type="button" className="demo-card p-3 text-left text-sm font-semibold" onClick={() => enterStation(item.station)}>
+                {item.label}
+              </button>
             ))}
           </div>
+
+          <ol className="mt-6 grid gap-3 text-sm sm:grid-cols-4">
+            <li className="demo-card p-3"><span className="font-mono text-[10px] font-bold" style={{ color: "var(--brand-orange)" }}>01</span><br />Register</li>
+            <li className="demo-card p-3"><span className="font-mono text-[10px] font-bold" style={{ color: "var(--brand-orange)" }}>02</span><br />Assess</li>
+            <li className="demo-card p-3"><span className="font-mono text-[10px] font-bold" style={{ color: "var(--brand-orange)" }}>03</span><br />Investigate</li>
+            <li className="demo-card p-3"><span className="font-mono text-[10px] font-bold" style={{ color: "var(--brand-orange)" }}>04</span><br />Treat & Close</li>
+          </ol>
         </section>
 
         {/* Clinical AI Demo (preserved) */}
         <section className="demo-frame p-6 sm:p-8" aria-labelledby="ai-demo-heading">
-          <h2 id="ai-demo-heading" className="font-display font-bold text-2xl mb-6" style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
-            Clinical AI Demo
+          <h2 id="ai-demo-heading" className="font-display font-bold text-2xl mb-2" style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
+            Try Clinical AI
           </h2>
-          <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
-            Grounded in Uganda Clinical Guidelines · Multi-model AI · For educational purposes only
+          <p className="text-sm mb-3" style={{ color: "var(--text-secondary)" }}>
+            Optional and educational. The Test Drive above does not require AI.
+          </p>
+          <p className="text-xs mb-6" style={{ color: "var(--brand-orange)" }}>
+            Synthetic/de-identified clinical context may be sent to the configured AI provider.
           </p>
 
           <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
