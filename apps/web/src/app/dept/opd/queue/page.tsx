@@ -5,7 +5,7 @@ export default function DeptOpdQueueRedirectPage() {
     <FacilityCanonicalRedirect
       label="OPD queue"
       fallbackHref="/doctor"
-      pathForSlug={(slug) => `/os/${slug}/clinical/queue`}
+      pathTemplate="/os/[slug]/clinical/queue"
     />
   )
 }

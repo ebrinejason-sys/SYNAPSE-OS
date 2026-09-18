@@ -5,7 +5,7 @@ export default function NewEncounterRedirectPage() {
     <FacilityCanonicalRedirect
       label="new encounter"
       fallbackHref="/os"
-      pathForSlug={(slug) => `/os/${slug}/encounters/new`}
+      pathTemplate="/os/[slug]/encounters/new"
     />
   )
 }

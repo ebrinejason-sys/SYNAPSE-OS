@@ -3,12 +3,16 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+function materialize(pathTemplate: string, slug: string) {
+  return pathTemplate.replaceAll('[slug]', encodeURIComponent(slug))
+}
+
 export function FacilityCanonicalRedirect({
-  pathForSlug,
+  pathTemplate,
   fallbackHref,
   label,
 }: {
-  pathForSlug: (slug: string) => string
+  pathTemplate: string
   fallbackHref: string
   label: string
 }) {
@@ -25,7 +29,7 @@ export function FacilityCanonicalRedirect({
         }
         const data = await res.json()
         const tenantSlug = data.user?.tenantSlug as string | undefined
-        if (!cancelled) router.replace(tenantSlug ? pathForSlug(tenantSlug) : fallbackHref)
+        if (!cancelled) router.replace(tenantSlug ? materialize(pathTemplate, tenantSlug) : fallbackHref)
       })
       .catch(() => {
         if (!cancelled) {
@@ -36,7 +40,7 @@ export function FacilityCanonicalRedirect({
     return () => {
       cancelled = true
     }
-  }, [fallbackHref, label, pathForSlug, router])
+  }, [fallbackHref, label, pathTemplate, router])
 
   return (
     <main className="clinical-page p-8">

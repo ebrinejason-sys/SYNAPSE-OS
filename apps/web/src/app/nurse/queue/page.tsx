@@ -5,7 +5,7 @@ export default function NurseQueueRedirectPage() {
     <FacilityCanonicalRedirect
       label="Nursing workspace"
       fallbackHref="/nurse"
-      pathForSlug={(slug) => `/os/${slug}/clinical/nursing`}
+      pathTemplate="/os/[slug]/clinical/nursing"
     />
   )
 }
