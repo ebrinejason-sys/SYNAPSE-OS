@@ -87,9 +87,11 @@ Create a **dedicated Supabase project** for E2E acceptance, separate from produc
 The following values are **invented by the operator** and must remain consistent across GitHub and Vercel:
 
 ### `SYNAPSE_E2E_EMAIL`
-- Any valid email format (does not need to be a real inbox)
+- **MUST** use a canonical E2E role email from the OTP allowlist
+- The acceptance authentication gates only permit specific emails defined in `packages/auth/src/e2e-otp.ts`
+- **Required value**: `reception.e2e@synapseos.invalid`
+- Alternative role emails (if needed): `nurse.e2e@synapseos.invalid`, `doctor.e2e@synapseos.invalid`, etc.
 - Will be seeded into the `profiles` table for login
-- Commonly: `acceptance@example.com` or `reception.e2e@synapseos.invalid`
 
 ### `SYNAPSE_E2E_PASSWORD`
 - At least 12 characters
