@@ -4,16 +4,17 @@
 import { execSync } from "node:child_process"
 
 const patterns = [
-  "BEGIN RSA PRIVATE KEY",
-  "BEGIN OPENSSH PRIVATE KEY",
-  "BEGIN EC PRIVATE KEY",
+  ["BEGIN", "RSA", "PRIVATE", "KEY"].join(" "),
+  ["BEGIN", "OPENSSH", "PRIVATE", "KEY"].join(" "),
+  ["BEGIN", "EC", "PRIVATE", "KEY"].join(" "),
   "AKIA[0-9A-Z]{16}",
 ]
 
-const grep = patterns.map((p) => `-e ${JSON.stringify(p)}`).join(" ")
+const args = patterns.map((p) => `-e '${p.replace(/'/g, "")}'`).join(" ")
+const excludes = "':!docs/**' ':!*.md' ':!package-lock.json' ':!scripts/check-secrets.mjs'"
 try {
   const out = execSync(
-    `git grep -I -n ${patterns.map((p) => `-e '${p.replace(/'/g, "")}'`).join(" ")} -- ':!docs/**' ':!*.md' ':!package-lock.json' || true`,
+    `git grep -I -n -E ${args} -- ${excludes} || true`,
     { encoding: "utf8", cwd: process.cwd() },
   )
   const hits = out.trim() ? out.trim().split("\n").filter(Boolean) : []
