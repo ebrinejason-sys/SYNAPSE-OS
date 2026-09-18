@@ -6,6 +6,23 @@
 
 **CORE OS GREEN: NO**
 
+## Security hardening (PR #83)
+
+**Status:** COMPLETE on `19145a7`  
+**CORE OS GREEN:** NO
+
+- Pull request CI does not receive `SUPABASE_SERVICE_ROLE_KEY` or E2E OTP secrets
+- Privileged Hospital Golden Journey is gated behind `.github/workflows/os-e2e-acceptance.yml` + `production-acceptance` environment + exact `EXPECTED_SHA`
+- E2E OTP uses protected `SYNAPSE_E2E_FIXED_OTP` (no planted OTP race, no hardcoded `246801`)
+- Seed passwords use production bcrypt cost 12; fail-closed synthetic slugs only
+- Login success requires authenticated `/os/{slug}` (rejects `/login?next=` false positives)
+- Smoke is unauthenticated surface-only
+- Remote Playwright does not start a local webServer when `PLAYWRIGHT_BASE_URL` / `SYNAPSE_E2E_BASE_URL` is set
+
+Operator action still required before trusted Golden Journey: configure `production-acceptance` secrets and dispatch acceptance on this SHA.
+
+
+
 Demo GREEN is unchanged. This campaign does not reopen Demo work.
 
 ## Scoreboard

@@ -5,9 +5,9 @@
   "core_os_green": "NO",
   "db_acceptance": "PASS",
   "required_ci": "PASS",
-  "pr83_security_hardening": "IN_PROGRESS",
+  "pr83_security_hardening": "COMPLETE",
   "prod_service_role_exposed_to_pr_ci": "NO",
-  "production_golden_journey": "BLOCKED",
+  "production_golden_journey": "BLOCKED_OPERATOR_SECRETS",
   "same_person_continuity": "BLOCKED",
   "same_encounter_continuity": "BLOCKED",
   "tenant_isolation": "PASS_DOMAIN_BLOCKED_BROWSER",
@@ -34,5 +34,7 @@
     "origin/cursor/demo-ecosystem-green-2026-09-18",
     "origin/cursor/final-green-release-2026-09-18",
     "origin/cursor/final-green-report-2026-09-18"
-  ]
+  ],
+  "security_sha": "19145a7108c47cc0b9960b589802200c03a1b84c",
+  "updated_at": "2026-09-18T15:21:55.452515+00:00"
 }
