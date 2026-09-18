@@ -80,6 +80,7 @@
     "test:e2e:hospital": "playwright test e2e/hospital-golden.spec.ts e2e/os-negative.spec.ts",
     "test:e2e:hospital:smoke": "node scripts/e2e-hospital-browser.mjs",
     "test:e2e:demo": "playwright test e2e/demo-golden-journey.spec.ts e2e/demo-acceptance.spec.ts",
+    "e2e:acceptance:doctor": "node scripts/e2e-acceptance-doctor.mjs",
     "test:ai-governance": "node --experimental-strip-types --test apps/web/src/lib/ai/clinical-ai-gateway.test.ts",
     "test:inpatient-lifecycle": "tsx --test packages/db/src/inpatient-lifecycle.test.ts",
     "seed:e2e-os": "tsx scripts/seed-e2e-os-fixture.ts",

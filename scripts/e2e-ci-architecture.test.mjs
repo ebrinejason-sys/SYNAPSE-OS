@@ -33,6 +33,36 @@ test("Playwright helpers do not plant OTPs or hardcode a reusable code", () => {
   assert.match(helpers, /expectAuthenticatedWorkspace/)
 })
 
+test("acceptance workflow uses minimized secret surface", () => {
+  // Browser step should not have privileged database or JWT secrets
+  const browserStepMatch = acceptance.match(/- name: Hospital Golden Journey[\s\S]*?(?=\n      - name:|\njobs:|\n$)/)
+  assert.ok(browserStepMatch, "Could not find Hospital Golden Journey step")
+  const browserStep = browserStepMatch[0]
+  assert.doesNotMatch(browserStep, /SYNAPSE_JWT_SECRET/)
+  assert.doesNotMatch(browserStep, /SYNAPSE_E2E_JWT_SECRET/)
+  assert.doesNotMatch(browserStep, /NEXT_PUBLIC_SUPABASE_ANON_KEY/)
+  assert.doesNotMatch(browserStep, /SYNAPSE_E2E_ANON_KEY/)
+  assert.doesNotMatch(browserStep, /SUPABASE_SERVICE_ROLE_KEY/)
+  
+  // Browser step should have only what it needs
+  assert.match(browserStep, /SYNAPSE_E2E_BASE_URL/)
+  assert.match(browserStep, /SYNAPSE_E2E_EMAIL/)
+  assert.match(browserStep, /SYNAPSE_E2E_PASSWORD/)
+  assert.match(browserStep, /SYNAPSE_E2E_FIXED_OTP/)
+  
+  // Seed step should have database credentials
+  const seedStepMatch = acceptance.match(/- name: Seed synthetic OS fixtures[\s\S]*?(?=\n      - name:)/)
+  assert.ok(seedStepMatch, "Could not find Seed synthetic OS fixtures step")
+  const seedStep = seedStepMatch[0]
+  assert.match(seedStep, /SYNAPSE_E2E_SUPABASE_URL/)
+  assert.match(seedStep, /SYNAPSE_E2E_SERVICE_ROLE_KEY/)
+  assert.match(seedStep, /SYNAPSE_E2E_PASSWORD/)
+  assert.match(seedStep, /SYNAPSE_E2E_SEED/)
+  
+  // Preflight doctor should exist
+  assert.match(acceptance, /e2e:acceptance:doctor/)
+})
+
 test("seed uses production bcrypt hashing and fail-closed synthetic slugs", () => {
   assert.match(seed, /hashPassword/)
   assert.match(seed, /verifyPassword/)

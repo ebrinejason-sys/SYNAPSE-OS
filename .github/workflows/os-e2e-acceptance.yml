@@ -53,6 +53,17 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Preflight configuration check
+        env:
+          SYNAPSE_E2E_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
+          SYNAPSE_E2E_EMAIL: ${{ secrets.SYNAPSE_E2E_EMAIL }}
+          SYNAPSE_E2E_PASSWORD: ${{ secrets.SYNAPSE_E2E_PASSWORD }}
+          SYNAPSE_E2E_FIXED_OTP: ${{ secrets.SYNAPSE_E2E_FIXED_OTP }}
+          SYNAPSE_E2E_SUPABASE_URL: ${{ secrets.SYNAPSE_E2E_SUPABASE_URL }}
+          SYNAPSE_E2E_SERVICE_ROLE_KEY: ${{ secrets.SYNAPSE_E2E_SERVICE_ROLE_KEY }}
+          SYNAPSE_E2E_REMOTE_HOST_READY: ${{ secrets.SYNAPSE_E2E_REMOTE_HOST_READY }}
+        run: npm run e2e:acceptance:doctor
+
       - name: Require remote acceptance target
         env:
           SYNAPSE_E2E_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
@@ -97,11 +108,6 @@ jobs:
           SYNAPSE_E2E_FACILITY_B_SLUG: synapse-e2e-hospital-b
           SYNAPSE_E2E_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
           PLAYWRIGHT_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SYNAPSE_E2E_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SYNAPSE_E2E_ANON_KEY }}
-          SUPABASE_URL: ${{ secrets.SYNAPSE_E2E_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SYNAPSE_E2E_SERVICE_ROLE_KEY }}
-          SYNAPSE_JWT_SECRET: ${{ secrets.SYNAPSE_E2E_JWT_SECRET }}
         run: |
           node scripts/e2e-target.mjs
           npm run test:e2e:hospital
