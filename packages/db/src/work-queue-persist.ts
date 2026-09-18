@@ -5,7 +5,8 @@
 
 import type { OutboxRecord } from "@synapse/interop"
 import { toDomainEventInsert } from "./exchange"
-import type { DepartmentTask } from "./work-queue.ts"
+import { InvalidIdentifierError, optionalUuid, requireUuid } from "./identifiers"
+import type { DepartmentTask } from "./work-queue"
 
 export type DbClient = {
   from(table: string): {
@@ -15,14 +16,14 @@ export type DbClient = {
 
 export function departmentTaskToRow(task: DepartmentTask): Record<string, unknown> {
   return {
-    id: task.id,
-    tenant_id: task.tenantId,
-    facility_id: task.facilityId ?? null,
-    hospital_id: task.hospitalId ?? null,
-    patient_id: task.patientId ?? null,
-    person_id: task.personId ?? null,
-    encounter_id: task.encounterId ?? null,
-    requester_id: task.requesterId ?? null,
+    id: requireUuid(task.id, "id"),
+    tenant_id: requireUuid(task.tenantId, "tenant_id"),
+    facility_id: optionalUuid(task.facilityId, "facility_id"),
+    hospital_id: optionalUuid(task.hospitalId, "hospital_id"),
+    patient_id: optionalUuid(task.patientId, "patient_id"),
+    person_id: optionalUuid(task.personId, "person_id"),
+    encounter_id: optionalUuid(task.encounterId, "encounter_id"),
+    requester_id: optionalUuid(task.requesterId, "requester_id"),
     owner_department: task.ownerDepartment,
     owner_role: task.ownerRole ?? null,
     task_type: task.taskType,
@@ -31,19 +32,19 @@ export function departmentTaskToRow(task: DepartmentTask): Record<string, unknow
     title: task.title,
     description: task.description ?? null,
     source_resource: task.sourceResource ?? null,
-    source_id: task.sourceId ?? null,
-    correlation_id: task.correlationId ?? null,
-    causation_id: task.causationId ?? null,
+    source_id: optionalUuid(task.sourceId, "source_id"),
+    correlation_id: optionalUuid(task.correlationId, "correlation_id"),
+    causation_id: optionalUuid(task.causationId, "causation_id"),
     idempotency_key: task.idempotencyKey ?? null,
     due_at: task.dueAt ?? null,
     accepted_at: task.acceptedAt ?? null,
     completed_at: task.completedAt ?? null,
     cancelled_at: task.cancelledAt ?? null,
-    assigned_to: task.assignedTo ?? null,
+    assigned_to: optionalUuid(task.assignedTo, "assigned_to"),
     result_summary: task.resultSummary ?? null,
     metadata: task.metadata ?? {},
     is_synthetic: task.isSynthetic,
-    simulation_run_id: task.simulationRunId ?? null,
+    simulation_run_id: optionalUuid(task.simulationRunId, "simulation_run_id"),
     created_at: task.createdAt,
     updated_at: task.updatedAt,
   }
@@ -96,6 +97,7 @@ export async function persistDepartmentTaskBestEffort(
     if (error) return { ok: false, error: error.message ?? "department_tasks upsert failed" }
     return { ok: true }
   } catch (err) {
+    if (err instanceof InvalidIdentifierError) return { ok: false, error: err.message }
     return { ok: false, error: err instanceof Error ? err.message : "department_tasks upsert threw" }
   }
 }

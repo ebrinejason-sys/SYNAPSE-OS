@@ -4,6 +4,7 @@
  */
 
 import { ExchangeOutbox } from "./exchange"
+import { optionalUuid, requireUuid } from "./identifiers"
 
 export type ClinicalChargeInput = {
   tenantId: string
@@ -125,11 +126,16 @@ export async function appendClinicalCharge(
   db: DbClient,
   input: ClinicalChargeInput,
 ): Promise<ClinicalChargeResult> {
+  const tenantId = requireUuid(input.tenantId, "tenant_id")
+  const patientId = requireUuid(input.patientId, "patient_id")
+  const encounterId = requireUuid(input.encounterId, "encounter_id")
+  optionalUuid(input.createdBy, "created_by")
+
   const qty = input.qty ?? 1
   const unitPrice = input.unitPrice
   const lineTotal = unitPrice * qty
 
-  let invoice = await findDraftInvoice(db, input.tenantId, input.encounterId)
+  let invoice = await findDraftInvoice(db, tenantId, encounterId)
   let created = false
 
   if (!invoice) {
@@ -138,14 +144,14 @@ export async function appendClinicalCharge(
       .from("billing_invoices")
       .insert({
         id: invoiceId,
-        tenant_id: input.tenantId,
-        patient_id: input.patientId,
-        encounter_id: input.encounterId,
+        tenant_id: tenantId,
+        patient_id: patientId,
+        encounter_id: encounterId,
         status: "draft",
         currency: input.currency ?? "UGX",
         total_amount: 0,
         paid_amount: 0,
-        invoice_number: `INV-${input.encounterId.slice(0, 8).toUpperCase()}`,
+        invoice_number: `INV-${encounterId.slice(0, 8).toUpperCase()}`,
         created_by: input.createdBy ?? null,
         is_deleted: false,
       })
@@ -160,7 +166,7 @@ export async function appendClinicalCharge(
   const invoiceId = String(invoice!.id)
   const existing = await findExistingLineItem(
     db,
-    input.tenantId,
+    tenantId,
     invoiceId,
     input.sourceTable,
     input.sourceId,
@@ -180,7 +186,7 @@ export async function appendClinicalCharge(
     .from("billing_line_items")
     .insert({
       id: lineItemId,
-      tenant_id: input.tenantId,
+      tenant_id: tenantId,
       invoice_id: invoiceId,
       item_name: input.itemName,
       unit_price: unitPrice,

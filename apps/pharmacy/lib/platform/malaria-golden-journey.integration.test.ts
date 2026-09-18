@@ -130,7 +130,20 @@ describe.skipIf(!hasDb)("malaria golden journey — Postgres OPD triage → lab 
     })
 
     const orderPersist = await persistLabOrderBestEffort(db, labJourney.order)
-    expect(orderPersist.ok).toBe(true)
+    if (!orderPersist.ok) {
+      console.error("[malaria-golden-journey] lab_orders persist failed", {
+        table: "lab_orders",
+        persistOk: false,
+        error: orderPersist.error,
+        hasTenant: Boolean(tenantId),
+        hasEncounter: Boolean(encounter?.id),
+        hasOrderId: Boolean(labJourney.order.id),
+        loinc: labJourney.order.loincCode,
+        workflowStatus: labJourney.order.status,
+        correlationMatchesEncounter: labJourney.order.correlationId === encounter.id,
+      })
+    }
+    expect(orderPersist.ok, orderPersist.ok ? "lab persist ok" : orderPersist.error).toBe(true)
 
     const labPersist = await persistWorkQueueArtifactsBestEffort(db, {
       tasks: [labJourney.labTask],

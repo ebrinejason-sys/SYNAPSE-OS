@@ -71,4 +71,26 @@ describe("clinical-payment idempotency", () => {
     assert.equal(retry.paymentId, paymentId)
     assert.equal(db.payments.length, 1)
   })
+
+  it("rejects the string undefined as tenant_id before querying billing_payments", async () => {
+    let called = false
+    const db = {
+      from() {
+        called = true
+        throw new Error("db should not be called")
+      },
+    }
+    await assert.rejects(
+      () =>
+        recordEncounterPayment(db, {
+          tenantId: "undefined",
+          hospitalId: crypto.randomUUID(),
+          encounterId: crypto.randomUUID(),
+          amount: 1000,
+          paymentMethod: "cash",
+        }),
+      /INVALID_IDENTIFIER:tenant_id/,
+    )
+    assert.equal(called, false)
+  })
 })

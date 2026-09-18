@@ -191,7 +191,7 @@ jobs:
             unprotected_table text;
           BEGIN
             SELECT t.tbl INTO missing_table
-            FROM (VALUES ('platform_memberships'), ('profiles')) AS t(tbl)
+            FROM (VALUES ('platform_memberships'), ('profiles'), ('billing_payments')) AS t(tbl)
             WHERE to_regclass('public.' || t.tbl) IS NULL
             LIMIT 1;
 
@@ -203,7 +203,7 @@ jobs:
             FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE n.nspname = 'public'
-              AND c.relname IN ('platform_memberships', 'profiles')
+              AND c.relname IN ('platform_memberships', 'profiles', 'billing_payments')
               AND c.relrowsecurity = false
             LIMIT 1;
 
