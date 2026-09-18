@@ -1,0 +1,71 @@
+{
+  "generatedAt": "2026-09-18T09:15:00Z",
+  "campaign": "FINAL_GREEN_RELEASE_2026-09-18",
+  "branch": "cursor/final-green-release-2026-09-18",
+  "originMainSha": "97be63deed741b4a00ed0c33aedd36b54f01d186",
+  "worktreeShaAtGeneration": "UNCOMMITTED_PENDING_THIS_CAMPAIGN",
+  "supabaseProjectId": "qfqakzmjatszisuqjwon",
+  "localMigrationCheck": "PASS",
+  "localMigrationCount": 166,
+  "localMigrationHead": "20260918140000_hospital_billing_payments.sql",
+  "dbHistoryCheck": "PASS_WITH_WARNINGS",
+  "remoteReconciliation": "BLOCKED_OPERATOR_CONTROLLED",
+  "productionDryRun": "NOT_RUN",
+  "productionApply": "NOT_RUN",
+  "productionMigrationAuthorization": "NEVER_GRANTED_BY_THIS_CHECK",
+  "canonicalBillingPayments": {
+    "applicationTable": "public.billing_payments",
+    "applicationWriter": "packages/db/src/clinical-payment.ts",
+    "liveMigrationBeforeFix": null,
+    "quarantinedHistoricalFile": "supabase/migrations_quarantine_local_only_2026-09-11/20260831180000_hospital_billing_payments.sql",
+    "additiveMigration": "supabase/migrations/20260918140000_hospital_billing_payments.sql",
+    "duplicateStoreCreated": false,
+    "productionAcceptanceFailure": "Could not find the table 'public.billing_payments' in the schema cache",
+    "rootCause": "Canonical payment table was quarantined out of live migrations on 2026-09-11 and never applied to production. Application code was already correct.",
+    "rls": "tenant_id = current_tenant_id(); no JWT ::uuid cast",
+    "status": "MIGRATION_READY_NOT_APPLIED"
+  },
+  "facilityLifecycle": {
+    "migration": "20260918120000_facility_lifecycle_control_plane.sql",
+    "existsInRepo": true,
+    "rewritten": false,
+    "additiveRlsFollowUp": "20260918140000_hospital_billing_payments.sql adds platform-admin policy",
+    "forwardOnly": true,
+    "status": "NOT_APPLIED"
+  },
+  "undefinedUuid": {
+    "postgresCode": "22P02",
+    "literal": "undefined",
+    "missingIdentifier": "row id (labOrderA / taskA / invoiceA), not tenant_id",
+    "rootCause": "hospital-tenant-isolation.test.ts it.each captured unbound let bindings at describe time, so PostgREST queried id=eq.undefined",
+    "fix": "Resolve IDs inside the test after beforeAll; persist/payment layers reject INVALID_IDENTIFIER instead of sending malformed UUIDs",
+    "status": "CODE_FIXED_PENDING_ACCEPTANCE"
+  },
+  "malariaGoldenJourney": {
+    "persistPath": "persistLabOrderBestEffort -> public.lab_orders",
+    "duplicateLabImplementation": false,
+    "codeFixes": [
+      "data_classification clinical|synthetic|operational (never production)",
+      "UUID guards on persist",
+      "non-PHI persist failure logging in the integration test"
+    ],
+    "remainingDependency": "production must have lab_orders extra columns including replaces_lab_order_id from pending 20260913 migrations",
+    "status": "CODE_FIXED_PENDING_SCHEMA_APPLY_AND_ACCEPTANCE"
+  },
+  "pendingLocalMigrationsSinceBaseline19ef5d0": [
+    "20260911120000_fix_invite_acceptance_verification_status.sql",
+    "20260912184600_encounter_disposition_columns.sql",
+    "20260912190100_facility_referrals_lifecycle_columns.sql",
+    "20260912220000_synapse_remote_migration_head.sql",
+    "20260913010000_lab_order_replacement_link.sql",
+    "20260913020000_lab_order_one_open_replacement.sql",
+    "20260918120000_facility_lifecycle_control_plane.sql",
+    "20260918140000_hospital_billing_payments.sql"
+  ],
+  "operatorActionsRequired": [
+    "Dispatch .github/workflows/db-production.yml dry-run with confirmation=PRODUCTION, reconciliation_confirmation=RECONCILED, source_sha=<this branch HEAD after merge-ready review>",
+    "Review dry-run artifact production-dry-run.log",
+    "Apply only if dry-run is clean: apply_migrations=true dry_run_only=false",
+    "Rerun deploy.yml db-acceptance on main after merge"
+  ]
+}

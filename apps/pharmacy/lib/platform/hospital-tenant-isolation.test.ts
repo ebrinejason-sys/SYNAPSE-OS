@@ -1,11 +1,20 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { supabaseAdmin } from "@synapse/db/admin"
 import { appendClinicalCharge } from "@synapse/db/clinical-charge"
+import { InvalidIdentifierError, requireTenantId } from "@synapse/db/identifiers"
 import { hasDb } from "./test-db-guard"
 
 if (!hasDb) {
   console.info("[integration] P0-004 Supabase isolation tests skipped: set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to run them")
 }
+
+describe("hospital tenant isolation identifier safety", () => {
+  it("rejects malformed or missing tenant identifiers without querying Postgres", () => {
+    expect(() => requireTenantId(undefined)).toThrow(InvalidIdentifierError)
+    expect(() => requireTenantId("undefined")).toThrow(/INVALID_IDENTIFIER:tenant_id/)
+    expect(() => requireTenantId("")).toThrow(InvalidIdentifierError)
+  })
+})
 
 describe.skipIf(!hasDb)("hospital tenant isolation (P0-004)", () => {
   let tenantA: string
@@ -184,20 +193,29 @@ describe.skipIf(!hasDb)("hospital tenant isolation (P0-004)", () => {
     expect(scopes.some((scope: { tenant_id: string }) => scope.tenant_id === tenantB)).toBe(false)
   })
 
-  it.each([
-    ["lab_orders", labOrderA],
-    ["department_tasks", taskA],
-    ["billing_invoices", invoiceA],
-  ])("P0-004: tenant B cannot read tenant A %s", async (table, id) => {
-    const db = supabaseAdmin as any
-    const { data, error } = await db
-      .from(table)
-      .select("id")
-      .eq("id", id)
-      .eq("tenant_id", tenantB)
-      .maybeSingle()
+  it.each(["lab_orders", "department_tasks", "billing_invoices"] as const)(
+    "P0-004: tenant B cannot read tenant A %s",
+    async (table) => {
+      const idByTable = {
+        lab_orders: labOrderA,
+        department_tasks: taskA,
+        billing_invoices: invoiceA,
+      } as const
+      const id = idByTable[table]
+      // IDs must be resolved after beforeAll. Capturing `let` bindings in
+      // it.each([...]) at describe-time sent the string "undefined" to Postgres (22P02).
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
 
-    expect(error).toBeNull()
-    expect(data).toBeNull()
-  })
+      const db = supabaseAdmin as any
+      const { data, error } = await db
+        .from(table)
+        .select("id")
+        .eq("id", id)
+        .eq("tenant_id", tenantB)
+        .maybeSingle()
+
+      expect(error).toBeNull()
+      expect(data).toBeNull()
+    },
+  )
 })

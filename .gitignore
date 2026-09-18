@@ -31,6 +31,7 @@ supabase/.temp/
 !/artifacts/readiness/web-route-manifest.json
 !/artifacts/readiness/route-integrity.json
 !/artifacts/readiness/db-acl-inventory.json
+!/artifacts/readiness/PRODUCTION_DB_RECONCILIATION.json
 
 # Temporary debug/probe scripts — may contain hardcoded production data
 scripts/_tmp_*

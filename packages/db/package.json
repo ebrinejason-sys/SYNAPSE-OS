@@ -48,6 +48,7 @@
     "./clinical-timeline": "./src/clinical-timeline.ts",
     "./clinical-charge": "./src/clinical-charge.ts",
     "./clinical-payment": "./src/clinical-payment.ts",
+    "./identifiers": "./src/identifiers.ts",
     "./dhis2-export": "./src/dhis2-export.ts",
     "./hospital-seed": "./src/hospital-seed.ts",
     "./hospital-acceptance": "./src/hospital-acceptance.ts",

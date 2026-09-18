@@ -2,6 +2,7 @@
  * Persist LabWorkflow orders to public.lab_orders (legacy status + workflow_status).
  */
 
+import { InvalidIdentifierError, optionalUuid, requireUuid } from "./identifiers.ts"
 import type { LabOrder } from "./lab-workflow"
 import { persistableLabOrderStatus } from "./lab-workflow"
 
@@ -14,29 +15,29 @@ export type DbClient = {
 
 export function labOrderToRow(order: LabOrder): Record<string, unknown> {
   return {
-    id: order.id,
-    tenant_id: order.tenantId,
-    encounter_id: order.encounterId,
-    patient_id: order.patientId,
-    person_id: order.personId ?? null,
+    id: requireUuid(order.id, "id"),
+    tenant_id: requireUuid(order.tenantId, "tenant_id"),
+    encounter_id: requireUuid(order.encounterId, "encounter_id"),
+    patient_id: requireUuid(order.patientId, "patient_id"),
+    person_id: optionalUuid(order.personId, "person_id"),
     loinc_code: order.loincCode,
     test_name: order.testName,
     urgency: order.urgency,
     status: persistableLabOrderStatus(order.status),
     workflow_status: order.status,
-    ordered_by: order.orderedBy,
+    ordered_by: requireUuid(order.orderedBy, "ordered_by"),
     ordered_at: order.orderedAt,
     accession_number: order.accessionNumber ?? null,
     barcode: order.barcode ?? null,
-    specimen_id: order.specimenId ?? null,
+    specimen_id: optionalUuid(order.specimenId, "specimen_id"),
     rejection_reason: order.rejectionReason ?? null,
     rejection_note: order.rejectionNote ?? null,
-    correlation_id: order.correlationId,
-    care_plan_id: order.carePlanId ?? null,
+    correlation_id: requireUuid(order.correlationId, "correlation_id"),
+    care_plan_id: optionalUuid(order.carePlanId, "care_plan_id"),
     is_synthetic: order.isSynthetic,
-    simulation_run_id: order.simulationRunId ?? null,
-    data_classification: order.isSynthetic ? "synthetic" : "production",
-    replaces_lab_order_id: order.replacesLabOrderId ?? null,
+    simulation_run_id: optionalUuid(order.simulationRunId, "simulation_run_id"),
+    data_classification: order.isSynthetic ? "synthetic" : "clinical",
+    replaces_lab_order_id: optionalUuid(order.replacesLabOrderId, "replaces_lab_order_id"),
   }
 }
 
@@ -72,10 +73,12 @@ export async function persistLabOrderBestEffort(
   order: LabOrder,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { error } = await db.from("lab_orders").upsert(labOrderToRow(order), { onConflict: "id" })
+    const row = labOrderToRow(order)
+    const { error } = await db.from("lab_orders").upsert(row, { onConflict: "id" })
     if (error) return { ok: false, error: error.message ?? "lab_orders upsert failed" }
     return { ok: true }
   } catch (err) {
+    if (err instanceof InvalidIdentifierError) return { ok: false, error: err.message }
     return { ok: false, error: err instanceof Error ? err.message : "lab_orders upsert threw" }
   }
 }

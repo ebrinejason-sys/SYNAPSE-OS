@@ -3,6 +3,7 @@
  */
 
 import { ExchangeOutbox } from "./exchange"
+import { optionalUuid, requireUuid } from "./identifiers.ts"
 
 export type EncounterPaymentInput = {
   tenantId: string
@@ -62,7 +63,12 @@ export async function recordEncounterPayment(
   db: DbClient,
   input: EncounterPaymentInput,
 ): Promise<EncounterPaymentResult> {
-  const invoice = await loadInvoiceForEncounter(db, input.tenantId, input.encounterId)
+  const tenantId = requireUuid(input.tenantId, "tenant_id")
+  const encounterId = requireUuid(input.encounterId, "encounter_id")
+  requireUuid(input.hospitalId, "hospital_id")
+  optionalUuid(input.receivedBy, "received_by")
+
+  const invoice = await loadInvoiceForEncounter(db, tenantId, encounterId)
   const invoiceId = String(invoice.id)
   const totalAmount = Number(invoice.total_amount ?? 0)
   const currentPaid = Number(invoice.paid_amount ?? 0)
@@ -74,7 +80,7 @@ export async function recordEncounterPayment(
     const { data: existing, error: existingError } = await db
       .from("billing_payments")
       .select("id, amount, receipt_number")
-      .eq("tenant_id", input.tenantId)
+      .eq("tenant_id", tenantId)
       .eq("idempotency_key", idempotencyKey)
       .maybeSingle()
 
@@ -105,9 +111,9 @@ export async function recordEncounterPayment(
 
   const { error: insertError } = await db.from("billing_payments").insert({
     id: paymentId,
-    tenant_id: input.tenantId,
+    tenant_id: tenantId,
     invoice_id: invoiceId,
-    encounter_id: input.encounterId,
+    encounter_id: encounterId,
     patient_id: invoice.patient_id ?? null,
     amount: input.amount,
     currency,
