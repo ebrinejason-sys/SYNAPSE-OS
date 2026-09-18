@@ -4,7 +4,7 @@
  * Postgres 22P02 is a symptom of that leak, not a test to skip.
  */
 
-import { isUuid } from "./sync-contract.ts"
+import { isUuid } from "./sync-contract"
 
 export class InvalidIdentifierError extends Error {
   readonly field: string

@@ -3,7 +3,7 @@
  */
 
 import { ExchangeOutbox } from "./exchange"
-import { optionalUuid, requireUuid } from "./identifiers.ts"
+import { optionalUuid, requireUuid } from "./identifiers"
 
 export type EncounterPaymentInput = {
   tenantId: string

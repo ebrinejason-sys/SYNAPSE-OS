@@ -1,37 +1,26 @@
-# Main branch protection — operator action required
+# Main branch protection
 
-**Status:** CURRENT  
+**Status:** ENABLED (repository ruleset)  
 **Date:** 2026-09-18  
-**Repository:** `ebrinejason-sys/SYNAPSE-OS`
+**Repository:** `ebrinejason-sys/SYNAPSE-OS`  
+**Ruleset:** [Protect main](https://github.com/ebrinejason-sys/SYNAPSE-OS/rules/23649402) (`23649402`)
 
-GitHub API historically returns HTTP 403 for classic branch protection and repository rulesets on this private repository on a free personal plan:
+Classic `/branches/main/protection` still returns 404. Protection is enforced through GitHub rulesets, not the legacy branch-protection API.
 
-> Upgrade to GitHub Pro or make this repository public to enable this feature.
+## Enforced on `refs/heads/main`
 
-Until that changes, **`main` is not protected**. Direct pushes are an operational incident. Do not claim the branch is protected.
-
-## Preferred fix
-
-1. Move `SYNAPSE-OS` under a GitHub Organization on Team (or upgrade the owner to Pro).
-2. Settings → Rules → Rulesets → New branch ruleset.
-3. Target: `refs/heads/main`
-4. Enable:
-   - Require a pull request before merging (0 approvals is acceptable for a solo owner; the point is to block raw pushes)
-   - Require status checks to pass: **`required`** (aggregator job in `.github/workflows/ci.yml`). Optionally also `verify`.
-   - Require branches to be up to date before merging
-   - Block force pushes
-   - Block deletions
-5. Do **not** allow bypass except a documented break-glass role.
+- Require a pull request before merging (0 approvals; extra approval required for unattributed changes)
+- Require status checks: **`required`**
+- Require branches to be up to date before merging (`strict_required_status_checks_policy`)
+- Block force pushes (`non_fast_forward`)
+- Block deletions
+- No bypass actors
 
 ## Verify
 
 ```bash
+gh api repos/ebrinejason-sys/SYNAPSE-OS/rulesets/23649402
 gh api repos/ebrinejason-sys/SYNAPSE-OS/branches/main/protection
-gh api repos/ebrinejason-sys/SYNAPSE-OS/rulesets
 ```
 
-A 200 with required checks including `required` means protection is on. A 403/404 means it is still off.
-
-## Until then
-
-Merge only via PR after `CI / required` is green. Treat any direct `git push origin main` as a release incident.
+Ruleset `enforcement: active` with `include: ["refs/heads/main"]` means protection is on. A 404 on the classic protection endpoint is expected.

@@ -4,7 +4,7 @@
  */
 
 import { ExchangeOutbox } from "./exchange"
-import { optionalUuid, requireUuid } from "./identifiers.ts"
+import { optionalUuid, requireUuid } from "./identifiers"
 
 export type ClinicalChargeInput = {
   tenantId: string

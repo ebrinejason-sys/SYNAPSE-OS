@@ -2,7 +2,7 @@
  * Persist LabWorkflow orders to public.lab_orders (legacy status + workflow_status).
  */
 
-import { InvalidIdentifierError, optionalUuid, requireUuid } from "./identifiers.ts"
+import { InvalidIdentifierError, optionalUuid, requireUuid } from "./identifiers"
 import type { LabOrder } from "./lab-workflow"
 import { persistableLabOrderStatus } from "./lab-workflow"
 

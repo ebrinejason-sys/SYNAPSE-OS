@@ -10,8 +10,18 @@
   "localMigrationHead": "20260918140000_hospital_billing_payments.sql",
   "dbHistoryCheck": "PASS_WITH_WARNINGS",
   "remoteReconciliation": "BLOCKED_OPERATOR_CONTROLLED",
-  "productionDryRun": "NOT_RUN",
-  "productionApply": "NOT_RUN",
+  "productionDryRun": "PASS",
+  "productionDryRunRunId": "35328726414",
+  "productionApplySql": "PASS",
+  "productionApplyRunId": "35329006047",
+  "productionApplyPostVerify": "FAIL_MISSING_SUPABASE_DB_URL",
+  "migrationsApplied": [
+    "20260913010000_lab_order_replacement_link.sql",
+    "20260913020000_lab_order_one_open_replacement.sql",
+    "20260918120000_facility_lifecycle_control_plane.sql",
+    "20260918140000_hospital_billing_payments.sql"
+  ],
+  "productionApply": "SQL_APPLIED_POST_VERIFY_SKIPPED",
   "productionMigrationAuthorization": "NEVER_GRANTED_BY_THIS_CHECK",
   "canonicalBillingPayments": {
     "applicationTable": "public.billing_payments",
@@ -23,7 +33,7 @@
     "productionAcceptanceFailure": "Could not find the table 'public.billing_payments' in the schema cache",
     "rootCause": "Canonical payment table was quarantined out of live migrations on 2026-09-11 and never applied to production. Application code was already correct.",
     "rls": "tenant_id = current_tenant_id(); no JWT ::uuid cast",
-    "status": "MIGRATION_READY_NOT_APPLIED"
+    "status": "APPLIED_PENDING_ACCEPTANCE"
   },
   "facilityLifecycle": {
     "migration": "20260918120000_facility_lifecycle_control_plane.sql",
@@ -31,7 +41,7 @@
     "rewritten": false,
     "additiveRlsFollowUp": "20260918140000_hospital_billing_payments.sql adds platform-admin policy",
     "forwardOnly": true,
-    "status": "NOT_APPLIED"
+    "status": "APPLIED_PENDING_ACCEPTANCE"
   },
   "undefinedUuid": {
     "postgresCode": "22P02",
@@ -49,8 +59,8 @@
       "UUID guards on persist",
       "non-PHI persist failure logging in the integration test"
     ],
-    "remainingDependency": "production must have lab_orders extra columns including replaces_lab_order_id from pending 20260913 migrations",
-    "status": "CODE_FIXED_PENDING_SCHEMA_APPLY_AND_ACCEPTANCE"
+    "remainingDependency": "20260913 lab replacement columns were applied in run 35329006047; db-acceptance on main is still required",
+    "status": "CODE_AND_SCHEMA_APPLIED_PENDING_ACCEPTANCE"
   },
   "pendingLocalMigrationsSinceBaseline19ef5d0": [
     "20260911120000_fix_invite_acceptance_verification_status.sql",
@@ -63,9 +73,8 @@
     "20260918140000_hospital_billing_payments.sql"
   ],
   "operatorActionsRequired": [
-    "Dispatch .github/workflows/db-production.yml dry-run with confirmation=PRODUCTION, reconciliation_confirmation=RECONCILED, source_sha=<this branch HEAD after merge-ready review>",
-    "Review dry-run artifact production-dry-run.log",
-    "Apply only if dry-run is clean: apply_migrations=true dry_run_only=false",
-    "Rerun deploy.yml db-acceptance on main after merge"
+    "Set GitHub secret SUPABASE_DB_URL so db-production.yml post-apply verification can run",
+    "Merge PR #81 after CI / required is green",
+    "Confirm deploy.yml db-acceptance on main after merge"
   ]
 }

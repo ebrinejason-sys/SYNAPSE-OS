@@ -5,8 +5,8 @@
 
 import type { OutboxRecord } from "@synapse/interop"
 import { toDomainEventInsert } from "./exchange"
-import { InvalidIdentifierError, optionalUuid, requireUuid } from "./identifiers.ts"
-import type { DepartmentTask } from "./work-queue.ts"
+import { InvalidIdentifierError, optionalUuid, requireUuid } from "./identifiers"
+import type { DepartmentTask } from "./work-queue"
 
 export type DbClient = {
   from(table: string): {
