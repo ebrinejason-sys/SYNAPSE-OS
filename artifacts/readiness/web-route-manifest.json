@@ -1,0 +1,1385 @@
+{
+  "generated_at": "2026-09-18T06:01:09.945Z",
+  "routes": [
+    {
+      "route": "/",
+      "source_file": "apps/web/src/app/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/about",
+      "source_file": "apps/web/src/app/about/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/admin",
+      "source_file": "apps/web/src/app/admin/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/account",
+      "source_file": "apps/web/src/app/admin/account/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/audit",
+      "source_file": "apps/web/src/app/admin/audit/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/beds",
+      "source_file": "apps/web/src/app/admin/beds/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/departments",
+      "source_file": "apps/web/src/app/admin/departments/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/finance",
+      "source_file": "apps/web/src/app/admin/finance/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/finance/invoices",
+      "source_file": "apps/web/src/app/admin/finance/invoices/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/finance/payments",
+      "source_file": "apps/web/src/app/admin/finance/payments/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/hr",
+      "source_file": "apps/web/src/app/admin/hr/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/hr/attendance",
+      "source_file": "apps/web/src/app/admin/hr/attendance/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/hr/payroll",
+      "source_file": "apps/web/src/app/admin/hr/payroll/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/hr/schedules",
+      "source_file": "apps/web/src/app/admin/hr/schedules/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/insurance",
+      "source_file": "apps/web/src/app/admin/insurance/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/insurance/appeals",
+      "source_file": "apps/web/src/app/admin/insurance/appeals/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/insurance/claims",
+      "source_file": "apps/web/src/app/admin/insurance/claims/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/lab",
+      "source_file": "apps/web/src/app/admin/lab/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/admin/settings",
+      "source_file": "apps/web/src/app/admin/settings/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/settings/branding",
+      "source_file": "apps/web/src/app/admin/settings/branding/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/admin/settings/domain",
+      "source_file": "apps/web/src/app/admin/settings/domain/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/admin/settings/guidelines",
+      "source_file": "apps/web/src/app/admin/settings/guidelines/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/admin/settings/mfa",
+      "source_file": "apps/web/src/app/admin/settings/mfa/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/staff",
+      "source_file": "apps/web/src/app/admin/staff/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/staff/invite",
+      "source_file": "apps/web/src/app/admin/staff/invite/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/supply",
+      "source_file": "apps/web/src/app/admin/supply/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/admin/supply/orders",
+      "source_file": "apps/web/src/app/admin/supply/orders/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/app-portal",
+      "source_file": "apps/web/src/app/app-portal/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/apply",
+      "source_file": "apps/web/src/app/apply/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/apply-professional",
+      "source_file": "apps/web/src/app/apply-professional/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/apply/pharmacy",
+      "source_file": "apps/web/src/app/apply/pharmacy/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/apply/thank-you",
+      "source_file": "apps/web/src/app/apply/thank-you/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/blog",
+      "source_file": "apps/web/src/app/blog/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/blog/[slug]",
+      "source_file": "apps/web/src/app/blog/[slug]/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/careers",
+      "source_file": "apps/web/src/app/careers/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/changelog",
+      "source_file": "apps/web/src/app/changelog/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/consults",
+      "source_file": "apps/web/src/app/consults/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/consults/[id]",
+      "source_file": "apps/web/src/app/consults/[id]/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/consults/[id]/call",
+      "source_file": "apps/web/src/app/consults/[id]/call/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/consults/new",
+      "source_file": "apps/web/src/app/consults/new/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/contact",
+      "source_file": "apps/web/src/app/contact/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/dept/ae/resus",
+      "source_file": "apps/web/src/app/dept/ae/resus/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/ae/triage",
+      "source_file": "apps/web/src/app/dept/ae/triage/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/cardiology/ecg",
+      "source_file": "apps/web/src/app/dept/cardiology/ecg/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/cardiology/scores",
+      "source_file": "apps/web/src/app/dept/cardiology/scores/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/carepath/plans",
+      "source_file": "apps/web/src/app/dept/carepath/plans/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/community/chw",
+      "source_file": "apps/web/src/app/dept/community/chw/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/community/map",
+      "source_file": "apps/web/src/app/dept/community/map/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/dialysis/sessions",
+      "source_file": "apps/web/src/app/dept/dialysis/sessions/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/hiv/art",
+      "source_file": "apps/web/src/app/dept/hiv/art/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/hiv/dashboard",
+      "source_file": "apps/web/src/app/dept/hiv/dashboard/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/hiv/enrolments",
+      "source_file": "apps/web/src/app/dept/hiv/enrolments/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/hiv/vl",
+      "source_file": "apps/web/src/app/dept/hiv/vl/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/icu/dashboard",
+      "source_file": "apps/web/src/app/dept/icu/dashboard/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/icu/flowsheet",
+      "source_file": "apps/web/src/app/dept/icu/flowsheet/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/icu/scoring",
+      "source_file": "apps/web/src/app/dept/icu/scoring/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/maternity/anc",
+      "source_file": "apps/web/src/app/dept/maternity/anc/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/maternity/labour",
+      "source_file": "apps/web/src/app/dept/maternity/labour/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/maternity/postnatal",
+      "source_file": "apps/web/src/app/dept/maternity/postnatal/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/mental/assessments",
+      "source_file": "apps/web/src/app/dept/mental/assessments/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/mental/risk",
+      "source_file": "apps/web/src/app/dept/mental/risk/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/oncology/chemo",
+      "source_file": "apps/web/src/app/dept/oncology/chemo/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/oncology/staging",
+      "source_file": "apps/web/src/app/dept/oncology/staging/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/opd/queue",
+      "source_file": "apps/web/src/app/dept/opd/queue/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/dept/paediatrics/growth",
+      "source_file": "apps/web/src/app/dept/paediatrics/growth/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/paediatrics/immunisation",
+      "source_file": "apps/web/src/app/dept/paediatrics/immunisation/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/paediatrics/queue",
+      "source_file": "apps/web/src/app/dept/paediatrics/queue/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/theatre/checklist",
+      "source_file": "apps/web/src/app/dept/theatre/checklist/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/dept/theatre/schedule",
+      "source_file": "apps/web/src/app/dept/theatre/schedule/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/docs",
+      "source_file": "apps/web/src/app/docs/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/doctor",
+      "source_file": "apps/web/src/app/doctor/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/doctor/ai",
+      "source_file": "apps/web/src/app/doctor/ai/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/doctor/consults",
+      "source_file": "apps/web/src/app/doctor/consults/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/doctor/notes",
+      "source_file": "apps/web/src/app/doctor/notes/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/doctor/orders",
+      "source_file": "apps/web/src/app/doctor/orders/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/doctor/queue",
+      "source_file": "apps/web/src/app/doctor/queue/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/doctor/referrals",
+      "source_file": "apps/web/src/app/doctor/referrals/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/doctor/reports",
+      "source_file": "apps/web/src/app/doctor/reports/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/doctor/rounds",
+      "source_file": "apps/web/src/app/doctor/rounds/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/doctor/schedule",
+      "source_file": "apps/web/src/app/doctor/schedule/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/doctor/tele",
+      "source_file": "apps/web/src/app/doctor/tele/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/download",
+      "source_file": "apps/web/src/app/download/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/emergency/triage",
+      "source_file": "apps/web/src/app/emergency/triage/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/encounter/[id]",
+      "source_file": "apps/web/src/app/encounter/[id]/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/encounter/[id]/disposition",
+      "source_file": "apps/web/src/app/encounter/[id]/disposition/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/encounter/[id]/history",
+      "source_file": "apps/web/src/app/encounter/[id]/history/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/encounter/[id]/notes",
+      "source_file": "apps/web/src/app/encounter/[id]/notes/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/encounter/[id]/orders",
+      "source_file": "apps/web/src/app/encounter/[id]/orders/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/encounter/[id]/scoring",
+      "source_file": "apps/web/src/app/encounter/[id]/scoring/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/encounter/[id]/sign",
+      "source_file": "apps/web/src/app/encounter/[id]/sign/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/encounter/new",
+      "source_file": "apps/web/src/app/encounter/new/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/epidemiology",
+      "source_file": "apps/web/src/app/epidemiology/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/epidemiology/alerts",
+      "source_file": "apps/web/src/app/epidemiology/alerts/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/epidemiology/dhis2",
+      "source_file": "apps/web/src/app/epidemiology/dhis2/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/epidemiology/outbreaks",
+      "source_file": "apps/web/src/app/epidemiology/outbreaks/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/features",
+      "source_file": "apps/web/src/app/features/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/forgot-password",
+      "source_file": "apps/web/src/app/forgot-password/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/founder",
+      "source_file": "apps/web/src/app/founder/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/health",
+      "source_file": "apps/web/src/app/health/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/health/coach",
+      "source_file": "apps/web/src/app/health/coach/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/health/cycle",
+      "source_file": "apps/web/src/app/health/cycle/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/health/dashboard",
+      "source_file": "apps/web/src/app/health/dashboard/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/health/devices",
+      "source_file": "apps/web/src/app/health/devices/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/health/diet",
+      "source_file": "apps/web/src/app/health/diet/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/health/habits",
+      "source_file": "apps/web/src/app/health/habits/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/health/labs",
+      "source_file": "apps/web/src/app/health/labs/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/health/medications",
+      "source_file": "apps/web/src/app/health/medications/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/health/visits",
+      "source_file": "apps/web/src/app/health/visits/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/hospital/admin",
+      "source_file": "apps/web/src/app/hospital/admin/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/hospital/admin/audit",
+      "source_file": "apps/web/src/app/hospital/admin/audit/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/hospital/admin/beds",
+      "source_file": "apps/web/src/app/hospital/admin/beds/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/hospital/admin/departments",
+      "source_file": "apps/web/src/app/hospital/admin/departments/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/hospital/admin/modules",
+      "source_file": "apps/web/src/app/hospital/admin/modules/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/hospital/admin/services",
+      "source_file": "apps/web/src/app/hospital/admin/services/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/hospital/admin/settings",
+      "source_file": "apps/web/src/app/hospital/admin/settings/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/hospital/admin/staff",
+      "source_file": "apps/web/src/app/hospital/admin/staff/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/hospital/admin/staff/invite",
+      "source_file": "apps/web/src/app/hospital/admin/staff/invite/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/hospital/admin/wards",
+      "source_file": "apps/web/src/app/hospital/admin/wards/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/imid/[code]",
+      "source_file": "apps/web/src/app/imid/[code]/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/invite/[token]",
+      "source_file": "apps/web/src/app/invite/[token]/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/invite/facility/[token]",
+      "source_file": "apps/web/src/app/invite/facility/[token]/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/lab/instruments",
+      "source_file": "apps/web/src/app/lab/instruments/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/lab/mappings",
+      "source_file": "apps/web/src/app/lab/mappings/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/lab/orders",
+      "source_file": "apps/web/src/app/lab/orders/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/lab/qc",
+      "source_file": "apps/web/src/app/lab/qc/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/lab/reports",
+      "source_file": "apps/web/src/app/lab/reports/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/lab/results",
+      "source_file": "apps/web/src/app/lab/results/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/lab/specimens",
+      "source_file": "apps/web/src/app/lab/specimens/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/lab/staging",
+      "source_file": "apps/web/src/app/lab/staging/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/lab/verify",
+      "source_file": "apps/web/src/app/lab/verify/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/legal",
+      "source_file": "apps/web/src/app/legal/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/legal/accessibility",
+      "source_file": "apps/web/src/app/legal/accessibility/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/legal/consent-withdrawal",
+      "source_file": "apps/web/src/app/legal/consent-withdrawal/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/legal/cookie-policy",
+      "source_file": "apps/web/src/app/legal/cookie-policy/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/legal/dpa",
+      "source_file": "apps/web/src/app/legal/dpa/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/legal/privacy",
+      "source_file": "apps/web/src/app/legal/privacy/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/legal/terms",
+      "source_file": "apps/web/src/app/legal/terms/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/login",
+      "source_file": "apps/web/src/app/login/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/nurse",
+      "source_file": "apps/web/src/app/nurse/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/nurse/beds",
+      "source_file": "apps/web/src/app/nurse/beds/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/nurse/handover",
+      "source_file": "apps/web/src/app/nurse/handover/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/nurse/mar",
+      "source_file": "apps/web/src/app/nurse/mar/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/nurse/observations",
+      "source_file": "apps/web/src/app/nurse/observations/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/nurse/procedures",
+      "source_file": "apps/web/src/app/nurse/procedures/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/nurse/queue",
+      "source_file": "apps/web/src/app/nurse/queue/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/nurse/vitals",
+      "source_file": "apps/web/src/app/nurse/vitals/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/nurse/ward",
+      "source_file": "apps/web/src/app/nurse/ward/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/onboarding",
+      "source_file": "apps/web/src/app/onboarding/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/onboarding/billing",
+      "source_file": "apps/web/src/app/onboarding/billing/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/onboarding/complete",
+      "source_file": "apps/web/src/app/onboarding/complete/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/onboarding/departments",
+      "source_file": "apps/web/src/app/onboarding/departments/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/onboarding/guidelines",
+      "source_file": "apps/web/src/app/onboarding/guidelines/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/onboarding/insurance",
+      "source_file": "apps/web/src/app/onboarding/insurance/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/onboarding/pharmacy",
+      "source_file": "apps/web/src/app/onboarding/pharmacy/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/onboarding/staff",
+      "source_file": "apps/web/src/app/onboarding/staff/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/os",
+      "source_file": "apps/web/src/app/os/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/os/[slug]",
+      "source_file": "apps/web/src/app/os/[slug]/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/os/[slug]/clinical",
+      "source_file": "apps/web/src/app/os/[slug]/clinical/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/os/[slug]/clinical/dispense",
+      "source_file": "apps/web/src/app/os/[slug]/clinical/dispense/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/os/[slug]/clinical/nursing",
+      "source_file": "apps/web/src/app/os/[slug]/clinical/nursing/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/os/[slug]/clinical/orders",
+      "source_file": "apps/web/src/app/os/[slug]/clinical/orders/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/os/[slug]/clinical/queue",
+      "source_file": "apps/web/src/app/os/[slug]/clinical/queue/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/os/[slug]/clinical/tasks",
+      "source_file": "apps/web/src/app/os/[slug]/clinical/tasks/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/os/[slug]/dashboard",
+      "source_file": "apps/web/src/app/os/[slug]/dashboard/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/os/[slug]/encounters/new",
+      "source_file": "apps/web/src/app/os/[slug]/encounters/new/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/os/[slug]/login",
+      "source_file": "apps/web/src/app/os/[slug]/login/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/os/[slug]/migrate",
+      "source_file": "apps/web/src/app/os/[slug]/migrate/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/os/[slug]/patients",
+      "source_file": "apps/web/src/app/os/[slug]/patients/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/os/[slug]/patients/[id]",
+      "source_file": "apps/web/src/app/os/[slug]/patients/[id]/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/patient/appointments",
+      "source_file": "apps/web/src/app/patient/appointments/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/patient/bills",
+      "source_file": "apps/web/src/app/patient/bills/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/patient/consent",
+      "source_file": "apps/web/src/app/patient/consent/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/patient/dashboard",
+      "source_file": "apps/web/src/app/patient/dashboard/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/patient/devices",
+      "source_file": "apps/web/src/app/patient/devices/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/patient/immunisation",
+      "source_file": "apps/web/src/app/patient/immunisation/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/patient/labs",
+      "source_file": "apps/web/src/app/patient/labs/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/patient/medical-id",
+      "source_file": "apps/web/src/app/patient/medical-id/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/patient/meds",
+      "source_file": "apps/web/src/app/patient/meds/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/patient/messages",
+      "source_file": "apps/web/src/app/patient/messages/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/patient/records",
+      "source_file": "apps/web/src/app/patient/records/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/pharmacy",
+      "source_file": "apps/web/src/app/pharmacy/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/pharmacy/account",
+      "source_file": "apps/web/src/app/pharmacy/account/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/pharmacy/dispense",
+      "source_file": "apps/web/src/app/pharmacy/dispense/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/pharmacy/expiry",
+      "source_file": "apps/web/src/app/pharmacy/expiry/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/pharmacy/interactions",
+      "source_file": "apps/web/src/app/pharmacy/interactions/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/pharmacy/inventory",
+      "source_file": "apps/web/src/app/pharmacy/inventory/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/pharmacy/nms",
+      "source_file": "apps/web/src/app/pharmacy/nms/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/pharmacy/queue",
+      "source_file": "apps/web/src/app/pharmacy/queue/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/pharmacy/reports",
+      "source_file": "apps/web/src/app/pharmacy/reports/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/platform",
+      "source_file": "apps/web/src/app/platform/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/access",
+      "source_file": "apps/web/src/app/platform/access/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/access/[id]",
+      "source_file": "apps/web/src/app/platform/access/[id]/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/account",
+      "source_file": "apps/web/src/app/platform/account/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/analytics",
+      "source_file": "apps/web/src/app/platform/analytics/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/applications",
+      "source_file": "apps/web/src/app/platform/applications/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/approvals",
+      "source_file": "apps/web/src/app/platform/approvals/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/audit-log",
+      "source_file": "apps/web/src/app/platform/audit-log/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/billing",
+      "source_file": "apps/web/src/app/platform/billing/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/broadcasts",
+      "source_file": "apps/web/src/app/platform/broadcasts/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/database",
+      "source_file": "apps/web/src/app/platform/database/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/deployments",
+      "source_file": "apps/web/src/app/platform/deployments/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/dhis2",
+      "source_file": "apps/web/src/app/platform/dhis2/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/events",
+      "source_file": "apps/web/src/app/platform/events/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/facilities",
+      "source_file": "apps/web/src/app/platform/facilities/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/facilities/[id]",
+      "source_file": "apps/web/src/app/platform/facilities/[id]/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/facilities/new",
+      "source_file": "apps/web/src/app/platform/facilities/new/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/feature-flags",
+      "source_file": "apps/web/src/app/platform/feature-flags/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/platform/flags",
+      "source_file": "apps/web/src/app/platform/flags/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/guidelines",
+      "source_file": "apps/web/src/app/platform/guidelines/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/platform/health",
+      "source_file": "apps/web/src/app/platform/health/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/hospitals",
+      "source_file": "apps/web/src/app/platform/hospitals/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/hospitals/[id]",
+      "source_file": "apps/web/src/app/platform/hospitals/[id]/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/hospitals/new",
+      "source_file": "apps/web/src/app/platform/hospitals/new/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/icd11",
+      "source_file": "apps/web/src/app/platform/icd11/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/incidents",
+      "source_file": "apps/web/src/app/platform/incidents/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/integrations",
+      "source_file": "apps/web/src/app/platform/integrations/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/intelligence",
+      "source_file": "apps/web/src/app/platform/intelligence/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/invite/[token]",
+      "source_file": "apps/web/src/app/platform/invite/[token]/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/lab",
+      "source_file": "apps/web/src/app/platform/lab/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/login",
+      "source_file": "apps/web/src/app/platform/login/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/mfa",
+      "source_file": "apps/web/src/app/platform/mfa/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/platform/mfa-verify",
+      "source_file": "apps/web/src/app/platform/mfa-verify/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/platform/mobile",
+      "source_file": "apps/web/src/app/platform/mobile/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/modules",
+      "source_file": "apps/web/src/app/platform/modules/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/monitoring",
+      "source_file": "apps/web/src/app/platform/monitoring/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/performance",
+      "source_file": "apps/web/src/app/platform/performance/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/pharmacies/onboard",
+      "source_file": "apps/web/src/app/platform/pharmacies/onboard/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/pharmacy-network",
+      "source_file": "apps/web/src/app/platform/pharmacy-network/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/public-health",
+      "source_file": "apps/web/src/app/platform/public-health/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/receipts",
+      "source_file": "apps/web/src/app/platform/receipts/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/receipts/[id]",
+      "source_file": "apps/web/src/app/platform/receipts/[id]/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/receipts/[id]/edit",
+      "source_file": "apps/web/src/app/platform/receipts/[id]/edit/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/receipts/new",
+      "source_file": "apps/web/src/app/platform/receipts/new/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/registry",
+      "source_file": "apps/web/src/app/platform/registry/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/sales",
+      "source_file": "apps/web/src/app/platform/sales/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/security",
+      "source_file": "apps/web/src/app/platform/security/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/settings",
+      "source_file": "apps/web/src/app/platform/settings/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/simulation",
+      "source_file": "apps/web/src/app/platform/simulation/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/subscriptions",
+      "source_file": "apps/web/src/app/platform/subscriptions/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/support",
+      "source_file": "apps/web/src/app/platform/support/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/system/health",
+      "source_file": "apps/web/src/app/platform/system/health/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/platform/system/settings",
+      "source_file": "apps/web/src/app/platform/system/settings/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/platform/tenants",
+      "source_file": "apps/web/src/app/platform/tenants/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/platform/tenants/[id]",
+      "source_file": "apps/web/src/app/platform/tenants/[id]/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/tenants/provision",
+      "source_file": "apps/web/src/app/platform/tenants/provision/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/platform/test-center",
+      "source_file": "apps/web/src/app/platform/test-center/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/users",
+      "source_file": "apps/web/src/app/platform/users/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/press",
+      "source_file": "apps/web/src/app/press/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/pricing",
+      "source_file": "apps/web/src/app/pricing/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/radiology/orders",
+      "source_file": "apps/web/src/app/radiology/orders/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/radiology/reports",
+      "source_file": "apps/web/src/app/radiology/reports/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/radiology/results",
+      "source_file": "apps/web/src/app/radiology/results/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/referrals",
+      "source_file": "apps/web/src/app/referrals/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/referrals/[id]",
+      "source_file": "apps/web/src/app/referrals/[id]/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/referrals/incoming",
+      "source_file": "apps/web/src/app/referrals/incoming/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/referrals/new",
+      "source_file": "apps/web/src/app/referrals/new/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/referrals/outgoing",
+      "source_file": "apps/web/src/app/referrals/outgoing/page.tsx",
+      "classification": "REDIRECT"
+    },
+    {
+      "route": "/reset-password",
+      "source_file": "apps/web/src/app/reset-password/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/scores",
+      "source_file": "apps/web/src/app/scores/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/scores/[code]",
+      "source_file": "apps/web/src/app/scores/[code]/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/scores/[code]/trend",
+      "source_file": "apps/web/src/app/scores/[code]/trend/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/sdg",
+      "source_file": "apps/web/src/app/sdg/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/sdg/goal/[number]",
+      "source_file": "apps/web/src/app/sdg/goal/[number]/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/sdg/reports",
+      "source_file": "apps/web/src/app/sdg/reports/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/signup",
+      "source_file": "apps/web/src/app/signup/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/signup/hospital-interest",
+      "source_file": "apps/web/src/app/signup/hospital-interest/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/signup/patient",
+      "source_file": "apps/web/src/app/signup/patient/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/signup/professional",
+      "source_file": "apps/web/src/app/signup/professional/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/status",
+      "source_file": "apps/web/src/app/status/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/tele",
+      "source_file": "apps/web/src/app/tele/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/tele/book",
+      "source_file": "apps/web/src/app/tele/book/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/tele/intake",
+      "source_file": "apps/web/src/app/tele/intake/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/tele/room/[id]",
+      "source_file": "apps/web/src/app/tele/room/[id]/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/unauthorized",
+      "source_file": "apps/web/src/app/unauthorized/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/unsubscribed",
+      "source_file": "apps/web/src/app/unsubscribed/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/verify-email",
+      "source_file": "apps/web/src/app/verify-email/page.tsx",
+      "classification": "ACTIVE"
+    }
+  ]
+}

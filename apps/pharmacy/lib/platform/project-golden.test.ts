@@ -139,7 +139,8 @@ describe("FHIR flagship set", () => {
     expect(UNIMPLEMENTED_FHIR_RESOURCES).toContain("Immunization")
     const statement = buildCapabilityStatement()
     expect(statement.status).toBe("draft")
-    expect(statement.rest[0]?.resource.map((row) => row.type)).toEqual([...FLAGSHIP_FHIR_RESOURCES])
+    expect(statement.rest[0]?.resource.map((row) => row.type)).toEqual(["Observation", "Specimen", "DiagnosticReport"])
+    expect(statement.rest[0]?.resource.some((row) => row.type === "Patient")).toBe(false)
     expect(statement.rest[0]?.resource.some((row) => row.type === "Immunization")).toBe(false)
     const patient = toFhirPatient(
       {

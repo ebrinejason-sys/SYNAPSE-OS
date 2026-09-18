@@ -53,6 +53,7 @@
     "./hospital-acceptance": "./src/hospital-acceptance.ts",
     "./hospital-provision": "./src/hospital-provision.ts",
     "./hospital-provision-catalog": "./src/hospital-provision-catalog.ts",
+    "./facility-lifecycle": "./src/facility-lifecycle.ts",
     "./facility-provision": "./src/facility-provision.ts",
     "./facility-provision-catalog": "./src/facility-provision-catalog.ts",
     "./encounter-close-gate": "./src/encounter-close-gate.ts",

@@ -1,8 +1,11 @@
-export default function NewEncounterPage() {
+import { FacilityCanonicalRedirect } from '../../../components/clinical/FacilityCanonicalRedirect'
+
+export default function NewEncounterRedirectPage() {
   return (
-    <main className="min-h-screen bg-base text-primary-color p-8">
-      <h1 className="font-display text-2xl">New Encounter</h1>
-      <p className="text-muted-color mt-2">Coming soon.</p>
-    </main>
-  );
+    <FacilityCanonicalRedirect
+      label="new encounter"
+      fallbackHref="/os"
+      pathForSlug={(slug) => `/os/${slug}/encounters/new`}
+    />
+  )
 }

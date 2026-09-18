@@ -50,16 +50,36 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const patch: Record<string, unknown> = {}
   if (parsed.data.role !== undefined) patch.role = parsed.data.role
   if (parsed.data.department_id !== undefined) patch.department_id = parsed.data.department_id
-  if (parsed.data.is_active !== undefined) patch.is_deleted = !parsed.data.is_active
 
-  const { data, error } = await db
-    .from('profiles')
-    .update(patch)
-    .eq('id', id)
-    .select('id, email, full_name, role, department_id, is_deleted')
-    .single()
+  if (parsed.data.is_active === false) {
+    await db
+      .from('staff_scope_assignments')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('profile_id', id)
+      .eq('tenant_id', ctx.tenantId)
+  } else if (parsed.data.is_active === true) {
+    await db
+      .from('staff_scope_assignments')
+      .update({ is_active: true, updated_at: new Date().toISOString() })
+      .eq('profile_id', id)
+      .eq('tenant_id', ctx.tenantId)
+  }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (Object.keys(patch).length === 0 && parsed.data.is_active === undefined) {
+    return NextResponse.json({ error: 'No changes' }, { status: 400 })
+  }
+
+  let data = existing
+  if (Object.keys(patch).length > 0) {
+    const updated = await db
+      .from('profiles')
+      .update(patch)
+      .eq('id', id)
+      .select('id, email, full_name, role, department_id, is_deleted')
+      .single()
+    if (updated.error) return NextResponse.json({ error: updated.error.message }, { status: 500 })
+    data = updated.data
+  }
 
   await logHospitalAudit({
     ctx,

@@ -42,6 +42,10 @@ npm run dev --workspace @synapse/pharmacy
 npm run start --workspace @synapse/app
 ```
 
+## Current production readiness
+
+See **`docs/readiness/PRODUCTION_GREEN_2026-09-18.md`**. Build success alone is not GREEN.
+
 ## Verify before shipping
 
 ```bash
@@ -54,6 +58,7 @@ See `docs/deploy.md` for Vercel project mapping and deploy gates.
 
 ## Documentation
 
+- `docs/readiness/PRODUCTION_GREEN_2026-09-18.md` — **current** production GREEN campaign report (2026-09-18)
 - `docs/architecture/synapse-network-architecture.md` — identity, facilities, interoperability, accessibility
 - `docs/adr/` — irreversible architecture decisions
 - `docs/SYNAPSE_ECOSYSTEM_OPERATING_MODEL_2026.md` — authoritative three-product ecosystem, outcomes, ownership, architecture, and roadmap

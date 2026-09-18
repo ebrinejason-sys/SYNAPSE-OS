@@ -5,9 +5,8 @@ import { useParams } from 'next/navigation'
 
 const LINKS = [
   { href: 'notes', title: 'Clinical write-up', body: 'HPI, PMH, meds, allergies, ROS, exam, assessment, plan' },
-  { href: 'orders', title: 'Orders', body: 'Labs, imaging, and other investigations' },
-  { href: 'history', title: 'Patient history', body: 'Prior encounters and longitudinal context' },
-  { href: 'scoring', title: 'Scores', body: 'Clinical scores and risk tools' },
+  { href: 'orders', title: 'Orders, billing, timeline', body: 'Labs, prescriptions, charges, and provenance' },
+  { href: 'history', title: 'Encounter timeline', body: 'Events and provenance for this encounter' },
   { href: 'disposition', title: 'Disposition', body: 'Local/external pharmacy, follow-up, referral, complete' },
   { href: 'sign', title: 'Sign encounter', body: 'Lock the note after review' },
 ]

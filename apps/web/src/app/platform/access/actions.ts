@@ -489,6 +489,68 @@ export async function revokePlatformMemberSessions(formData: FormData) {
   return { ok: true as const };
 }
 
+export async function resetPlatformMemberMfa(formData: FormData) {
+  const actor = await requirePlatformAccess("user.mfa.manage");
+  const userId = String(formData.get("user_id") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!userId || !reason) return { ok: false as const, error: "User id and reason required." };
+  if (userId === actor.id) return { ok: false as const, error: "Cannot reset your own MFA from this panel." };
+
+  const member = await getPlatformMember(userId);
+  if (!member) return { ok: false as const, error: "Member not found." };
+  assertCanManageRole(actor.platformRole, member.platformRole);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any;
+  await db.from("mfa_enrollments").delete().eq("user_id", userId);
+  await revokeAllUserSessions(userId);
+
+  await logPlatformAccessEvent({
+    actorId: actor.id,
+    actorRole: actor.platformRole,
+    action: "PLATFORM_MEMBER_MFA_RESET",
+    targetUserId: userId,
+    resourceId: member.id,
+    reason,
+  });
+
+  revalidatePath(`/platform/access/${userId}`);
+  return { ok: true as const };
+}
+
+export async function revokePlatformMembership(formData: FormData) {
+  const actor = await requirePlatformAccess("user.suspend");
+  const userId = String(formData.get("user_id") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!userId || !reason) return { ok: false as const, error: "User id and reason required." };
+  if (userId === actor.id) return { ok: false as const, error: "Cannot revoke your own membership." };
+
+  const member = await getPlatformMember(userId);
+  if (!member) return { ok: false as const, error: "Member not found." };
+  assertCanManageRole(actor.platformRole, member.platformRole);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any;
+  await db
+    .from("platform_memberships")
+    .update({ status: "REVOKED", updated_at: new Date().toISOString() })
+    .eq("id", member.id);
+  await revokeAllUserSessions(userId);
+
+  await logPlatformAccessEvent({
+    actorId: actor.id,
+    actorRole: actor.platformRole,
+    action: "PLATFORM_MEMBER_REVOKED",
+    targetUserId: userId,
+    resourceId: member.id,
+    reason,
+  });
+
+  revalidatePath("/platform/access");
+  revalidatePath(`/platform/access/${userId}`);
+  return { ok: true as const };
+}
+
 export async function getManageableRolesForActor(): Promise<PlatformRole[]> {
   const actor = await requirePlatformAccess("user.read");
   return manageableRoles(actor.platformRole);

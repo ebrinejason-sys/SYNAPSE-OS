@@ -13,6 +13,14 @@ describe('facility staff security and laboratory landing', () => {
   it.each(['lab_admin', 'lab_scientist', 'lab_technician'])('routes %s to the laboratory workspace', role => {
     expect(getPostLoginPath({ role, tenantFacilityType: 'laboratory', emailVerified: true, onboardingComplete: true })).toBe('/lab/orders')
   })
+  it('routes hospital_admin to the canonical facility admin console', () => {
+    const result = resolveDashboardForUser({ userId: 'user', role: 'hospital_admin', tenantId: 'h1', tenantSlug: 'pilot-hospital', facilityType: 'hospital', enabledModules: ['clinical', 'admin'], subscriptionFeatures: [] })
+    expect(result.redirectPath).toBe('/hospital/admin')
+  })
+  it('routes doctors to the facility OPD queue rather than a missing /clinical index', () => {
+    const result = resolveDashboardForUser({ userId: 'user', role: 'doctor', tenantId: 'h1', tenantSlug: 'pilot-hospital', facilityType: 'hospital', enabledModules: ['clinical'], subscriptionFeatures: [] })
+    expect(result.redirectPath).toBe('/os/pilot-hospital/clinical/queue')
+  })
   it('laboratory dashboard excludes hospital-only modules', () => {
     const result = resolveDashboardForUser({ userId: 'user', role: 'lab_admin', tenantId: 'lab', tenantSlug: 'pilot-lab', facilityType: 'laboratory', enabledModules: ['core', 'registration', 'lab', 'billing', 'reports', 'ipd'], subscriptionFeatures: [] })
     expect(result.redirectPath).toBe('/lab/orders')

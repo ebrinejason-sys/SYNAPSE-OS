@@ -62,23 +62,23 @@ export function getPostLoginPath(ctx: PostLoginContext): string {
   }
 
   if (role === 'hospital_admin') {
-    return ctx.onboardingComplete === false ? '/onboarding' : '/admin'
+    return ctx.onboardingComplete === false ? '/onboarding' : '/hospital/admin'
   }
 
   if (CLINICAL_ROLES.includes(ctx.role as (typeof CLINICAL_ROLES)[number])) {
     if (ctx.onboardingComplete === false) return '/onboarding'
     switch (role) {
       case 'doctor':
-        return '/doctor/queue'
+        return '/doctor'
       case 'nurse':
-        return '/nurse/ward'
+        return '/nurse'
       case 'lab_scientist':
       case 'lab_admin':
         return '/lab/orders'
       case 'radiologist':
-        return '/radiology/orders'
+        return '/os'
       default:
-        return '/doctor/queue'
+        return '/doctor'
     }
   }
 
@@ -87,7 +87,7 @@ export function getPostLoginPath(ctx: PostLoginContext): string {
   }
 
   if (role === 'receptionist') {
-    return '/admin'
+    return '/os'
   }
 
   return '/health/dashboard'

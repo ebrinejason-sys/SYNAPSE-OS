@@ -18,6 +18,8 @@ import {
   resetPlatformMemberPassword,
   issuePlatformTemporaryPassword,
   revokePlatformMemberSessions,
+  resetPlatformMemberMfa,
+  revokePlatformMembership,
   suspendPlatformMember,
   reactivatePlatformMember,
 } from "./actions";
@@ -330,6 +332,15 @@ export function MemberDetailActions({
             runAction(revokePlatformMemberSessions, { reason });
           }}
         />
+        <ActionButton
+          disabled={pending}
+          label="Reset MFA"
+          onClick={() => {
+            const reason = window.prompt("Reason for MFA reset:");
+            if (!reason) return;
+            runAction(resetPlatformMemberMfa, { reason });
+          }}
+        />
         {member.status === "ACTIVE" ? (
           <ActionButton
             disabled={pending}
@@ -348,6 +359,18 @@ export function MemberDetailActions({
             onClick={() => runAction(reactivatePlatformMember)}
           />
         )}
+        {member.status !== "REVOKED" ? (
+          <ActionButton
+            disabled={pending}
+            label="Revoke membership"
+            danger
+            onClick={() => {
+              const reason = window.prompt("Reason for membership revocation (does not delete the person record):");
+              if (!reason) return;
+              runAction(revokePlatformMembership, { reason });
+            }}
+          />
+        ) : null}
       </div>
     </div>
   );

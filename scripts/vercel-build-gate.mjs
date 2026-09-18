@@ -27,6 +27,11 @@ function run(label, command, args, opts = {}) {
 
 let ok = false
 
+if (process.env.VERCEL_ENV === "production") {
+  console.log("[vercel-build-gate] Skipping Git production deploy. Production promotion is acceptance-gated via GitHub Actions after DB/schema acceptance.")
+  process.exit(0)
+}
+
 if (target === 'web') {
   ok = run('web type-check', 'npm', ['run', 'type-check', '--workspace', '@synapse/web']) === 0
 } else if (target === 'pharmacy') {

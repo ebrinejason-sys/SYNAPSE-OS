@@ -101,6 +101,14 @@ jobs:
           path: artifacts/readiness/invitation-postgres.log
           if-no-files-found: warn
 
+      - name: Retain route and ACL evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-green-evidence-${{ github.sha }}
+          path: artifacts/readiness
+          if-no-files-found: warn
+
       - name: Tenancy isolation tests
         run: npm run test:tenancy
 
@@ -118,6 +126,50 @@ jobs:
 
       - name: Security assertions
         run: npm run test:workflow-safety && node scripts/check-workflow-safety.mjs
+
+      - name: Route and link integrity
+        run: npm run test:routes
+
+      - name: Database ACL static inventory
+        run: npm run test:db-acl
+
+      - name: RLS tenancy matrix contract
+        run: npm run test:rls-matrix
+
+      - name: Signed record, lifecycle, billing authority, MPI
+        run: npm run test:signed-record
+
+      - name: FHIR contract tests
+        run: npm run test:fhir
+
+      - name: ICD-11 outage survival
+        run: npm run test:icd11
+
+      - name: Clinical AI policy
+        run: npm run test:ai-governance
+
+      - name: Accessibility smoke
+        run: npm run test:a11y-smoke
+
+      - name: Secret scan
+        run: npm run test:secrets
+
+      - name: Dependency audit evidence
+        run: |
+          mkdir -p artifacts/readiness
+          npm audit --json > artifacts/readiness/npm-audit.json || true
+          node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('artifacts/readiness/npm-audit.json','utf8')); const vulns=j.metadata?.vulnerabilities||{}; console.log('npm audit', JSON.stringify(vulns));"
+
+      - name: Browser Golden Journey (requires SYNAPSE_E2E_BASE_URL)
+        run: |
+          mkdir -p artifacts/readiness
+          if [ -z "${SYNAPSE_E2E_BASE_URL:-}" ]; then
+            printf '{"status":"BLOCKED","reason":"SYNAPSE_E2E_BASE_URL not configured","journey":"hospital-browser"}\n' > artifacts/readiness/hospital-browser-journey.json
+            echo "Hospital browser journey BLOCKED (no synthetic browser target)"
+            exit 0
+          fi
+          npx playwright install --with-deps chromium
+          PLAYWRIGHT_BASE_URL="$SYNAPSE_E2E_BASE_URL" node scripts/e2e-hospital-browser.mjs
 
       - name: Readiness evidence gate behavioral tests
         run: npm run test:readiness-report

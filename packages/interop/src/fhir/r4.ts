@@ -7,6 +7,12 @@ import type { CanonicalObservation, CanonicalPerson, CanonicalSpecimen } from ".
 
 export const FHIR_VERSION = "4.0.1"
 
+/** Lab-backed resources with proven tenant-scoped read/search. */
+export const PROVEN_FHIR_RESOURCES = ["Observation", "Specimen", "DiagnosticReport"] as const
+
+export type ProvenFhirResource = (typeof PROVEN_FHIR_RESOURCES)[number]
+
+/** Mappers exist; HTTP is 501 OperationOutcome until roundtrip is proven. */
 export const FLAGSHIP_FHIR_RESOURCES = [
   "Patient",
   "Practitioner",
@@ -305,7 +311,7 @@ export function buildCapabilityStatement(now = new Date()): FhirCapabilityStatem
           cors: false,
           description: "Tenant session required. Service-role is not exposed to clients.",
         },
-        resource: FLAGSHIP_FHIR_RESOURCES.map((type) => ({
+        resource: PROVEN_FHIR_RESOURCES.map((type) => ({
           type,
           interaction: [{ code: "read" }, { code: "search-type" }],
         })),
@@ -316,4 +322,15 @@ export function buildCapabilityStatement(now = new Date()): FhirCapabilityStatem
 
 export function isFlagshipFhirResource(type: string): type is FlagshipFhirResource {
   return (FLAGSHIP_FHIR_RESOURCES as readonly string[]).includes(type)
+}
+
+export function isProvenFhirResource(type: string): type is ProvenFhirResource {
+  return (PROVEN_FHIR_RESOURCES as readonly string[]).includes(type)
+}
+
+export function classifyFhirHttpType(resource: string): "proven" | "flagship_unproven" | "unimplemented" | "unknown" {
+  if ((UNIMPLEMENTED_FHIR_RESOURCES as readonly string[]).includes(resource)) return "unimplemented"
+  if (isProvenFhirResource(resource)) return "proven"
+  if (isFlagshipFhirResource(resource)) return "flagship_unproven"
+  return "unknown"
 }
