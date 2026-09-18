@@ -3,7 +3,7 @@
   "campaign": "FINAL_GREEN_RELEASE_2026-09-18",
   "branch": "cursor/final-green-release-2026-09-18",
   "originMainSha": "97be63deed741b4a00ed0c33aedd36b54f01d186",
-  "worktreeShaAtGeneration": "UNCOMMITTED_PENDING_THIS_CAMPAIGN",
+  "worktreeShaAtGeneration": "1a2aba107a689f70184409daaa2ce910bd3a98e0",
   "supabaseProjectId": "qfqakzmjatszisuqjwon",
   "localMigrationCheck": "PASS",
   "localMigrationCount": 166,
