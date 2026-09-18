@@ -87,6 +87,10 @@ export default function DoctorDemoPage() {
   
   const [submitting, setSubmitting] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  function patchPrescription(idx: number, patch: Partial<(typeof prescriptions)[number]>) {
+    setPrescriptions((prev) => prev.map((rx, i) => (i === idx ? { ...rx, ...patch } : rx)))
+  }
   const [signed, setSigned] = useState(false)
 
   useEffect(() => {
@@ -803,11 +807,7 @@ export default function DoctorDemoPage() {
                           <input
                             type="text"
                             value={rx.dose}
-                            onChange={(e) => {
-                              const updated = [...prescriptions]
-                              updated[idx].dose = e.target.value
-                              setPrescriptions(updated)
-                            }}
+                            onChange={(e) => patchPrescription(idx, { dose: e.target.value })}
                             className="w-full px-2 py-1 rounded border bg-background text-sm"
                           />
                         </div>
@@ -816,11 +816,7 @@ export default function DoctorDemoPage() {
                           <input
                             type="text"
                             value={rx.route}
-                            onChange={(e) => {
-                              const updated = [...prescriptions]
-                              updated[idx].route = e.target.value
-                              setPrescriptions(updated)
-                            }}
+                            onChange={(e) => patchPrescription(idx, { route: e.target.value })}
                             className="w-full px-2 py-1 rounded border bg-background text-sm"
                           />
                         </div>
@@ -829,11 +825,7 @@ export default function DoctorDemoPage() {
                           <input
                             type="text"
                             value={rx.frequency}
-                            onChange={(e) => {
-                              const updated = [...prescriptions]
-                              updated[idx].frequency = e.target.value
-                              setPrescriptions(updated)
-                            }}
+                            onChange={(e) => patchPrescription(idx, { frequency: e.target.value })}
                             className="w-full px-2 py-1 rounded border bg-background text-sm"
                           />
                         </div>
@@ -842,11 +834,7 @@ export default function DoctorDemoPage() {
                           <input
                             type="text"
                             value={rx.duration}
-                            onChange={(e) => {
-                              const updated = [...prescriptions]
-                              updated[idx].duration = e.target.value
-                              setPrescriptions(updated)
-                            }}
+                            onChange={(e) => patchPrescription(idx, { duration: e.target.value })}
                             className="w-full px-2 py-1 rounded border bg-background text-sm"
                           />
                         </div>
@@ -855,11 +843,7 @@ export default function DoctorDemoPage() {
                           <input
                             type="number"
                             value={rx.quantity}
-                            onChange={(e) => {
-                              const updated = [...prescriptions]
-                              updated[idx].quantity = parseInt(e.target.value) || 0
-                              setPrescriptions(updated)
-                            }}
+                            onChange={(e) => patchPrescription(idx, { quantity: parseInt(e.target.value) || 0 })}
                             className="w-full px-2 py-1 rounded border bg-background text-sm"
                           />
                         </div>
@@ -868,11 +852,7 @@ export default function DoctorDemoPage() {
                           <input
                             type="text"
                             value={rx.instructions}
-                            onChange={(e) => {
-                              const updated = [...prescriptions]
-                              updated[idx].instructions = e.target.value
-                              setPrescriptions(updated)
-                            }}
+                            onChange={(e) => patchPrescription(idx, { instructions: e.target.value })}
                             className="w-full px-2 py-1 rounded border bg-background text-sm"
                           />
                         </div>

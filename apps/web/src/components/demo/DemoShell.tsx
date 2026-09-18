@@ -3,6 +3,26 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { resetDemoPlayground, exportDemoPlayground, importDemoPlayground, getFacilities, getUsers } from "../../lib/demo/browser-repository"
+import type { DemoFacility, DemoUser } from "../../lib/demo/entities"
+import { DEMO_ROUTES } from "../../lib/demo/paths"
+
+const ROLE_COLORS: Record<string, string> = {
+  reception: "#3B82F6",
+  nurse: "#10B981",
+  doctor: "#F59E0B",
+  lab_technician: "#8B5CF6",
+  lab_scientist: "#8B5CF6",
+  pharmacist: "#EC4899",
+  cashier: "#6B7280",
+  admin: "#6B7280",
+}
+
+const FACILITY_ICONS: Record<string, string> = {
+  hospital: "🏥",
+  clinic: "🏥",
+  laboratory: "🧪",
+  pharmacy: "💊",
+}
 
 interface DemoSession {
   facilityId: string
@@ -23,8 +43,8 @@ interface DemoShellProps {
 export function DemoShell({ title, children, currentRole, requiresRole }: DemoShellProps) {
   const [session, setSession] = useState<DemoSession | null>(null)
   const [showControls, setShowControls] = useState(false)
-  const [facilities, setFacilities] = useState<any[]>([])
-  const [users, setUsers] = useState<any[]>([])
+  const [facilities, setFacilities] = useState<DemoFacility[]>([])
+  const [users, setUsers] = useState<DemoUser[]>([])
   const [pendingSyncCount, setPendingSyncCount] = useState(0)
 
   useEffect(() => {
@@ -39,8 +59,8 @@ export function DemoShell({ title, children, currentRole, requiresRole }: DemoSh
     
     const facilities = await getFacilities()
     const users = await getUsers()
-    const facility = facilities.find((f: any) => f.id === storedFacility)
-    const user = users.find((u: any) => u.role === storedRole)
+    const facility = facilities.find((f) => f.id === storedFacility)
+    const user = users.find((u) => u.role === storedRole)
 
     if (facility && user) {
       setSession({
@@ -108,23 +128,8 @@ export function DemoShell({ title, children, currentRole, requiresRole }: DemoSh
     input.click()
   }
 
-  const roleColor = {
-    reception: "#3B82F6",
-    nurse: "#10B981",
-    doctor: "#F59E0B",
-    lab_technician: "#8B5CF6",
-    lab_scientist: "#8B5CF6",
-    pharmacist: "#EC4899",
-    cashier: "#6B7280",
-    admin: "#6B7280"
-  }[session?.role || ""] || "#6B7280"
-
-  const facilityIcon = {
-    hospital: "🏥",
-    clinic: "🏥",
-    laboratory: "🧪",
-    pharmacy: "💊"
-  }
+  const roleColor = ROLE_COLORS[session?.role ?? ""] ?? "#6B7280"
+  const currentFacility = facilities.find((f) => f.id === session?.facilityId)
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -137,7 +142,7 @@ export function DemoShell({ title, children, currentRole, requiresRole }: DemoSh
                 SYNTHETIC PLAYGROUND
               </span>
               <div className="hidden sm:flex items-center gap-2 text-sm">
-                <span>{facilityIcon[facilities.find(f => f.id === session?.facilityId)?.type as keyof typeof facilityIcon]}</span>
+                <span>{FACILITY_ICONS[currentFacility?.type ?? ""] ?? "🏥"}</span>
                 <span className="font-semibold">{session?.facilityName || "Loading..."}</span>
                 <span className="text-muted-foreground">·</span>
                 <span style={{ color: roleColor }}>{session?.userName || "..."}</span>
@@ -181,7 +186,7 @@ export function DemoShell({ title, children, currentRole, requiresRole }: DemoSh
               {/* Facility Switcher */}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold text-muted-foreground">Facility:</span>
-                {facilities.map((f: any) => (
+                {facilities.map((f) => (
                   <button
                     key={f.id}
                     onClick={() => switchFacility(f.id)}
@@ -191,7 +196,7 @@ export function DemoShell({ title, children, currentRole, requiresRole }: DemoSh
                         : "bg-secondary hover:bg-secondary/80"
                     }`}
                   >
-                    {facilityIcon[f.type as keyof typeof facilityIcon]} {f.name}
+                    {FACILITY_ICONS[f.type] ?? "🏢"} {f.name}
                   </button>
                 ))}
               </div>
@@ -199,8 +204,8 @@ export function DemoShell({ title, children, currentRole, requiresRole }: DemoSh
               {/* Role Switcher */}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold text-muted-foreground">Role:</span>
-                {Array.from(new Set(users.map((u: any) => u.role))).map((role: any) => {
-                  const user = users.find((u: any) => u.role === role)
+                {Array.from(new Set(users.map((u) => u.role))).map((role) => {
+                  const user = users.find((u) => u.role === role)
                   return (
                     <button
                       key={role}
@@ -210,8 +215,8 @@ export function DemoShell({ title, children, currentRole, requiresRole }: DemoSh
                           ? "text-white"
                           : "bg-secondary hover:bg-secondary/80"
                       }`}
-                      style={session?.role === role ? { 
-                        backgroundColor: roleColor[role as keyof typeof roleColor] || "#6B7280" 
+                      style={session?.role === role ? {
+                        backgroundColor: ROLE_COLORS[role] ?? "#6B7280",
                       } : {}}
                     >
                       {user?.name}
@@ -253,16 +258,25 @@ export function DemoShell({ title, children, currentRole, requiresRole }: DemoSh
           {/* Page Header */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-3xl font-bold">{title}</h1>
-            <nav className="flex gap-3 text-sm">
-              <Link href="/demo" className="hover:underline">Home</Link>
-              <Link href="/demo/workspace" className="hover:underline">Workspace</Link>
-              <Link href="/demo/timeline" className="hover:underline">Timeline</Link>
-              <Link href="/demo/network" className="hover:underline">Network</Link>
-              <Link href="/demo/guide" className="hover:underline">Guide</Link>
+            <nav className="flex flex-wrap gap-3 text-sm">
+              <Link href={DEMO_ROUTES.home} className="hover:underline">Home</Link>
+              <Link href={DEMO_ROUTES.workspace} className="hover:underline">Workspace</Link>
+              <Link href={DEMO_ROUTES.timeline} className="hover:underline">Timeline</Link>
+              <Link href={DEMO_ROUTES.network} className="hover:underline">Network</Link>
+              <Link href={DEMO_ROUTES.guide} className="hover:underline">Guide</Link>
             </nav>
           </div>
 
-          {/* Role Warning */}
+          {/* How it works */}
+          <aside className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-4 text-sm" role="note">
+            <p className="font-semibold text-orange-600">How this playground works</p>
+            <ul className="mt-2 space-y-1 text-muted-foreground">
+              <li>Synthetic data only. Nothing here is a real patient, lab result, or payment.</li>
+              <li>State lives in this browser (IndexedDB). It does not write to production SYNAPSE.</li>
+              <li>Pick a role, walk Reception → Nurse → Doctor → Lab → Pharmacy → Billing, then open Timeline.</li>
+              <li>Use Show Controls to switch facility/role, go offline, export, or reset.</li>
+            </ul>
+          </aside>
           {requiresRole && session && !requiresRole.includes(session.role) && (
             <div className="rounded-lg border border-orange-500/20 bg-orange-500/10 p-4">
               <div className="flex items-center gap-2">

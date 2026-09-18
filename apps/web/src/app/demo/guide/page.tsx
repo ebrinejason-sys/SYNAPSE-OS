@@ -6,7 +6,7 @@ const STEPS = [
   {
     number: 1,
     role: "Reception",
-    route: "/dept/reception",
+    route: "/demo/reception",
     title: "Register Amina Demo",
     description: "Find or register the demo patient, verify demographics, generate Synapse ID, start encounter, and queue for triage.",
     details: [
@@ -19,7 +19,7 @@ const STEPS = [
   {
     number: 2,
     role: "Nurse",
-    route: "/nurse",
+    route: "/demo/nurse",
     title: "Record Triage & Vitals",
     description: "Open nursing worklist, select Amina, record vital signs and triage assessment.",
     details: [
@@ -32,7 +32,7 @@ const STEPS = [
   {
     number: 3,
     role: "Doctor",
-    route: "/doctor",
+    route: "/demo/doctor",
     title: "Clinical Encounter & Lab Order",
     description: "Complete the clinical write-up and order a lab test.",
     details: [
@@ -47,7 +47,7 @@ const STEPS = [
   {
     number: 4,
     role: "Lab",
-    route: "/lab",
+    route: "/demo/lab",
     title: "Process Lab Order",
     description: "Receive the external order, accession, collect specimen, enter result, verify, and release.",
     details: [
@@ -62,7 +62,7 @@ const STEPS = [
   {
     number: 5,
     role: "Doctor",
-    route: "/doctor",
+    route: "/demo/doctor",
     title: "Review Result & Prescribe",
     description: "See released result, acknowledge, confirm diagnosis, ICD-11 code, treatment plan, prescribe.",
     details: [
@@ -77,7 +77,7 @@ const STEPS = [
   {
     number: 6,
     role: "Pharmacist",
-    route: "/pharmacy",
+    route: "/demo/pharmacist",
     title: "Verify & Dispense",
     description: "Receive prescription, verify, select batch (FEFO), dispense, stock decrement, print receipt.",
     details: [
@@ -91,7 +91,7 @@ const STEPS = [
   {
     number: 7,
     role: "Reception",
-    route: "/dept/reception",
+    route: "/demo/billing",
     title: "Billing & Disposition",
     description: "Review accumulated charges, settle payment, close encounter.",
     details: [
@@ -105,7 +105,7 @@ const STEPS = [
   {
     number: 8,
     role: "Any",
-    route: "/patient/[id]/timeline",
+    route: "/demo/timeline",
     title: "Review Longitudinal Timeline",
     description: "See the complete care journey under ONE person identity.",
     details: [

@@ -262,8 +262,18 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── DEMO subdomain ────────────────────────────────────────────────
+  // Host demo.synapseos.tech rewrites /login → /demo/login.
+  // Links inside demo pages already use /demo/*; do not prefix twice
+  // (that produced /demo/demo/login 404s on the public demo host).
   if (subdomain === "demo") {
     const url = request.nextUrl.clone();
+    if (pathname === "/demo/demo" || pathname.startsWith("/demo/demo/")) {
+      url.pathname = pathname.replace(/^\/demo/, "") || "/";
+      return NextResponse.redirect(url);
+    }
+    if (pathname === "/demo" || pathname.startsWith("/demo/")) {
+      return next();
+    }
     url.pathname = `/demo${pathname === "/" ? "" : pathname}`;
     return rewrite(url);
   }

@@ -299,7 +299,7 @@ export default function DemoNetworkPage() {
                     {getEventIcon(type)}
                   </span>
                   <div>
-                    <p className="font-semibold">{count}</p>
+                    <p className="font-semibold">{Number(count)}</p>
                     <p className="text-xs text-muted-foreground capitalize">{type.replace(/_/g, " ")}</p>
                   </div>
                 </div>

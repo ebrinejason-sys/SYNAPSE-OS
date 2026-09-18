@@ -269,6 +269,16 @@ export default function DemoPage() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
+        <section className="mb-10 p-6 rounded-2xl" style={{ background: "rgba(249,115,22,0.08)", border: "1px solid var(--border-orange)" }}>
+          <h2 className="font-display font-bold text-xl mb-2" style={{ color: "var(--brand-orange)" }}>How this site works</h2>
+          <ol className="text-sm space-y-1" style={{ color: "var(--text-secondary)" }}>
+            <li>1. This host is a <strong>synthetic playground</strong>, not a live hospital or EHR.</li>
+            <li>2. Start Test Drive, pick a role, and click through Reception → Nurse → Doctor → Lab → Pharmacy → Billing.</li>
+            <li>3. Data stays in this browser. Reset Playground clears it. Nothing is written to production patients.</li>
+            <li>4. The Clinical AI panel below is educational only and is not a diagnosis.</li>
+          </ol>
+        </section>
+
         {/* Test Drive Entry Card */}
         <section className="mb-10 p-6 rounded-2xl" style={{ background: "linear-gradient(135deg, rgba(249,115,22,0.12) 0%, rgba(249,115,22,0.04) 100%)", border: "2px solid var(--border-orange)" }}>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

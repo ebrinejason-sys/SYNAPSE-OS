@@ -40,6 +40,13 @@ const ROLES = [
     color: "#EC4899",
   },
   {
+    id: "cashier",
+    label: "Enter as Cashier",
+    description: "Invoice charges, take payment, close the visit",
+    icon: "💰",
+    color: "#0EA5E9",
+  },
+  {
     id: "admin",
     label: "Enter as Facility Admin",
     description: "Manage staff, view analytics, configure facility",
@@ -47,6 +54,16 @@ const ROLES = [
     color: "#6B7280",
   },
 ] as const;
+
+const ROLE_SESSION: Record<string, { role: string; facilityId: string }> = {
+  reception: { role: "reception", facilityId: "demo-hospital" },
+  nurse: { role: "nurse", facilityId: "demo-hospital" },
+  doctor: { role: "doctor", facilityId: "demo-hospital" },
+  lab: { role: "lab_technician", facilityId: "demo-lab" },
+  pharmacist: { role: "pharmacist", facilityId: "demo-pharmacy" },
+  cashier: { role: "cashier", facilityId: "demo-hospital" },
+  admin: { role: "admin", facilityId: "demo-hospital" },
+};
 
 export default function DemoLoginPage() {
   const [selectedRole, setSelectedRole] = useState<typeof ROLES[0] | null>(null);
@@ -57,9 +74,11 @@ export default function DemoLoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/demo/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: roleId }) });
-      if (!response.ok) throw new Error("Demo session unavailable");
-      sessionStorage.setItem("synapse_demo_role", roleId);
+      const session = ROLE_SESSION[roleId] ?? { role: "reception", facilityId: "demo-hospital" }
+      const response = await fetch("/api/demo/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: roleId === "lab" ? "lab" : session.role }) }).catch(() => null)
+      if (response && !response.ok && response.status !== 403) throw new Error("Demo session unavailable")
+      sessionStorage.setItem("synapse_demo_role", session.role);
+      sessionStorage.setItem("synapse_demo_facility", session.facilityId);
       sessionStorage.setItem("synapse_demo_mode", "true");
       window.location.href = "/demo/workspace";
     } catch (e) {
@@ -95,8 +114,8 @@ export default function DemoLoginPage() {
             Explore SYNAPSE Test Drive
           </h1>
           <p className="text-lg" style={{ color: "var(--text-secondary)", maxWidth: "600px", margin: "0 auto" }}>
-            Choose a role to experience the connected SYNAPSE workflow with synthetic data.
-            No real patient data. No setup required.
+            This is a browser playground, not a live hospital. Choose a role and walk the connected SYNAPSE workflow with synthetic data.
+            No real patient records. No production database writes.
           </p>
         </div>
 

@@ -33,13 +33,13 @@ export const DEMO_STORES = [
 ] as const
 export type DemoStore = typeof DEMO_STORES[number]
 export type DemoState = Partial<Record<DemoStore, unknown[]>>
-import type { DemoEncounter, DemoPerson, DemoQueueItem, DemoTriage, DemoClinicalNote } from "./entities"
+import type { DemoEncounter, DemoPerson, DemoQueueItem, DemoTriage, DemoClinicalNote, DemoFacility, DemoUser } from "./entities"
 const now = () => new Date().toISOString()
 async function put<T>(store: DemoStore, value: T) { const db = await openDb(); await new Promise<void>((resolve, reject) => { const tx = db.transaction(store, "readwrite"); tx.objectStore(store).put(value); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error) }); db.close(); return value }
 async function all<T>(store: DemoStore): Promise<T[]> { const db = await openDb(); return await new Promise<T[]>((resolve, reject) => { const r = db.transaction(store, "readonly").objectStore(store).getAll(); r.onsuccess = () => { db.close(); resolve(r.result as T[]) }; r.onerror = () => reject(r.error) }) }
 export async function initializePlayground() { await openDb(); if ((await all("persons")).length === 0) await resetDemoPlayground() }
-export const getFacilities = () => all("facilities")
-export const getUsers = () => all("users")
+export const getFacilities = () => all<DemoFacility>("facilities")
+export const getUsers = () => all<DemoUser>("users")
 export const getPersons = () => all<DemoPerson>("persons")
 export async function getPerson(id: string) { return (await getPersons()).find(p => p.id === id) }
 export async function createEncounter(input: Omit<DemoEncounter, "id"|"createdAt"|"updatedAt">) { return put<DemoEncounter>("encounters", { ...input, id: crypto.randomUUID(), createdAt: now(), updatedAt: now() }) }

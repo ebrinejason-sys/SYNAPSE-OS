@@ -26,7 +26,9 @@ export default function DemoWorkspacePage() {
   }, [])
 
   async function loadWorkspace() {
-    const storedRole = sessionStorage.getItem("synapse_demo_role") || "doctor"
+    const storedRoleRaw = sessionStorage.getItem("synapse_demo_role") || "doctor"
+    const storedRole = storedRoleRaw === "lab" ? "lab_technician" : storedRoleRaw
+    if (storedRole !== storedRoleRaw) sessionStorage.setItem("synapse_demo_role", storedRole)
     const storedFacility = sessionStorage.getItem("synapse_demo_facility") || "demo-hospital"
     setRole(storedRole)
     setFacility(storedFacility)
@@ -206,6 +208,7 @@ export default function DemoWorkspacePage() {
       color: "#6B7280",
       title: "Admin Workspace",
       actions: [
+        { label: "Facility overview", href: "/demo/admin", icon: "🏥" },
         { label: "All Workflows", href: "/demo/workspace", icon: "📊" },
         { label: "Timeline View", href: "/demo/timeline", icon: "📅" },
         { label: "Network View", href: "/demo/network", icon: "🌐" },

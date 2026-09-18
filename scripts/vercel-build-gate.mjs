@@ -28,8 +28,13 @@ function run(label, command, args, opts = {}) {
 let ok = false
 
 if (process.env.VERCEL_ENV === "production") {
-  console.log("[vercel-build-gate] Skipping Git production deploy. Production promotion is acceptance-gated via GitHub Actions after DB/schema acceptance.")
-  process.exit(0)
+  const productionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? ""
+  const isDemoProject = productionUrl.includes("demo.synapseos.tech")
+  if (!isDemoProject) {
+    console.log("[vercel-build-gate] Skipping Git production deploy. Production OS/Pharmacy promotion is acceptance-gated via GitHub Actions after DB/schema acceptance.")
+    process.exit(0)
+  }
+  console.log("[vercel-build-gate] synapse-demo production host — continuing Git build.")
 }
 
 if (target === 'web') {
