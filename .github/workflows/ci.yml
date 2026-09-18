@@ -125,7 +125,9 @@ jobs:
         run: node -e "const fs=require('fs'); const p='docs/implementation/capability-registry.json'; if(!fs.existsSync(p)){console.error('Missing capability registry'); process.exit(1)} console.log('capability registry exists')"
 
       - name: Security assertions
-        run: npm run test:workflow-safety && node scripts/check-workflow-safety.mjs
+        run: |
+          npm run test:workflow-safety && node scripts/check-workflow-safety.mjs
+          npx tsx --test apps/web/src/lib/auth/synthetic-otp.test.ts
 
       - name: Route and link integrity
         run: npm run test:routes
@@ -165,16 +167,26 @@ jobs:
           npx playwright install --with-deps chromium
           npm run test:e2e:demo
 
-      - name: Browser Golden Journey (requires SYNAPSE_E2E_BASE_URL)
+      - name: Browser Golden Journey (requires SYNAPSE_E2E credentials)
+        env:
+          SYNAPSE_E2E_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
+          SYNAPSE_E2E_EMAIL: ${{ secrets.SYNAPSE_E2E_EMAIL }}
+          SYNAPSE_E2E_PASSWORD: ${{ secrets.SYNAPSE_E2E_PASSWORD }}
+          SYNAPSE_E2E_FACILITY_SLUG: ${{ secrets.SYNAPSE_E2E_FACILITY_SLUG }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           mkdir -p artifacts/readiness
-          if [ -z "${SYNAPSE_E2E_BASE_URL:-}" ]; then
-            printf '{"status":"BLOCKED","reason":"SYNAPSE_E2E_BASE_URL not configured","journey":"hospital-browser"}\n' > artifacts/readiness/hospital-browser-journey.json
-            echo "Hospital browser journey BLOCKED (no synthetic browser target)"
+          if [ -z "${SYNAPSE_E2E_EMAIL:-}" ] || [ -z "${SYNAPSE_E2E_PASSWORD:-}" ]; then
+            printf '{"status":"BLOCKED","reason":"SYNAPSE_E2E_EMAIL/PASSWORD not configured","journey":"hospital-browser"}\n' > artifacts/readiness/hospital-browser-journey.json
+            echo "Hospital browser journey BLOCKED (no synthetic browser credentials)"
             exit 0
           fi
           npx playwright install --with-deps chromium
-          PLAYWRIGHT_BASE_URL="$SYNAPSE_E2E_BASE_URL" node scripts/e2e-hospital-browser.mjs
+          npm run test:e2e:hospital
+          npm run test:e2e:hospital:smoke
 
       - name: Readiness evidence gate behavioral tests
         run: npm run test:readiness-report

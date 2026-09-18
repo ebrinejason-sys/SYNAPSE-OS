@@ -32,6 +32,7 @@ supabase/.temp/
 !/artifacts/readiness/route-integrity.json
 !/artifacts/readiness/db-acl-inventory.json
 !/artifacts/readiness/PRODUCTION_DB_RECONCILIATION.json
+!/artifacts/readiness/CORE_OS_GREEN.json
 
 # Temporary debug/probe scripts — may contain hardcoded production data
 scripts/_tmp_*

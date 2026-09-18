@@ -3,6 +3,7 @@ import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyPassword, createAnd
 import { signMfaPendingToken, mfaCookieOptions, MFA_PENDING_COOKIE } from '@synapse/auth/mfa'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { sendOtpEmail } from '../../../../lib/resend'
+import { shouldSkipOtpEmailDelivery } from '../../../../lib/auth/synthetic-otp'
 
 const MAX_ATTEMPTS    = 10
 const LOCKOUT_MINUTES = 30
@@ -125,14 +126,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create verification code.' }, { status: 500 })
   }
 
-  try {
-    await sendOtpEmail(email, otp)
-  } catch (error) {
-    console.error('[auth/password-login] otp email failed', {
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return NextResponse.json({ error: 'Failed to send verification email. Please try again.' }, { status: 500 })
+  const { data: tenantRow } = await db
+    .from('tenants')
+    .select('is_synthetic')
+    .eq('id', profile.tenant_id as string)
+    .maybeSingle()
+
+  const skipEmail = shouldSkipOtpEmailDelivery({
+    isSyntheticTenant: Boolean(tenantRow?.is_synthetic),
+    email,
+  })
+
+  if (!skipEmail) {
+    try {
+      await sendOtpEmail(email, otp)
+    } catch (error) {
+      console.error('[auth/password-login] otp email failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return NextResponse.json({ error: 'Failed to send verification email. Please try again.' }, { status: 500 })
+    }
   }
 
-  return NextResponse.json({ otpSent: true })
+  return NextResponse.json({ otpSent: true, emailDelivery: skipEmail ? 'skipped_synthetic' : 'sent' })
 }
