@@ -674,3 +674,21 @@ export function getPermissionsForRole(role: DemoRole): DemoPermissions {
 export function canPerformAction(role: DemoRole, action: keyof DemoPermissions): boolean {
   return ROLE_PERMISSIONS[role]?.[action] ?? false;
 }
+
+export function normalizeDemoRole(role: string | null | undefined): DemoRole {
+  if (role === "lab") return "lab_technician"
+  if (role && role in ROLE_PERMISSIONS) return role as DemoRole
+  return "reception"
+}
+
+export function currentDemoRole(): DemoRole {
+  if (typeof window === "undefined") return "reception"
+  return normalizeDemoRole(sessionStorage.getItem("synapse_demo_role"))
+}
+
+export function assertDemoPermission(role: DemoRole | string | null | undefined, action: keyof DemoPermissions) {
+  const resolved = normalizeDemoRole(role ?? currentDemoRole())
+  if (!canPerformAction(resolved, action)) {
+    throw new Error(`DEMO_RBAC_DENIED:${action}`)
+  }
+}

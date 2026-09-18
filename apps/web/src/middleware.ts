@@ -262,8 +262,14 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── DEMO subdomain ────────────────────────────────────────────────
+  // Public CTA HTML is prerendered as /demo/login. On this host that
+  // double-prefixes to /demo/demo/login (404). Strip /demo and rewrite.
   if (subdomain === "demo") {
     const url = request.nextUrl.clone();
+    if (pathname === "/demo" || pathname.startsWith("/demo/")) {
+      url.pathname = pathname.replace(/^(?:\/demo)+/, "") || "/";
+      return NextResponse.redirect(url);
+    }
     url.pathname = `/demo${pathname === "/" ? "" : pathname}`;
     return rewrite(url);
   }

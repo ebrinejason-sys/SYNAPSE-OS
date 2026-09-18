@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { signToken } from "@synapse/auth/tokens"
 
-const ROLES = new Set(["reception", "nurse", "doctor", "lab", "pharmacist", "cashier", "admin"])
+const ROLES = new Set(["reception", "nurse", "doctor", "lab", "lab_technician", "lab_scientist", "pharmacist", "cashier", "admin"])
 const DEMO_TENANT = "00000000-0000-4000-8000-000000000001"
 const DEMO_FACILITY = "00000000-0000-4000-8000-000000000010"
 

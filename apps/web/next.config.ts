@@ -14,9 +14,10 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   experimental: {
     serverActions: {
-      allowedOrigins: ["*.synapseos.tech", "localhost:3001"],
+      allowedOrigins: ["*.synapseos.tech", "localhost:3001", "127.0.0.1:3001"],
     },
   },
   images: {

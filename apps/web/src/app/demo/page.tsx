@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { SynapseLogo } from "../../components/SynapseLogo";
 import { resetDemoPlayground } from "../../lib/demo/browser-repository";
+import { demoHref } from "../../lib/demo/paths";
+import { applyStationSession, enterStation } from "../../lib/demo/stations";
+import { DemoMast } from "../../components/demo/DemoMast";
+import { DemoThemeControl } from "../../components/demo/DemoThemeControl";
 
 type Differential = {
   condition: string;
@@ -209,9 +212,9 @@ export default function DemoPage() {
 
   const inp = {
     background: "var(--bg-elevated)",
-    border: "1px solid var(--border-edge)",
+    border: "2px solid var(--border-edge)",
     color: "var(--text-primary)",
-    borderRadius: "12px",
+    borderRadius: "6px",
     padding: "10px 14px",
     fontSize: "14px",
     width: "100%",
@@ -221,106 +224,106 @@ export default function DemoPage() {
   const labelStyle = { color: "var(--text-muted)" } as const;
 
   return (
-    <main style={{ minHeight: "100vh", background: "var(--bg-base)", color: "var(--text-primary)" }}>
-      <header
-        className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4"
-        style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--nav-glass)", backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 10 }}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <SynapseLogo size="sm" />
-          <span
-            className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
-            style={{ background: "rgba(249,115,22,0.15)", color: "var(--brand-orange)", border: "1px solid var(--border-orange)" }}
-          >
-            SYNTHETIC TEST ENVIRONMENT
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/demo/guide"
-            className="text-sm font-medium"
-            style={{ color: "var(--text-secondary)", textDecoration: "none" }}
-          >
-            How the Test Drive works
-          </Link>
-          <Link
-            href="/demo/feedback"
-            className="text-sm font-medium"
-            style={{ color: "var(--text-secondary)", textDecoration: "none" }}
-          >
-            Report feedback
-          </Link>
-          <a
-            href="https://synapseos.tech/apply"
-            className="shrink-0 text-center"
-            style={{
-              background: "var(--brand-orange)",
-              color: "#07070A",
-              fontWeight: 700,
-              fontSize: "13px",
-              padding: "8px 16px",
-              borderRadius: "10px",
-              textDecoration: "none",
-            }}
-          >
-            Register your hospital →
-          </a>
-        </div>
-      </header>
+    <main className="min-h-screen">
+      <DemoMast>
+        <Link
+          href="/demo/guide"
+          className="font-mono text-xs uppercase tracking-wider"
+          style={{ color: "var(--text-secondary)", textDecoration: "none" }}
+          onClick={(event) => {
+            event.preventDefault()
+            window.location.assign(demoHref("guide"))
+          }}
+        >
+          How it works
+        </Link>
+        <Link
+          href="/demo/feedback"
+          className="font-mono text-xs uppercase tracking-wider"
+          style={{ color: "var(--text-secondary)", textDecoration: "none" }}
+          onClick={(event) => {
+            event.preventDefault()
+            window.location.assign(demoHref("feedback"))
+          }}
+        >
+          Feedback
+        </Link>
+        <DemoThemeControl />
+        <a
+          href="https://synapseos.tech/apply"
+          className="border px-3 py-1.5 text-xs font-bold"
+          style={{ background: "var(--brand-orange)", color: "#07070A", borderColor: "var(--brand-orange)", textDecoration: "none" }}
+        >
+          Register hospital
+        </a>
+      </DemoMast>
 
-      <div className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
-        {/* Test Drive Entry Card */}
-        <section className="mb-10 p-6 rounded-2xl" style={{ background: "linear-gradient(135deg, rgba(249,115,22,0.12) 0%, rgba(249,115,22,0.04) 100%)", border: "2px solid var(--border-orange)" }}>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span style={{ fontSize: "24px" }}>🚀</span>
-                <h2 className="font-display font-bold text-2xl" style={{ color: "var(--brand-orange)", letterSpacing: "-0.01em" }}>
-                  Explore SYNAPSE Test Drive
-                </h2>
-              </div>
-              <p className="text-sm" style={{ color: "var(--text-secondary)", maxWidth: "600px" }}>
-                Experience the connected SYNAPSE workflow: Hospital → Lab → Pharmacy.
-                Switch roles, follow a synthetic patient, and see the longitudinal health record.
-                <strong> No real patient data. No setup required.</strong>
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3 shrink-0">
-              <Link
-                href="/demo/login"
-                className="px-5 py-3 rounded-xl font-bold text-lg transition-all"
-                style={{ background: "var(--brand-orange)", color: "#07070A", textDecoration: "none", border: "none" }}
-              >
-                Start Test Drive →
-              </Link>
-              <Link
-                href="/demo/guide"
-                className="px-5 py-3 rounded-xl font-bold text-lg transition-all flex items-center"
-                style={{ background: "transparent", color: "var(--brand-orange)", textDecoration: "none", border: "2px solid var(--brand-orange)" }}
-              >
-                View Guide
-              </Link>
-              <button type="button" onClick={resetPlayground} className="px-4 py-3 rounded-xl text-sm font-semibold" style={{ background: "var(--bg-surface)", color: "var(--text-secondary)", border: "1px solid var(--border-edge)" }}>
-                Reset Playground
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+        <section className="demo-hero mb-8">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.28em]" style={{ color: "var(--text-muted)" }}>
+            SYNTHETIC TEST DRIVE
+          </p>
+          <h1 className="font-display mt-2 text-3xl font-bold tracking-tight sm:text-5xl">SYNAPSE Test Drive</h1>
+          <p className="mt-3 max-w-2xl text-base" style={{ color: "var(--text-secondary)" }}>
+            Run one synthetic patient through Reception, Triage, Doctor, Lab, Pharmacy and Billing.
+          </p>
+          <p className="mt-2 text-sm font-medium" style={{ color: "var(--brand-orange)" }}>
+            DO NOT ENTER REAL PATIENT DATA
+          </p>
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <a className="demo-btn-primary" href={demoHref("login")}>
+              Start Test Drive
+            </a>
+            <button
+              type="button"
+              className="demo-btn-secondary"
+              onClick={() => {
+                applyStationSession("reception")
+                window.location.assign(demoHref("reception"))
+              }}
+            >
+              Start Golden Journey
+            </button>
+            <button type="button" className="demo-btn-secondary" onClick={() => window.location.assign(demoHref("guide"))}>
+              View Guide
+            </button>
+            <button type="button" className="demo-btn-secondary" onClick={resetPlayground}>
+              Reset Playground
+            </button>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              { label: "Demo Hospital", station: "reception" as const },
+              { label: "Demo Lab", station: "lab" as const },
+              { label: "Demo Pharmacy", station: "pharmacist" as const },
+              { label: "Amina Demo", station: "reception" as const },
+            ].map((item) => (
+              <button key={item.label} type="button" className="demo-card p-3 text-left text-sm font-semibold" onClick={() => enterStation(item.station)}>
+                {item.label}
               </button>
-            </div>
+            ))}
           </div>
-          <div className="mt-4 pt-4 border-t flex flex-wrap gap-6 text-xs" style={{ borderColor: "var(--border-orange)", color: "var(--text-muted)" }}>
-            <span>🏥 SYNAPSE Demo Hospital</span>
-            <span>🧪 SYNAPSE Demo Lab</span>
-            <span>💊 SYNAPSE Demo Pharmacy</span>
-            <span>👤 Patient: Amina Demo</span>
-            <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>SYNTHETIC DATA ONLY</span>
-          </div>
+
+          <ol className="mt-6 grid gap-3 text-sm sm:grid-cols-4">
+            <li className="demo-card p-3"><span className="font-mono text-[10px] font-bold" style={{ color: "var(--brand-orange)" }}>01</span><br />Register</li>
+            <li className="demo-card p-3"><span className="font-mono text-[10px] font-bold" style={{ color: "var(--brand-orange)" }}>02</span><br />Assess</li>
+            <li className="demo-card p-3"><span className="font-mono text-[10px] font-bold" style={{ color: "var(--brand-orange)" }}>03</span><br />Investigate</li>
+            <li className="demo-card p-3"><span className="font-mono text-[10px] font-bold" style={{ color: "var(--brand-orange)" }}>04</span><br />Treat & Close</li>
+          </ol>
         </section>
 
         {/* Clinical AI Demo (preserved) */}
-        <section aria-labelledby="ai-demo-heading">
-          <h2 id="ai-demo-heading" className="font-display font-bold text-2xl mb-6" style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
-            Clinical AI Demo
+        <section className="demo-frame p-6 sm:p-8" aria-labelledby="ai-demo-heading">
+          <h2 id="ai-demo-heading" className="font-display font-bold text-2xl mb-2" style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
+            Try Clinical AI
           </h2>
-          <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
-            Grounded in Uganda Clinical Guidelines · Multi-model AI · For educational purposes only
+          <p className="text-sm mb-3" style={{ color: "var(--text-secondary)" }}>
+            Optional and educational. The Test Drive above does not require AI.
+          </p>
+          <p className="text-xs mb-6" style={{ color: "var(--brand-orange)" }}>
+            Synthetic/de-identified clinical context may be sent to the configured AI provider.
           </p>
 
           <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -338,10 +341,10 @@ export default function DemoPage() {
                           if (s.id === 1 || complaint.trim() || s.id <= step) setStep(s.id);
                         }
                       }}
-                      className="flex-1 min-w-0 rounded-xl px-1.5 sm:px-2 py-2 text-center transition-all"
+                      className="flex-1 min-w-0 px-1.5 py-2 text-center sm:px-2"
                       style={{
                         background: active ? "rgba(249,115,22,0.12)" : "var(--bg-surface)",
-                        border: `1px solid ${active || done ? "var(--border-orange)" : "var(--border-edge)"}`,
+                        border: `2px solid ${active || done ? "var(--brand-orange)" : "var(--demo-ink)"}`,
                         color: active ? "var(--brand-orange)" : done ? "var(--text-primary)" : "var(--text-muted)",
                         cursor: "pointer",
                       }}

@@ -1,12 +1,13 @@
 "use client";
 
-import { SynapseLogo } from "../../../components/SynapseLogo";
+import { DEMO_ROUTES, demoHref } from "../../../lib/demo/paths";
+import { DemoMast } from "../../../components/demo/DemoMast";
 
 const STEPS = [
   {
     number: 1,
     role: "Reception",
-    route: "/dept/reception",
+    route: "/demo/reception",
     title: "Register Amina Demo",
     description: "Find or register the demo patient, verify demographics, generate Synapse ID, start encounter, and queue for triage.",
     details: [
@@ -19,7 +20,7 @@ const STEPS = [
   {
     number: 2,
     role: "Nurse",
-    route: "/nurse",
+    route: "/demo/nurse",
     title: "Record Triage & Vitals",
     description: "Open nursing worklist, select Amina, record vital signs and triage assessment.",
     details: [
@@ -32,7 +33,7 @@ const STEPS = [
   {
     number: 3,
     role: "Doctor",
-    route: "/doctor",
+    route: "/demo/doctor",
     title: "Clinical Encounter & Lab Order",
     description: "Complete the clinical write-up and order a lab test.",
     details: [
@@ -47,7 +48,7 @@ const STEPS = [
   {
     number: 4,
     role: "Lab",
-    route: "/lab",
+    route: "/demo/lab",
     title: "Process Lab Order",
     description: "Receive the external order, accession, collect specimen, enter result, verify, and release.",
     details: [
@@ -62,7 +63,7 @@ const STEPS = [
   {
     number: 5,
     role: "Doctor",
-    route: "/doctor",
+    route: "/demo/doctor",
     title: "Review Result & Prescribe",
     description: "See released result, acknowledge, confirm diagnosis, ICD-11 code, treatment plan, prescribe.",
     details: [
@@ -77,7 +78,7 @@ const STEPS = [
   {
     number: 6,
     role: "Pharmacist",
-    route: "/pharmacy",
+    route: "/demo/pharmacist",
     title: "Verify & Dispense",
     description: "Receive prescription, verify, select batch (FEFO), dispense, stock decrement, print receipt.",
     details: [
@@ -91,7 +92,7 @@ const STEPS = [
   {
     number: 7,
     role: "Reception",
-    route: "/dept/reception",
+    route: "/demo/billing",
     title: "Billing & Disposition",
     description: "Review accumulated charges, settle payment, close encounter.",
     details: [
@@ -105,7 +106,7 @@ const STEPS = [
   {
     number: 8,
     role: "Any",
-    route: "/patient/[id]/timeline",
+    route: "/demo/timeline",
     title: "Review Longitudinal Timeline",
     description: "See the complete care journey under ONE person identity.",
     details: [
@@ -120,24 +121,20 @@ const STEPS = [
 
 export default function DemoGuidePage() {
   return (
-    <main style={{ minHeight: "100vh", background: "var(--bg-base)", color: "var(--text-primary)" }}>
-      <header
-        className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4"
-        style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--nav-glass)", backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 10 }}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <SynapseLogo size="sm" />
-          <span
-            className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
-            style={{ background: "rgba(249,115,22,0.15)", color: "var(--brand-orange)", border: "1px solid var(--border-orange)" }}
-          >
-            TEST DRIVE GUIDE
-          </span>
-        </div>
-        <a href="/demo/login" className="shrink-0 text-sm" style={{ color: "var(--brand-orange)" }}>
-          Start Test Drive →
+    <main className="min-h-screen">
+      <DemoMast badge="TEST DRIVE GUIDE">
+        <a
+          href={DEMO_ROUTES.login}
+          className="font-mono text-xs uppercase tracking-wider"
+          style={{ color: "var(--brand-orange)" }}
+          onClick={(event) => {
+            event.preventDefault()
+            window.location.assign(demoHref("login"))
+          }}
+        >
+          Start Test Drive
         </a>
-      </header>
+      </DemoMast>
 
       <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
         <div className="text-center mb-10">

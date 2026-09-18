@@ -160,6 +160,11 @@ jobs:
           npm audit --json > artifacts/readiness/npm-audit.json || true
           node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('artifacts/readiness/npm-audit.json','utf8')); const vulns=j.metadata?.vulnerabilities||{}; console.log('npm audit', JSON.stringify(vulns));"
 
+      - name: Demo Golden Journey Playwright
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e:demo
+
       - name: Browser Golden Journey (requires SYNAPSE_E2E_BASE_URL)
         run: |
           mkdir -p artifacts/readiness

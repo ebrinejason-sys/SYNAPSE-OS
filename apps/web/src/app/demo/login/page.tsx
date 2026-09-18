@@ -1,179 +1,98 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { SynapseLogo } from "../../../components/SynapseLogo";
+import { DEMO_ROUTES, demoHref } from "../../../lib/demo/paths"
+import { applyStationSession, DEMO_STATIONS, stationHref } from "../../../lib/demo/stations"
+import { DemoMast } from "../../../components/demo/DemoMast"
+import { DemoThemeControl } from "../../../components/demo/DemoThemeControl"
 
-const ROLES = [
-  {
-    id: "reception",
-    label: "Enter as Reception",
-    description: "Register patients, start encounters, manage queue",
-    icon: "👥",
-    color: "#3B82F6",
-  },
-  {
-    id: "nurse",
-    label: "Enter as Nurse",
-    description: "Record vitals, triage patients, send to doctor",
-    icon: "🩺",
-    color: "#10B981",
-  },
-  {
-    id: "doctor",
-    label: "Enter as Doctor",
-    description: "Clinical encounter, diagnosis, orders, prescriptions",
-    icon: "👨‍⚕️",
-    color: "#F59E0B",
-  },
-  {
-    id: "lab",
-    label: "Enter as Lab",
-    description: "Process orders, enter results, verify and release",
-    icon: "🧪",
-    color: "#8B5CF6",
-  },
-  {
-    id: "pharmacist",
-    label: "Enter as Pharmacist",
-    description: "Verify prescriptions, dispense, manage inventory",
-    icon: "💊",
-    color: "#EC4899",
-  },
-  {
-    id: "admin",
-    label: "Enter as Facility Admin",
-    description: "Manage staff, view analytics, configure facility",
-    icon: "⚙️",
-    color: "#6B7280",
-  },
-] as const;
+const STATION_COPY: Record<string, string> = {
+  reception: "Register the synthetic patient and start an OPD visit.",
+  nurse: "Record vitals, triage, and send onward to the doctor.",
+  doctor: "Document, order labs, diagnose, and prescribe.",
+  lab: "Accept, collect, enter, then verify and release results.",
+  review: "Return after Lab with released results.",
+  pharmacist: "Review the prescription, pick the FEFO batch, dispense.",
+  billing: "Invoice, record payment, and close the visit.",
+  timeline: "See Hospital, Lab, and Pharmacy on one chart.",
+}
 
 export default function DemoLoginPage() {
-  const [selectedRole, setSelectedRole] = useState<typeof ROLES[0] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleLogin(roleId: string) {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/demo/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: roleId }) });
-      if (!response.ok) throw new Error("Demo session unavailable");
-      sessionStorage.setItem("synapse_demo_role", roleId);
-      sessionStorage.setItem("synapse_demo_mode", "true");
-      window.location.href = "/demo/workspace";
-    } catch (e) {
-      setError("Failed to start demo session. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
-    <main style={{ minHeight: "100vh", background: "var(--bg-base)", color: "var(--text-primary)" }}>
-      <header
-        className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4"
-        style={{ borderBottom: "1px solid var(--border-subtle)", background: "var(--nav-glass)", backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 10 }}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <SynapseLogo size="sm" />
-          <span
-            className="text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
-            style={{ background: "rgba(249,115,22,0.15)", color: "var(--brand-orange)", border: "1px solid var(--border-orange)" }}
-          >
-            SYNTHETIC DEMO
-          </span>
-        </div>
-        <a href="/demo/guide" className="shrink-0 text-sm" style={{ color: "var(--text-secondary)" }}>
-          View Guide →
-        </a>
-      </header>
-
-      <div className="max-w-4xl mx-auto px-4 py-12 sm:py-16">
-        <div className="text-center mb-12">
-          <h1 className="font-display font-bold text-3xl sm:text-4xl mb-4" style={{ letterSpacing: "-0.02em" }}>
-            Explore SYNAPSE Test Drive
-          </h1>
-          <p className="text-lg" style={{ color: "var(--text-secondary)", maxWidth: "600px", margin: "0 auto" }}>
-            Choose a role to experience the connected SYNAPSE workflow with synthetic data.
-            No real patient data. No setup required.
-          </p>
-        </div>
-
-        <div
-          className="p-4 rounded-2xl mb-8"
-          style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.25)" }}
+    <main className="min-h-screen">
+      <DemoMast badge="TEST DRIVE / SYNTHETIC">
+        <a
+          href={DEMO_ROUTES.guide}
+          className="font-mono text-xs uppercase tracking-wider"
+          style={{ color: "var(--text-secondary)" }}
+          onClick={(event) => {
+            event.preventDefault()
+            window.location.assign(demoHref("guide"))
+          }}
         >
-          <div className="flex items-center gap-2 mb-2">
-            <span style={{ color: "#EF4444", fontSize: "18px" }}>⚠</span>
-            <h3 className="font-bold" style={{ color: "#EF4444" }}>SYNTHETIC DEMO — NO REAL PATIENT DATA</h3>
-          </div>
-          <p className="text-sm" style={{ color: "#FCA5A5" }}>
-            All data in this environment is synthetic. The demo patient <strong>Amina Demo</strong> is a generated identity.
-            Actions here do not affect any real systems or patients.
-          </p>
-        </div>
+          Guide
+        </a>
+        <DemoThemeControl />
+      </DemoMast>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {ROLES.map((role) => (
-            <button
-              key={role.id}
-              type="button"
-              onClick={() => handleLogin(role.id)}
-              disabled={loading}
-              className="group p-6 rounded-2xl text-left transition-all relative overflow-hidden"
-              style={{
-                background: selectedRole?.id === role.id ? `${role.color}15` : "var(--bg-surface)",
-                border: `2px solid ${selectedRole?.id === role.id ? role.color : "var(--border-edge)"}`,
-                cursor: loading ? "not-allowed" : "pointer",
-              }}
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:py-12">
+        <section className="demo-hero">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.28em]" style={{ color: "var(--text-muted)" }}>
+            SYNTHETIC TEST DRIVE
+          </p>
+          <h1 className="font-display mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+            Take a station
+          </h1>
+          <p className="mt-3 max-w-2xl text-base" style={{ color: "var(--text-secondary)" }}>
+            Choosing a station also switches the Test Drive role. No real patient data.
+          </p>
+          <p className="mt-2 text-sm font-medium" style={{ color: "var(--brand-orange)" }}>
+            DO NOT ENTER REAL PATIENT DATA
+          </p>
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <a className="demo-btn-primary inline-flex items-center justify-center" href={stationHref("reception")} onClick={() => applyStationSession("reception")}>
+              Recommended start: Reception
+            </a>
+            <a className="demo-btn-secondary inline-flex items-center justify-center" href={stationHref("reception")} onClick={() => applyStationSession("reception")}>
+              Start Golden Journey
+            </a>
+          </div>
+          <p className="mt-3 text-sm" style={{ color: "var(--text-secondary)" }}>
+            Follow one synthetic patient through the full eight-step care journey.
+          </p>
+        </section>
+
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {DEMO_STATIONS.map((station) => (
+            <a
+              key={station.id}
+              className="demo-card p-4 text-left"
+              href={stationHref(station.id)}
+              onClick={() => applyStationSession(station.id)}
             >
-              <div className="flex items-start gap-4">
-                <div
-                  className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
-                  style={{ background: `${role.color}15`, color: role.color }}
-                >
-                  {role.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-lg truncate" style={{ color: "var(--text-primary)" }}>
-                    {role.label}
-                  </h3>
-                  <p className="text-sm mt-1 truncate" style={{ color: "var(--text-secondary)" }}>
-                    {role.description}
-                  </p>
-                </div>
-              </div>
-              {selectedRole?.id === role.id && (
-                <div className="absolute inset-0" style={{ background: `${role.color}05` }} />
-              )}
-            </button>
+              <h2 className="text-lg font-bold">{station.label}</h2>
+              <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+                {STATION_COPY[station.id]}
+              </p>
+            </a>
           ))}
         </div>
 
-        {error && (
-          <div
-            className="mt-6 px-4 py-3 rounded-xl text-sm text-center"
-            style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", color: "#EF4444" }}
-          >
-            {error}
-          </div>
-        )}
-
-        <div className="mt-10 pt-6 border-t" style={{ borderColor: "var(--border-edge)" }}>
-          <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>
-            This is a synthetic test environment. 
-            <a href="/demo/guide" className="underline" style={{ color: "var(--brand-orange)" }}>
-              Read the tester guide
-            </a>
-            {' '}or{' '}
-            <a href="/demo/feedback" className="underline" style={{ color: "var(--brand-orange)" }}>
-              report a problem
-            </a>
-            .
-          </p>
-        </div>
+        <p className="mt-6 text-xs" style={{ color: "var(--text-muted)" }}>
+          Explore{" "}
+          <button type="button" className="underline" onClick={() => window.location.assign(demoHref("admin"))}>
+            Admin
+          </button>
+          {" · "}
+          <button type="button" className="underline" onClick={() => window.location.assign(demoHref("network"))}>
+            Network
+          </button>
+          {" · "}
+          <button type="button" className="underline" onClick={() => window.location.assign(demoHref("guide"))}>
+            Guide
+          </button>
+        </p>
       </div>
     </main>
-  );
+  )
 }
