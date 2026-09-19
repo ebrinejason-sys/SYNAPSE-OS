@@ -2,7 +2,7 @@ export const E2E_FACILITY_SLUGS = ["synapse-e2e-hospital", "synapse-e2e-hospital
 
 /** Canonical allowlisted synthetic users for trusted acceptance only. */
 export const E2E_ROLE_EMAILS = {
-  receptionist: "reception.e2e@synapseos.invalid",
+  receptionist: "synapseostech@gmail.com",
   nurse: "nurse.e2e@synapseos.invalid",
   doctor: "doctor.e2e@synapseos.invalid",
   lab_tech: "labtech.e2e@synapseos.invalid",

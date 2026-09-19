@@ -13,14 +13,14 @@ describe("E2E OTP policy", () => {
   it("never resolves a fixed OTP in production or without explicit acceptance flags", () => {
     assert.equal(
       resolveE2eOtp(
-        { email: "reception.e2e@synapseos.invalid", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
+        { email: "synapseostech@gmail.com", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
         { VERCEL_ENV: "production", SYNAPSE_E2E_AUTH: "true", SYNAPSE_E2E_ACCEPTANCE_ENV: "true", SYNAPSE_E2E_FIXED_OTP: "135790" },
       ),
       null,
     )
     assert.equal(
       resolveE2eOtp(
-        { email: "reception.e2e@synapseos.invalid", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
+        { email: "synapseostech@gmail.com", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
         { SYNAPSE_E2E_FIXED_OTP: "135790" },
       ),
       null,
@@ -35,7 +35,7 @@ describe("E2E OTP policy", () => {
     }
     assert.equal(
       resolveE2eOtp(
-        { email: "reception.e2e@synapseos.invalid", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
+        { email: "synapseostech@gmail.com", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
         env,
       ),
       "135790",
@@ -49,7 +49,7 @@ describe("E2E OTP policy", () => {
     )
     assert.equal(
       resolveE2eOtp(
-        { email: "reception.e2e@synapseos.invalid", isSyntheticTenant: true, facilitySlug: "other-hospital" },
+        { email: "synapseostech@gmail.com", isSyntheticTenant: true, facilitySlug: "other-hospital" },
         env,
       ),
       null,
@@ -58,7 +58,7 @@ describe("E2E OTP policy", () => {
 
   it("skips Resend only for allowlisted E2E inboxes, not every synthetic tenant", () => {
     assert.equal(shouldSkipOtpEmailDelivery({ isSyntheticTenant: true, email: "a@example.com" }), false)
-    assert.equal(shouldSkipOtpEmailDelivery({ email: "reception.e2e@synapseos.invalid" }), true)
+    assert.equal(shouldSkipOtpEmailDelivery({ email: "synapseostech@gmail.com" }), true)
     assert.equal(shouldSkipOtpEmailDelivery({ email: "clinician@hospital.ug" }), false)
     assert.equal(isE2eAllowlistedEmail("admin.e2e@synapseos.invalid"), true)
   })
@@ -74,7 +74,7 @@ describe("E2E OTP policy", () => {
 
   it("does not bypass OTP rate limits unless a protected E2E OTP was resolved", () => {
     const denied = otpCreatePolicy(
-      { email: "reception.e2e@synapseos.invalid", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
+      { email: "synapseostech@gmail.com", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
       {},
     )
     assert.equal(denied.bypassHourlyLimit, false)
@@ -82,7 +82,7 @@ describe("E2E OTP policy", () => {
     assert.equal(denied.otpOverride, null)
 
     const allowed = otpCreatePolicy(
-      { email: "reception.e2e@synapseos.invalid", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
+      { email: "synapseostech@gmail.com", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
       { SYNAPSE_E2E_AUTH: "true", SYNAPSE_E2E_ACCEPTANCE_ENV: "true", SYNAPSE_E2E_FIXED_OTP: "135790" },
     )
     assert.equal(allowed.bypassHourlyLimit, true)

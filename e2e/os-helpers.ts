@@ -6,7 +6,7 @@ export const FACILITY_B = process.env.SYNAPSE_E2E_FACILITY_B_SLUG || "synapse-e2
 
 /** Keep in sync with packages/auth/src/e2e-otp.ts — duplicated so Playwright does not import the auth package. */
 export const E2E_ROLE_EMAILS = {
-  receptionist: "reception.e2e@synapseos.invalid",
+  receptionist: "synapseostech@gmail.com",
   nurse: "nurse.e2e@synapseos.invalid",
   doctor: "doctor.e2e@synapseos.invalid",
   lab_tech: "labtech.e2e@synapseos.invalid",

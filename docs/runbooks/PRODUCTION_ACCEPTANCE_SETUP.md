@@ -89,7 +89,7 @@ The following values are **invented by the operator** and must remain consistent
 ### `SYNAPSE_E2E_EMAIL`
 - **MUST** use a canonical E2E role email from the OTP allowlist
 - The acceptance authentication gates only permit specific emails defined in `packages/auth/src/e2e-otp.ts`
-- **Required value**: `reception.e2e@synapseos.invalid`
+- **Required value**: the receptionist address in `packages/auth/src/e2e-otp.ts` (currently `synapseostech@gmail.com`)
 - Alternative role emails (if needed): `nurse.e2e@synapseos.invalid`, `doctor.e2e@synapseos.invalid`, etc.
 - Will be seeded into the `profiles` table for login
 
