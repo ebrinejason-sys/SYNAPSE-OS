@@ -10,9 +10,24 @@ export { ACCOUNT_ACTIVATION_ERROR, isAccountActivated } from './activation'
 export { hashPassword, verifyPassword, validatePasswordStrength } from './password'
 
 export {
-  createAndSendOTP, verifyOTP,
-  generateOTP, hashOTP, verifyOTPHash,
+  createAndSendOTP,
+  verifyOTP,
+  generateOTP,
+  hashOTP,
+  verifyOTPHash,
+  otpCreatePolicy,
 } from './otp'
+
+export {
+  E2E_FACILITY_SLUGS,
+  E2E_ROLE_EMAILS,
+  resolveE2eOtp,
+  shouldSkipOtpEmailDelivery,
+  isE2eAllowlistedEmail,
+  isE2eFacilitySlug,
+  assertE2eSeedAllowed,
+} from './e2e-otp'
+export type { E2eOtpContext } from './e2e-otp'
 
 export {
   createSession, validateSession, revokeSession, revokeAllUserSessions, hashToken,

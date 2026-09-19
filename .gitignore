@@ -32,6 +32,7 @@ supabase/.temp/
 !/artifacts/readiness/route-integrity.json
 !/artifacts/readiness/db-acl-inventory.json
 !/artifacts/readiness/PRODUCTION_DB_RECONCILIATION.json
+!/artifacts/readiness/CORE_OS_GREEN.json
 !/artifacts/readiness/FINAL_GREEN_RELEASE.json
 !/artifacts/readiness/deployment-sha-alignment.json
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, createAndSendOTP } from '@synapse/auth'
+import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, createAndSendOTP, shouldSkipOtpEmailDelivery } from '@synapse/auth'
 import { createServiceClient } from '../../../../../lib/supabase/server'
 import { sendOtpEmail } from '../../../../../lib/resend'
 
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
 
   const { data: profile, error: profileErr } = await db
     .from('profiles')
-    .select('id, verification_status, email_verified_at, is_deleted')
+    .select('id, tenant_id, verification_status, email_verified_at, is_deleted')
     .eq('email', email)
     .maybeSingle()
 
@@ -32,9 +32,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
   }
 
+  const { data: tenantRow } = await db
+    .from('tenants')
+    .select('is_synthetic, slug')
+    .eq('id', profile.tenant_id as string)
+    .maybeSingle()
+
+  const e2e = {
+    email,
+    isSyntheticTenant: Boolean(tenantRow?.is_synthetic),
+    facilitySlug: typeof tenantRow?.slug === 'string' ? tenantRow.slug : null,
+  }
+
   let otp: string
   try {
-    otp = await createAndSendOTP({ channel: 'email', target: email })
+    otp = await createAndSendOTP({ channel: 'email', target: email, e2e })
   } catch (error) {
     const msg = error instanceof Error ? error.message : ''
     if (msg === 'TOO_MANY_REQUESTS') {
@@ -46,11 +58,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create verification' }, { status: 500 })
   }
 
-  try {
-    await sendOtpEmail(email, otp)
-  } catch (err) {
-    console.error('Email OTP send error:', err)
-    return NextResponse.json({ error: 'Failed to send email. Please try again.' }, { status: 500 })
+  if (!shouldSkipOtpEmailDelivery(e2e)) {
+    try {
+      await sendOtpEmail(email, otp)
+    } catch (err) {
+      console.error('Email OTP send error:', err)
+      return NextResponse.json({ error: 'Failed to send email. Please try again.' }, { status: 500 })
+    }
   }
 
   return NextResponse.json({ ok: true })
