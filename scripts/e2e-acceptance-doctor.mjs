@@ -21,6 +21,9 @@ const checks = {
         if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
           return { status: "INVALID", reason: "Must be remote, not localhost" }
         }
+        if (url.hostname.endsWith(".invalid") || url.hostname.endsWith(".example") || url.hostname.endsWith(".test")) {
+          return { status: "INVALID", reason: "Must be a real Vercel Preview host, not a placeholder" }
+        }
         return { status: "FOUND" }
       } catch {
         return { status: "INVALID", reason: "Not a valid URL" }
@@ -35,6 +38,9 @@ const checks = {
       if (!value) return { status: "MISSING" }
       if (!value.includes("@")) {
         return { status: "INVALID", reason: "Not a valid email format" }
+      }
+      if (!value.endsWith("@synapseos.invalid")) {
+        return { status: "INVALID", reason: "Must be a synthetic @synapseos.invalid E2E identity" }
       }
       return { status: "FOUND" }
     },

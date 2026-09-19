@@ -2,7 +2,7 @@ export const E2E_FACILITY_SLUGS = ["synapse-e2e-hospital", "synapse-e2e-hospital
 
 /** Canonical allowlisted synthetic users for trusted acceptance only. */
 export const E2E_ROLE_EMAILS = {
-  receptionist: "synapseostech@gmail.com",
+  receptionist: "reception.e2e@synapseos.invalid",
   nurse: "nurse.e2e@synapseos.invalid",
   doctor: "doctor.e2e@synapseos.invalid",
   lab_tech: "labtech.e2e@synapseos.invalid",
@@ -34,11 +34,17 @@ export function isE2eAcceptanceRuntime(env: NodeJS.ProcessEnv = process.env): bo
     && env.VERCEL_ENV !== "production"
 }
 
-export function shouldSkipOtpEmailDelivery(input: {
-  email?: string | null
-  isSyntheticTenant?: boolean | null
-}): boolean {
-  return isE2eAllowlistedEmail(input.email)
+export function shouldSkipOtpEmailDelivery(
+  input: { email?: string | null } & E2eOtpContext,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const email = String(input.email || "").trim()
+  if (!email) return false
+  return resolveE2eOtp({
+    email,
+    isSyntheticTenant: input.isSyntheticTenant,
+    facilitySlug: input.facilitySlug,
+  }, env) !== null
 }
 
 /**

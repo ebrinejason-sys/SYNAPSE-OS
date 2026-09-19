@@ -32,6 +32,8 @@ test("Playwright helpers do not plant OTPs or hardcode a reusable code", () => {
   assert.doesNotMatch(helpers, /SUPABASE_SERVICE_ROLE_KEY/)
   assert.match(helpers, /SYNAPSE_E2E_FIXED_OTP/)
   assert.match(helpers, /expectAuthenticatedWorkspace/)
+  assert.doesNotMatch(helpers, /gmail\.com/i)
+  assert.match(helpers, /reception\.e2e@synapseos\.invalid/)
 })
 
 test("acceptance workflow uses minimized secret surface", () => {

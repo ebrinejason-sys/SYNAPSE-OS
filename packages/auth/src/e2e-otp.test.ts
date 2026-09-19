@@ -9,58 +9,76 @@ import {
 } from "./e2e-otp.ts"
 import { otpCreatePolicy } from "./otp.ts"
 
+const RECEPTION = E2E_ROLE_EMAILS.receptionist
+const ACCEPTANCE_ENV = {
+  SYNAPSE_E2E_AUTH: "true",
+  SYNAPSE_E2E_ACCEPTANCE_ENV: "true",
+  SYNAPSE_E2E_FIXED_OTP: "135790",
+} as const
+const SYNTHETIC_RECEPTION = {
+  email: RECEPTION,
+  isSyntheticTenant: true,
+  facilitySlug: "synapse-e2e-hospital",
+} as const
+
 describe("E2E OTP policy", () => {
-  it("never resolves a fixed OTP in production or without explicit acceptance flags", () => {
+  it("A: production runtime + E2E email => no fixed OTP and email delivery is not skipped", () => {
+    const production = {
+      ...ACCEPTANCE_ENV,
+      VERCEL_ENV: "production",
+    }
+    assert.equal(resolveE2eOtp(SYNTHETIC_RECEPTION, production), null)
+    assert.equal(shouldSkipOtpEmailDelivery(SYNTHETIC_RECEPTION, production), false)
+  })
+
+  it("B: non-synthetic tenant => no fixed OTP and email delivery is not skipped", () => {
+    const input = { ...SYNTHETIC_RECEPTION, isSyntheticTenant: false }
+    assert.equal(resolveE2eOtp(input, ACCEPTANCE_ENV), null)
+    assert.equal(shouldSkipOtpEmailDelivery(input, ACCEPTANCE_ENV), false)
+  })
+
+  it("C: wrong facility slug => fixed OTP denied", () => {
+    const input = { ...SYNTHETIC_RECEPTION, facilitySlug: "other-hospital" }
+    assert.equal(resolveE2eOtp(input, ACCEPTANCE_ENV), null)
+    assert.equal(shouldSkipOtpEmailDelivery(input, ACCEPTANCE_ENV), false)
+  })
+
+  it("D: non-allowlisted identity => fixed OTP denied", () => {
+    const input = { ...SYNTHETIC_RECEPTION, email: "real.user@hospital.ug" }
+    assert.equal(resolveE2eOtp(input, ACCEPTANCE_ENV), null)
+    assert.equal(shouldSkipOtpEmailDelivery(input, ACCEPTANCE_ENV), false)
     assert.equal(
-      resolveE2eOtp(
-        { email: "synapseostech@gmail.com", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
-        { VERCEL_ENV: "production", SYNAPSE_E2E_AUTH: "true", SYNAPSE_E2E_ACCEPTANCE_ENV: "true", SYNAPSE_E2E_FIXED_OTP: "135790" },
-      ),
-      null,
-    )
-    assert.equal(
-      resolveE2eOtp(
-        { email: "synapseostech@gmail.com", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
-        { SYNAPSE_E2E_FIXED_OTP: "135790" },
-      ),
-      null,
+      shouldSkipOtpEmailDelivery({ email: "synapseostech@gmail.com", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" }, ACCEPTANCE_ENV),
+      false,
     )
   })
 
-  it("resolves a secret OTP only for allowlisted synthetic E2E users in acceptance", () => {
-    const env = {
+  it("E: proper synthetic Preview => fixed OTP works and email may be skipped", () => {
+    assert.equal(resolveE2eOtp(SYNTHETIC_RECEPTION, ACCEPTANCE_ENV), "135790")
+    assert.equal(shouldSkipOtpEmailDelivery(SYNTHETIC_RECEPTION, ACCEPTANCE_ENV), true)
+  })
+
+  it("F: VERCEL_ENV=production denies the shortcut regardless of other flags", () => {
+    const production = {
       SYNAPSE_E2E_AUTH: "true",
       SYNAPSE_E2E_ACCEPTANCE_ENV: "true",
       SYNAPSE_E2E_FIXED_OTP: "135790",
+      VERCEL_ENV: "production",
     }
-    assert.equal(
-      resolveE2eOtp(
-        { email: "synapseostech@gmail.com", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
-        env,
-      ),
-      "135790",
-    )
-    assert.equal(
-      resolveE2eOtp(
-        { email: "real.user@hospital.ug", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
-        env,
-      ),
-      null,
-    )
-    assert.equal(
-      resolveE2eOtp(
-        { email: "synapseostech@gmail.com", isSyntheticTenant: true, facilitySlug: "other-hospital" },
-        env,
-      ),
-      null,
-    )
+    assert.equal(resolveE2eOtp(SYNTHETIC_RECEPTION, production), null)
+    assert.equal(shouldSkipOtpEmailDelivery(SYNTHETIC_RECEPTION, production), false)
   })
 
-  it("skips Resend only for allowlisted E2E inboxes, not every synthetic tenant", () => {
+  it("does not skip email from an allowlisted address alone", () => {
+    assert.equal(shouldSkipOtpEmailDelivery({ email: RECEPTION }), false)
     assert.equal(shouldSkipOtpEmailDelivery({ isSyntheticTenant: true, email: "a@example.com" }), false)
-    assert.equal(shouldSkipOtpEmailDelivery({ email: "synapseostech@gmail.com" }), true)
     assert.equal(shouldSkipOtpEmailDelivery({ email: "clinician@hospital.ug" }), false)
     assert.equal(isE2eAllowlistedEmail("admin.e2e@synapseos.invalid"), true)
+    assert.equal(isE2eAllowlistedEmail("synapseostech@gmail.com"), false)
+  })
+
+  it("never resolves a fixed OTP without explicit acceptance flags", () => {
+    assert.equal(resolveE2eOtp(SYNTHETIC_RECEPTION, { SYNAPSE_E2E_FIXED_OTP: "135790" }), null)
   })
 
   it("rejects seed unless the exact synthetic slugs are used", () => {
@@ -73,25 +91,22 @@ describe("E2E OTP policy", () => {
   })
 
   it("does not bypass OTP rate limits unless a protected E2E OTP was resolved", () => {
-    const denied = otpCreatePolicy(
-      { email: "synapseostech@gmail.com", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
-      {},
-    )
+    const denied = otpCreatePolicy(SYNTHETIC_RECEPTION, {})
     assert.equal(denied.bypassHourlyLimit, false)
     assert.equal(denied.replaceUnusedRows, false)
     assert.equal(denied.otpOverride, null)
 
-    const allowed = otpCreatePolicy(
-      { email: "synapseostech@gmail.com", isSyntheticTenant: true, facilitySlug: "synapse-e2e-hospital" },
-      { SYNAPSE_E2E_AUTH: "true", SYNAPSE_E2E_ACCEPTANCE_ENV: "true", SYNAPSE_E2E_FIXED_OTP: "135790" },
-    )
+    const allowed = otpCreatePolicy(SYNTHETIC_RECEPTION, ACCEPTANCE_ENV)
     assert.equal(allowed.bypassHourlyLimit, true)
     assert.equal(allowed.replaceUnusedRows, true)
     assert.equal(allowed.otpOverride, "135790")
   })
 
-  it("uses distinct E2E emails per role so Golden Journey logins do not share an OTP bucket", () => {
+  it("uses distinct synthetic E2E emails per role so Golden Journey logins do not share an OTP bucket", () => {
     const emails = Object.values(E2E_ROLE_EMAILS)
     assert.equal(new Set(emails).size, emails.length)
+    for (const email of emails) {
+      assert.match(email, /@synapseos\.invalid$/)
+    }
   })
 })

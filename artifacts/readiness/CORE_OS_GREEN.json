@@ -2,12 +2,17 @@
   "title": "CORE_OS_GREEN",
   "date": "2026-09-18",
   "approved_main_sha": "81bc3c1fe15a9c993d0996fa316d736ed7bc51f6",
+  "current_origin_main_sha": "711796cf99fe666554335588a82a566f65e94bc4",
   "core_os_green": "NO",
+  "acceptance_db_ref": "UNPROVEN",
+  "acceptance_db_provenance": "FAIL",
+  "seed": "NOT_RUN",
+  "hospital_golden_journey": "NOT_RUN",
   "db_acceptance": "PASS",
   "required_ci": "PASS",
   "pr83_security_hardening": "COMPLETE",
   "prod_service_role_exposed_to_pr_ci": "NO",
-  "production_golden_journey": "BLOCKED_OPERATOR_SECRETS",
+  "production_golden_journey": "NOT_RUN",
   "same_person_continuity": "BLOCKED",
   "same_encounter_continuity": "BLOCKED",
   "tenant_isolation": "PASS_DOMAIN_BLOCKED_BROWSER",
@@ -36,5 +41,5 @@
     "origin/cursor/final-green-report-2026-09-18"
   ],
   "security_sha": "19145a7108c47cc0b9960b589802200c03a1b84c",
-  "updated_at": "2026-09-18T15:21:55.452515+00:00"
+  "updated_at": "2026-09-19T14:45:00.000000+00:00"
 }

@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const otp = await createAndSendOTP({ channel: 'email', target: email, e2e })
-    if (!shouldSkipOtpEmailDelivery({ email, isSyntheticTenant: e2e.isSyntheticTenant })) {
+    if (!shouldSkipOtpEmailDelivery(e2e)) {
       await sendOtpEmail(email, otp)
     }
   } catch (error) {

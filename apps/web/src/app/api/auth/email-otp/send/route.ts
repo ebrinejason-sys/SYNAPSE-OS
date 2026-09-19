@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create verification' }, { status: 500 })
   }
 
-  if (!shouldSkipOtpEmailDelivery({ email, isSyntheticTenant: e2e.isSyntheticTenant })) {
+  if (!shouldSkipOtpEmailDelivery(e2e)) {
     try {
       await sendOtpEmail(email, otp)
     } catch (err) {
