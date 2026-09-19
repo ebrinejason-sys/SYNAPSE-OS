@@ -108,6 +108,7 @@ jobs:
           SYNAPSE_E2E_FACILITY_B_SLUG: synapse-e2e-hospital-b
           SYNAPSE_E2E_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
           PLAYWRIGHT_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
+          SYNAPSE_E2E_VERCEL_BYPASS: ${{ secrets.SYNAPSE_E2E_VERCEL_BYPASS }}
         run: |
           node scripts/e2e-target.mjs
           npm run test:e2e:hospital

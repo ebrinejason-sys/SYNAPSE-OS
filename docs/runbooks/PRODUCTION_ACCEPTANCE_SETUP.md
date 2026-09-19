@@ -21,6 +21,7 @@ The Playwright browser tests run on GitHub's runner and need **only** what the b
 - `SYNAPSE_E2E_EMAIL` – staff login email
 - `SYNAPSE_E2E_PASSWORD` – staff login password
 - `SYNAPSE_E2E_FIXED_OTP` – the 6-digit code to type into the browser UI
+- `SYNAPSE_E2E_VERCEL_BYPASS` – Vercel protection-bypass secret so Playwright can reach SSO-protected Preview URLs
 
 **Does NOT need**: JWT secrets, Supabase anon keys, or service role keys (the browser hits API routes, not the database directly)
 
@@ -57,6 +58,7 @@ All secrets must be configured on the **`production-acceptance` environment** in
 | `SYNAPSE_E2E_FIXED_OTP` | Operator | Fixed 6-digit OTP code | `246801` *(exactly 6 digits)* |
 | `SYNAPSE_E2E_SUPABASE_URL` | Supabase Dashboard | Isolated E2E database URL | `https://xyz.supabase.co` |
 | `SYNAPSE_E2E_SERVICE_ROLE_KEY` | Supabase Dashboard | Service role key for E2E database | `eyJhbGci...` *(starts with eyJ)* |
+| `SYNAPSE_E2E_VERCEL_BYPASS` | Vercel protection-bypass | Automation header so Playwright can reach SSO-protected Preview URLs | *(random secret, never commit)* |
 | `SYNAPSE_E2E_REMOTE_HOST_READY` | Operator Attestation | Confirms Vercel env vars are set | `true` *(exactly the string "true")* |
 
 ### Vercel Preview Environment Variables

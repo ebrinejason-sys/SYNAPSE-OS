@@ -15,6 +15,7 @@ test("pull_request CI never receives a production service-role key", () => {
   assert.doesNotMatch(ci, /SUPABASE_SERVICE_ROLE_KEY/)
   assert.doesNotMatch(ci, /SUPABASE_DB_URL/)
   assert.doesNotMatch(ci, /SYNAPSE_E2E_FIXED_OTP/)
+  assert.doesNotMatch(ci, /SYNAPSE_E2E_VERCEL_BYPASS/)
 })
 
 test("privileged hospital E2E runs only from a protected workflow on an exact SHA", () => {
@@ -49,6 +50,7 @@ test("acceptance workflow uses minimized secret surface", () => {
   assert.match(browserStep, /SYNAPSE_E2E_EMAIL/)
   assert.match(browserStep, /SYNAPSE_E2E_PASSWORD/)
   assert.match(browserStep, /SYNAPSE_E2E_FIXED_OTP/)
+  assert.match(browserStep, /SYNAPSE_E2E_VERCEL_BYPASS/)
   
   // Seed step should have database credentials
   const seedStepMatch = acceptance.match(/- name: Seed synthetic OS fixtures[\s\S]*?(?=\n      - name:)/)
@@ -76,4 +78,5 @@ test("seed uses production bcrypt hashing and fail-closed synthetic slugs", () =
 test("Playwright webServer starts only for the canonical local target", () => {
   assert.match(playwright, /logPlaywrightTarget/)
   assert.match(playwright, /target\.startWebServer/)
+  assert.match(playwright, /vercelProtectionBypassHeaders/)
 })

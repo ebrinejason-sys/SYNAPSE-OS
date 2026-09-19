@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "playwright/test"
-import { logPlaywrightTarget } from "./scripts/e2e-target.mjs"
+import { logPlaywrightTarget, vercelProtectionBypassHeaders } from "./scripts/e2e-target.mjs"
 
 const target = logPlaywrightTarget()
 
@@ -11,6 +11,7 @@ export default defineConfig({
   retries: 0,
   use: {
     baseURL: target.baseURL,
+    extraHTTPHeaders: vercelProtectionBypassHeaders(),
     trace: "retain-on-failure",
   },
   webServer: target.startWebServer

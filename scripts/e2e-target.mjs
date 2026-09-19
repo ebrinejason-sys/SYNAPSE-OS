@@ -21,6 +21,15 @@ export function resolvePlaywrightTarget(env = process.env) {
 
 export const resolveE2eTarget = resolvePlaywrightTarget
 
+export function vercelProtectionBypassHeaders(env = process.env) {
+  const secret = String(env.SYNAPSE_E2E_VERCEL_BYPASS || "").trim()
+  if (!secret) return {}
+  return {
+    "x-vercel-protection-bypass": secret,
+    "x-vercel-set-bypass-cookie": "true",
+  }
+}
+
 export function logPlaywrightTarget(target = resolvePlaywrightTarget()) {
   console.log(`E2E MODE: ${target.mode === "remote" ? "REMOTE" : "LOCAL"}`)
   console.log(`E2E HOST: ${target.host}`)
