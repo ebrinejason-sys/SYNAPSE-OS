@@ -3,56 +3,33 @@
  * Vercel ignoreCommand gate — exit 1 = build, exit 0 = skip (cancel deploy).
  * @see https://vercel.com/docs/project-configuration/vercel-json#ignorecommand
  *
- * Usage in vercel.json:
- *   "ignoreCommand": "node scripts/vercel-build-gate.mjs web"
- *   "ignoreCommand": "node ../../scripts/vercel-build-gate.mjs pharmacy"
+ * Preview/development always builds. Production OS/Pharmacy Git deploys stay
+ * skipped so promotion remains acceptance-gated. Demo production is allowed.
+ *
+ * Do not run type-check here: ignoreCommand often runs before install, which
+ * would cancel every OS preview.
  */
-import { spawnSync } from 'node:child_process'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { pathToFileURL } from "node:url"
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)))
-const target = process.argv[2] ?? 'web'
-
-function run(label, command, args, opts = {}) {
-  console.log(`[vercel-build-gate] ${label}`)
-  const result = spawnSync(command, args, {
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-    cwd: opts.cwd ?? root,
-    env: { ...process.env, ...opts.env },
-  })
-  return result.status ?? 1
+export function vercelGitDeployDecision(env = process.env) {
+  if (env.VERCEL_ENV === "production") {
+    const productionUrl = env.VERCEL_PROJECT_PRODUCTION_URL ?? ""
+    const isDemoProject = productionUrl.includes("demo.synapseos.tech")
+    if (!isDemoProject) {
+      return { skip: true, reason: "production OS/Pharmacy git deploy is acceptance-gated" }
+    }
+    return { skip: false, reason: "demo production host" }
+  }
+  return { skip: false, reason: "preview/dev always builds" }
 }
 
-let ok = false
-
-if (process.env.VERCEL_ENV === "production") {
-  const productionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? ""
-  const isDemoProject = productionUrl.includes("demo.synapseos.tech")
-  if (!isDemoProject) {
-    console.log("[vercel-build-gate] Skipping Git production deploy. Production OS/Pharmacy promotion is acceptance-gated via GitHub Actions after DB/schema acceptance.")
+const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
+if (isDirectRun) {
+  const decision = vercelGitDeployDecision()
+  if (decision.skip) {
+    console.log(`[vercel-build-gate] Skipping Git production deploy. ${decision.reason}`)
     process.exit(0)
   }
-  console.log("[vercel-build-gate] synapse-demo production host — continuing Git build.")
-}
-
-if (target === 'web') {
-  ok = run('web type-check', 'npm', ['run', 'type-check', '--workspace', '@synapse/web']) === 0
-} else if (target === 'pharmacy') {
-  ok =
-    run('pharmacy build', 'npm', ['run', 'build', '--workspace', '@synapse/pharmacy'], {
-      env: { NODE_OPTIONS: '--max-old-space-size=4096' },
-    }) === 0
-} else {
-  console.error(`Unknown target: ${target}`)
-  process.exit(0)
-}
-
-if (ok) {
-  console.log('[vercel-build-gate] Passed — proceeding with Vercel build.')
+  console.log(`[vercel-build-gate] ${decision.reason} — proceeding with Vercel build.`)
   process.exit(1)
 }
-
-console.error('[vercel-build-gate] Failed — skipping Vercel build (deploy canceled).')
-process.exit(0)

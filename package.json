@@ -26,7 +26,7 @@
     "test:consolidation": "node --test scripts/clinical-cache-security.test.mjs scripts/disposable-onboarding-target.test.mjs scripts/check-clinical-cache.test.mjs && vitest run apps/web/src/lib/hospital-lab-db.retry.test.ts apps/web/src/app/api/hospital/sync/context/route.test.ts apps/web/src/app/api/opd/encounters/[id]/write-up/route.test.ts",
     "test:clinical-cache": "node --test scripts/check-clinical-cache.test.mjs && vitest run apps/web/src/app/api/hospital/sync/context/route.test.ts apps/web/src/app/api/opd/encounters/[id]/write-up/route.test.ts",
     "verify:lab-edge": "npm run test:lab-edge",
-    "test:workflow-safety": "node --test scripts/check-workflow-safety.test.mjs scripts/release-provenance.test.mjs scripts/e2e-ci-architecture.test.mjs scripts/e2e-target.test.mjs",
+    "test:workflow-safety": "node --test scripts/check-workflow-safety.test.mjs scripts/release-provenance.test.mjs scripts/e2e-ci-architecture.test.mjs scripts/e2e-target.test.mjs scripts/vercel-build-gate.test.mjs",
     "test:invitations:postgres": "bash scripts/db-tests/run-isolated.sh",
     "verify:pharm-release": "node scripts/verify-pharm-release.mjs",
     "verify:pharm-live": "node scripts/verify-pharm-live.mjs",
