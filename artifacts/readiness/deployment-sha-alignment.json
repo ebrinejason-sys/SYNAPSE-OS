@@ -1,0 +1,42 @@
+{
+  "generated_at": "2026-09-18T13:22:00Z",
+  "approved_main_sha": "81bc3c1fe15a9c993d0996fa316d736ed7bc51f6",
+  "source": "Do not infer from date/time. SHAs taken from Vercel deployment meta.githubCommitSha after inspect.",
+  "status": "FAIL",
+  "detail": "Demo and Pharmacy production match approved main. OS production is still 12a46f8 (PR #78). Git OS production deploys of 81bc3c1 were canceled by vercel-build-gate.",
+  "surfaces": {
+    "github_main": {
+      "sha": "81bc3c1fe15a9c993d0996fa316d736ed7bc51f6",
+      "ref": "main",
+      "source": "git rev-parse origin/main"
+    },
+    "os": {
+      "project": "synpase-os",
+      "host": "synapseos.tech",
+      "deployment_id": "dpl_49df54hiUwXgyrsMAwWGVgo75dkY",
+      "sha": "12a46f825611efeecbf56f03b18a061259a2562c",
+      "git_ref": "main",
+      "source": "git",
+      "match_approved_main": false
+    },
+    "demo": {
+      "project": "synapse-demo",
+      "host": "demo.synapseos.tech",
+      "deployment_id": "dpl_G9mi1jGtjiWFbc2ULbtfkzhFKGmX",
+      "sha": "81bc3c1fe15a9c993d0996fa316d736ed7bc51f6",
+      "git_ref": "main",
+      "source": "cli",
+      "match_approved_main": true,
+      "note": "Git production of 81bc3c1 was CANCELED (dpl_3oau32sxGNBKLhALoqewyLW9NGi8). CLI promote aliased demo.synapseos.tech."
+    },
+    "pharmacy": {
+      "project": "synapse-pharm",
+      "host": "pharm.synapseos.tech",
+      "deployment_id": "dpl_7ncsPWHdGGwYVmKoG6iUUdZvAb3s",
+      "sha": "81bc3c1fe15a9c993d0996fa316d736ed7bc51f6",
+      "git_ref": "main",
+      "source": "git",
+      "match_approved_main": true
+    }
+  }
+}

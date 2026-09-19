@@ -33,6 +33,8 @@ supabase/.temp/
 !/artifacts/readiness/db-acl-inventory.json
 !/artifacts/readiness/PRODUCTION_DB_RECONCILIATION.json
 !/artifacts/readiness/CORE_OS_GREEN.json
+!/artifacts/readiness/FINAL_GREEN_RELEASE.json
+!/artifacts/readiness/deployment-sha-alignment.json
 
 # Temporary debug/probe scripts — may contain hardcoded production data
 scripts/_tmp_*
