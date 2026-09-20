@@ -42,6 +42,7 @@ export async function GET() {
     ? await db
         .from('patients')
         .select('id, full_name, mrn, dob, sex')
+        .eq('tenant_id', ctx.tenantId)
         .in('id', patientIds)
     : { data: [] }
 

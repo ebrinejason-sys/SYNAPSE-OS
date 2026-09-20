@@ -1,6 +1,6 @@
-import { createClient } from "../../../../lib/supabase/server";
 import { headers } from "next/headers";
 import { resolveTenant } from "../../../../lib/tenant";
+import { listHospitalPatients } from "../../../../lib/hospital-os-data";
 import Link from "next/link";
 import { RegisterPatientForm } from "./RegisterPatientForm";
 
@@ -18,21 +18,7 @@ export default async function PatientsPage({
   const tenant = await resolveTenant(subdomain);
   if (!tenant) return <div className="p-8 text-red-400">Tenant not found</div>;
 
-  const supabase = await createClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (supabase as any)
-    .from("patients")
-    .select("id, full_name, date_of_birth, sex, mrn, created_at")
-    .eq("tenant_id", tenant.tenantId)
-    .eq("is_deleted", false)
-    .order("created_at", { ascending: false })
-    .limit(50);
-
-  if (q) {
-    query = query.ilike("full_name", `%${q}%`);
-  }
-
-  const { data: patients } = await query;
+  const patients = await listHospitalPatients(tenant.tenantId, q);
 
   return (
     <div className="p-6 max-w-6xl mx-auto">

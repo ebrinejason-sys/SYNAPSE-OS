@@ -135,6 +135,22 @@ for (const result of results) {
 console.log()
 console.log("=" .repeat(80))
 
+console.log()
+console.log("Acceptance identity")
+const baseUrl = process.env.SYNAPSE_E2E_BASE_URL || ""
+let baseHost = "(missing)"
+try { baseHost = new URL(baseUrl).hostname } catch { /* keep missing */ }
+const isolated = validateIsolatedSupabaseUrl(process.env.SYNAPSE_E2E_SUPABASE_URL || "")
+const service = validateServiceRoleKey(process.env.SYNAPSE_E2E_SERVICE_ROLE_KEY || "")
+const sha = (process.env.EXPECTED_SHA || process.env.GITHUB_SHA || "").trim() || "(not provided)"
+console.log(`  Deployment host:          ${baseHost}`)
+console.log(`  Environment:              ${process.env.SYNAPSE_E2E_ACCEPTANCE_ENV === "true" ? "acceptance" : "(not attested)"}`)
+console.log(`  Expected Git SHA:         ${sha}`)
+console.log(`  Supabase project ref:     ${isolated.projectRef || isolated.reason || isolated.status}`)
+console.log(`  Service-role project ref: ${service.projectRef || service.reason || service.status}`)
+console.log(`  Production isolation:     ${isolated.status === "FOUND" && service.status === "FOUND" ? "PASS" : "FAIL"}`)
+console.log()
+
 if (!allValid) {
   console.log("❌ PREFLIGHT FAILED: Configuration is incomplete or invalid")
   console.log()
@@ -197,6 +213,8 @@ try {
   const shaNote = readyCheck.commitSha ? `sha=${readyCheck.commitSha.slice(0, 7)}` : "sha=unknown"
   console.log(`✓ /api/ready                    | FOUND    | READY       | ${shaNote}`)
   console.log(`✓ isolated project              | FOUND    | ${EXPECTED_ACCEPTANCE_PROJECT_REF} | not production`)
+  console.log(`  Git SHA (ready):              ${readyCheck.commitSha || "(missing from /api/ready)"}`)
+  console.log(`  Database host/ref:            ${isolated.projectRef}`)
 } catch (error) {
   console.log("❌ PREFLIGHT FAILED: live isolation probes could not run")
   console.log(`  → ${error instanceof Error ? error.message : "probe failed"}`)

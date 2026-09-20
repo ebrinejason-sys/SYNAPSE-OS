@@ -38,6 +38,9 @@ test("accepts the documented isolated acceptance project URL", () => {
 test("rejects localhost and production OS hosts for browser acceptance", () => {
   assert.equal(validateAcceptanceBaseUrl("http://127.0.0.1:3011").status, "INVALID")
   assert.equal(validateAcceptanceBaseUrl("https://synapseos.tech").status, "INVALID")
+  assert.equal(validateAcceptanceBaseUrl("https://admin.synapseos.tech").status, "INVALID")
+  assert.equal(validateAcceptanceBaseUrl("https://pharm.synapseos.tech").status, "INVALID")
+  assert.equal(validateAcceptanceBaseUrl("https://demo.synapseos.tech").status, "INVALID")
   assert.equal(
     validateAcceptanceBaseUrl("https://synpase-os-git-cursor-core-os-317939-ebrines-projects-d0493afe.vercel.app").status,
     "FOUND",

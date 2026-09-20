@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { getCurrentUser } from "../../../../lib/auth/getCurrentUser";
-import { createServiceClient } from "../../../../lib/supabase/server";
+import { countHospitalCensus } from "../../../../lib/hospital-os-data";
 import { resolveTenant } from "../../../../lib/tenant";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -27,23 +27,11 @@ export default async function DashboardPage({
   if (tenant.facilityType === "laboratory") redirect("/lab/orders");
 
   const user = await getCurrentUser();
-
-  const supabase = createServiceClient();
-  const [patientRes, encounterRes] = await Promise.all([
-    supabase
-      .from("patients")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenant.tenantId)
-      .eq("is_deleted", false),
-    supabase
-      .from("encounters")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenant.tenantId),
-  ]);
+  const census = await countHospitalCensus(tenant.tenantId);
 
   const stats = [
-    { label: "Total patients", value: patientRes.count ?? 0, color: "#2563EB", icon: Users, note: "Registered in this facility" },
-    { label: "Total encounters", value: encounterRes.count ?? 0, color: "#0F766E", icon: ClipboardList, note: "Across the hospital record" },
+    { label: "Total patients", value: census.patients, color: "#2563EB", icon: Users, note: "Registered in this facility" },
+    { label: "Total encounters", value: census.encounters, color: "#0F766E", icon: ClipboardList, note: "Across the hospital record" },
   ];
 
   const initial = (user?.email?.[0] ?? "S").toUpperCase();

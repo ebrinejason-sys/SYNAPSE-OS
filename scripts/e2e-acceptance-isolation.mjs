@@ -65,6 +65,16 @@ export function validateAcceptanceBaseUrl(value) {
   if (url.hostname === "synapseos.tech" || url.hostname === "www.synapseos.tech") {
     return { status: "INVALID", reason: "Refuses production OS host; use isolated Preview" }
   }
+  const productionLike = new Set([
+    "admin.synapseos.tech",
+    "pharm.synapseos.tech",
+    "pharmacy.synapseos.tech",
+    "demo.synapseos.tech",
+    "app.synapseos.tech",
+  ])
+  if (productionLike.has(url.hostname)) {
+    return { status: "INVALID", reason: `Refuses ${url.hostname}; use isolated Preview` }
+  }
   return { status: "FOUND", hostname: url.hostname }
 }
 
