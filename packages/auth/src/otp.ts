@@ -28,8 +28,11 @@ export function otpCreatePolicy(
   const otpOverride = resolveE2eOtp(input, env)
   return {
     otpOverride,
-    bypassHourlyLimit: Boolean(otpOverride),
-    replaceUnusedRows: Boolean(otpOverride),
+    // Isolated acceptance may reuse a fixed OTP, but it must not skip the
+    // hourly send cap or delete unused rows (that would reset the 5-attempt budget).
+    bypassHourlyLimit: false,
+    replaceUnusedRows: false,
+    reuseExistingUnused: Boolean(otpOverride),
   }
 }
 
@@ -48,14 +51,7 @@ export async function createAndSendOTP(params: {
     facilitySlug: params.e2e?.facilitySlug,
   })
 
-  if (policy.replaceUnusedRows) {
-    const { error: cleanupErr } = await supabaseAdmin
-      .from("auth_otps")
-      .delete()
-      .eq("target", params.target)
-      .eq("used", false)
-    if (cleanupErr) throw new Error(`OTP cleanup failed: ${cleanupErr.message}`)
-  } else {
+  if (!policy.bypassHourlyLimit) {
     const { count } = await supabaseAdmin
       .from("auth_otps")
       .select("*", { count: "exact", head: true })
@@ -71,6 +67,26 @@ export async function createAndSendOTP(params: {
   const otp = policy.otpOverride ?? generateOTP()
   const otpHash = hashOTP(otp)
   const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000).toISOString()
+
+  if (policy.reuseExistingUnused) {
+    const { data: existing } = await supabaseAdmin
+      .from("auth_otps")
+      .select("id, attempts")
+      .eq("target", params.target)
+      .eq("channel", params.channel)
+      .eq("used", false)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (existing?.id) {
+      const { error: refreshErr } = await supabaseAdmin
+        .from("auth_otps")
+        .update({ otp_hash: otpHash, expires_at: expiresAt })
+        .eq("id", existing.id as string)
+      if (refreshErr) throw new Error(`OTP refresh failed: ${refreshErr.message}`)
+      return otp
+    }
+  }
 
   const { error } = await supabaseAdmin
     .from("auth_otps")

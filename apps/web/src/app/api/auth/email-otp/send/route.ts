@@ -2,10 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, createAndSendOTP, shouldSkipOtpEmailDelivery } from '@synapse/auth'
 import { createServiceClient } from '../../../../../lib/supabase/server'
 import { sendOtpEmail } from '../../../../../lib/resend'
+import { checkRateLimit, rateLimiters } from '../../../../../lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown'
+  const rate = await checkRateLimit(rateLimiters.auth, `email-otp-send:${ip}`)
+  if (!rate.success) {
+    return NextResponse.json({ error: 'Too many attempts. Please wait before requesting another code.' }, { status: 429 })
+  }
+
   const body  = await req.json().catch(() => ({}))
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
 
