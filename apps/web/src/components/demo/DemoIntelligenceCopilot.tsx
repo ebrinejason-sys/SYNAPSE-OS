@@ -52,7 +52,6 @@ export function DemoIntelligenceCopilot({
   const [open, setOpen] = useState(false)
   const [task, setTask] = useState(defaultTask)
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null)
-  const [label, setLabel] = useState("")
   const [error, setError] = useState("")
   const [reason, setReason] = useState("")
   const [decisions, setDecisions] = useState<DemoIntelligenceDecision[]>([])
@@ -76,7 +75,6 @@ export function DemoIntelligenceCopilot({
         setError(typeof json.error === "string" ? json.error : "AI assistance unavailable")
         return
       }
-      setLabel(json.label)
       setRecommendation(json.recommendation)
       setDecisions(await getIntelligenceDecisions())
     } catch {
@@ -144,7 +142,6 @@ export function DemoIntelligenceCopilot({
               <p className="text-xs uppercase tracking-wide">
                 AI-generated decision support · Synthetic demonstration data · Requires qualified human review
               </p>
-              <p className="text-xs">{label}</p>
               <p className="font-semibold">{recommendation.recommendation}</p>
               <p>{recommendation.reasoningSummary}</p>
               <p>
