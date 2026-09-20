@@ -6,9 +6,20 @@ import {
   cancelReferral,
   completeReferral,
   createFacilityReferral,
+  facilityReferralFromRow,
+  facilityReferralToRow,
   rejectReferral,
   type FacilityReferral,
 } from '@synapse/db/referral-lifecycle'
+import {
+  advanceReferralLoop,
+  recordReferralFeedback,
+  referralLoopFromRow,
+  referralLoopToRow,
+  type ReferralLoopStage,
+} from '@synapse/db/referral-loop'
+import { publishClinicalTimelineBestEffort, referralLoopTimelineEvent } from '@synapse/db/clinical-timeline'
+import { publishTimelineEvent } from '@synapse/db/identity-persist'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '@/lib/hospital-shared'
 import { requireHospitalStaffContext } from '@/lib/hospital-dept'
 
@@ -27,57 +38,22 @@ const createSchema = z.object({
 
 const actionSchema = z.object({
   id: z.string().uuid(),
-  action: z.enum(['accept', 'reject', 'complete', 'cancel']),
+  action: z.enum(['accept', 'reject', 'complete', 'cancel', 'loop']),
   reason: z.string().max(2000).optional(),
+  loop_stage: z.enum([
+    'sent',
+    'received',
+    'accepted',
+    'arrived',
+    'seen',
+    'feedback_returned',
+    'completed',
+    'rejected',
+    'cancelled',
+  ]).optional(),
+  feedback: z.string().max(4000).optional(),
+  counter_referral_id: z.string().uuid().optional(),
 })
-
-function rowToReferral(row: Record<string, unknown>): FacilityReferral {
-  return {
-    id: String(row.id),
-    fromTenantId: String(row.from_tenant_id),
-    toTenantId: String(row.to_tenant_id),
-    patientId: String(row.patient_id),
-    encounterId: String(row.encounter_id),
-    status: row.status as FacilityReferral['status'],
-    speciality: String(row.speciality ?? ''),
-    urgency: (row.urgency as FacilityReferral['urgency']) ?? 'ROUTINE',
-    clinicalSummary: String(row.clinical_summary ?? ''),
-    consentObtained: Boolean(row.consent_obtained),
-    consentMethod: (row.consent_method as FacilityReferral['consentMethod']) ?? null,
-    createdBy: String(row.created_by ?? ''),
-    createdAt: String(row.created_at ?? ''),
-    acceptedBy: row.accepted_by ? String(row.accepted_by) : null,
-    acceptedAt: row.accepted_at ? String(row.accepted_at) : null,
-    rejectedReason: row.rejected_reason ? String(row.rejected_reason) : null,
-    completedAt: row.completed_at ? String(row.completed_at) : null,
-    cancelledAt: row.cancelled_at ? String(row.cancelled_at) : null,
-    isSynthetic: Boolean(row.is_synthetic),
-  }
-}
-
-function referralToRow(ref: FacilityReferral) {
-  return {
-    id: ref.id,
-    from_tenant_id: ref.fromTenantId,
-    to_tenant_id: ref.toTenantId,
-    patient_id: ref.patientId,
-    encounter_id: ref.encounterId,
-    status: ref.status,
-    speciality: ref.speciality,
-    urgency: ref.urgency,
-    clinical_summary: ref.clinicalSummary,
-    consent_obtained: ref.consentObtained,
-    consent_method: ref.consentMethod,
-    created_by: ref.createdBy,
-    created_at: ref.createdAt,
-    accepted_by: ref.acceptedBy ?? null,
-    accepted_at: ref.acceptedAt ?? null,
-    rejected_reason: ref.rejectedReason ?? null,
-    completed_at: ref.completedAt ?? null,
-    cancelled_at: ref.cancelledAt ?? null,
-    updated_at: new Date().toISOString(),
-  }
-}
 
 export async function GET(req: NextRequest) {
   const ctx = await requireHospitalStaffContext()
@@ -97,7 +73,12 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
     .limit(50)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ referrals: (data ?? []).map(rowToReferral) })
+  return NextResponse.json({
+    referrals: (data ?? []).map((row: Record<string, unknown>) => ({
+      ...facilityReferralFromRow(row),
+      loop: referralLoopFromRow({ id: String(row.id), status: row.status as FacilityReferral['status'], ...row }),
+    })),
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -148,7 +129,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Encounter not found for patient' }, { status: 404 })
   }
 
-  const row = referralToRow(referral)
+  const row = { ...facilityReferralToRow(referral), loop_stage: 'created' }
   const { error } = await db.from('facility_referrals').insert(row)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -199,27 +180,54 @@ export async function PATCH(req: NextRequest) {
   if (loadError) return NextResponse.json({ error: loadError.message }, { status: 500 })
   if (!row) return NextResponse.json({ error: 'Referral not found' }, { status: 404 })
 
-  const current = rowToReferral(row)
+  const current = facilityReferralFromRow(row)
   const isReceiver = current.toTenantId === ctx.tenantId
   const isSender = current.fromTenantId === ctx.tenantId
   if (!isReceiver && !isSender) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  let next: FacilityReferral
+  let next: FacilityReferral = current
+  let loop = referralLoopFromRow({ id: current.id, status: current.status, ...row })
   try {
-    if (parsed.data.action === 'accept') {
+    if (parsed.data.action === 'loop') {
+      const stage = parsed.data.loop_stage as ReferralLoopStage | undefined
+      if (!stage) return NextResponse.json({ error: 'loop_stage required' }, { status: 400 })
+      if (stage === 'feedback_returned') {
+        loop = recordReferralFeedback(loop, {
+          feedback: parsed.data.feedback || '',
+          counterReferralId: parsed.data.counter_referral_id,
+        })
+      } else {
+        loop = advanceReferralLoop(loop, stage)
+      }
+      if (loop.storedStatus === 'accepted' && current.status === 'pending') {
+        if (!isReceiver) return NextResponse.json({ error: 'Only receiving facility can accept' }, { status: 403 })
+        next = acceptReferral(current, { acceptedBy: ctx.userId })
+      } else if (loop.storedStatus === 'rejected') {
+        if (!isReceiver) return NextResponse.json({ error: 'Only receiving facility can reject' }, { status: 403 })
+        next = rejectReferral(current, { reason: parsed.data.reason || parsed.data.feedback || 'Declined' })
+      } else if (loop.storedStatus === 'completed') {
+        if (!isReceiver) return NextResponse.json({ error: 'Only receiving facility can complete' }, { status: 403 })
+        next = completeReferral(current)
+      } else if (loop.storedStatus === 'cancelled') {
+        next = cancelReferral(current)
+      }
+    } else if (parsed.data.action === 'accept') {
       if (!isReceiver) return NextResponse.json({ error: 'Only receiving facility can accept' }, { status: 403 })
       next = acceptReferral(current, { acceptedBy: ctx.userId })
+      loop = { ...loop, stage: 'accepted', storedStatus: 'accepted' }
     } else if (parsed.data.action === 'reject') {
       if (!isReceiver) return NextResponse.json({ error: 'Only receiving facility can reject' }, { status: 403 })
       next = rejectReferral(current, { reason: parsed.data.reason || 'Declined' })
+      loop = { ...loop, stage: 'rejected', storedStatus: 'rejected' }
     } else if (parsed.data.action === 'complete') {
       if (!isReceiver) return NextResponse.json({ error: 'Only receiving facility can complete' }, { status: 403 })
       next = completeReferral(current)
+      loop = { ...loop, stage: 'completed', storedStatus: 'completed' }
     } else {
-      if (!isSender && !isReceiver) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       next = cancelReferral(current)
+      loop = { ...loop, stage: 'cancelled', storedStatus: 'cancelled' }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Invalid transition'
@@ -228,7 +236,7 @@ export async function PATCH(req: NextRequest) {
 
   const { error: updError } = await db
     .from('facility_referrals')
-    .update(referralToRow(next))
+    .update({ ...facilityReferralToRow(next), ...referralLoopToRow(loop) })
     .eq('id', next.id)
   if (updError) return NextResponse.json({ error: updError.message }, { status: 500 })
 
@@ -237,8 +245,20 @@ export async function PATCH(req: NextRequest) {
     action: 'UPDATE',
     tableName: 'facility_referrals',
     recordId: next.id,
-    newValue: { status: next.status, action: parsed.data.action },
+    newValue: { status: next.status, action: parsed.data.action, loop_stage: loop.stage },
   })
+  void publishClinicalTimelineBestEffort(
+    publishTimelineEvent,
+    referralLoopTimelineEvent({
+      tenantId: ctx.tenantId,
+      hospitalId: ctx.hospitalId,
+      patientId: next.patientId,
+      encounterId: next.encounterId,
+      referralId: next.id,
+      stage: loop.stage,
+      createdBy: ctx.userId,
+    }),
+  )
 
-  return NextResponse.json({ referral: next })
+  return NextResponse.json({ referral: next, loop })
 }

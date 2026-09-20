@@ -231,6 +231,89 @@ export function medicationDispensedTimelineEvent(params: {
   }
 }
 
+export function clinicalDocumentTimelineEvent(params: {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  encounterId?: string | null
+  documentId: string
+  documentType: string
+  status: string
+  createdBy: string
+}): TimelineEventInput {
+  return {
+    tenantId: params.tenantId,
+    hospitalId: params.hospitalId,
+    patientId: params.patientId,
+    eventType: "document",
+    title: `Clinical document · ${params.documentType.replaceAll("_", " ")}`,
+    summary: params.status,
+    sourceTable: "clinical_documents",
+    sourceId: params.documentId,
+    provenance: "PROVIDER_VERIFIED",
+    payload: {
+      encounterId: params.encounterId ?? null,
+      documentType: params.documentType,
+      status: params.status,
+    },
+    tags: ["document", params.documentType.toLowerCase()],
+    createdBy: params.createdBy,
+  }
+}
+
+export function referralLoopTimelineEvent(params: {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  encounterId: string
+  referralId: string
+  stage: string
+  createdBy: string
+}): TimelineEventInput {
+  return {
+    tenantId: params.tenantId,
+    hospitalId: params.hospitalId,
+    patientId: params.patientId,
+    eventType: "referral",
+    title: `Referral ${params.stage.replaceAll("_", " ")}`,
+    summary: params.referralId,
+    sourceTable: "facility_referrals",
+    sourceId: params.referralId,
+    provenance: "PROVIDER_VERIFIED",
+    payload: { encounterId: params.encounterId, stage: params.stage },
+    tags: ["referral", params.stage],
+    createdBy: params.createdBy,
+  }
+}
+
+export function consentCapturedTimelineEvent(params: {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  personId?: string | null
+  encounterId?: string | null
+  consentId: string
+  purpose: string
+  status: string
+  createdBy: string
+}): TimelineEventInput {
+  return {
+    tenantId: params.tenantId,
+    hospitalId: params.hospitalId,
+    patientId: params.patientId,
+    personId: params.personId ?? null,
+    eventType: "document",
+    title: `Consent ${params.status} · ${params.purpose.replaceAll("_", " ")}`,
+    summary: params.purpose,
+    sourceTable: "person_consents",
+    sourceId: params.consentId,
+    provenance: "PROVIDER_VERIFIED",
+    payload: { encounterId: params.encounterId ?? null, purpose: params.purpose, status: params.status },
+    tags: ["consent", params.purpose],
+    createdBy: params.createdBy,
+  }
+}
+
 export async function publishClinicalTimelineBestEffort(
   publish: (event: TimelineEventInput) => Promise<string | null>,
   event: TimelineEventInput,

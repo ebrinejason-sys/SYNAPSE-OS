@@ -45,6 +45,7 @@ export const RLS_MATRIX = [
   { table: "billing_invoices", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: true, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
   { table: "billing_payments", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: false, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
   { table: "persons", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: false, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
+  { table: "clinical_documents", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: true, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
 ]
 
 describe("RLS tenancy matrix contract", () => {
@@ -88,5 +89,17 @@ describe("hospital BFF tenant filter (service_role defence-in-depth)", () => {
     assert.match(billing, /\.eq\('tenant_id', ctx\.tenantId\)/)
     assert.match(lab, /\.eq\('tenant_id', ctx\.tenantId\)/)
     assert.match(pharmacy, /\.eq\('tenant_id', ctx\.tenantId\)/)
+  })
+})
+
+describe("clinical documents migration tenancy", () => {
+  it("enables RLS and tenant isolation on clinical_documents", () => {
+    const sql = readFileSync(
+      join(root, "supabase/migrations/20260920203000_clinical_documents_consent_referral_loop.sql"),
+      "utf8",
+    )
+    assert.match(sql, /ALTER TABLE public\.clinical_documents ENABLE ROW LEVEL SECURITY/)
+    assert.match(sql, /tenant_id = current_tenant_id\(\)/)
+    assert.match(sql, /DOCUMENT_IMMUTABLE/)
   })
 })
