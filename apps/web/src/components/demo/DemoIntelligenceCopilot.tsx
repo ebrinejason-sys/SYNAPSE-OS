@@ -128,10 +128,10 @@ export function DemoIntelligenceCopilot({
                 value={task}
                 onChange={(event) => setTask(event.target.value)}
               >
-                <option value="clinical_copilot">Clinical reasoning</option>
+                <option value="clinical_copilot">Analyse encounter / clinical reasoning</option>
                 <option value="lab_interpretation">Lab interpretation</option>
-                <option value="coding_copilot">ICD-11</option>
-                <option value="pathway_copilot">Guidelines</option>
+                <option value="coding_copilot">Suggest ICD-11 terms</option>
+                <option value="pathway_copilot">Suggest pathway</option>
               </select>
             </label>
           ) : null}

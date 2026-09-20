@@ -5,6 +5,12 @@ vi.mock("../../../../lib/rate-limit", () => ({
   checkRateLimit: async () => ({ success: true, remaining: 99 }),
 }))
 
+vi.mock("../../../../lib/ai/openrouter", () => ({
+  isOpenRouterConfigured: () => false,
+  resolveOpenRouterModels: () => [],
+  completeOpenRouterChat: async () => ({ ok: false, status: 503, message: "not configured" }),
+}))
+
 describe("POST /api/demo/intelligence", () => {
   afterEach(() => {
     vi.resetModules()
@@ -31,6 +37,7 @@ describe("POST /api/demo/intelligence", () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.provider).toBe("synthetic-fallback")
+    expect(json.fallback).toBe(true)
     expect(json.isolated).toBe(true)
     expect(json.recommendation.provenance.model).toBe("synthetic-fallback")
   })

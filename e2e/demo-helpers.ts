@@ -1,6 +1,6 @@
 import { expect, type Page, type Request } from "playwright/test"
 
-export const FORBIDDEN_WRITE = /\/rest\/v1\/(persons|patients|encounters|triage|observations|lab_|prescriptions|inventory|billing|payments|referrals)/i
+export const FORBIDDEN_WRITE = /\/rest\/v1\/(persons|patients|encounters|triage|observations|lab_|prescriptions|inventory|billing|payments|referrals|invoices|dispenses|diagnoses|clinical_notes|vitals)/i
 
 export async function resetDemo(page: Page) {
   await page.goto("/demo")

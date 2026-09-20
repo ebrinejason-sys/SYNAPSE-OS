@@ -82,7 +82,7 @@
     "test:e2e:hospital:smoke": "node scripts/e2e-hospital-browser.mjs",
     "test:e2e:demo": "playwright test e2e/demo-golden-journey.spec.ts e2e/demo-acceptance.spec.ts e2e/demo-intelligence.spec.ts",
     "e2e:acceptance:doctor": "node scripts/e2e-acceptance-doctor.mjs",
-    "test:ai-governance": "node --experimental-strip-types --test apps/web/src/lib/ai/clinical-ai-gateway.test.ts && npx vitest run packages/interop/src/intelligence/kernel.test.ts apps/web/src/app/api/demo/intelligence/route.test.ts",
+    "test:ai-governance": "node --experimental-strip-types --test apps/web/src/lib/ai/clinical-ai-gateway.test.ts && npx vitest run packages/interop/src/intelligence/kernel.test.ts apps/web/src/app/api/demo/intelligence/route.test.ts apps/web/src/app/api/demo/ready/route.test.ts",
     "test:inpatient-lifecycle": "tsx --test packages/db/src/inpatient-lifecycle.test.ts",
     "seed:e2e-os": "npx tsx scripts/seed-e2e-os-fixture.ts",
     "journey:hospital-golden-live": "node scripts/hospital-golden-live-journey.mjs",

@@ -8,6 +8,11 @@ test.describe("Demo Intelligence isolation", () => {
     await resetDemo(page)
 
     await page.goto("/demo/intelligence")
+    const ready = await page.request.get("/api/demo/ready")
+    expect(ready.ok()).toBeTruthy()
+    const readyJson = await ready.json()
+    expect(readyJson.productionWrites).toBe(false)
+    expect(readyJson.mode).toBe("synthetic-playground")
     await expect(page.getByRole("heading", { name: "Synapse Intelligence" })).toBeVisible()
     await expect(page.getByText(/Amina Demo/i).first()).toBeVisible()
     await expect(page.getByRole("button", { name: "Verify Results" })).toHaveCount(0)

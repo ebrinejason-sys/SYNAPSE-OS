@@ -146,6 +146,9 @@ export function DemoShell({ title, description, children, requiresRole }: DemoSh
           {session.facilityName} · {ROLE_LABEL[session.role] ?? session.role}
         </span>
         <DemoThemeControl />
+        <button type="button" className="demo-icon-btn" onClick={() => window.location.assign(demoHref("intelligence"))}>
+          Synapse AI
+        </button>
         <div className="relative">
           <button type="button" className="demo-icon-btn" aria-label="More playground actions" onClick={() => setMoreOpen((v) => !v)}>
             More
