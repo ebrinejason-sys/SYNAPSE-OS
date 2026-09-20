@@ -34,9 +34,11 @@ export async function GET() {
   const icdConfigured = whoApiConfigured()
   const aiConfigured = isOpenRouterConfigured()
   const ready = db.ok
+  const commitSha = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? null
   return NextResponse.json({
     status: ready ? "ready" : "not_ready",
     checkedAt: new Date().toISOString(),
+    commitSha,
     checks: {
       database: db,
       migrationHead: { ok: Boolean(migrationHead), version: migrationHead },

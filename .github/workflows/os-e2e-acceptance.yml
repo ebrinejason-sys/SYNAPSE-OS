@@ -55,6 +55,7 @@ jobs:
 
       - name: Preflight configuration check
         env:
+          EXPECTED_SHA: ${{ inputs.EXPECTED_SHA }}
           SYNAPSE_E2E_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
           SYNAPSE_E2E_EMAIL: ${{ secrets.SYNAPSE_E2E_EMAIL }}
           SYNAPSE_E2E_PASSWORD: ${{ secrets.SYNAPSE_E2E_PASSWORD }}
@@ -62,6 +63,7 @@ jobs:
           SYNAPSE_E2E_SUPABASE_URL: ${{ secrets.SYNAPSE_E2E_SUPABASE_URL }}
           SYNAPSE_E2E_SERVICE_ROLE_KEY: ${{ secrets.SYNAPSE_E2E_SERVICE_ROLE_KEY }}
           SYNAPSE_E2E_REMOTE_HOST_READY: ${{ secrets.SYNAPSE_E2E_REMOTE_HOST_READY }}
+          SYNAPSE_E2E_VERCEL_BYPASS: ${{ secrets.SYNAPSE_E2E_VERCEL_BYPASS }}
         run: npm run e2e:acceptance:doctor
 
       - name: Require remote acceptance target

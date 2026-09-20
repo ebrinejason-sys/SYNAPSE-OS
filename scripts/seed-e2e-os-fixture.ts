@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env tsx
 /**
  * Idempotent synthetic OS E2E fixture.
  *
@@ -12,8 +12,38 @@
  */
 import { randomUUID } from "node:crypto"
 import { createClient } from "@supabase/supabase-js"
-import { E2E_ROLE_EMAILS, assertE2eSeedAllowed } from "../packages/auth/src/e2e-otp.ts"
-import { hashPassword, verifyPassword } from "../packages/auth/src/password.ts"
+import bcrypt from "bcryptjs"
+
+async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 12)
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash)
+}
+
+/** Keep in sync with packages/auth/src/e2e-otp.ts. Inlined so this script can run under Node+tsx without CJS named-export failures. */
+const E2E_ROLE_EMAILS = {
+  receptionist: "reception.e2e@synapseos.invalid",
+  nurse: "nurse.e2e@synapseos.invalid",
+  doctor: "doctor.e2e@synapseos.invalid",
+  lab_tech: "labtech.e2e@synapseos.invalid",
+  lab_scientist: "labscientist.e2e@synapseos.invalid",
+  pharmacist: "pharmacist.e2e@synapseos.invalid",
+  billing_officer: "cashier.e2e@synapseos.invalid",
+  hospital_admin: "admin.e2e@synapseos.invalid",
+  doctor_b: "doctor.b.e2e@synapseos.invalid",
+} as const
+
+function assertE2eSeedAllowed(input: { seedFlag?: string; slugA?: string; slugB?: string }): void {
+  if (input.seedFlag !== "true") {
+    throw new Error("Refusing to seed. Set SYNAPSE_E2E_SEED=true")
+  }
+  const allowed = new Set(["synapse-e2e-hospital", "synapse-e2e-hospital-b"])
+  if (!allowed.has(String(input.slugA)) || !allowed.has(String(input.slugB)) || input.slugA === input.slugB) {
+    throw new Error("Seed only permits synapse-e2e-hospital and synapse-e2e-hospital-b")
+  }
+}
 
 const FACILITY_A = "synapse-e2e-hospital"
 const FACILITY_B = "synapse-e2e-hospital-b"
@@ -34,7 +64,7 @@ const ROLE_MAP: Record<keyof typeof E2E_ROLE_EMAILS, string> = {
   receptionist: "receptionist",
   nurse: "nurse",
   doctor: "doctor",
-  lab_tech: "lab_tech",
+  lab_tech: "lab_technician",
   lab_scientist: "lab_scientist",
   pharmacist: "pharmacist",
   billing_officer: "billing_officer",
@@ -86,7 +116,7 @@ async function ensureTenant(slug: string, name: string) {
   if (existing) {
     const upd = await db.from("tenants").update({
       is_synthetic: true,
-      environment: "e2e",
+      environment: "demo",
       data_classification: "synthetic",
       status: "active",
       lifecycle_status: "ACTIVE",
@@ -104,7 +134,7 @@ async function ensureTenant(slug: string, name: string) {
     facility_type: "hospital",
     status: "active",
     is_synthetic: true,
-    environment: "e2e",
+    environment: "demo",
     data_classification: "synthetic",
     lifecycle_status: "ACTIVE",
     plan: "trial",
@@ -118,7 +148,7 @@ async function ensureHospital(tenant: { id: string; slug: string }, name: string
   if (existing) {
     const upd = await db.from("hospitals").update({
       is_synthetic: true,
-      environment: "e2e",
+      environment: "demo",
       settings: { tenant_id: tenant.id },
     }).eq("id", existing.id)
     if (upd.error) throw new Error(upd.error.message)
@@ -127,9 +157,9 @@ async function ensureHospital(tenant: { id: string; slug: string }, name: string
   const ins = await db.from("hospitals").insert({
     name,
     subdomain: tenant.slug,
-    type: "hospital",
+    type: "general",
     is_synthetic: true,
-    environment: "e2e",
+    environment: "demo",
     settings: { tenant_id: tenant.id },
   }).select("id,subdomain").single()
   if (ins.error) throw new Error(ins.error.message)

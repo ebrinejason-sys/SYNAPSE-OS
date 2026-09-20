@@ -1,0 +1,73 @@
+{
+  "generated_at": "2026-09-20T06:30:00Z",
+  "core_os_green": "NO",
+  "scope": "local_disposable_postgres_127.0.0.1:54322",
+  "remote_projects_touched": [
+    "jbojujxpyxsdiukmrwzs"
+  ],
+  "isolated_acceptance_project": {
+    "ref": "jbojujxpyxsdiukmrwzs",
+    "name": "synapse-e2e-acceptance",
+    "organization": "synapse-e2e-acceptance",
+    "region": "eu-west-1",
+    "status": "ACTIVE_HEALTHY",
+    "clinical_rows_before_reset": 0,
+    "canonical_schema_apply": "IN_PROGRESS_VIA_MCP_CHUNKS"
+  },
+  "local_fresh_bootstrap": {
+    "command": "PGPASSWORD=postgres bash scripts/db-reset-fresh.sh",
+    "schema_file": "supabase/bootstrap/canonical_public_schema.sql",
+    "run_1": { "result": "FRESH_BOOTSTRAP_OK", "elapsed_ms": 646899 },
+    "run_2": { "result": "FRESH_BOOTSTRAP_OK", "elapsed_ms": 129821 },
+    "after_bootstrap_counts": {
+      "tables": 317,
+      "rls_enabled_tables": 317,
+      "policies": 572,
+      "functions": 213,
+      "triggers": 311,
+      "indexes": 998,
+      "foreign_keys": 847,
+      "critical_tables_present": [
+        "tenants",
+        "hospitals",
+        "profiles",
+        "persons",
+        "patients",
+        "encounters",
+        "pharmacy_product_batches",
+        "consult_queue",
+        "clinical_notes",
+        "facility_invitations",
+        "lab_orders",
+        "lab_results",
+        "clinical_prescriptions",
+        "billing_payments"
+      ]
+    }
+  },
+  "local_seed_idempotency": {
+    "command": "node scripts/seed-e2e-os-local.mjs",
+    "run_1": "PASS",
+    "run_2": "PASS",
+    "stable_ids_across_runs": true,
+    "counts_after_second_seed": {
+      "tenants": 2,
+      "hospitals": 2,
+      "profiles": 9,
+      "persons": 1,
+      "patients": 1,
+      "amina": 1
+    },
+    "seed_fixes_required_for_canonical_schema": [
+      "tenants.environment e2e -> demo (check constraint)",
+      "hospitals.type hospital -> general (check constraint)",
+      "profiles.role lab_tech -> lab_technician (check constraint)",
+      "seed script Node/tsx named-export workaround"
+    ]
+  },
+  "notes": [
+    "Canonical dump is schema-only. No production patient rows were copied.",
+    "Local bootstrap drops public only on 127.0.0.1:54322.",
+    "Isolated remote public schema was emptied after identity proof; chunked canonical apply is the remaining remote step."
+  ]
+}

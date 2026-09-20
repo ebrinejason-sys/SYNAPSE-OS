@@ -1,0 +1,1238 @@
+{
+  "generated_at": "2026-09-19T16:00:08.366215+00:00",
+  "project_ref": "jbojujxpyxsdiukmrwzs",
+  "repo_sql_count": 166,
+  "repo_versioned_count": 165,
+  "remote_migrations_before": 8,
+  "latest_expected_version": "20260918140000",
+  "latest_remote_version": "20260919153523",
+  "counts": {
+    "repo_applied_exact_version": 0,
+    "repo_missing": 166,
+    "repo_diverged_same_name_different_version": 3,
+    "remote_only": 8
+  },
+  "decision": "STOP_BEFORE_DESTRUCTIVE_RESET",
+  "decision_reason": [
+    "All 8 remote versions are 20260919* timestamps that do not exist in supabase/migrations.",
+    "Three remote names overlap repo history at different versions: dduka_dash_schema_v2, extend_profiles_role_enum_superadmin, lock_down_auth_rls_helpers_anon_execute.",
+    "Applying the remaining 165 versioned files on top would leave 8 remote-only ledger rows, so DIVERGED cannot become 0.",
+    "migration repair would fake alignment and is forbidden.",
+    "A destructive schema reset would be required for version alignment, but the 166-file historical dump cannot replay from empty (profiles/tenants/patients/encounters predating the ledger)."
+  ],
+  "apply_plan": "NOT STARTED",
+  "remote_only": [
+    {
+      "remote_version": "20260919152630",
+      "remote_name": "acceptance_preexisting_baseline",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": false
+    },
+    {
+      "remote_version": "20260919152723",
+      "remote_name": "dduka_dash_schema_v2",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": true
+    },
+    {
+      "remote_version": "20260919152940",
+      "remote_name": "acceptance_preexisting_clinical_stubs",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": false
+    },
+    {
+      "remote_version": "20260919153012",
+      "remote_name": "acceptance_insurance_claims_stub",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": false
+    },
+    {
+      "remote_version": "20260919153125",
+      "remote_name": "extend_profiles_role_enum_superadmin",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": true
+    },
+    {
+      "remote_version": "20260919153235",
+      "remote_name": "e2e_acceptance_core_schema",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": false
+    },
+    {
+      "remote_version": "20260919153447",
+      "remote_name": "e2e_acceptance_hospital_journey_schema",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": false
+    },
+    {
+      "remote_version": "20260919153523",
+      "remote_name": "lock_down_auth_rls_helpers_anon_execute",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": true
+    }
+  ],
+  "comparison": [
+    {
+      "repo_file": "20260410211144_dduka_dash_schema_v2.sql",
+      "repo_version": "20260410211144",
+      "repo_name": "dduka_dash_schema_v2",
+      "status": "DIVERGED",
+      "note": "same name on remote versions ['20260919152723']"
+    },
+    {
+      "repo_file": "20260410211427_seed_data.sql",
+      "repo_version": "20260410211427",
+      "repo_name": "seed_data",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260503150842_extend_profiles_role_enum_superadmin.sql",
+      "repo_version": "20260503150842",
+      "repo_name": "extend_profiles_role_enum_superadmin",
+      "status": "DIVERGED",
+      "note": "same name on remote versions ['20260919153125']"
+    },
+    {
+      "repo_file": "20260503175422_create_demo_schema.sql",
+      "repo_version": "20260503175422",
+      "repo_name": "create_demo_schema",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260503175446_seed_demo_departments.sql",
+      "repo_version": "20260503175446",
+      "repo_name": "seed_demo_departments",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260503175518_seed_demo_patients.sql",
+      "repo_version": "20260503175518",
+      "repo_name": "seed_demo_patients",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260503191458_create_demo_auth_user.sql",
+      "repo_version": "20260503191458",
+      "repo_name": "create_demo_auth_user",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260504041852_demo_tables_in_public_schema.sql",
+      "repo_version": "20260504041852",
+      "repo_name": "demo_tables_in_public_schema",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260504045522_fix_demo_rls_use_jwt_email.sql",
+      "repo_version": "20260504045522",
+      "repo_name": "fix_demo_rls_use_jwt_email",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260604163130_add_tenant_performance_indexes.sql",
+      "repo_version": "20260604163130",
+      "repo_name": "add_tenant_performance_indexes",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260604163142_add_missing_platform_tables.sql",
+      "repo_version": "20260604163142",
+      "repo_name": "add_missing_platform_tables",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260604163152_custom_jwt_tenant_hook.sql",
+      "repo_version": "20260604163152",
+      "repo_name": "custom_jwt_tenant_hook",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260605150957_add_synapse_id_core_tables.sql",
+      "repo_version": "20260605150957",
+      "repo_name": "add_synapse_id_core_tables",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260605193131_fix_rls_8_exposed_tables.sql",
+      "repo_version": "20260605193131",
+      "repo_name": "fix_rls_8_exposed_tables",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260605193214_add_tenant_id_indexes_batch.sql",
+      "repo_version": "20260605193214",
+      "repo_name": "add_tenant_id_indexes_batch",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260605193303_seed_demo_labs_and_modules.sql",
+      "repo_version": "20260605193303",
+      "repo_name": "seed_demo_labs_and_modules",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260605194256_enable_rls_on_8_exposed_tables.sql",
+      "repo_version": "20260605194256",
+      "repo_name": "enable_rls_on_8_exposed_tables",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260605194359_add_tenant_id_indexes_all_70_tables.sql",
+      "repo_version": "20260605194359",
+      "repo_name": "add_tenant_id_indexes_all_70_tables",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260605194536_seed_demo_lab_results_and_upsert_modules.sql",
+      "repo_version": "20260605194536",
+      "repo_name": "seed_demo_lab_results_and_upsert_modules",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260606070858_phase2_7_consumer_health_tables.sql",
+      "repo_version": "20260606070858",
+      "repo_name": "phase2_7_consumer_health_tables",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260607100048_create_professional_leads.sql",
+      "repo_version": "20260607100048",
+      "repo_name": "create_professional_leads",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260607111937_custom_otp_and_newsletter.sql",
+      "repo_version": "20260607111937",
+      "repo_name": "custom_otp_and_newsletter",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260607130305_synapse_app_mobile_schema.sql",
+      "repo_version": "20260607130305",
+      "repo_name": "synapse_app_mobile_schema",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260608134937_pharmacy_core_tables.sql",
+      "repo_version": "20260608134937",
+      "repo_name": "pharmacy_core_tables",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260608135011_pharmacy_transactions_and_orders.sql",
+      "repo_version": "20260608135011",
+      "repo_name": "pharmacy_transactions_and_orders",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260608135026_pharmacy_audit_and_notifications.sql",
+      "repo_version": "20260608135026",
+      "repo_name": "pharmacy_audit_and_notifications",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260608135056_pharmacy_rls_policies.sql",
+      "repo_version": "20260608135056",
+      "repo_name": "pharmacy_rls_policies",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260608165417_add_password_hash_to_pharmacy_customers.sql",
+      "repo_version": "20260608165417",
+      "repo_name": "add_password_hash_to_pharmacy_customers",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260609000112_add_missing_synapse_operational_tables.sql",
+      "repo_version": "20260609000112",
+      "repo_name": "add_missing_synapse_operational_tables",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260609154759_tenant_facility_compatibility_columns.sql",
+      "repo_version": "20260609154759",
+      "repo_name": "tenant_facility_compatibility_columns",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260611084450_pharmacy_domain_provisioning.sql",
+      "repo_version": "20260611084450",
+      "repo_name": "pharmacy_domain_provisioning",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260611084534_pharmacy_orders_patient_compatibility.sql",
+      "repo_version": "20260611084534",
+      "repo_name": "pharmacy_orders_patient_compatibility",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260611084554_pharmacy_network_rls_policies_retry.sql",
+      "repo_version": "20260611084554",
+      "repo_name": "pharmacy_network_rls_policies_retry",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260611141817_pharmacy_tenant_columns.sql",
+      "repo_version": "20260611141817",
+      "repo_name": "pharmacy_tenant_columns",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260611141830_pharmacy_rls_fix_locked_tables.sql",
+      "repo_version": "20260611141830",
+      "repo_name": "pharmacy_rls_fix_locked_tables",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260611141844_pharmacy_onboarding_table.sql",
+      "repo_version": "20260611141844",
+      "repo_name": "pharmacy_onboarding_table",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260611141915_pharmacy_network_inventory_trigger.sql",
+      "repo_version": "20260611141915",
+      "repo_name": "pharmacy_network_inventory_trigger",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260611154006_pharmacy_onboarding_rls_and_printer_type.sql",
+      "repo_version": "20260611154006",
+      "repo_name": "pharmacy_onboarding_rls_and_printer_type",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612055928_synapse_sessions.sql",
+      "repo_version": "20260612055928",
+      "repo_name": "synapse_sessions",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612055938_profiles_custom_auth_columns.sql",
+      "repo_version": "20260612055938",
+      "repo_name": "profiles_custom_auth_columns",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612055951_rls_helper_functions.sql",
+      "repo_version": "20260612055951",
+      "repo_name": "rls_helper_functions",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612060857_fix_zero_policy_auth_otps.sql",
+      "repo_version": "20260612060857",
+      "repo_name": "fix_zero_policy_auth_otps",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612060902_fix_zero_policy_mfa_enrollments.sql",
+      "repo_version": "20260612060902",
+      "repo_name": "fix_zero_policy_mfa_enrollments",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612060916_fix_zero_policy_health_bulletins.sql",
+      "repo_version": "20260612060916",
+      "repo_name": "fix_zero_policy_health_bulletins",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612060922_fix_zero_policy_drug_shortage_alerts.sql",
+      "repo_version": "20260612060922",
+      "repo_name": "fix_zero_policy_drug_shortage_alerts",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612060928_fix_zero_policy_refill_reminders.sql",
+      "repo_version": "20260612060928",
+      "repo_name": "fix_zero_policy_refill_reminders",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612060935_fix_zero_policy_body_register.sql",
+      "repo_version": "20260612060935",
+      "repo_name": "fix_zero_policy_body_register",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612060940_fix_zero_policy_housekeeping_tasks.sql",
+      "repo_version": "20260612060940",
+      "repo_name": "fix_zero_policy_housekeeping_tasks",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612060945_fix_zero_policy_partograph_records.sql",
+      "repo_version": "20260612060945",
+      "repo_name": "fix_zero_policy_partograph_records",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612061003_fix_zero_policy_visitor_log.sql",
+      "repo_version": "20260612061003",
+      "repo_name": "fix_zero_policy_visitor_log",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612061012_fix_zero_policy_facility_resource_logs.sql",
+      "repo_version": "20260612061012",
+      "repo_name": "fix_zero_policy_facility_resource_logs",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612061014_fix_zero_policy_surveillance_reports.sql",
+      "repo_version": "20260612061014",
+      "repo_name": "fix_zero_policy_surveillance_reports",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612061028_fix_zero_policy_sdg_reports.sql",
+      "repo_version": "20260612061028",
+      "repo_name": "fix_zero_policy_sdg_reports",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612061031_fix_zero_policy_newsletter_subscribers.sql",
+      "repo_version": "20260612061031",
+      "repo_name": "fix_zero_policy_newsletter_subscribers",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612142246_add_encounter_status_column.sql",
+      "repo_version": "20260612142246",
+      "repo_name": "add_encounter_status_column",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612154149_tensor_multitenancy_capability_lattice.sql",
+      "repo_version": "20260612154149",
+      "repo_name": "tensor_multitenancy_capability_lattice",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612154805_reasoning_engine_tables_and_functions.sql",
+      "repo_version": "20260612154805",
+      "repo_name": "reasoning_engine_tables_and_functions",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612230501_capability_lattice_extension_phase2.sql",
+      "repo_version": "20260612230501",
+      "repo_name": "capability_lattice_extension_phase2",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612230655_subscriptions_and_feature_gates.sql",
+      "repo_version": "20260612230655",
+      "repo_name": "subscriptions_and_feature_gates",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612231111_pharmacy_pos_tables.sql",
+      "repo_version": "20260612231111",
+      "repo_name": "pharmacy_pos_tables",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612231409_insurance_copilot_tables.sql",
+      "repo_version": "20260612231409",
+      "repo_name": "insurance_copilot_tables",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612231541_longitudinal_patient_intelligence.sql",
+      "repo_version": "20260612231541",
+      "repo_name": "longitudinal_patient_intelligence",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260612231920_rls_phi_hardening.sql",
+      "repo_version": "20260612231920",
+      "repo_name": "rls_phi_hardening",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260613072631_has_capability_function.sql",
+      "repo_version": "20260613072631",
+      "repo_name": "has_capability_function",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260613104631_emergency_auth_rls_convergence.sql",
+      "repo_version": "20260613104631",
+      "repo_name": "emergency_auth_rls_convergence",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260613104742_lock_down_auth_rls_helpers_anon_execute.sql",
+      "repo_version": "20260613104742",
+      "repo_name": "lock_down_auth_rls_helpers_anon_execute",
+      "status": "DIVERGED",
+      "note": "same name on remote versions ['20260919153523']"
+    },
+    {
+      "repo_file": "20260613171512_email_activation_gate.sql",
+      "repo_version": "20260613171512",
+      "repo_name": "email_activation_gate",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260614084545_password_reset_tokens.sql",
+      "repo_version": "20260614084545",
+      "repo_name": "password_reset_tokens",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260614192359_allow_public_invite_lookup.sql",
+      "repo_version": "20260614192359",
+      "repo_name": "allow_public_invite_lookup",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260615112752_add_pharmacy_admin_role.sql",
+      "repo_version": "20260615112752",
+      "repo_name": "add_pharmacy_admin_role",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260615122022_add_admin_contact_to_pharmacy_onboarding.sql",
+      "repo_version": "20260615122022",
+      "repo_name": "add_admin_contact_to_pharmacy_onboarding",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260616145543_add_pharmacy_staff_ceo_to_role_check.sql",
+      "repo_version": "20260616145543",
+      "repo_name": "add_pharmacy_staff_ceo_to_role_check",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260620223902_subscription_billing_flutterwave.sql",
+      "repo_version": "20260620223902",
+      "repo_name": "subscription_billing_flutterwave",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260621013812_pharmacy_custom_domains.sql",
+      "repo_version": "20260621013812",
+      "repo_name": "pharmacy_custom_domains",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260621193519_add_sms_credits_to_tenants.sql",
+      "repo_version": "20260621193519",
+      "repo_name": "add_sms_credits_to_tenants",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260621193522_add_phone_to_profiles.sql",
+      "repo_version": "20260621193522",
+      "repo_name": "add_phone_to_profiles",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260703185455_create_complete_pharmacy_sale_rpc.sql",
+      "repo_version": "20260703185455",
+      "repo_name": "create_complete_pharmacy_sale_rpc",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260706073556_create_hospital_leads.sql",
+      "repo_version": "20260706073556",
+      "repo_name": "create_hospital_leads",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260714172600_pharm_plans_canonical_pricing.sql",
+      "repo_version": "20260714172600",
+      "repo_name": "pharm_plans_canonical_pricing",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260715120935_subscription_invoices.sql",
+      "repo_version": "20260715120935",
+      "repo_name": "subscription_invoices",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260715192400_fix_complete_pharmacy_sale_generated_line_total.sql",
+      "repo_version": "20260715192400",
+      "repo_name": "fix_complete_pharmacy_sale_generated_line_total",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260716104221_custom_auth_profile_ids.sql",
+      "repo_version": "20260716104221",
+      "repo_name": "custom_auth_profile_ids",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260716104232_add_mobile_push_tokens.sql",
+      "repo_version": "20260716104232",
+      "repo_name": "add_mobile_push_tokens",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260716104338_hospital_module_registry_seed.sql",
+      "repo_version": "20260716104338",
+      "repo_name": "hospital_module_registry_seed",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260716110812_backfill_missing_baseline_tables.sql",
+      "repo_version": "20260716110812",
+      "repo_name": "backfill_missing_baseline_tables",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260718183718_nda_batch_manufacturer_and_sale_item_audit.sql",
+      "repo_version": "20260718183718",
+      "repo_name": "nda_batch_manufacturer_and_sale_item_audit",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260718183725_sales_receipt_void_offline_and_session_variance.sql",
+      "repo_version": "20260718183725",
+      "repo_name": "sales_receipt_void_offline_and_session_variance",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260718183749_append_only_sales_guard_and_batch_sale_rules.sql",
+      "repo_version": "20260718183749",
+      "repo_name": "append_only_sales_guard_and_batch_sale_rules",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260718183757_reprint_log_and_stock_adjustment_hardening.sql",
+      "repo_version": "20260718183757",
+      "repo_name": "reprint_log_and_stock_adjustment_hardening",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260718183806_tenant_tax_efris_settings_and_vat_category.sql",
+      "repo_version": "20260718183806",
+      "repo_name": "tenant_tax_efris_settings_and_vat_category",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260725095606_pharmacy_sale_idempotency.sql",
+      "repo_version": "20260725095606",
+      "repo_name": "pharmacy_sale_idempotency",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260725102530_pharmacy_capability_roles.sql",
+      "repo_version": "20260725102530",
+      "repo_name": "pharmacy_capability_roles",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260725103907_fix_complete_sale_pending_then_complete.sql",
+      "repo_version": "20260725103907",
+      "repo_name": "fix_complete_sale_pending_then_complete",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260801181742_pos_sale_idempotency_in_rpc.sql",
+      "repo_version": "20260801181742",
+      "repo_name": "pos_sale_idempotency_in_rpc",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260810093112_pharmacy_printer_preferences.sql",
+      "repo_version": "20260810093112",
+      "repo_name": "pharmacy_printer_preferences",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260810093114_pharmacy_settings_receipt_identity.sql",
+      "repo_version": "20260810093114",
+      "repo_name": "pharmacy_settings_receipt_identity",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260810093356_pharmacy_inventory_authority.sql",
+      "repo_version": "20260810093356",
+      "repo_name": "pharmacy_inventory_authority",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260810093434_pharmacy_rls_tenant_isolation.sql",
+      "repo_version": "20260810093434",
+      "repo_name": "pharmacy_rls_tenant_isolation",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260810093436_pharmacy_stock_authority_and_perms.sql",
+      "repo_version": "20260810093436",
+      "repo_name": "pharmacy_stock_authority_and_perms",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260810093707_pharmacy_pilot_authority_hardening.sql",
+      "repo_version": "20260810093707",
+      "repo_name": "pharmacy_pilot_authority_hardening",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260810093859_pharmacy_rpc_revoke_client_execute.sql",
+      "repo_version": "20260810093859",
+      "repo_name": "pharmacy_rpc_revoke_client_execute",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260817120000_synapse_network_identity_foundations.sql",
+      "repo_version": "20260817120000",
+      "repo_name": "synapse_network_identity_foundations",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260817164805_synapse_network_identity_foundations.sql",
+      "repo_version": "20260817164805",
+      "repo_name": "synapse_network_identity_foundations",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260817164837_synapse_network_identity_foundations_persons.sql",
+      "repo_version": "20260817164837",
+      "repo_name": "synapse_network_identity_foundations_persons",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260817164848_synapse_network_identity_foundations_profile.sql",
+      "repo_version": "20260817164848",
+      "repo_name": "synapse_network_identity_foundations_profile",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260817164902_synapse_network_identity_foundations_mpi_consent.sql",
+      "repo_version": "20260817164902",
+      "repo_name": "synapse_network_identity_foundations_mpi_consent",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260817164946_synapse_network_identity_foundations_links_scope.sql",
+      "repo_version": "20260817164946",
+      "repo_name": "synapse_network_identity_foundations_links_scope",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260817164959_synapse_network_identity_foundations_pharmacy_interop.sql",
+      "repo_version": "20260817164959",
+      "repo_name": "synapse_network_identity_foundations_pharmacy_interop",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260817165015_synapse_network_identity_foundations_rls.sql",
+      "repo_version": "20260817165015",
+      "repo_name": "synapse_network_identity_foundations_rls",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260817165055_fix_generate_synapse_id_text_ascii.sql",
+      "repo_version": "20260817165055",
+      "repo_name": "fix_generate_synapse_id_text_ascii",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260823105807_pharmacy_stock_transfers_execute.sql",
+      "repo_version": "20260823105807",
+      "repo_name": "pharmacy_stock_transfers_execute",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260823105809_pharmacy_cashier_sessions_v1.sql",
+      "repo_version": "20260823105809",
+      "repo_name": "pharmacy_cashier_sessions_v1",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260823105821_pharmacy_stock_transfer_rpcs.sql",
+      "repo_version": "20260823105821",
+      "repo_name": "pharmacy_stock_transfer_rpcs",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260823105844_pharmacy_stock_transfer_receive_rpc.sql",
+      "repo_version": "20260823105844",
+      "repo_name": "pharmacy_stock_transfer_receive_rpc",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260823105846_generate_synapse_id_person_compat.sql",
+      "repo_version": "20260823105846",
+      "repo_name": "generate_synapse_id_person_compat",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260827231349_synapse_exchange_lab_pathways_simulation.sql",
+      "repo_version": "20260827231349",
+      "repo_name": "synapse_exchange_lab_pathways_simulation",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260827231417_synapse_exchange_events_and_lab_safety.sql",
+      "repo_version": "20260827231417",
+      "repo_name": "synapse_exchange_events_and_lab_safety",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260827231431_synapse_exchange_pathways_simulation_control.sql",
+      "repo_version": "20260827231431",
+      "repo_name": "synapse_exchange_pathways_simulation_control",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260827231440_synapse_exchange_rls.sql",
+      "repo_version": "20260827231440",
+      "repo_name": "synapse_exchange_rls",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260827231454_project_golden_intelligence_icd11.sql",
+      "repo_version": "20260827231454",
+      "repo_name": "project_golden_intelligence_icd11",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260828164925_clinical_intelligence_sessions.sql",
+      "repo_version": "20260828164925",
+      "repo_name": "clinical_intelligence_sessions",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260828165013_domain_event_log.sql",
+      "repo_version": "20260828165013",
+      "repo_name": "domain_event_log",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260828165136_pathway_dka_pneumonia_seeds.sql",
+      "repo_version": "20260828165136",
+      "repo_name": "pathway_dka_pneumonia_seeds",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260828165138_pathway_slug_aliases_malaria_sepsis.sql",
+      "repo_version": "20260828165138",
+      "repo_name": "pathway_slug_aliases_malaria_sepsis",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260828165139_domain_event_log_wave1.sql",
+      "repo_version": "20260828165139",
+      "repo_name": "domain_event_log_wave1",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260828174832_platform_control_plane_core.sql",
+      "repo_version": "20260828174832",
+      "repo_name": "platform_control_plane_core",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260828175203_platform_control_plane_audit_incidents.sql",
+      "repo_version": "20260828175203",
+      "repo_name": "platform_control_plane_audit_incidents",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260828175226_platform_control_plane_ops_tables.sql",
+      "repo_version": "20260828175226",
+      "repo_name": "platform_control_plane_ops_tables",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260830071642_platform_access_governance.sql",
+      "repo_version": "20260830071642",
+      "repo_name": "platform_access_governance",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260830074132_add_platform_observer_role.sql",
+      "repo_version": "20260830074132",
+      "repo_name": "add_platform_observer_role",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260830081931_hospital_acceptance_infrastructure.sql",
+      "repo_version": "20260830081931",
+      "repo_name": "hospital_acceptance_infrastructure",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260830082047_opd_prescription_capabilities_v2.sql",
+      "repo_version": "20260830082047",
+      "repo_name": "opd_prescription_capabilities_v2",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260830082558_encounter_signing.sql",
+      "repo_version": "20260830082558",
+      "repo_name": "encounter_signing",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260830115410_encounter_amendments_and_guards.sql",
+      "repo_version": "20260830115410",
+      "repo_name": "encounter_amendments_and_guards",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260831190000_dhis2_export_pipeline.sql",
+      "repo_version": "20260831190000",
+      "repo_name": "dhis2_export_pipeline",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260902163011_hospital_onboarding_tables.sql",
+      "repo_version": "20260902163011",
+      "repo_name": "hospital_onboarding_tables",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260902163050_facility_provisioning_runs.sql",
+      "repo_version": "20260902163050",
+      "repo_name": "facility_provisioning_runs",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260902170756_lab_lims_wave1_devices.sql",
+      "repo_version": "20260902170756",
+      "repo_name": "lab_lims_wave1_devices",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260903090143_fix_departments_tenant_scoped_unique.sql",
+      "repo_version": "20260903090143",
+      "repo_name": "fix_departments_tenant_scoped_unique",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260903092150_facility_domain_records.sql",
+      "repo_version": "20260903092150",
+      "repo_name": "facility_domain_records",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260903123000_feature_flags.sql",
+      "repo_version": "20260903123000",
+      "repo_name": "feature_flags",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260904090000_expand_facility_type_check.sql",
+      "repo_version": "20260904090000",
+      "repo_name": "expand_facility_type_check",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260904093000_qualify_tenants_updated_at_trigger.sql",
+      "repo_version": "20260904093000",
+      "repo_name": "qualify_tenants_updated_at_trigger",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260904100000_add_hospitals_updated_at.sql",
+      "repo_version": "20260904100000",
+      "repo_name": "add_hospitals_updated_at",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260904110000_dhis2_simulation_mappings.sql",
+      "repo_version": "20260904110000",
+      "repo_name": "dhis2_simulation_mappings",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260904120000_dhis2_global_simulation_org_unit.sql",
+      "repo_version": "20260904120000",
+      "repo_name": "dhis2_global_simulation_org_unit",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260907083248_pharmacy_inventory_summary_invoker.sql",
+      "repo_version": "20260907083248",
+      "repo_name": "pharmacy_inventory_summary_invoker",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260907083310_laboratory_control_plane_capabilities.sql",
+      "repo_version": "20260907083310",
+      "repo_name": "laboratory_control_plane_capabilities",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260907100539_feature_flags_postgrest_conflict_target.sql",
+      "repo_version": "20260907100539",
+      "repo_name": "feature_flags_postgrest_conflict_target",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260907115038_laboratory_role_capability_alignment.sql",
+      "repo_version": "20260907115038",
+      "repo_name": "laboratory_role_capability_alignment",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260907123159_backfill_canonical_hospital_locations.sql",
+      "repo_version": "20260907123159",
+      "repo_name": "backfill_canonical_hospital_locations",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260908120000_lab_reports_release_artifacts.sql",
+      "repo_version": "20260908120000",
+      "repo_name": "lab_reports_release_artifacts",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260909100000_manual_subscription_grants.sql",
+      "repo_version": "20260909100000",
+      "repo_name": "manual_subscription_grants",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260909130000_scope_pharmacy_receipts_to_tenant.sql",
+      "repo_version": "20260909130000",
+      "repo_name": "scope_pharmacy_receipts_to_tenant",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260910120000_facility_invitations_token_hash.sql",
+      "repo_version": "20260910120000",
+      "repo_name": "facility_invitations_token_hash",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260910130000_facility_invitations_acceptance_tx.sql",
+      "repo_version": "20260910130000",
+      "repo_name": "facility_invitations_acceptance_tx",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260911100000_session_bound_mfa_assurance.sql",
+      "repo_version": "20260911100000",
+      "repo_name": "session_bound_mfa_assurance",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260911120000_fix_invite_acceptance_verification_status.sql",
+      "repo_version": "20260911120000",
+      "repo_name": "fix_invite_acceptance_verification_status",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260912184600_encounter_disposition_columns.sql",
+      "repo_version": "20260912184600",
+      "repo_name": "encounter_disposition_columns",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260912190100_facility_referrals_lifecycle_columns.sql",
+      "repo_version": "20260912190100",
+      "repo_name": "facility_referrals_lifecycle_columns",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260912220000_synapse_remote_migration_head.sql",
+      "repo_version": "20260912220000",
+      "repo_name": "synapse_remote_migration_head",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260913010000_lab_order_replacement_link.sql",
+      "repo_version": "20260913010000",
+      "repo_name": "lab_order_replacement_link",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260913020000_lab_order_one_open_replacement.sql",
+      "repo_version": "20260913020000",
+      "repo_name": "lab_order_one_open_replacement",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260918120000_facility_lifecycle_control_plane.sql",
+      "repo_version": "20260918120000",
+      "repo_name": "facility_lifecycle_control_plane",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "20260918140000_hospital_billing_payments.sql",
+      "repo_version": "20260918140000",
+      "repo_name": "hospital_billing_payments",
+      "status": "MISSING",
+      "note": null
+    },
+    {
+      "repo_file": "demo_schema_init.sql",
+      "repo_version": null,
+      "repo_name": "demo_schema_init",
+      "status": "UNVERSIONED",
+      "note": "cannot appear in supabase schema_migrations as a 14-digit version"
+    }
+  ]
+}

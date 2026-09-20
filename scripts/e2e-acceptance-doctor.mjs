@@ -3,32 +3,25 @@
  * Preflight configuration check for SYNAPSE-OS production acceptance.
  *
  * Validates required environment secrets without printing their values.
+ * Proves isolated DB identity and live health/ready before seed or browser work.
  * Exits non-zero if any required configuration is MISSING or INVALID.
  */
+
+import {
+  EXPECTED_ACCEPTANCE_PROJECT_REF,
+  interpretReadyPayload,
+  validateAcceptanceBaseUrl,
+  validateIsolatedSupabaseUrl,
+  validateServiceRoleKey,
+  vercelBypassHeaders,
+} from "./e2e-acceptance-isolation.mjs"
 
 const checks = {
   SYNAPSE_E2E_BASE_URL: {
     source: "VERCEL",
     description: "Remote acceptance deployment URL",
     required: true,
-    validate: (value) => {
-      if (!value) return { status: "MISSING" }
-      try {
-        const url = new URL(value)
-        if (url.protocol !== "https:") {
-          return { status: "INVALID", reason: "Must use https://" }
-        }
-        if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
-          return { status: "INVALID", reason: "Must be remote, not localhost" }
-        }
-        if (url.hostname.endsWith(".invalid") || url.hostname.endsWith(".example") || url.hostname.endsWith(".test")) {
-          return { status: "INVALID", reason: "Must be a real Vercel Preview host, not a placeholder" }
-        }
-        return { status: "FOUND" }
-      } catch {
-        return { status: "INVALID", reason: "Not a valid URL" }
-      }
-    },
+    validate: (value) => validateAcceptanceBaseUrl(value),
   },
   SYNAPSE_E2E_EMAIL: {
     source: "OPERATOR_CREATED",
@@ -73,27 +66,13 @@ const checks = {
     source: "SUPABASE",
     description: "Isolated E2E database URL (seed only)",
     required: true,
-    validate: (value) => {
-      if (!value) return { status: "MISSING" }
-      try {
-        new URL(value)
-        return { status: "FOUND" }
-      } catch {
-        return { status: "INVALID", reason: "Not a valid URL" }
-      }
-    },
+    validate: (value) => validateIsolatedSupabaseUrl(value),
   },
   SYNAPSE_E2E_SERVICE_ROLE_KEY: {
     source: "SUPABASE",
     description: "Service role key for seeding (seed only)",
     required: true,
-    validate: (value) => {
-      if (!value) return { status: "MISSING" }
-      if (value.length < 32) {
-        return { status: "INVALID", reason: "Too short to be a service role key" }
-      }
-      return { status: "FOUND" }
-    },
+    validate: (value) => validateServiceRoleKey(value),
   },
   SYNAPSE_E2E_REMOTE_HOST_READY: {
     source: "ATTESTATION",
@@ -178,10 +157,51 @@ if (!allValid) {
   process.exit(1)
 }
 
-console.log("✅ PREFLIGHT PASSED: All required configuration is present and valid")
-console.log()
-console.log("Note: This check validates format only. Runtime correctness depends on:")
-console.log("  1. Remote Vercel deployment has SYNAPSE_E2E_AUTH, SYNAPSE_E2E_ACCEPTANCE_ENV, SYNAPSE_E2E_FIXED_OTP")
-console.log("  2. Supabase credentials have write access to the isolated E2E database")
-console.log("  3. E2E staff credentials match seeded fixtures")
+async function probeJson(url, headers) {
+  const response = await fetch(url, { headers, redirect: "manual", cache: "no-store" })
+  const text = await response.text()
+  let json = null
+  try {
+    json = JSON.parse(text)
+  } catch {
+    json = null
+  }
+  return { status: response.status, json, location: response.headers.get("location") }
+}
+
+const headers = vercelBypassHeaders()
+const base = process.env.SYNAPSE_E2E_BASE_URL.replace(/\/$/, "")
+const expectedSha = (process.env.EXPECTED_SHA || process.env.GITHUB_SHA || "").trim() || null
+
+try {
+  const live = await probeJson(`${base}/api/health/live`, headers)
+  if (live.status === 401 || live.status === 403 || (live.status >= 300 && live.status < 400)) {
+    console.log("❌ PREFLIGHT FAILED: health/live is not reachable on the isolated Preview")
+    console.log("  → SSO or redirect blocked the probe. Set SYNAPSE_E2E_VERCEL_BYPASS if Preview protection is on.")
+    process.exit(1)
+  }
+  if (live.status !== 200 || live.json?.status !== "live") {
+    console.log("❌ PREFLIGHT FAILED: /api/health/live is not live")
+    console.log(`  → HTTP ${live.status} status=${live.json?.status || "missing"}`)
+    process.exit(1)
+  }
+  console.log(`✓ /api/health/live              | FOUND    | LIVE        | Isolated Preview health`)
+
+  const ready = await probeJson(`${base}/api/ready`, headers)
+  const readyCheck = interpretReadyPayload(ready.json, expectedSha)
+  if (ready.status !== 200 || readyCheck.status !== "FOUND") {
+    console.log("❌ PREFLIGHT FAILED: /api/ready did not prove an isolated ready environment")
+    console.log(`  → HTTP ${ready.status} ${readyCheck.reason || ""}`)
+    process.exit(1)
+  }
+  const shaNote = readyCheck.commitSha ? `sha=${readyCheck.commitSha.slice(0, 7)}` : "sha=unknown"
+  console.log(`✓ /api/ready                    | FOUND    | READY       | ${shaNote}`)
+  console.log(`✓ isolated project              | FOUND    | ${EXPECTED_ACCEPTANCE_PROJECT_REF} | not production`)
+} catch (error) {
+  console.log("❌ PREFLIGHT FAILED: live isolation probes could not run")
+  console.log(`  → ${error instanceof Error ? error.message : "probe failed"}`)
+  process.exit(1)
+}
+
+console.log("✅ PREFLIGHT PASSED: Isolated acceptance configuration and live probes are valid")
 console.log("=" .repeat(80))

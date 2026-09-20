@@ -35,10 +35,17 @@ supabase/.temp/
 !/artifacts/readiness/CORE_OS_GREEN.json
 !/artifacts/readiness/FINAL_GREEN_RELEASE.json
 !/artifacts/readiness/deployment-sha-alignment.json
+!/artifacts/readiness/migration-bootstrap-audit-2026-09-19.json
+!/artifacts/readiness/acceptance-migration-plan-2026-09-19.json
+!/artifacts/readiness/acceptance-db-snapshot-2026-09-19.json
+!/artifacts/readiness/canonical-schema-bootstrap-2026-09-20.json
 
 # Temporary debug/probe scripts — may contain hardcoded production data
 scripts/_tmp_*
 .worktrees/
+
+# Local scratch dumps (DDL chunks, probe SQL). Never commit.
+.tmp/
 
 # Claude Code local config
 .claude/

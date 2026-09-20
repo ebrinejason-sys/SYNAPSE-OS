@@ -1,4 +1,4 @@
-# Core OS Green — 2026-09-18
+# Core OS Green — 2026-09-20
 
 **Status:** CURRENT  
 **Branch:** `cursor/core-os-final-acceptance-2026-09-18`  
@@ -7,9 +7,7 @@
 
 **CORE OS GREEN: NO**
 
-Antigravity's pre-seed report is not accepted as evidence. Isolated ref `jbojujxpyxsdiukmrwzs` is **not** visible to the authenticated Supabase org (`3brine`). It is not a proven isolated acceptance database. Do not seed it. Do not point Preview at it.
-
-Preferred next isolated target: a temporary Supabase development branch of `SYNAPSE_OS` (`qfqakzmjatszisuqjwon`, `eu-west-1`). Branch creation is billable (~$0.01344/hour) and requires explicit operator approval.
+Isolated project `jbojujxpyxsdiukmrwzs` (`synapse-e2e-acceptance`, org `synapse-e2e-acceptance`, `eu-west-1`) is now identity-proven and had zero clinical rows. Canonical schema bootstrap is **PASS twice on local disposable Postgres**. Remote canonical apply after an approved empty-schema reset was still in progress at closeout. Do not treat production `qfqakzmjatszisuqjwon` as acceptance.
 
 ## Security hardening (PR #83)
 
@@ -45,8 +43,9 @@ Demo GREEN is unchanged. This campaign does not reopen Demo work.
 | Billing | **PASS** domain; browser **NOT_RUN** |
 | Admin | **BLOCKED** |
 | `/api/health/live` `/api/ready` | **FAIL** on live `synapseos.tech` (404 after www redirect) |
-| Isolated acceptance DB provenance | **FAIL** (`jbojujxpyxsdiukmrwzs` unproven) |
-| Remote migrations on acceptance DB | **FAIL** (not applied / not inspectable) |
+| Isolated acceptance DB provenance | **PASS** identity (`jbojujxpyxsdiukmrwzs`) |
+| Remote canonical schema on acceptance DB | **IN_PROGRESS** (local PASS twice) |
+| Seed idempotency | **PASS** local (2 tenants / 9 profiles / 1 Amina; IDs stable) |
 | Preview DB match | **UNKNOWN** (preview SSO-protected; isolated DB unproven) |
 | `SUPABASE_DB_URL` | **OPERATOR_REQUIRED** |
 | Release workflow | **FIXED** on this branch (PR CI no longer fails Release) |
