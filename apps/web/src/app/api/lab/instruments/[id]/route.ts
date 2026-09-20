@@ -36,7 +36,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const safeConfig = omitDeviceSecrets(configuration)
   return NextResponse.json({
     device: { ...device, configuration: safeConfig },
-    bridge: bridge ? { ...bridge, api_key: undefined } : null,
+    bridge: bridge ? { ...bridge, api_key: undefined, api_key_hash: undefined } : null,
     coverage: { mapped: mapped ?? 0, unmapped: unmapped ?? 0 },
     recentErrors: errors ?? [],
   })

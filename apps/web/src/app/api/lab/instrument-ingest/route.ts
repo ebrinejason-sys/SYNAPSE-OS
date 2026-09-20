@@ -2,7 +2,7 @@ import { createHash } from "crypto"
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@synapse/db/admin"
 import { detectUnitMismatch, deviceMayIngest, evaluateCriticalValue, validateAstmFrame } from "@synapse/db/lab-device-intelligence"
-import { lookupLabBridge } from "@/lib/lab-bridge-auth"
+import { lookupLabBridgeDetailed } from "@/lib/lab-bridge-auth"
 
 export const dynamic = "force-dynamic"
 
@@ -19,10 +19,14 @@ export async function POST(request: Request) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
-  const bridge = await lookupLabBridge(apiKey)
-  if (!bridge) {
+  const lookup = await lookupLabBridgeDetailed(apiKey)
+  if (!lookup.ok) {
+    if (lookup.reason === "hash_unavailable") {
+      return NextResponse.json({ error: "Lab Edge hashed credentials unavailable" }, { status: 503 })
+    }
     return NextResponse.json({ error: "Invalid or inactive bridge key" }, { status: 401 })
   }
+  const bridge = lookup.bridge
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const deviceId = typeof body.deviceId === "string" ? body.deviceId.trim() : ""

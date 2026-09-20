@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@synapse/db/admin"
-import { lookupLabBridge } from "@/lib/lab-bridge-auth"
+import { lookupLabBridgeDetailed } from "@/lib/lab-bridge-auth"
 
 export const dynamic = "force-dynamic"
 
@@ -20,8 +20,15 @@ export async function POST(request: Request) {
   }
   const deviceId = typeof body.deviceId === "string" ? body.deviceId.trim() : ""
   const bridgeId = typeof body.bridgeId === "string" ? body.bridgeId.trim() : ""
-  const bridge = await lookupLabBridge(apiKey)
-  if (!bridge || (bridgeId && bridge.id !== bridgeId)) return NextResponse.json({ error: "Invalid or inactive bridge key" }, { status: 401 })
+  const lookup = await lookupLabBridgeDetailed(apiKey)
+  if (!lookup.ok) {
+    if (lookup.reason === "hash_unavailable") {
+      return NextResponse.json({ error: "Lab Edge hashed credentials unavailable" }, { status: 503 })
+    }
+    return NextResponse.json({ error: "Invalid or inactive bridge key" }, { status: 401 })
+  }
+  const bridge = lookup.bridge
+  if (bridgeId && bridge.id !== bridgeId) return NextResponse.json({ error: "Invalid or inactive bridge key" }, { status: 401 })
   if (!deviceId || bridge.device_id !== deviceId) return NextResponse.json({ error: "Registered device is required for this bridge" }, { status: 403 })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto"
+import { createHmac, randomBytes } from "node:crypto"
 
 export const LAB_CONNECTION_TYPES = [
   "SERIAL_RS232",
@@ -166,13 +166,45 @@ export function normalizeUnit(unit: string): string {
   return unit.replaceAll(" ", "").replaceAll("µ", "u").toLowerCase()
 }
 
-export function hashBridgeSecret(secret: string): string {
-  return createHash("sha256").update(secret).digest("hex")
+export const LAB_BRIDGE_HASH_SECRET_ENV = "LAB_BRIDGE_HASH_SECRET"
+
+export class LabBridgeHashSecretMissingError extends Error {
+  constructor() {
+    super("LAB_BRIDGE_HASH_UNAVAILABLE")
+    this.name = "LabBridgeHashSecretMissingError"
+  }
 }
 
-export function issueBridgeSecret(): { secret: string; hash: string; prefix: string } {
+export function resolveLabBridgeHashSecret(env: NodeJS.Dict<string> = process.env): string | null {
+  const secret = env[LAB_BRIDGE_HASH_SECRET_ENV]?.trim()
+  return secret ? secret : null
+}
+
+export function requireLabBridgeHashSecret(env: NodeJS.Dict<string> = process.env): string {
+  const secret = resolveLabBridgeHashSecret(env)
+  if (!secret) throw new LabBridgeHashSecretMissingError()
+  return secret
+}
+
+/** Reject operator-visible placeholders. Prefix is metadata, not a credential. */
+export function isRejectedBridgeCredentialFormat(presented: string): boolean {
+  const value = presented.trim()
+  return !value || /^ref:/i.test(value)
+}
+
+/**
+ * HMAC-SHA-256 of a high-entropy Lab Edge bearer token, keyed by LAB_BRIDGE_HASH_SECRET.
+ * This is not a user-password hash. The token is randomBytes(24); Lab Edge never receives the HMAC key.
+ */
+export function hashBridgeSecret(secret: string, hashingSecret?: string | null): string {
+  const key = hashingSecret ?? resolveLabBridgeHashSecret()
+  if (!key) throw new LabBridgeHashSecretMissingError()
+  return createHmac("sha256", key).update(secret).digest("hex")
+}
+
+export function issueBridgeSecret(hashingSecret?: string | null): { secret: string; hash: string; prefix: string } {
   const secret = `lbk_${randomBytes(24).toString("base64url")}`
-  return { secret, hash: hashBridgeSecret(secret), prefix: secret.slice(0, 12) }
+  return { secret, hash: hashBridgeSecret(secret, hashingSecret), prefix: secret.slice(0, 12) }
 }
 
 export function serialConfig(input: {

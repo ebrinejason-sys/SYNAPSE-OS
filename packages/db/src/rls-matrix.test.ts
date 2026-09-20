@@ -120,4 +120,16 @@ describe("lab device intelligence tenancy", () => {
     assert.match(sql, /ALTER TABLE public\.lab_result_staging ENABLE ROW LEVEL SECURITY/)
     assert.match(sql, /api_key_hash/)
   })
+
+  it("makes hashed Lab Edge credentials XOR with plaintext and uniquely indexed", () => {
+    const sql = readFileSync(
+      join(root, "supabase/migrations/20260920224500_lab_bridge_hashed_credentials.sql"),
+      "utf8",
+    )
+    assert.match(sql, /ALTER COLUMN api_key DROP NOT NULL/)
+    assert.match(sql, /lab_instrument_bridges_credential_xor/)
+    assert.match(sql, /idx_lab_instrument_bridges_hash_unique/)
+    assert.match(sql, /SET api_key = NULL/)
+    assert.match(sql, /api_key_hash IS NOT NULL/)
+  })
 })

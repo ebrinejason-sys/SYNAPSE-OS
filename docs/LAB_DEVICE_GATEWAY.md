@@ -21,8 +21,25 @@ A connected analyzer is **not** automatically trusted clinical truth.
 - Unique Edge identity per installation
 - Scoped credential bound to tenant + facility + device + ingest/heartbeat
 - **Never** place `SUPABASE_SERVICE_ROLE_KEY` on Edge
-- Secrets are hashed (`api_key_hash`); UI returns prefix only
+- Secrets are HMAC-digested (`api_key_hash`) with server-only `LAB_BRIDGE_HASH_SECRET`
+- UI returns the credential **prefix** only. The prefix is an identifier, not a credential.
 - Never log raw patient analyzer payloads to application logs
+
+### Credential model
+
+| | Legacy (deprecated) | Modern |
+|---|---|---|
+| `api_key` | plaintext secret | `NULL` |
+| `api_key_hash` | `NULL` | HMAC-SHA-256(LAB_BRIDGE_HASH_SECRET, issued token) |
+| `api_key_prefix` | unused / optional | display metadata only |
+
+XOR: exactly one of `api_key` / `api_key_hash` is present.
+
+`ref:<deviceId>:<prefix>` is **not** a credential and is rejected.
+
+Legacy plaintext support remains only for rows with `api_key_hash IS NULL`. Rotate those installations onto hashed credentials, then remove the legacy path in a later PR once inventory is zero.
+
+If `LAB_BRIDGE_HASH_SECRET` is missing, modern hashed authentication fails closed (503). It does not fall back to plaintext on hashed rows.
 
 ## Tables (cloud)
 
@@ -66,4 +83,6 @@ Foundational outbound contract exists (`AnalyzerWorklistOutbound`). This release
 
 ## Schema parity
 
-Forward migration `20260920220000_lab_device_intelligence.sql` is the source of truth for heartbeat columns, hashed credentials, and critical-ack timestamps. The large canonical dump still describes the pre-heartbeat bridge shape until the next dump refresh.
+Forward migration `20260920220000_lab_device_intelligence.sql` added heartbeat columns and hashed credential fields.
+Forward migration `20260920224500_lab_bridge_hashed_credentials.sql` makes `api_key` nullable, enforces credential XOR, unique digest, and clears placeholder `api_key` values on hashed rows.
+The large canonical dump still describes the pre-heartbeat bridge shape until the next dump refresh.

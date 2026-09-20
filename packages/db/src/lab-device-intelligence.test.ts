@@ -10,6 +10,7 @@ import {
   evaluateDeltaCheck,
   hashBridgeSecret,
   issueBridgeSecret,
+  isRejectedBridgeCredentialFormat,
   mappingCoverage,
 } from "./lab-device-intelligence.ts"
 
@@ -69,9 +70,12 @@ describe("lab device intelligence", () => {
   })
 
   it("issues hashed bridge secrets without storing the presented key as the hash input identity", () => {
-    const issued = issueBridgeSecret()
+    const issued = issueBridgeSecret("lab-bridge-test-hmac")
     assert.match(issued.secret, /^lbk_/)
-    assert.equal(issued.hash, hashBridgeSecret(issued.secret))
+    assert.equal(issued.hash, hashBridgeSecret(issued.secret, "lab-bridge-test-hmac"))
     assert.notEqual(issued.hash, issued.secret)
+    assert.throws(() => hashBridgeSecret(issued.secret), /LAB_BRIDGE_HASH_UNAVAILABLE/)
+    assert.equal(isRejectedBridgeCredentialFormat(`ref:${issued.prefix}`), true)
+    assert.equal(isRejectedBridgeCredentialFormat(issued.prefix), false)
   })
 })

@@ -7,6 +7,10 @@ const { lookupLabBridge, dbFrom } = vi.hoisted(() => ({
 
 vi.mock("@/lib/lab-bridge-auth", () => ({
   lookupLabBridge: (...args: unknown[]) => lookupLabBridge(...args),
+  lookupLabBridgeDetailed: async (presented: string) => {
+    const bridge = await lookupLabBridge(presented)
+    return bridge ? { ok: true, bridge } : { ok: false, reason: "invalid" }
+  },
 }))
 
 vi.mock("@synapse/db/admin", () => ({

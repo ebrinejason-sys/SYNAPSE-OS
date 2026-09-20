@@ -93,7 +93,12 @@ describe("GET/POST /api/lab/instruments", () => {
     const json = await res.json()
     expect(json.devices[0].configuration.secret).toBeUndefined()
     expect(json.devices[0].configuration.host).toBe("127.0.0.1")
+    expect(json.devices[0].api_key).toBeUndefined()
+    expect(json.devices[0].api_key_hash).toBeUndefined()
+    expect(json.devices[0].credential_prefix).toBe("lbk_abc")
     expect(json.devices[0].operational_health).toBeTruthy()
+    expect(JSON.stringify(json)).not.toMatch(/api_key_hash/)
+    expect(JSON.stringify(json)).not.toMatch(/LAB_BRIDGE_HASH_SECRET/)
   })
 
   it("registers a device as CONFIGURED, not ACTIVE", async () => {
