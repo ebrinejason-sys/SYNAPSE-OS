@@ -47,7 +47,7 @@ export async function POST(
       is_signed: true,
       signed_at: signedAt,
       signed_by: ctx.userId,
-      status: 'signed',
+      status: 'completed',
       updated_at: signedAt,
     })
     .eq('id', encounterId)
