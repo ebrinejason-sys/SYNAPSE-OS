@@ -13,6 +13,11 @@
 import { randomUUID } from "node:crypto"
 import { createClient } from "@supabase/supabase-js"
 import bcrypt from "bcryptjs"
+import {
+  ensureCapabilityLattice,
+  ensureHospitalModules,
+  ensureParacetamolCatalog,
+} from "./e2e-os-capability-lattice.ts"
 
 async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12)
@@ -277,6 +282,10 @@ for (const user of ROLE_USERS) {
 }
 
 const amina = await ensureAmina(tenantA.id, hospitalA.id)
+const lattice = await ensureCapabilityLattice(db)
+const modulesA = await ensureHospitalModules(db, { tenantId: tenantA.id, hospitalId: hospitalA.id })
+const modulesB = await ensureHospitalModules(db, { tenantId: tenantB.id, hospitalId: hospitalB.id })
+const formulary = await ensureParacetamolCatalog(db, tenantA.id)
 
 const { count: aminaCount, error: aminaCountErr } = await db
   .from("patients")
@@ -310,6 +319,12 @@ console.log(JSON.stringify({
   synapseId: amina.person.synapse_id,
   patientId: amina.patient.id,
   aminaCount,
+  capabilities: lattice.capabilities,
+  roleGrants: lattice.grants,
+  modulesA,
+  modulesB,
+  paracetamolProductId: formulary.productId,
+  paracetamolBatchId: formulary.batchId,
   passwordPrinted: false,
   passwordHashAlgorithm: "bcrypt",
   passwordHashCost: 12,

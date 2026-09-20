@@ -13,8 +13,9 @@ export async function POST(req: NextRequest) {
   const ctx = await requireHospitalStaffContext()
   if (isContextError(ctx)) return ctx
 
-  const cap = await requireHospitalCapability(ctx, 'triage', 'assign', 'opd')
-  if (cap) return cap
+  const triageCap = await requireHospitalCapability(ctx, 'triage', 'assign', 'opd')
+  const createCap = triageCap ? await requireHospitalCapability(ctx, 'encounter', 'create', 'opd') : null
+  if (triageCap && createCap) return triageCap
 
   const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, 'opd')
   if (moduleBlock) return moduleBlock

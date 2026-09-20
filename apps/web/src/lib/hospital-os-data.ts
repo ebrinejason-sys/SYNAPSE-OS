@@ -39,6 +39,17 @@ export async function getHospitalPatientChart(tenantId: string, patientId: strin
   if (patientError) throw new Error(patientError.message)
   if (!patient) return null
 
+  let synapseId: string | null = null
+  if (patient.person_id) {
+    const { data: person, error: personError } = await client
+      .from("persons")
+      .select("synapse_id")
+      .eq("id", patient.person_id)
+      .maybeSingle()
+    if (personError) throw new Error(personError.message)
+    synapseId = typeof person?.synapse_id === "string" ? person.synapse_id : null
+  }
+
   const { data: encounters, error: encounterError } = await client
     .from("encounters")
     .select("id, visit_date, status, chief_complaint, clinical_stage")
@@ -48,19 +59,24 @@ export async function getHospitalPatientChart(tenantId: string, patientId: strin
     .limit(10)
   if (encounterError) throw new Error(encounterError.message)
 
-  const { data: vitals, error: vitalsError } = await client
-    .from("vitals")
-    .select("bp_systolic, bp_diastolic, heart_rate, temperature_c, spo2, respiratory_rate, created_at")
-    .eq("patient_id", patientId)
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-  if (vitalsError) throw new Error(vitalsError.message)
+  const encounterIds = (encounters ?? []).map((row: { id: string }) => row.id)
+  let latestVitals: Record<string, unknown> | null = null
+  if (encounterIds.length) {
+    const { data: vitals, error: vitalsError } = await client
+      .from("vitals")
+      .select("bp_systolic, bp_diastolic, heart_rate, temperature_c, spo2, respiratory_rate, created_at")
+      .eq("tenant_id", tenantId)
+      .in("encounter_id", encounterIds)
+      .order("created_at", { ascending: false })
+      .limit(1)
+    if (vitalsError) throw new Error(vitalsError.message)
+    latestVitals = (vitals?.[0] as Record<string, unknown> | undefined) ?? null
+  }
 
   return {
-    patient,
+    patient: { ...patient, synapse_id: synapseId },
     encounters: encounters ?? [],
-    latestVitals: (vitals?.[0] as Record<string, unknown> | undefined) ?? null,
+    latestVitals,
   }
 }
 
