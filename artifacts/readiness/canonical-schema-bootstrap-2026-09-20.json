@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-20T06:30:00Z",
+  "generated_at": "2026-09-20T06:46:00Z",
   "core_os_green": "NO",
   "scope": "local_disposable_postgres_127.0.0.1:54322",
   "remote_projects_touched": [
@@ -8,11 +8,14 @@
   "isolated_acceptance_project": {
     "ref": "jbojujxpyxsdiukmrwzs",
     "name": "synapse-e2e-acceptance",
-    "organization": "synapse-e2e-acceptance",
+    "organization_id": "rjbwiwscdgnelipidood",
     "region": "eu-west-1",
     "status": "ACTIVE_HEALTHY",
     "clinical_rows_before_reset": 0,
-    "canonical_schema_apply": "IN_PROGRESS_VIA_MCP_CHUNKS"
+    "canonical_schema_apply": "REMOTE_TABLES_PARTIAL_MCP",
+    "public_tables_snapshot": 219,
+    "public_tables_target": 317,
+    "policies_snapshot": 0
   },
   "local_fresh_bootstrap": {
     "command": "PGPASSWORD=postgres bash scripts/db-reset-fresh.sh",
@@ -68,6 +71,6 @@
   "notes": [
     "Canonical dump is schema-only. No production patient rows were copied.",
     "Local bootstrap drops public only on 127.0.0.1:54322.",
-    "Isolated remote public schema was emptied after identity proof; chunked canonical apply is the remaining remote step."
+    "Isolated remote public schema was emptied after identity proof. MCP CREATE TABLE replay is in progress; constraints, indexes, and RLS remain outstanding. Remote seed must wait."
   ]
 }

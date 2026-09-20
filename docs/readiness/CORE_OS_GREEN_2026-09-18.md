@@ -2,12 +2,13 @@
 
 **Status:** CURRENT  
 **Branch:** `cursor/core-os-final-acceptance-2026-09-18`  
+**Branch head:** `158be3c7e2483d683b972777d94f0398abfd9b48`  
 **Historical main at branch creation:** `81bc3c1fe15a9c993d0996fa316d736ed7bc51f6`  
 **Current origin/main:** `711796cf99fe666554335588a82a566f65e94bc4`
 
 **CORE OS GREEN: NO**
 
-Isolated project `jbojujxpyxsdiukmrwzs` (`synapse-e2e-acceptance`, org `synapse-e2e-acceptance`, `eu-west-1`) is now identity-proven and had zero clinical rows. Canonical schema bootstrap is **PASS twice on local disposable Postgres**. Remote canonical apply after an approved empty-schema reset was still in progress at closeout. Do not treat production `qfqakzmjatszisuqjwon` as acceptance.
+Isolated project `jbojujxpyxsdiukmrwzs` (`synapse-e2e-acceptance`, org `rjbwiwscdgnelipidood`, `eu-west-1`) is identity-proven. Canonical schema bootstrap is **PASS twice on local disposable Postgres** (317 tables, 572 policies). Remote public schema was emptied after identity proof; CREATE TABLE replay via MCP is partial (219/317 tables at 06:46Z, **0 RLS policies**). Remote seed, Hospital Golden Journey, and RBAC browser gates were **not run** because the acceptance doctor fail-closed on a placeholder Preview URL (`*.synapseos.invalid`) and `SYNAPSE_E2E_REMOTE_HOST_READY≠true`. Do not treat production `qfqakzmjatszisuqjwon` as acceptance. PR #83 is CI-green and mergeable; it was **not merged** while remote schema and browser acceptance remain incomplete.
 
 ## Security hardening (PR #83)
 
@@ -44,9 +45,10 @@ Demo GREEN is unchanged. This campaign does not reopen Demo work.
 | Admin | **BLOCKED** |
 | `/api/health/live` `/api/ready` | **FAIL** on live `synapseos.tech` (404 after www redirect) |
 | Isolated acceptance DB provenance | **PASS** identity (`jbojujxpyxsdiukmrwzs`) |
-| Remote canonical schema on acceptance DB | **IN_PROGRESS** (local PASS twice) |
-| Seed idempotency | **PASS** local (2 tenants / 9 profiles / 1 Amina; IDs stable) |
-| Preview DB match | **UNKNOWN** (preview SSO-protected; isolated DB unproven) |
+| Remote canonical schema on acceptance DB | **PARTIAL** (219/317 tables at 06:46Z; 0 policies; PKs/FKs/RLS not replayed) |
+| Seed idempotency | **PASS** local (2 tenants / 9 profiles / 1 Amina; IDs stable). Remote seed **NOT_RUN** |
+| Acceptance doctor | **FAIL_CLOSED** (placeholder `SYNAPSE_E2E_BASE_URL`, `SYNAPSE_E2E_REMOTE_HOST_READY` not true) |
+| Preview DB match | **UNKNOWN** (no real Preview host configured) |
 | `SUPABASE_DB_URL` | **OPERATOR_REQUIRED** |
 | Release workflow | **FIXED** on this branch (PR CI no longer fails Release) |
 | SHA alignment | **FAIL** (live OS still not current `origin/main`) |
