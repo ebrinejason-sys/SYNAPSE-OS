@@ -1,6 +1,8 @@
 import { createHash } from "crypto"
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@synapse/db/admin"
+import { detectUnitMismatch, deviceMayIngest, evaluateCriticalValue, validateAstmFrame } from "@synapse/db/lab-device-intelligence"
+import { lookupLabBridge } from "@/lib/lab-bridge-auth"
 
 export const dynamic = "force-dynamic"
 
@@ -17,16 +19,8 @@ export async function POST(request: Request) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
-
-  const { data: bridge } = await db
-    .from("lab_instrument_bridges")
-    .select("id, tenant_id, name, is_active, device_id")
-    .eq("api_key", apiKey)
-    .eq("is_active", true)
-    .maybeSingle()
-
+  const bridge = await lookupLabBridge(apiKey)
   if (!bridge) {
-    // Also accept lab_devices configuration.credential_ref later; for now require bridge key
     return NextResponse.json({ error: "Invalid or inactive bridge key" }, { status: 401 })
   }
 
@@ -41,7 +35,9 @@ export async function POST(request: Request) {
     .eq("id", deviceId)
     .eq("tenant_id", bridge.tenant_id)
     .maybeSingle()
-  if (!device || !device.active) return NextResponse.json({ error: "Device is not registered or active" }, { status: 403 })
+  if (!device || !deviceMayIngest({ active: device.active, validationStatus: device.validation_status })) {
+    return NextResponse.json({ error: "Device is not approved to ingest results" }, { status: 403 })
+  }
 
   const rawPayload = String(body.rawPayload ?? body.raw ?? body.message ?? "")
   if (!rawPayload) {
@@ -49,19 +45,37 @@ export async function POST(request: Request) {
   }
 
   const protocol = String(body.protocol ?? "other")
+  if (/astm/i.test(protocol)) {
+    const check = validateAstmFrame(rawPayload)
+    if (!check.ok) {
+      await db.from("lab_device_messages").insert({
+        tenant_id: bridge.tenant_id,
+        device_id: deviceId,
+        direction: "inbound",
+        protocol,
+        raw_payload: rawPayload,
+        payload_hash: createHash("sha256").update(rawPayload).digest("hex"),
+        parse_status: "FAILED",
+        processing_status: "VALIDATION_FAILED",
+        parse_error: check.reason,
+        correlation_id: typeof body.correlationId === "string" ? body.correlationId : crypto.randomUUID(),
+      }).then(() => undefined).catch(() => undefined)
+      return NextResponse.json({ error: check.reason, quarantined: true }, { status: 422 })
+    }
+  }
   const accession = typeof body.accessionNumber === "string" ? body.accessionNumber.trim() : null
   const correlationId = typeof body.correlationId === "string" ? body.correlationId : crypto.randomUUID()
   const payloadHash = createHash("sha256").update(rawPayload).digest("hex")
   const messageControlId =
     typeof body.messageControlId === "string" ? body.messageControlId : null
 
-  const { data: duplicate } = await db
+  let duplicateQuery = db
     .from("lab_device_messages")
     .select("id")
     .eq("tenant_id", bridge.tenant_id)
     .eq("payload_hash", payloadHash)
-    .eq("message_control_id", messageControlId ?? "")
-    .maybeSingle()
+  if (messageControlId) duplicateQuery = duplicateQuery.eq("message_control_id", messageControlId)
+  const { data: duplicate } = await duplicateQuery.maybeSingle()
   if (duplicate?.id) return NextResponse.json({ ok: true, messageId: duplicate.id, duplicate: true, match: "DUPLICATE" })
 
   // Prefer lab_device_messages when migrated; fall back to lab_analyzer_messages
@@ -158,8 +172,14 @@ export async function POST(request: Request) {
   for (const observation of observations) {
     const analyzerCode = typeof observation.analyzerCode === "string" ? observation.analyzerCode : null
     const { data: mapping } = analyzerCode
-      ? await db.from("lab_device_test_mappings").select("loinc_code, analyzer_name").eq("tenant_id", bridge.tenant_id).eq("device_id", deviceId).eq("analyzer_code", analyzerCode).eq("active", true).maybeSingle()
+      ? await db.from("lab_device_test_mappings").select("loinc_code, analyzer_name, unit").eq("tenant_id", bridge.tenant_id).eq("device_id", deviceId).eq("analyzer_code", analyzerCode).eq("active", true).maybeSingle()
       : { data: null }
+    const value = typeof observation.value === "string" ? observation.value : null
+    const unit = typeof observation.unit === "string" ? observation.unit : null
+    const unitMismatch = detectUnitMismatch(unit, mapping?.unit)
+    const critical = evaluateCriticalValue({ loincCode: mapping?.loinc_code, value: value ?? "", unit })
+    let status = mapping ? (stagingStatus === "MATCHED" ? "READY_FOR_REVIEW" : stagingStatus) : "UNMAPPED"
+    if (unitMismatch) status = "VALIDATION_FAILED"
     stagingRows.push({
       tenant_id: bridge.tenant_id,
       device_id: deviceId,
@@ -169,11 +189,11 @@ export async function POST(request: Request) {
       analyzer_code: analyzerCode,
       mapped_loinc: mapping?.loinc_code ?? null,
       mapped_test_name: mapping?.analyzer_name ?? null,
-      value: typeof observation.value === "string" ? observation.value : null,
-      unit: typeof observation.unit === "string" ? observation.unit : null,
-      flags: observation.flags ?? {},
+      value,
+      unit,
+      flags: { ...(typeof observation.flags === "object" && observation.flags ? observation.flags : {}), unitMismatch, critical: critical.critical, criticalReason: critical.reason },
       instrument_flags: observation.instrumentFlags ?? {},
-      status: mapping ? (stagingStatus === "MATCHED" ? "READY_FOR_REVIEW" : stagingStatus) : "UNMAPPED",
+      status,
       correlation_id: correlationId,
     })
   }

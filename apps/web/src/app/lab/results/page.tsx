@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { LabAiAnalysis } from "@/components/lab/LabAiAnalysis"
 
 type ResultRow = {
   id: string
@@ -135,6 +136,7 @@ export default function LabResultsPage() {
                 </td>
                 <td className="px-2 py-3 text-xs uppercase">{r.status}</td>
                 <td className="px-2 py-3">
+                  <LabAiAnalysis resultId={r.id} />
                   {["final", "corrected", "FINAL", "AMENDED", "released"].includes(r.status) || r.verified_at ? (
                     <button
                       type="button"

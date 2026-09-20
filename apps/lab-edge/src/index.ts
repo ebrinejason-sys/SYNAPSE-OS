@@ -61,6 +61,100 @@ export interface AnalyzerDriver {
   acknowledge?(ok: boolean): string
 }
 
+export interface AnalyzerParser {
+  protocol: "ASTM" | "HL7_MLLP" | "CSV" | "REST"
+  canParse(frame: string): boolean
+  parse(frame: string): NormalizedAnalyzerResult[]
+}
+
+export function astmChecksum(payload: string): string {
+  let sum = 0
+  for (let i = 0; i < payload.length; i += 1) sum = (sum + payload.charCodeAt(i)) % 256
+  return sum.toString(16).toUpperCase().padStart(2, "0")
+}
+
+export function validateAstmFrame(raw: string): { ok: true } | { ok: false; reason: string } {
+  const stx = raw.indexOf("\u0002")
+  if (stx < 0) return { ok: true }
+  const etx = raw.indexOf("\u0003", stx + 1)
+  if (etx < 0) return { ok: false, reason: "ASTM_FRAME_INCOMPLETE" }
+  const framed = raw.slice(stx + 1, etx + 1)
+  const given = raw.slice(etx + 1).match(/[0-9A-Fa-f]{2}/)?.[0]
+  if (!given) return { ok: false, reason: "ASTM_CHECKSUM_MISSING" }
+  if (astmChecksum(framed) !== given.toUpperCase()) return { ok: false, reason: "ASTM_CHECKSUM_INVALID" }
+  return { ok: true }
+}
+
+export const genericAstmParser: AnalyzerParser = {
+  protocol: "ASTM",
+  canParse(frame) {
+    return /(^|\r|\n)[HOPRCL]\|/.test(frame) || frame.includes("\u0002")
+  },
+  parse(frame) {
+    const check = validateAstmFrame(frame)
+    if (!check.ok) throw new Error(check.reason)
+    return parseAstmResults(frame)
+  },
+}
+
+export const genericHl7Parser: AnalyzerParser = {
+  protocol: "HL7_MLLP",
+  canParse(frame) {
+    return frame.includes("MSH|") || frame.startsWith("\u000b")
+  },
+  parse(frame) {
+    const unwrapped = unwrapHl7Mllp(frame) ?? frame.replace(/[\u000b\u001c]/g, "")
+    if (!unwrapped.includes("MSH|")) throw new Error("HL7_FRAME_INVALID")
+    return parseHl7Results(unwrapped)
+  },
+}
+
+export const genericCsvParser: AnalyzerParser = {
+  protocol: "CSV",
+  canParse(frame) {
+    const header = frame.split(/\r?\n/)[0] ?? ""
+    return header.includes(",") && /accession|analyzer|test|code/i.test(header)
+  },
+  parse(frame) {
+    const [headerLine, ...rows] = frame.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+    const headers = (headerLine ?? "").split(",").map((cell) => cell.trim().toLowerCase())
+    const accessionIdx = headers.findIndex((cell) => cell.includes("accession"))
+    const codeIdx = headers.findIndex((cell) => /code|test/.test(cell))
+    const valueIdx = headers.findIndex((cell) => cell.includes("value"))
+    const unitIdx = headers.findIndex((cell) => cell.includes("unit"))
+    if (codeIdx < 0 || valueIdx < 0) throw new Error("CSV_HEADER_INVALID")
+    return rows.map((row) => {
+      const cells = row.split(",").map((cell) => cell.trim())
+      return {
+        accessionNumber: accessionIdx >= 0 ? cells[accessionIdx] : undefined,
+        analyzerCode: cells[codeIdx] ?? "",
+        value: cells[valueIdx] ?? "",
+        unit: unitIdx >= 0 ? cells[unitIdx] : undefined,
+        rawMessageRef: crypto.randomUUID(),
+      }
+    }).filter((row) => row.analyzerCode && row.value)
+  },
+}
+
+export const genericRestParser: AnalyzerParser = {
+  protocol: "REST",
+  canParse(frame) {
+    const trimmed = frame.trim()
+    return trimmed.startsWith("{") || trimmed.startsWith("[")
+  },
+  parse(frame) {
+    const parsed = JSON.parse(frame) as Record<string, unknown> | Record<string, unknown>[]
+    const rows = Array.isArray(parsed) ? parsed : Array.isArray(parsed.observations) ? parsed.observations as Record<string, unknown>[] : [parsed]
+    return rows.map((row) => ({
+      accessionNumber: typeof row.accessionNumber === "string" ? row.accessionNumber : undefined,
+      analyzerCode: String(row.analyzerCode ?? row.code ?? ""),
+      value: String(row.value ?? ""),
+      unit: typeof row.unit === "string" ? row.unit : undefined,
+      rawMessageRef: crypto.randomUUID(),
+    })).filter((row) => row.analyzerCode && row.value)
+  },
+}
+
 export type EdgeQueueItem = {
   id: string
   createdAt: string
@@ -256,6 +350,11 @@ export class EdgeDurableQueue {
     return row?.acknowledged_at ?? null
   }
 
+  lastReceivedAt(): string | null {
+    const row = this.db.prepare("SELECT created_at FROM edge_queue ORDER BY created_at DESC LIMIT 1").get() as { created_at?: string | null } | undefined
+    return row?.created_at ?? null
+  }
+
   close() { this.db.close() }
 
   private fromRow(row: Record<string, unknown>): EdgeQueueItem {
@@ -359,6 +458,10 @@ export class EdgeService {
         deadLetterCount: Number(counts.DEAD_LETTER ?? 0),
         lastSuccessfulUpload: this.lastSuccessfulUpload,
         deviceIds: [this.config.deviceId],
+        edgeIdentity: this.config.bridgeId ?? this.config.deviceId,
+        connectionState: this.state,
+        lastAnalyzerFrameAt: this.queue.lastReceivedAt(),
+        clock: new Date().toISOString(),
       }),
     })
     if (!response.ok) throw new Error(`heartbeat_failed_${response.status}`)

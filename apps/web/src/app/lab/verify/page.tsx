@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { LabAiAnalysis } from "@/components/lab/LabAiAnalysis"
 
 type VerifyItem = {
   orderId: string
@@ -159,6 +160,7 @@ export default function LabVerifyPage() {
               ) : (
                 <p className="mt-3 text-sm text-amber-300">No durable result row — re-enter result.</p>
               )}
+              {item.result ? <LabAiAnalysis resultId={item.result.id} /> : null}
             </li>
           ))}
         </ul>

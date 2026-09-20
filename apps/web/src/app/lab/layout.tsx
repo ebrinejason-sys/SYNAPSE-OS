@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { Beaker, ClipboardList, FlaskConical, Gauge, Microscope, ShieldCheck } from "lucide-react"
+import { Beaker, ClipboardList, FlaskConical, Gauge, Link2, Microscope, ShieldCheck, Inbox } from "lucide-react"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { SynapseLogo } from "@/components/SynapseLogo"
 import { signOutHospitalClinical } from "@/lib/clinical-offline/sign-out-hospital"
@@ -14,6 +14,8 @@ const links = [
   { href: "/lab/results", label: "Results", icon: Beaker },
   { href: "/lab/verify", label: "Verification", icon: ShieldCheck },
   { href: "/lab/instruments", label: "Instruments", icon: Microscope },
+  { href: "/lab/staging", label: "Staging", icon: Inbox },
+  { href: "/lab/mappings", label: "Mappings", icon: Link2 },
   { href: "/lab/qc", label: "Quality control", icon: Gauge },
 ]
 

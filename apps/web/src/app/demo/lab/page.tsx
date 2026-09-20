@@ -41,6 +41,8 @@ export default function LabDemoPage() {
   const [resultValue, setResultValue] = useState("")
   const [resultUnit, setResultUnit] = useState("")
   const [interpretation, setInterpretation] = useState<"normal" | "high" | "low" | "critical">("normal")
+  const [simulatorPanel, setSimulatorPanel] = useState<"fbc" | "malaria" | "chemistry">("fbc")
+  const [simulator, setSimulator] = useState<{ raw?: string; parsed?: unknown; staging?: Array<{ analyzerCode: string; value: string; unit?: string; mappedTest?: string | null; status: string }>; label?: string } | null>(null)
 
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -178,6 +180,30 @@ export default function LabDemoPage() {
     } catch (error) {
       console.error("Failed to collect specimen:", error)
       alert("Failed to collect specimen")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleSimulateAnalyzer() {
+    setSubmitting(true)
+    try {
+      const response = await fetch("/api/demo/analyzer-simulate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ panel: simulatorPanel, accession: accessionNumber || "DEMO-ACC-0001" }),
+      })
+      const data = await response.json()
+      setSimulator(data)
+      const first = data.staging?.[0]
+      if (first) {
+        setResultValue(String(first.value ?? ""))
+        setResultUnit(String(first.unit ?? ""))
+        setInterpretation(first.analyzerCode === "MALARIA" && /pos/i.test(String(first.value)) ? "high" : "normal")
+      }
+    } catch (error) {
+      console.error("Failed to simulate analyzer", error)
+      alert("Unable to run synthetic analyzer")
     } finally {
       setSubmitting(false)
     }
@@ -533,6 +559,36 @@ export default function LabDemoPage() {
                       <p className="font-semibold">{specimen.status}</p>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Synthetic analyzer simulator */}
+              {canEnterResults && (
+                <div className="space-y-3 p-4 rounded border bg-background mt-4">
+                  <h3 className="font-medium">Synthetic analyzer simulator</h3>
+                  <p className="text-xs text-muted-foreground">Synthetic demonstration only. No production healthcare writes. Raw machine message → parse → map → staging. A Lab Scientist must still verify and release.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(["fbc", "malaria", "chemistry"] as const).map((panel) => (
+                      <button key={panel} type="button" onClick={() => setSimulatorPanel(panel)} className={`rounded border px-3 py-1 text-xs ${simulatorPanel === panel ? "border-primary" : ""}`}>
+                        {panel.toUpperCase()}
+                      </button>
+                    ))}
+                    <button type="button" disabled={submitting} onClick={handleSimulateAnalyzer} className="rounded bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground disabled:opacity-50">
+                      Simulate analyzer
+                    </button>
+                  </div>
+                  {simulator ? (
+                    <div className="space-y-2 text-xs">
+                      <p className="font-semibold">{simulator.label}</p>
+                      <pre className="overflow-x-auto rounded bg-muted p-2 whitespace-pre-wrap">{simulator.raw}</pre>
+                      <p>Parsed: {JSON.stringify(simulator.parsed)}</p>
+                      <ul>
+                        {(simulator.staging ?? []).map((row) => (
+                          <li key={row.analyzerCode}>{row.analyzerCode} → {row.mappedTest ?? "unmapped"} · {row.value} {row.unit} · {row.status}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                 </div>
               )}
 

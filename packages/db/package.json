@@ -29,6 +29,7 @@
     "./till-service": "./src/till-service.ts",
     "./exchange": "./src/exchange.ts",
     "./lab-workflow": "./src/lab-workflow.ts",
+    "./lab-device-intelligence": "./src/lab-device-intelligence.ts",
     "./pathways": "./src/pathways.ts",
     "./simulation": "./src/simulation.ts",
     "./prescription-bridge": "./src/prescription-bridge.ts",
