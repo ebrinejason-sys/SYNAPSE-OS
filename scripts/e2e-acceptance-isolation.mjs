@@ -81,9 +81,11 @@ export function validateAcceptanceBaseUrl(value) {
 export function vercelBypassHeaders(env = process.env) {
   const bypass = (env.SYNAPSE_E2E_VERCEL_BYPASS || "").trim()
   if (!bypass) return {}
+  // JSON probes use redirect:manual. The cookie-set header makes Vercel 307 to
+  // the same path, which is not an SSO login redirect. Playwright still sends
+  // x-vercel-set-bypass-cookie via e2e-target.mjs so the browser can keep a cookie.
   return {
     "x-vercel-protection-bypass": bypass,
-    "x-vercel-set-bypass-cookie": "true",
   }
 }
 

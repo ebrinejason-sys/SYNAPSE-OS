@@ -8,6 +8,7 @@ import {
   validateAcceptanceBaseUrl,
   validateServiceRoleKey,
   interpretReadyPayload,
+  vercelBypassHeaders,
 } from "./e2e-acceptance-isolation.mjs"
 
 function fakeJwt(claims) {
@@ -33,6 +34,13 @@ test("accepts the documented isolated acceptance project URL", () => {
   const result = validateIsolatedSupabaseUrl(`https://${EXPECTED_ACCEPTANCE_PROJECT_REF}.supabase.co`)
   assert.equal(result.status, "FOUND")
   assert.equal(result.projectRef, EXPECTED_ACCEPTANCE_PROJECT_REF)
+})
+
+test("doctor bypass headers omit cookie-set so JSON probes are not 307'd", () => {
+  assert.deepEqual(vercelBypassHeaders({}), {})
+  const headers = vercelBypassHeaders({ SYNAPSE_E2E_VERCEL_BYPASS: "bypass-secret" })
+  assert.equal(headers["x-vercel-protection-bypass"], "bypass-secret")
+  assert.equal(headers["x-vercel-set-bypass-cookie"], undefined)
 })
 
 test("rejects localhost and production OS hosts for browser acceptance", () => {
