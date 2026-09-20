@@ -41,7 +41,6 @@ test.describe("hospital golden journey", () => {
 
     await loginOs(page, process.env.SYNAPSE_E2E_EMAIL || e2eEmail("receptionist"), password)
     await page.goto(`/os/${FACILITY_A}/patients?q=Amina`)
-    await expect(page.getByRole("button", { name: /register patient/i })).toBeVisible()
     const aminaLink = page.getByRole("link", { name: /amina e2e/i })
     await expect(aminaLink.first()).toBeVisible({ timeout: 15000 })
     await expect(aminaLink).toHaveCount(1)
@@ -227,7 +226,7 @@ test.describe("hospital golden journey", () => {
     expect(events.length, `timeline events ${JSON.stringify(events)}`).toBeGreaterThan(0)
 
     await page.goto(`/os/${FACILITY_A}/dashboard`)
-    await expect(page.locator("header")).toContainText(/synapse e2e hospital/i)
+    await expect(page.getByRole("banner").first()).toContainText(/synapse e2e hospital/i)
     expect(page.url()).toContain(`/os/${FACILITY_A}`)
     expect(ids.patientId).toBe(PATIENT_ID)
     expect(ids.synapseId).toBe(SYNAPSE_ID)

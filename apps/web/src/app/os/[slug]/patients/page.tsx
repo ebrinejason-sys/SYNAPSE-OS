@@ -63,7 +63,7 @@ export default async function PatientsPage({
                     {p.full_name}
                   </Link>
                 </td>
-                <td className="px-4 py-3 text-secondary-color">{p.date_of_birth ?? "—"}</td>
+                <td className="px-4 py-3 text-secondary-color">{p.dob ?? p.date_of_birth ?? "—"}</td>
                 <td className="px-4 py-3 text-secondary-color capitalize">{p.sex ?? "—"}</td>
                 <td className="px-4 py-3 text-secondary-color">
                   {new Date(p.created_at).toLocaleDateString()}

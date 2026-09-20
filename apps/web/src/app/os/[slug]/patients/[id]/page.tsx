@@ -28,7 +28,7 @@ export default async function PatientDetailPage({
           </Link>
           <h1 className="text-2xl font-bold">{patient.full_name}</h1>
           <p className="text-slate-400 text-sm mt-1">
-            MRN: {patient.mrn ?? "—"} · Synapse ID: {patient.synapse_id ?? "—"} · {patient.sex ?? "—"} · DOB: {patient.date_of_birth ?? "—"}
+            MRN: {patient.mrn ?? "—"} · Synapse ID: {patient.synapse_id ?? "—"} · {patient.sex ?? "—"} · DOB: {patient.dob ?? patient.date_of_birth ?? "—"}
           </p>
         </div>
         <Link

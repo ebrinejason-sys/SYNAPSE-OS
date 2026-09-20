@@ -10,7 +10,7 @@ function db() {
 export async function listHospitalPatients(tenantId: string, q?: string) {
   let query = db()
     .from("patients")
-    .select("id, full_name, date_of_birth, sex, mrn, created_at")
+    .select("id, full_name, dob, sex, mrn, created_at")
     .eq("tenant_id", tenantId)
     .eq("is_deleted", false)
     .order("created_at", { ascending: false })
@@ -22,6 +22,7 @@ export async function listHospitalPatients(tenantId: string, q?: string) {
     id: string
     full_name: string
     date_of_birth: string | null
+    dob: string | null
     sex: string | null
     mrn: string | null
     created_at: string

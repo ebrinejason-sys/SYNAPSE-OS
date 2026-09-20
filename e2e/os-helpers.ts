@@ -79,7 +79,7 @@ export async function expectAuthenticatedWorkspace(page: Page, slug: string) {
     message: `expected authenticated /os/${slug} workspace, not a login or next= URL`,
   }).toBe(true)
   await expect(page.getByRole("heading", { name: /welcome back|staff sign in|check your email/i })).toHaveCount(0)
-  await expect(page.locator("header")).toBeVisible()
+  await expect(page.getByRole("banner").first()).toBeVisible()
   await expect(page.getByRole("link", { name: /dashboard/i }).first()).toBeVisible()
   await expect(page.locator("body")).not.toContainText("Coming soon.")
 }
