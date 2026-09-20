@@ -45,6 +45,34 @@ export async function cookieHeader(page: Page) {
   return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ")
 }
 
+export async function sessionCookieValue(page: Page) {
+  const cookies = await page.context().cookies()
+  return cookies.find((cookie) => cookie.name === "synapse_session")?.value ?? ""
+}
+
+export async function authedJson(
+  page: Page,
+  path: string,
+  init: { method?: string; data?: Record<string, unknown> } = {},
+) {
+  const response = await page.request.fetch(path, {
+    method: init.method ?? "GET",
+    headers: {
+      cookie: await cookieHeader(page),
+      "content-type": "application/json",
+    },
+    data: init.data,
+  })
+  const text = await response.text()
+  let json: unknown = null
+  try {
+    json = text ? JSON.parse(text) : null
+  } catch {
+    json = { raw: text.slice(0, 300) }
+  }
+  return { status: response.status(), json }
+}
+
 export async function expectAuthenticatedWorkspace(page: Page, slug: string) {
   await expect.poll(() => isAuthenticatedOsLocation(page.url(), slug), {
     timeout: 20000,

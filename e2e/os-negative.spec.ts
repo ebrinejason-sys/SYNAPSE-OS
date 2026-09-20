@@ -79,4 +79,37 @@ test.describe("production OS negative controls", () => {
       || !page.url().includes("/platform/hospitals")
     expect(denied).toBeTruthy()
   })
+
+  test("tampered synapse session is rejected", async ({ page, request }) => {
+    await loginOs(page, e2eEmail("receptionist"), process.env.SYNAPSE_E2E_PASSWORD!)
+    const cookie = (await page.context().cookies()).find((row) => row.name === "synapse_session")
+    expect(cookie?.value).toBeTruthy()
+    const [header, payload, signature] = String(cookie?.value).split(".")
+    expect(signature).toBeTruthy()
+
+    const invalidSig = await request.get(`/os/${FACILITY_A}/patients`, {
+      headers: { cookie: `synapse_session=${header}.${payload}.${signature.slice(0, -2)}aa` },
+    })
+    const invalidBody = await invalidSig.text()
+    expect(
+      invalidSig.status() >= 400
+      || /sign in|access denied|unauthorized/i.test(invalidBody)
+      || !invalidSig.url().includes(`/os/${FACILITY_A}/patients`),
+    ).toBeTruthy()
+
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>
+    claims.tenant_id = "200dfeb5-4c09-4a5d-8d46-14aa4b78a6ec"
+    const tamperedPayload = Buffer.from(JSON.stringify(claims)).toString("base64url")
+    const tamperedTenant = await request.get(`/api/opd/queue`, {
+      headers: { cookie: `synapse_session=${header}.${tamperedPayload}.${signature}` },
+    })
+    expect(tamperedTenant.status()).toBeGreaterThanOrEqual(400)
+
+    claims.exp = 1
+    const expiredPayload = Buffer.from(JSON.stringify(claims)).toString("base64url")
+    const expired = await request.get(`/api/opd/queue`, {
+      headers: { cookie: `synapse_session=${header}.${expiredPayload}.${signature}` },
+    })
+    expect(expired.status()).toBeGreaterThanOrEqual(400)
+  })
 })
