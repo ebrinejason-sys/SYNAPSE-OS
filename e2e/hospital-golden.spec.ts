@@ -262,10 +262,15 @@ test.describe("hospital golden journey", () => {
     expect(Number(paidBody.invoice?.paid_amount)).toBe(amount)
     expect(paidBody.payments?.[0]?.receipt_number).toBe(payment?.receiptNumber)
 
+    await loginOs(page, e2eEmail("doctor"), password)
     const timeline = await authedJson(page, `/api/hospital/timeline/encounter/${encounterId}`)
     expect(timeline.status, `timeline HTTP ${timeline.status} ${JSON.stringify(timeline.json)}`).toBeLessThan(300)
     const events = ((timeline.json as { events?: Array<{ event_type?: string; title?: string }> }).events ?? [])
     expect(events.length, `timeline events ${JSON.stringify(events)}`).toBeGreaterThan(0)
+    const haystack = events.map((row) => `${row.event_type ?? ""} ${row.title ?? ""}`).join(" | ")
+    expect(haystack, haystack).toMatch(/lab/i)
+    expect(haystack, haystack).toMatch(/prescri|dispens|paracetamol/i)
+    expect(haystack, haystack).toMatch(/payment|signed|consultation|encounter/i)
 
     await page.goto(`/os/${FACILITY_A}/dashboard`)
     await expect(page.getByRole("banner").first()).toContainText(/synapse e2e hospital/i)

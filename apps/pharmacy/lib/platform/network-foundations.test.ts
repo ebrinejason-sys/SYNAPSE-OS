@@ -142,10 +142,11 @@ describe("scoped RBAC", () => {
 
 describe("timeline", () => {
   it("publishes a pharmacy dispense event with provenance and source refs", () => {
+    const saleId = "11111111-1111-4111-8111-111111111111"
     const event = pharmacyDispenseTimelineEvent({
       tenantId: "t1",
       personId: "person-1",
-      saleId: "sale-1",
+      saleId,
       receiptNumber: "RCT-9",
       facilityName: "Fort Portal Main Pharmacy",
       itemSummary: "Amoxicillin 500mg",
@@ -154,7 +155,8 @@ describe("timeline", () => {
     expect(event.provenance).toBe("PROVIDER_VERIFIED")
     const row = toTimelineInsert(event)
     expect(row.person_id).toBe("person-1")
-    expect(row.source_id).toBe("sale-1")
+    expect(row.source_id).toBe(saleId)
+    expect(row.event_type).toBe("medication")
   })
 })
 

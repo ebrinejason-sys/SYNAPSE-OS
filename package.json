@@ -73,7 +73,7 @@
     "test:routes": "node scripts/check-route-integrity.mjs",
     "test:db-acl": "node scripts/check-db-acl.mjs",
     "test:rls-matrix": "tsx --test packages/db/src/rls-matrix.test.ts",
-    "test:signed-record": "tsx --test packages/db/src/signed-record.test.ts packages/db/src/facility-lifecycle.test.ts packages/db/src/clinical-charge.test.ts packages/db/src/mpi-facility.test.ts",
+    "test:signed-record": "tsx --test packages/db/src/signed-record.test.ts packages/db/src/facility-lifecycle.test.ts packages/db/src/clinical-charge.test.ts packages/db/src/mpi-facility.test.ts packages/db/src/timeline.test.ts",
     "test:fhir": "npx vitest run packages/interop/src/fhir/r4.test.ts",
     "test:icd11": "npx vitest run packages/interop/src/terminology/icd11.test.ts",
     "test:a11y-smoke": "node scripts/check-a11y-smoke.mjs",

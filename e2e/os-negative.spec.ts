@@ -89,6 +89,14 @@ test.describe("production OS negative controls", () => {
     expect(body).not.toMatch(/INV-/i)
   })
 
+  test("cashier cannot read the clinical encounter timeline", async ({ page, request }) => {
+    await loginOs(page, e2eEmail("billing_officer"), process.env.SYNAPSE_E2E_PASSWORD!)
+    const res = await request.get(`/api/hospital/timeline/encounter/${DUMMY_ID}`, {
+      headers: { cookie: await cookieHeader(page) },
+    })
+    expect(res.status()).toBeGreaterThanOrEqual(400)
+  })
+
   test("unauthenticated billing lookup is denied", async ({ request }) => {
     const res = await request.get(`/api/hospital/billing/encounter/${DUMMY_ID}`)
     expect(res.status()).toBeGreaterThanOrEqual(400)

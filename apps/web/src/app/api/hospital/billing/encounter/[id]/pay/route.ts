@@ -80,6 +80,7 @@ export async function POST(
             hospitalId: ctx.hospitalId,
             patientId,
             encounterId,
+            paymentId: result.paymentId,
             amount: result.amount,
             receiptNumber: result.receiptNumber,
             paymentMethod: parsed.data.payment_method,

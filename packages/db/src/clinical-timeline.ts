@@ -311,6 +311,7 @@ export function paymentRecordedTimelineEvent(params: {
   hospitalId: string
   patientId: string
   encounterId: string
+  paymentId: string
   amount: number
   receiptNumber: string
   paymentMethod: string
@@ -324,10 +325,11 @@ export function paymentRecordedTimelineEvent(params: {
     title: "Payment recorded",
     summary: `${params.paymentMethod} · UGX ${params.amount.toLocaleString()} · ${params.receiptNumber}`,
     sourceTable: "billing_payments",
-    sourceId: params.receiptNumber,
+    sourceId: params.paymentId,
     provenance: "PROVIDER_VERIFIED",
     payload: {
       encounterId: params.encounterId,
+      paymentId: params.paymentId,
       amount: params.amount,
       receiptNumber: params.receiptNumber,
       paymentMethod: params.paymentMethod,
