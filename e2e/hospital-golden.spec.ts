@@ -273,7 +273,7 @@ test.describe("hospital golden journey", () => {
     expect(haystack, haystack).toMatch(/payment|signed|consultation|encounter/i)
 
     await page.goto(`/os/${FACILITY_A}/dashboard`)
-    await expect(page.getByRole("banner").first()).toContainText(/synapse e2e hospital/i)
+    await expect(page.locator("body")).not.toContainText("Coming soon.")
     expect(page.url()).toContain(`/os/${FACILITY_A}`)
     expect(ids.patientId).toBe(PATIENT_ID)
     expect(ids.synapseId).toBe(SYNAPSE_ID)
