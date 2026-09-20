@@ -42,7 +42,6 @@ export async function POST(req: NextRequest) {
       status: 'open',
       visit_date: new Date().toISOString(),
       is_deleted: false,
-      created_by: ctx.userId,
     })
     .select('id')
     .single()
