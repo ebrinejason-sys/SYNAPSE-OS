@@ -10,6 +10,11 @@ describe('facility staff security and laboratory landing', () => {
     expect(staffInviteSchema.safeParse({ email: 'synthetic@example.test', full_name: 'Synthetic Staff', role }).success).toBe(false)
     expect(staffRolePatchSchema.safeParse({ role }).success).toBe(false)
   })
+  it('normalizes lab_tech to the canonical profiles.role value', () => {
+    const parsed = staffInviteSchema.safeParse({ email: 'synthetic@example.test', full_name: 'Synthetic Staff', role: 'lab_tech' })
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data.role).toBe('lab_technician')
+  })
   it.each(['lab_admin', 'lab_scientist', 'lab_technician'])('routes %s to the laboratory workspace', role => {
     expect(getPostLoginPath({ role, tenantFacilityType: 'laboratory', emailVerified: true, onboardingComplete: true })).toBe('/lab/orders')
   })

@@ -186,9 +186,9 @@ begin
     password_hash, must_change_password, onboarding_complete, verification_status,
     email_verified_at, created_by
   ) values (
-    p_profile_id, v_invite.email, p_full_name, p_first_name, p_last_name, v_invite.role, v_invite.tenant_id, v_invite.tenant_id,
+    p_profile_id, v_invite.email, p_full_name, p_first_name, p_last_name, v_invite.role, v_invite.tenant_id, null,
     p_password_hash, false, false, 'pending',
-    now(), v_invite.created_by
+    now(), null
   );
 
   insert into public.staff_scope_assignments (profile_id, tenant_id, role, department_id, is_active)

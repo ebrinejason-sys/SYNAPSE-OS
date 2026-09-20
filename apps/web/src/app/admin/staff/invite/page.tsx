@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { ArrowLeft, CheckCircle, Send } from 'lucide-react'
 import { createClient } from '../../../../lib/supabase/client'
 
-const ROLES = ['doctor', 'nurse', 'pharmacist', 'lab_tech', 'admin', 'clinician', 'radiologist', 'physiotherapist']
+const ROLES = ['doctor', 'nurse', 'pharmacist', 'lab_technician', 'admin', 'clinician', 'radiologist', 'physiotherapist']
 
 export default function AdminStaffInvitePage() {
   const [sent, setSent] = useState(false)

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { normalizeFacilityInvitationRole } from '../platform/facility-invitation-roles'
 
 export const settingsPatchSchema = z.object({
   hospital_name: z.string().min(1).max(200).optional(),
@@ -37,17 +38,22 @@ export const bedCreateSchema = z.object({
 
 export const bedPatchSchema = bedCreateSchema.partial()
 
-const FACILITY_STAFF_ROLES = z.enum([
-  'doctor',
-  'nurse',
-  'pharmacist',
-  'lab_tech',
-  'admin',
-  'clinician',
-  'radiologist',
-  'physiotherapist',
-  'receptionist',
-])
+const FACILITY_STAFF_ROLES = z
+  .string()
+  .transform((role) => normalizeFacilityInvitationRole(role))
+  .pipe(
+    z.enum([
+      'doctor',
+      'nurse',
+      'pharmacist',
+      'lab_technician',
+      'admin',
+      'clinician',
+      'radiologist',
+      'physiotherapist',
+      'receptionist',
+    ]),
+  )
 
 export const staffInviteSchema = z.object({
   email: z.string().email(),

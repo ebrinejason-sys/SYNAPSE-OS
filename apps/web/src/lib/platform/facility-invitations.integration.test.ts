@@ -16,7 +16,7 @@ import {
  * guarantees the mock-only unit test in facility-invitations.server.test.ts
  * cannot prove.
  */
-describe.skipIf(!hasDb)("facility invitation acceptance (isolated DB)", () => {
+describe.skipIf(!hasDb)("facility invitation acceptance (isolated DB)", { timeout: 30_000 }, () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
   let tenantId: string
@@ -69,12 +69,16 @@ describe.skipIf(!hasDb)("facility invitation acceptance (isolated DB)", () => {
     expect(created.ok).toBe(true)
     if (!created.ok) return
 
+    const { data: storedInvite } = await db.from("facility_invitations").select("role").eq("id", created.invitationId).single()
+    expect(storedInvite.role).toBe("lab_technician")
+
     const result = await registerFacilityInvitationNewAccount({ token: created.token, password: "supersecret1" })
     expect(result.ok).toBe(true)
     if (!result.ok) return
     createdProfileIds.push(result.profileId)
 
-    const { data: profile } = await db.from("profiles").select("onboarding_complete, verification_status, password_hash").eq("id", result.profileId).single()
+    const { data: profile } = await db.from("profiles").select("role, onboarding_complete, verification_status, password_hash").eq("id", result.profileId).single()
+    expect(profile.role).toBe("lab_technician")
     expect(profile.onboarding_complete).toBe(false)
     expect(profile.password_hash).toBeTruthy()
     expect(profile.verification_status).toBe("pending")
@@ -96,7 +100,7 @@ describe.skipIf(!hasDb)("facility invitation acceptance (isolated DB)", () => {
       id: wrongProfileId,
       email: `attacker-${crypto.randomUUID()}@isolated.test`,
       full_name: "Wrong Person",
-      role: "lab_tech",
+      role: "lab_technician",
       tenant_id: null,
       verification_status: "verified",
     })
@@ -121,7 +125,7 @@ describe.skipIf(!hasDb)("facility invitation acceptance (isolated DB)", () => {
       id: correctProfileId,
       email: invitedEmail,
       full_name: "Victim Person",
-      role: "lab_tech",
+      role: "lab_technician",
       tenant_id: null,
       verification_status: "verified",
     })
@@ -139,7 +143,7 @@ describe.skipIf(!hasDb)("facility invitation acceptance (isolated DB)", () => {
       id: profileId,
       email,
       full_name: "Member Person",
-      role: "lab_tech",
+      role: "lab_technician",
       tenant_id: null,
       password_hash: "original-hash-should-not-change",
       verification_status: "verified",
@@ -165,14 +169,14 @@ describe.skipIf(!hasDb)("facility invitation acceptance (isolated DB)", () => {
       id: profileId,
       email,
       full_name: "Multi Facility Person",
-      role: "lab_tech",
+      role: "lab_technician",
       tenant_id: null,
       verification_status: "verified",
     })
     if (profileErr) throw new Error(profileErr.message)
     createdProfileIds.push(profileId)
 
-    const { error: firstScopeErr } = await db.from("staff_scope_assignments").insert({ profile_id: profileId, tenant_id: tenantId, role: "lab_tech", is_active: true })
+    const { error: firstScopeErr } = await db.from("staff_scope_assignments").insert({ profile_id: profileId, tenant_id: tenantId, role: "lab_technician", is_active: true })
     if (firstScopeErr) throw new Error(firstScopeErr.message)
 
     const created = await createFacilityInvitation({ tenantId: otherTenantId, email, fullName: "Multi Facility Person", role: "lab_tech", actorId: crypto.randomUUID() })
@@ -243,7 +247,7 @@ describe.skipIf(!hasDb)("facility invitation acceptance (isolated DB)", () => {
       id: existingProfileId,
       email,
       full_name: "Already Person",
-      role: "lab_tech",
+      role: "lab_technician",
       tenant_id: null,
       verification_status: "verified",
     })
@@ -260,5 +264,38 @@ describe.skipIf(!hasDb)("facility invitation acceptance (isolated DB)", () => {
 
     const { data: invite } = await db.from("facility_invitations").select("status").eq("id", created.invitationId).single()
     expect(invite.status).toBe("PENDING")
+  })
+
+  it("rejects an invalid token and a second redemption of an already-accepted invitation", async () => {
+    const invalid = await registerFacilityInvitationNewAccount({ token: "not-a-real-invite-token", password: "supersecret1" })
+    expect(invalid.ok).toBe(false)
+    if (!invalid.ok) expect(invalid.code).toBe("INVITE_NOT_FOUND")
+
+    const email = `dup-${crypto.randomUUID()}@isolated.test`
+    const created = await createFacilityInvitation({ tenantId, email, fullName: "Dup Person", role: "lab_tech", actorId: crypto.randomUUID() })
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+
+    const first = await registerFacilityInvitationNewAccount({ token: created.token, password: "supersecret1" })
+    expect(first.ok).toBe(true)
+    if (first.ok) createdProfileIds.push(first.profileId)
+
+    const second = await registerFacilityInvitationNewAccount({ token: created.token, password: "supersecret1" })
+    expect(second.ok).toBe(false)
+    if (!second.ok) expect(["INVITE_ALREADY_USED", "IDENTITY_EXISTS"]).toContain(second.code)
+  })
+
+  it("rejects an unsupported invitation role instead of persisting an alias that cannot be redeemed", async () => {
+    const created = await createFacilityInvitation({
+      tenantId,
+      email: `bad-role-${crypto.randomUUID()}@isolated.test`,
+      fullName: "Bad Role Person",
+      role: "lab_supervisor",
+      actorId: crypto.randomUUID(),
+    })
+    expect(created.ok).toBe(false)
+    if (!created.ok) expect(created.code).toBe("INVALID_INPUT")
+    const { data: invites } = await db.from("facility_invitations").select("id").eq("tenant_id", tenantId)
+    expect(invites ?? []).toHaveLength(0)
   })
 })

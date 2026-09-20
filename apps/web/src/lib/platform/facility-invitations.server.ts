@@ -3,6 +3,9 @@ import { hashPassword } from "@synapse/auth"
 import { supabaseAdmin } from "@synapse/db/admin"
 import { canBindInviteToTenant } from "../invite-scope"
 import { generateInviteToken, hashInviteToken } from "./membership.server"
+import { normalizeFacilityInvitationRole } from "./facility-invitation-roles"
+
+export { normalizeFacilityInvitationRole } from "./facility-invitation-roles"
 
 /**
  * Canonical facility staff invitation model: single-use, cryptographically
@@ -21,7 +24,8 @@ import { generateInviteToken, hashInviteToken } from "./membership.server"
  *
  * Both paths delegate invitation consumption, staff_scope_assignments
  * creation, and audit logging to a single Postgres function
- * (supabase/migrations/20260910130000_facility_invitations_acceptance_tx.sql)
+ * (supabase/migrations/20260910130000_facility_invitations_acceptance_tx.sql
+ * and supabase/migrations/20260920190000_facility_invitation_new_account_canonical_profile.sql)
  * so they succeed atomically or leave the invitation in its prior,
  * retry-safe state. The invitation row is locked with SELECT ... FOR UPDATE
  * inside that function, so concurrent redemption attempts serialize on the
@@ -139,7 +143,7 @@ function humanizeCode(code: string): string {
 export async function createFacilityInvitation(input: CreateFacilityInvitationInput): Promise<CreateFacilityInvitationResult> {
   const email = input.email.trim().toLowerCase()
   const fullName = input.fullName.trim()
-  const role = input.role.trim()
+  const role = normalizeFacilityInvitationRole(input.role)
   if (!email || !fullName || !LAB_ROLES.has(role)) {
     return { ok: false, status: 400, code: "INVALID_INPUT", error: "fullName, email and a valid laboratory role are required" }
   }
