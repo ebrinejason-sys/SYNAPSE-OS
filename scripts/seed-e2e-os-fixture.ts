@@ -17,6 +17,7 @@ import {
   ensureCapabilityLattice,
   ensureHospitalModules,
   ensureParacetamolCatalog,
+  ensureServiceCatalog,
 } from "./e2e-os-capability-lattice.ts"
 
 async function hashPassword(password: string): Promise<string> {
@@ -287,6 +288,8 @@ const amina = await ensureAmina(tenantA.id, hospitalA.id)
 const lattice = await ensureCapabilityLattice(db)
 const modulesA = await ensureHospitalModules(db, { tenantId: tenantA.id, hospitalId: hospitalA.id })
 const modulesB = await ensureHospitalModules(db, { tenantId: tenantB.id, hospitalId: hospitalB.id })
+const catalogA = await ensureServiceCatalog(db, tenantA.id)
+const catalogB = await ensureServiceCatalog(db, tenantB.id)
 const formulary = await ensureParacetamolCatalog(db, tenantA.id)
 
 const { count: aminaCount, error: aminaCountErr } = await db
@@ -325,6 +328,8 @@ console.log(JSON.stringify({
   roleGrants: lattice.grants,
   modulesA,
   modulesB,
+  serviceCatalogA: catalogA,
+  serviceCatalogB: catalogB,
   paracetamolProductId: formulary.productId,
   paracetamolBatchId: formulary.batchId,
   passwordPrinted: false,

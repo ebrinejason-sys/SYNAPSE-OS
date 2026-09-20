@@ -165,29 +165,32 @@ export async function POST(req: NextRequest) {
     )
 
     const unitPrice = await resolveServicePrice(db, ctx.tenantId, 'lab', test_name)
-    const charge = await appendClinicalChargeBestEffort(db, {
-      tenantId: ctx.tenantId,
-      patientId: patient_id,
-      encounterId: encounter_id,
-      itemName: `Lab · ${test_name}`,
-      unitPrice,
-      sourceTable: 'lab_orders',
-      sourceId: orderId,
-      createdBy: ctx.userId,
-    })
-    if (!charge.ok) {
-      journeyWarnings.push(charge.error)
-    } else if (charge.result.created) {
-      const outbox = recordInvoiceCreatedEvent({
+    if (unitPrice == null) {
+      journeyWarnings.push(`SERVICE_PRICE_NOT_CONFIGURED:lab:${test_name}`)
+    } else {
+      const charge = await appendClinicalChargeBestEffort(db, {
         tenantId: ctx.tenantId,
-        hospitalId: ctx.hospitalId,
         patientId: patient_id,
         encounterId: encounter_id,
-        invoiceId: charge.result.invoiceId,
-        totalAmount: charge.result.totalAmount,
-        actorId: ctx.userId,
+        itemName: `Lab · ${test_name}`,
+        unitPrice,
+        sourceTable: 'lab_orders',
+        sourceId: orderId,
       })
-      await persistDomainEventsBestEffort(db, outbox.list({ correlationId: encounter_id }))
+      if (!charge.ok) {
+        journeyWarnings.push(charge.error)
+      } else if (charge.result.created) {
+        const outbox = recordInvoiceCreatedEvent({
+          tenantId: ctx.tenantId,
+          hospitalId: ctx.hospitalId,
+          patientId: patient_id,
+          encounterId: encounter_id,
+          invoiceId: charge.result.invoiceId,
+          totalAmount: charge.result.totalAmount,
+          actorId: ctx.userId,
+        })
+        await persistDomainEventsBestEffort(db, outbox.list({ correlationId: encounter_id }))
+      }
     }
   } catch (error) {
     console.warn('[opd/lab-orders] clinical journey step failed', error)

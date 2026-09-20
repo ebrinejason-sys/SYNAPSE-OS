@@ -29,6 +29,7 @@ describe("hospital BFF explicit tenant filters", () => {
     "apps/web/src/app/api/opd/lab-orders/route.ts",
     "apps/web/src/app/api/opd/prescriptions/route.ts",
     "apps/web/src/app/api/hospital/billing/encounter/[id]/route.ts",
+    "apps/web/src/app/api/hospital/billing/encounter/[id]/pay/route.ts",
     "apps/web/src/app/api/hospital/pharmacy/dispense/route.ts",
     "apps/web/src/app/api/lab/orders/[id]/cancel/route.ts",
   ]

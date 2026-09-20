@@ -130,7 +130,7 @@ export async function recordEncounterPayment(
 
   const newPaid = currentPaid + input.amount
   const newStatus =
-    newPaid >= totalAmount - 0.001 ? "paid" : newPaid > 0 ? "partial_paid" : String(invoice.status ?? "draft")
+    newPaid >= totalAmount - 0.001 ? "paid" : newPaid > 0 ? "partially_paid" : String(invoice.status ?? "draft")
 
   const { error: updateError } = await db
     .from("billing_invoices")

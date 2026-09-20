@@ -181,6 +181,49 @@ export async function ensureHospitalModules(
   return rows.length
 }
 
+export async function ensureServiceCatalog(
+  db: { from: (table: string) => any },
+  tenantId: string,
+): Promise<number> {
+  const items = [
+    { name: "OPD Consultation", service_type: "consultation", price: 10000 },
+    { name: "FBC", service_type: "lab", price: 15000 },
+    { name: "Malaria RDT", service_type: "lab", price: 8000 },
+  ]
+  let upserted = 0
+  for (const item of items) {
+    const { data: existing, error: existingErr } = await db
+      .from("service_catalog")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("name", item.name)
+      .maybeSingle()
+    if (existingErr) throw new Error(existingErr.message)
+    if (existing?.id) {
+      const { error } = await db
+        .from("service_catalog")
+        .update({ price: item.price, service_type: item.service_type, is_active: true, is_deleted: false })
+        .eq("id", existing.id)
+        .eq("tenant_id", tenantId)
+      if (error) throw new Error(error.message)
+      upserted += 1
+      continue
+    }
+    const { error } = await db.from("service_catalog").insert({
+      tenant_id: tenantId,
+      name: item.name,
+      service_type: item.service_type,
+      price: item.price,
+      currency: "UGX",
+      is_active: true,
+      is_deleted: false,
+    })
+    if (error) throw new Error(error.message)
+    upserted += 1
+  }
+  return upserted
+}
+
 export const E2E_PARACETAMOL_SKU = "E2E-PARA-500"
 
 export async function ensureParacetamolCatalog(

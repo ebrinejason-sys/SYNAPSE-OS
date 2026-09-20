@@ -61,6 +61,39 @@ test.describe("production OS negative controls", () => {
     expect(res.status()).toBeGreaterThanOrEqual(400)
   })
 
+  test("cashier cannot dispense", async ({ page, request }) => {
+    await loginOs(page, e2eEmail("billing_officer"), process.env.SYNAPSE_E2E_PASSWORD!)
+    const res = await authedPost(request, page, "/api/hospital/pharmacy/dispense", {
+      prescription_id: DUMMY_ID,
+    })
+    expect(res.status()).toBeGreaterThanOrEqual(400)
+  })
+
+  test("doctor cannot record a cashier payment", async ({ page, request }) => {
+    await loginOs(page, e2eEmail("doctor"), process.env.SYNAPSE_E2E_PASSWORD!)
+    const res = await authedPost(request, page, `/api/hospital/billing/encounter/${DUMMY_ID}/pay`, {
+      amount: 1000,
+      payment_method: "cash",
+    })
+    expect(res.status()).toBeGreaterThanOrEqual(400)
+  })
+
+  test("tenant B cannot read tenant A encounter billing", async ({ page, request }) => {
+    const tenantAEncounter = process.env.SYNAPSE_E2E_ENCOUNTER_ID || "72603ece-b91a-45ad-a6bc-c59bff1162db"
+    await loginOs(page, e2eEmail("doctor", "b"), process.env.SYNAPSE_E2E_PASSWORD!, FACILITY_B)
+    const res = await request.get(`/api/hospital/billing/encounter/${tenantAEncounter}`, {
+      headers: { cookie: await cookieHeader(page) },
+    })
+    expect(res.status()).toBeGreaterThanOrEqual(400)
+    const body = await res.text()
+    expect(body).not.toMatch(/INV-/i)
+  })
+
+  test("unauthenticated billing lookup is denied", async ({ request }) => {
+    const res = await request.get(`/api/hospital/billing/encounter/${DUMMY_ID}`)
+    expect(res.status()).toBeGreaterThanOrEqual(400)
+  })
+
   test("cashier cannot edit a clinical note", async ({ page, request }) => {
     await loginOs(page, e2eEmail("billing_officer"), process.env.SYNAPSE_E2E_PASSWORD!)
     const res = await authedPost(request, page, `/api/opd/encounters/${DUMMY_ID}/write-up`, {

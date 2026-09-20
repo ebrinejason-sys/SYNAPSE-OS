@@ -4,8 +4,7 @@ import { recordPrescriptionPlaced } from '@synapse/db/clinical-journey'
 import { persistClinicalPrescriptionBestEffort } from '@synapse/db/prescription-persist'
 import { prescriptionTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
-import { appendClinicalChargeBestEffort, recordInvoiceCreatedEvent } from '@synapse/db/clinical-charge'
-import { persistDomainEventsBestEffort, persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
+import { persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '@/lib/hospital-shared'
 import { requireHospitalStaffContext, prescriptionCreateSchema } from '@/lib/hospital-dept'
 
@@ -138,32 +137,6 @@ export async function POST(req: NextRequest) {
         createdBy: ctx.userId,
       }),
     )
-
-    const charge = await appendClinicalChargeBestEffort(db, {
-      tenantId: ctx.tenantId,
-      patientId: patient_id,
-      encounterId: encounter_id,
-      itemName: `Rx · ${medication_display}`,
-      unitPrice: 0,
-      qty: quantity,
-      sourceTable: 'clinical_prescriptions',
-      sourceId: prescriptionId,
-      createdBy: ctx.userId,
-    })
-    if (!charge.ok) {
-      journeyWarnings.push(charge.error)
-    } else if (charge.result.created) {
-      const outbox = recordInvoiceCreatedEvent({
-        tenantId: ctx.tenantId,
-        hospitalId: ctx.hospitalId,
-        patientId: patient_id,
-        encounterId: encounter_id,
-        invoiceId: charge.result.invoiceId,
-        totalAmount: charge.result.totalAmount,
-        actorId: ctx.userId,
-      })
-      await persistDomainEventsBestEffort(db, outbox.list({ correlationId: encounter_id }))
-    }
   } catch (error) {
     console.warn('[opd/prescriptions] clinical journey step failed', error)
     return NextResponse.json(

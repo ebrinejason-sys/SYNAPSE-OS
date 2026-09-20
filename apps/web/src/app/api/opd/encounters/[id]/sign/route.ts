@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { recordEncounterSigned } from '@synapse/db/clinical-journey'
 import { scheduleDhis2RollupAfterEncounterSign } from '@synapse/db/dhis2-export'
-import { persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
+import { persistWorkQueueArtifactsBestEffort, persistDomainEventsBestEffort } from '@synapse/db/work-queue-persist'
 import { encounterSignedTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
+import { appendClinicalChargeBestEffort, recordInvoiceCreatedEvent, resolveServicePrice } from '@synapse/db/clinical-charge'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '@/lib/hospital-shared'
 import { requireHospitalStaffContext } from '@/lib/hospital-dept'
 
@@ -78,6 +79,30 @@ export async function POST(
         signedBy: ctx.userId,
       }),
     )
+    const consultPrice = await resolveServicePrice(db, ctx.tenantId, 'consultation', 'OPD')
+    if (consultPrice != null) {
+      const charge = await appendClinicalChargeBestEffort(db, {
+        tenantId: ctx.tenantId,
+        patientId: encounter.patient_id,
+        encounterId,
+        itemName: 'OPD Consultation',
+        unitPrice: consultPrice,
+        sourceTable: 'encounters',
+        sourceId: encounterId,
+      })
+      if (charge.ok && charge.result.created) {
+        const outbox = recordInvoiceCreatedEvent({
+          tenantId: ctx.tenantId,
+          hospitalId: ctx.hospitalId,
+          patientId: encounter.patient_id,
+          encounterId,
+          invoiceId: charge.result.invoiceId,
+          totalAmount: charge.result.totalAmount,
+          actorId: ctx.userId,
+        })
+        await persistDomainEventsBestEffort(db, outbox.list({ correlationId: encounterId }))
+      }
+    }
   } catch (error) {
     console.warn('[opd/encounters/sign] event persist failed', error)
   }

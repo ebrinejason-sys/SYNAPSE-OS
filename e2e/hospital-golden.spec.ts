@@ -208,17 +208,59 @@ test.describe("hospital golden journey", () => {
     await loginOs(page, e2eEmail("billing_officer"), password)
     await page.goto(`/os/${FACILITY_A}/clinical/orders`)
     await expect(page.locator("body")).not.toContainText("Coming soon.")
-    const invoice = await authedJson(page, `/api/hospital/billing/encounter/${encounterId}`)
-    expect(invoice.status, `invoice HTTP ${invoice.status} ${JSON.stringify(invoice.json)}`).toBeLessThan(300)
-    const invoiceBody = invoice.json as { invoice?: { total_amount?: number; paid_amount?: number } | null }
+    const invoiceLookups = []
+    for (let i = 0; i < 3; i += 1) {
+      invoiceLookups.push(await authedJson(page, `/api/hospital/billing/encounter/${encounterId}`))
+    }
+    for (const invoice of invoiceLookups) {
+      expect(invoice.status, `invoice HTTP ${invoice.status} ${JSON.stringify(invoice.json)}`).toBeLessThan(300)
+    }
+    const invoiceBody = invoiceLookups[0]!.json as {
+      invoice?: { id?: string; encounter_id?: string; patient_id?: string; total_amount?: number; paid_amount?: number } | null
+      lineItems?: Array<{ item_name?: string; qty?: number; unit_price?: number; total_price?: number }>
+    }
     expect(invoiceBody.invoice, "invoice must be derived from the journey").toBeTruthy()
+    expect(invoiceBody.invoice?.encounter_id).toBe(encounterId)
+    expect(invoiceBody.invoice?.patient_id).toBe(PATIENT_ID)
+    const names = (invoiceBody.lineItems ?? []).map((row) => String(row.item_name ?? ""))
+    expect(names.some((name) => /consultation/i.test(name))).toBeTruthy()
+    expect(names.some((name) => /FBC/i.test(name))).toBeTruthy()
+    expect(names.some((name) => /Malaria/i.test(name))).toBeTruthy()
+    expect(names.some((name) => /Paracetamol/i.test(name))).toBeTruthy()
     const amount = Number(invoiceBody.invoice?.total_amount ?? 0)
+    const lineTotal = (invoiceBody.lineItems ?? []).reduce(
+      (sum, row) => sum + Number(row.total_price ?? Number(row.qty ?? 0) * Number(row.unit_price ?? 0)),
+      0,
+    )
     expect(amount).toBeGreaterThan(0)
+    expect(amount).toBeCloseTo(lineTotal, 2)
+    expect(invoiceLookups[1]!.json).toMatchObject({
+      invoice: { id: invoiceBody.invoice?.id, total_amount: amount },
+    })
+    expect(invoiceLookups[2]!.json).toMatchObject({
+      invoice: { id: invoiceBody.invoice?.id, total_amount: amount },
+    })
+    expect(((invoiceLookups[1]!.json as { lineItems?: unknown[] }).lineItems ?? []).length).toBe(invoiceBody.lineItems?.length)
+    expect(((invoiceLookups[2]!.json as { lineItems?: unknown[] }).lineItems ?? []).length).toBe(invoiceBody.lineItems?.length)
     const pay = await authedJson(page, `/api/hospital/billing/encounter/${encounterId}/pay`, {
       method: "POST",
       data: { amount, payment_method: "cash" },
     })
     expect(pay.status, `payment HTTP ${pay.status} ${JSON.stringify(pay.json)}`).toBeLessThan(300)
+    const payment = (pay.json as { payment?: { receiptNumber?: string; status?: string; amount?: number } }).payment
+    expect(payment?.receiptNumber).toMatch(/^RCP-/)
+    expect(payment?.status).toBe("paid")
+    expect(Number(payment?.amount)).toBe(amount)
+
+    const paidInvoice = await authedJson(page, `/api/hospital/billing/encounter/${encounterId}`)
+    expect(paidInvoice.status).toBeLessThan(300)
+    const paidBody = paidInvoice.json as {
+      invoice?: { status?: string; paid_amount?: number }
+      payments?: Array<{ receipt_number?: string; amount?: number }>
+    }
+    expect(paidBody.invoice?.status).toBe("paid")
+    expect(Number(paidBody.invoice?.paid_amount)).toBe(amount)
+    expect(paidBody.payments?.[0]?.receipt_number).toBe(payment?.receiptNumber)
 
     const timeline = await authedJson(page, `/api/hospital/timeline/encounter/${encounterId}`)
     expect(timeline.status, `timeline HTTP ${timeline.status} ${JSON.stringify(timeline.json)}`).toBeLessThan(300)
