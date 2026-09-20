@@ -20,31 +20,43 @@ export function persistableLabResultStatus(
   return status
 }
 
-export function labResultToRow(result: LabResult, extras?: { enteredBy?: string | null; source?: string }): Record<string, unknown> {
+export type LabResultPersistExtras = {
+  enteredBy?: string | null
+  source?: string
+  encounterId?: string
+}
+
+export function labResultToRow(result: LabResult, extras?: LabResultPersistExtras): Record<string, unknown> {
+  const value = result.resultValue
   return {
     id: result.id,
     tenant_id: result.tenantId,
     lab_order_id: result.labOrderId,
     patient_id: result.patientId,
+    encounter_id: extras?.encounterId ?? null,
     loinc_code: result.loincCode,
     test_name: result.testName,
-    result_value: result.resultValue,
+    value,
+    result_value: value,
     unit: result.unit || null,
     reference_range: result.referenceRange || null,
     status: persistableLabResultStatus(result.status),
     is_critical: result.isCritical,
     is_abnormal: result.isAbnormal,
     numeric_value: result.numericValue,
+    flag: result.flag,
     abnormal_flag: result.flag,
     analyzer: result.analyzer ?? null,
     verified_by: result.verifiedBy ?? null,
     verified_at: result.verifiedAt ?? null,
     provenance: result.provenance,
     result_source: extras?.source ?? provenanceToSource(result.provenance),
-    entered_by: extras?.enteredBy ?? null,
     version: result.version,
     is_synthetic: result.isSynthetic,
     released_to_patient_at: result.releasedAt ?? null,
+    ...(extras?.enteredBy
+      ? { entered_by: extras.enteredBy, lab_technician_id: extras.enteredBy }
+      : {}),
   }
 }
 
@@ -65,7 +77,7 @@ export function rowToLabResult(row: Record<string, unknown>): LabResult {
     patientId: String(row.patient_id),
     loincCode: String(row.loinc_code ?? ""),
     testName: String(row.test_name),
-    resultValue: String(row.result_value),
+    resultValue: String(row.result_value ?? row.value ?? ""),
     numericValue: row.numeric_value != null ? Number(row.numeric_value) : null,
     unit: String(row.unit ?? ""),
     referenceRange: String(row.reference_range ?? ""),
@@ -93,17 +105,27 @@ export async function loadLabResultsForOrder(
     .select("*")
     .eq("tenant_id", tenantId)
     .eq("lab_order_id", orderId)
-  if (error || !data) return []
-  return (data as Record<string, unknown>[]).map(rowToLabResult)
+  if (error) throw new Error(`LAB_RESULT_LOAD_FAILED:${error.message ?? "lab_results select failed"}`)
+  if (!data) return []
+  return (data as Record<string, unknown>[])
+    .filter((row) => String(row.tenant_id) === tenantId && String(row.lab_order_id) === orderId)
+    .map(rowToLabResult)
 }
 
 export async function persistLabResultBestEffort(
   db: DbClient,
   result: LabResult,
-  extras?: { enteredBy?: string | null; source?: string },
+  extras?: LabResultPersistExtras,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { error } = await db.from("lab_results").upsert(labResultToRow(result, extras), { onConflict: "id" })
+    if (!extras?.encounterId) {
+      return { ok: false, error: "LAB_RESULT_ENCOUNTER_REQUIRED" }
+    }
+    const row = labResultToRow(result, extras)
+    if (!row.lab_order_id || !row.tenant_id || !row.patient_id || !row.encounter_id || !row.value) {
+      return { ok: false, error: "LAB_RESULT_IDENTITY_INCOMPLETE" }
+    }
+    const { error } = await db.from("lab_results").upsert(row, { onConflict: "id" })
     if (error) return { ok: false, error: error.message ?? "lab_results upsert failed" }
     return { ok: true }
   } catch (err) {

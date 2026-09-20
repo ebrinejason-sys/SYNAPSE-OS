@@ -5194,58 +5194,115 @@ export type Database = {
       }
       lab_results: {
         Row: {
+          abnormal_flag: string | null
+          analyzer: string | null
           code: string | null
           created_at: string
           created_by: string | null
           encounter_id: string
+          entered_at: string | null
+          entered_by: string | null
           flag: string | null
           id: string
+          is_abnormal: boolean
+          is_critical: boolean
           is_deleted: boolean | null
+          is_synthetic: boolean
+          lab_order_id: string
           lab_technician_id: string | null
           loinc_code: string | null
           notes: string | null
+          numeric_value: number | null
+          patient_id: string
+          provenance: string | null
           reference_range: string | null
-          tenant_id: string | null
+          released_to_patient_at: string | null
+          result_source: string | null
+          result_value: string | null
+          simulation_run_id: string | null
+          status: string | null
+          tenant_id: string
           test_name: string
           unit: string | null
           updated_at: string | null
           value: string
+          verified_at: string | null
+          verified_by: string | null
+          version: number
         }
         Insert: {
+          abnormal_flag?: string | null
+          analyzer?: string | null
           code?: string | null
           created_at?: string
           created_by?: string | null
           encounter_id: string
+          entered_at?: string | null
+          entered_by?: string | null
           flag?: string | null
           id?: string
+          is_abnormal?: boolean
+          is_critical?: boolean
           is_deleted?: boolean | null
+          is_synthetic?: boolean
+          lab_order_id: string
           lab_technician_id?: string | null
           loinc_code?: string | null
           notes?: string | null
+          numeric_value?: number | null
+          patient_id: string
+          provenance?: string | null
           reference_range?: string | null
-          tenant_id?: string | null
+          released_to_patient_at?: string | null
+          result_source?: string | null
+          result_value?: string | null
+          simulation_run_id?: string | null
+          status?: string | null
+          tenant_id: string
           test_name: string
           unit?: string | null
           updated_at?: string | null
           value: string
+          verified_at?: string | null
+          verified_by?: string | null
+          version?: number
         }
         Update: {
+          abnormal_flag?: string | null
+          analyzer?: string | null
           code?: string | null
           created_at?: string
           created_by?: string | null
           encounter_id?: string
+          entered_at?: string | null
+          entered_by?: string | null
           flag?: string | null
           id?: string
+          is_abnormal?: boolean
+          is_critical?: boolean
           is_deleted?: boolean | null
+          is_synthetic?: boolean
+          lab_order_id?: string
           lab_technician_id?: string | null
           loinc_code?: string | null
           notes?: string | null
+          numeric_value?: number | null
+          patient_id?: string
+          provenance?: string | null
           reference_range?: string | null
-          tenant_id?: string | null
+          released_to_patient_at?: string | null
+          result_source?: string | null
+          result_value?: string | null
+          simulation_run_id?: string | null
+          status?: string | null
+          tenant_id?: string
           test_name?: string
           unit?: string | null
           updated_at?: string | null
           value?: string
+          verified_at?: string | null
+          verified_by?: string | null
+          version?: number
         }
         Relationships: [
           {
@@ -5256,10 +5313,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "lab_results_lab_order_tenant_fkey"
+            columns: ["lab_order_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "lab_orders"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
             foreignKeyName: "lab_results_lab_technician_id_fkey"
             columns: ["lab_technician_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_results_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
             referencedColumns: ["id"]
           },
           {

@@ -5895,7 +5895,7 @@ CREATE TABLE IF NOT EXISTS "public"."lab_results" (
     "flag" "text",
     "notes" "text",
     "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "tenant_id" "uuid",
+    "tenant_id" "uuid" NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"(),
     "created_by" "uuid",
     "is_deleted" boolean DEFAULT false,
@@ -5909,7 +5909,16 @@ CREATE TABLE IF NOT EXISTS "public"."lab_results" (
     "simulation_run_id" "uuid",
     "result_source" "text",
     "entered_by" "uuid",
-    "entered_at" timestamp with time zone DEFAULT "now"()
+    "entered_at" timestamp with time zone DEFAULT "now"(),
+    "lab_order_id" "uuid" NOT NULL,
+    "patient_id" "uuid" NOT NULL,
+    "result_value" "text",
+    "status" "text" DEFAULT 'preliminary'::"text" NOT NULL,
+    "is_critical" boolean DEFAULT false NOT NULL,
+    "is_abnormal" boolean DEFAULT false NOT NULL,
+    "version" integer DEFAULT 1 NOT NULL,
+    "released_to_patient_at" timestamp with time zone,
+    CONSTRAINT "lab_results_status_check" CHECK (("status" = ANY (ARRAY['preliminary'::"text", 'final'::"text", 'corrected'::"text", 'cancelled'::"text"])))
 );
 
 
@@ -10812,6 +10821,11 @@ ALTER TABLE ONLY "public"."lab_orders"
 
 
 
+ALTER TABLE ONLY "public"."lab_orders"
+    ADD CONSTRAINT "lab_orders_id_tenant_uid" UNIQUE ("id", "tenant_id");
+
+
+
 ALTER TABLE ONLY "public"."lab_reference_ranges"
     ADD CONSTRAINT "lab_reference_ranges_pkey" PRIMARY KEY ("id");
 
@@ -10839,6 +10853,11 @@ ALTER TABLE ONLY "public"."lab_result_staging"
 
 ALTER TABLE ONLY "public"."lab_results"
     ADD CONSTRAINT "lab_results_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."lab_results"
+    ADD CONSTRAINT "lab_results_tenant_order_uid" UNIQUE ("tenant_id", "lab_order_id");
 
 
 
@@ -12849,6 +12868,10 @@ CREATE INDEX "idx_lab_results_created_at" ON "public"."lab_results" USING "btree
 
 
 CREATE INDEX "idx_lab_results_encounter_id" ON "public"."lab_results" USING "btree" ("encounter_id");
+
+
+
+CREATE INDEX "idx_lab_results_order" ON "public"."lab_results" USING "btree" ("tenant_id", "lab_order_id");
 
 
 
@@ -17445,6 +17468,16 @@ ALTER TABLE ONLY "public"."lab_results"
 
 ALTER TABLE ONLY "public"."lab_results"
     ADD CONSTRAINT "lab_results_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."lab_results"
+    ADD CONSTRAINT "lab_results_lab_order_tenant_fkey" FOREIGN KEY ("lab_order_id", "tenant_id") REFERENCES "public"."lab_orders"("id", "tenant_id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."lab_results"
+    ADD CONSTRAINT "lab_results_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "public"."patients"("id");
 
 
 
