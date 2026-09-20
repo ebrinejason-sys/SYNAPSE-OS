@@ -81,6 +81,17 @@ describe("E2E OTP policy", () => {
     assert.equal(resolveE2eOtp(SYNTHETIC_RECEPTION, { SYNAPSE_E2E_FIXED_OTP: "135790" }), null)
   })
 
+  it("reads E2E flags through dynamic env keys", () => {
+    const env = Object.create(null) as NodeJS.ProcessEnv
+    env["SYNAPSE_E2E_AUTH"] = "true"
+    env["SYNAPSE_E2E_ACCEPTANCE_ENV"] = "true"
+    env["SYNAPSE_E2E_FIXED_OTP"] = "135790"
+    env["VERCEL_ENV"] = "preview"
+    assert.equal(resolveE2eOtp(SYNTHETIC_RECEPTION, env), "135790")
+    env["VERCEL_ENV"] = "production"
+    assert.equal(resolveE2eOtp(SYNTHETIC_RECEPTION, env), null)
+  })
+
   it("rejects seed unless the exact synthetic slugs are used", () => {
     assert.throws(() => assertE2eSeedAllowed({ seedFlag: "true", slugA: "main-hospital", slugB: "synapse-e2e-hospital-b" }))
     assert.doesNotThrow(() => assertE2eSeedAllowed({

@@ -4,6 +4,8 @@ import { signMfaPendingToken, mfaCookieOptions, MFA_PENDING_COOKIE } from '@syna
 import { supabaseAdmin } from '@synapse/db/admin'
 import { sendOtpEmail } from '../../../../lib/resend'
 
+export const dynamic = 'force-dynamic'
+
 const MAX_ATTEMPTS    = 10
 const LOCKOUT_MINUTES = 30
 

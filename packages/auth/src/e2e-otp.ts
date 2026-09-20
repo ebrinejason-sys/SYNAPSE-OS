@@ -28,10 +28,18 @@ export function isE2eFacilitySlug(slug: string | null | undefined): boolean {
   return (E2E_FACILITY_SLUGS as readonly string[]).includes(String(slug || ""))
 }
 
+function runtimeEnvValue(env: NodeJS.ProcessEnv, name: string): string {
+  // Dynamic key access. Next.js inlines `process.env.FOO` at build time.
+  // Sensitive Vercel Preview secrets are empty during build, so a static
+  // `process.env.SYNAPSE_E2E_FIXED_OTP` would bake a blank override into
+  // the server bundle and force random OTPs at runtime.
+  return String(env[name] ?? "").trim()
+}
+
 export function isE2eAcceptanceRuntime(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.SYNAPSE_E2E_AUTH === "true"
-    && env.SYNAPSE_E2E_ACCEPTANCE_ENV === "true"
-    && env.VERCEL_ENV !== "production"
+  return runtimeEnvValue(env, "SYNAPSE_E2E_AUTH") === "true"
+    && runtimeEnvValue(env, "SYNAPSE_E2E_ACCEPTANCE_ENV") === "true"
+    && runtimeEnvValue(env, "VERCEL_ENV") !== "production"
 }
 
 export function shouldSkipOtpEmailDelivery(
@@ -62,7 +70,7 @@ export function resolveE2eOtp(
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
   if (!isE2eAcceptanceRuntime(env)) return null
-  const otp = String(env.SYNAPSE_E2E_FIXED_OTP || "").trim()
+  const otp = runtimeEnvValue(env, "SYNAPSE_E2E_FIXED_OTP")
   if (!/^\d{6}$/.test(otp)) return null
   if (!input.isSyntheticTenant) return null
   if (!isE2eFacilitySlug(input.facilitySlug)) return null

@@ -3,6 +3,8 @@ import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, createAndSendOTP, shouldS
 import { createServiceClient } from '../../../../../lib/supabase/server'
 import { sendOtpEmail } from '../../../../../lib/resend'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   const body  = await req.json().catch(() => ({}))
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
