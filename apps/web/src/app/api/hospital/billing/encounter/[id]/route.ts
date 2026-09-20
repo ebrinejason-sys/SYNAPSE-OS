@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
+import { materializeEncounterCharges } from '@synapse/db/clinical-charge'
 import { isContextError, requireHospitalCapability, gateHospitalModule } from '@/lib/hospital-shared'
 import { requireHospitalStaffContext } from '@/lib/hospital-dept'
 
@@ -22,6 +23,14 @@ export async function GET(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
+  const materialized = await materializeEncounterCharges(db, {
+    tenantId: ctx.tenantId,
+    encounterId,
+  })
+  if (!materialized.encounterFound) {
+    return NextResponse.json({ error: 'Encounter not found' }, { status: 404 })
+  }
+
   const { data: invoice, error: invoiceError } = await db
     .from('billing_invoices')
     .select('id, invoice_number, status, currency, total_amount, paid_amount, patient_id, encounter_id, created_at, updated_at')
@@ -34,7 +43,7 @@ export async function GET(
 
   if (invoiceError) return NextResponse.json({ error: invoiceError.message }, { status: 500 })
   if (!invoice) {
-    return NextResponse.json({ invoice: null, lineItems: [] })
+    return NextResponse.json({ invoice: null, lineItems: [], payments: [], warnings: materialized.warnings })
   }
 
   const { data: lineItems, error: lineError } = await db
@@ -57,5 +66,10 @@ export async function GET(
 
   if (payError) return NextResponse.json({ error: payError.message }, { status: 500 })
 
-  return NextResponse.json({ invoice, lineItems: lineItems ?? [], payments: payments ?? [] })
+  return NextResponse.json({
+    invoice,
+    lineItems: lineItems ?? [],
+    payments: payments ?? [],
+    warnings: materialized.warnings,
+  })
 }

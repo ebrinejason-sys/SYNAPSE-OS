@@ -12,7 +12,7 @@ async function probeDatabase() {
   const started = Date.now()
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabaseAdmin as any).from("tenants").select("id", { count: "exact", head: true })
+    const { error } = await (supabaseAdmin as any).from("tenants").select("id").limit(1)
     return { ok: !error, latencyMs: Date.now() - started, detail: error?.message ?? "tenants query succeeded" }
   } catch (error) {
     return { ok: false, latencyMs: Date.now() - started, detail: error instanceof Error ? error.message : "db probe failed" }
@@ -34,9 +34,11 @@ export async function GET() {
   const icdConfigured = whoApiConfigured()
   const aiConfigured = isOpenRouterConfigured()
   const ready = db.ok
+  const commitSha = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? null
   return NextResponse.json({
     status: ready ? "ready" : "not_ready",
     checkedAt: new Date().toISOString(),
+    commitSha,
     checks: {
       database: db,
       migrationHead: { ok: Boolean(migrationHead), version: migrationHead },

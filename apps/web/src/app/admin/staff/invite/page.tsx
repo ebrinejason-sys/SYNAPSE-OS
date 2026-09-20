@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { ArrowLeft, CheckCircle, Send } from 'lucide-react'
 import { createClient } from '../../../../lib/supabase/client'
 
-const ROLES = ['doctor', 'nurse', 'pharmacist', 'lab_tech', 'admin', 'clinician', 'radiologist', 'physiotherapist']
+const ROLES = ['doctor', 'nurse', 'pharmacist', 'lab_technician', 'admin', 'clinician', 'radiologist', 'physiotherapist']
 
 export default function AdminStaffInvitePage() {
   const [sent, setSent] = useState(false)
@@ -39,6 +39,8 @@ export default function AdminStaffInvitePage() {
     const supabase = createClient()
 
     const tempPassword = Math.random().toString(36).slice(2, 10) + 'Aa1!'
+    // Identity creation only. Hospital authorization still requires a SYNAPSE
+    // facility session (synapse_session + membership), not this Auth JWT.
     const { data, error: authError } = await supabase.auth.signUp({
       email: form.email,
       password: tempPassword,

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, CheckCircle } from 'lucide-react'
 
 const ROLES = [
-  'doctor', 'nurse', 'pharmacist', 'lab_tech', 'receptionist',
+  'doctor', 'nurse', 'pharmacist', 'lab_technician', 'receptionist',
   'billing_officer', 'claims_officer', 'clinical_officer', 'hospital_admin',
 ]
 

@@ -32,7 +32,7 @@ export async function GET() {
 
   const patientIds = [...new Set((beds ?? []).map((b: { current_patient_id: string | null }) => b.current_patient_id).filter(Boolean))]
   const { data: patients } = patientIds.length
-    ? await db.from('patients').select('id, first_name, last_name, mrn, sex').in('id', patientIds)
+    ? await db.from('patients').select('id, first_name, last_name, mrn, sex').eq('tenant_id', ctx.tenantId).in('id', patientIds)
     : { data: [] }
 
   const patientMap = new Map(

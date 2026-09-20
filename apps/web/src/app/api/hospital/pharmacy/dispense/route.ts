@@ -198,66 +198,70 @@ export async function POST(req: NextRequest) {
 
     await persistDomainEventsBestEffort(db, outbox.list({ correlationId: dispensed.rx.correlationId }))
 
-    const charge = await appendClinicalChargeBestEffort(db, {
-      tenantId: ctx.tenantId,
-      patientId: dispensed.rx.patientId,
-      encounterId: dispensed.rx.encounterId,
-      itemName: `Dispense · ${dispensed.rx.medicationDisplay}`,
-      unitPrice: Number(product.price ?? 0),
-      qty: dispensed.rx.quantity,
-      sourceTable: 'pharmacy_dispense',
-      sourceId: prescription_id,
-      createdBy: ctx.userId,
-    })
-    if (charge.ok && charge.result.created) {
-      const invoiceOutbox = recordInvoiceCreatedEvent({
+    const unitPrice = product.price == null ? null : Number(product.price)
+    if (unitPrice == null || !Number.isFinite(unitPrice)) {
+      // Missing catalog price is not a zero charge.
+    } else {
+      const charge = await appendClinicalChargeBestEffort(db, {
         tenantId: ctx.tenantId,
-        hospitalId: ctx.hospitalId,
         patientId: dispensed.rx.patientId,
         encounterId: dispensed.rx.encounterId,
-        invoiceId: charge.result.invoiceId,
-        totalAmount: charge.result.totalAmount,
-        actorId: ctx.userId,
+        itemName: `Dispense · ${dispensed.rx.medicationDisplay}`,
+        unitPrice,
+        qty: dispensed.rx.quantity,
+        sourceTable: 'pharmacy_dispense',
+        sourceId: prescription_id,
       })
-      await persistDomainEventsBestEffort(db, invoiceOutbox.list({ correlationId: dispensed.rx.correlationId }))
-    }
-
-    if (charge.ok) {
-      const { data: invoice } = await db
-        .from('billing_invoices')
-        .select('id, total_amount, paid_amount, status')
-        .eq('id', charge.result.invoiceId)
-        .eq('tenant_id', ctx.tenantId)
-        .maybeSingle()
-      const balanceDue = Math.max(0, Number(invoice?.total_amount ?? 0) - Number(invoice?.paid_amount ?? 0))
-      if (balanceDue > 0 && invoice?.status !== 'paid') {
-        const queue = new WorkQueue()
-        const billingTask = queue.create({
+      if (charge.ok && charge.result.created) {
+        const invoiceOutbox = recordInvoiceCreatedEvent({
           tenantId: ctx.tenantId,
-          facilityId: ctx.hospitalId,
           hospitalId: ctx.hospitalId,
           patientId: dispensed.rx.patientId,
           encounterId: dispensed.rx.encounterId,
-          requesterId: ctx.userId,
-          ownerDepartment: 'billing',
-          ownerRole: 'cashier',
-          taskType: 'billing',
-          priority: 'ROUTINE',
-          title: 'Payment required',
-          description: `Invoice balance due: ${balanceDue}`,
-          sourceResource: 'billing_invoices',
-          sourceId: charge.result.invoiceId,
-          correlationId: dispensed.rx.correlationId,
-          idempotencyKey: `billing_invoices:${charge.result.invoiceId}:payment`,
-          suppressDomainEvent: true,
+          invoiceId: charge.result.invoiceId,
+          totalAmount: charge.result.totalAmount,
+          actorId: ctx.userId,
         })
-        if (billingTask.ok) {
-          const billingPersist = await persistWorkQueueArtifactsBestEffort(db, {
-            tasks: [billingTask.task],
-            events: [],
+        await persistDomainEventsBestEffort(db, invoiceOutbox.list({ correlationId: dispensed.rx.correlationId }))
+      }
+
+      if (charge.ok) {
+        const { data: invoice } = await db
+          .from('billing_invoices')
+          .select('id, total_amount, paid_amount, status')
+          .eq('id', charge.result.invoiceId)
+          .eq('tenant_id', ctx.tenantId)
+          .maybeSingle()
+        const balanceDue = Math.max(0, Number(invoice?.total_amount ?? 0) - Number(invoice?.paid_amount ?? 0))
+        if (balanceDue > 0 && invoice?.status !== 'paid') {
+          const queue = new WorkQueue()
+          const billingTask = queue.create({
+            tenantId: ctx.tenantId,
+            facilityId: ctx.hospitalId,
+            hospitalId: ctx.hospitalId,
+            patientId: dispensed.rx.patientId,
+            encounterId: dispensed.rx.encounterId,
+            requesterId: ctx.userId,
+            ownerDepartment: 'billing',
+            ownerRole: 'cashier',
+            taskType: 'billing',
+            priority: 'ROUTINE',
+            title: 'Payment required',
+            description: `Invoice balance due: ${balanceDue}`,
+            sourceResource: 'billing_invoices',
+            sourceId: charge.result.invoiceId,
+            correlationId: dispensed.rx.correlationId,
+            idempotencyKey: `billing_invoices:${charge.result.invoiceId}:payment`,
+            suppressDomainEvent: true,
           })
-          if (billingPersist.errors.length) {
-            console.warn('[hospital/dispense] billing handoff persist partial', billingPersist.errors)
+          if (billingTask.ok) {
+            const billingPersist = await persistWorkQueueArtifactsBestEffort(db, {
+              tasks: [billingTask.task],
+              events: [],
+            })
+            if (billingPersist.errors.length) {
+              console.warn('[hospital/dispense] billing handoff persist partial', billingPersist.errors)
+            }
           }
         }
       }

@@ -20,7 +20,7 @@ export async function POST(
   const ctx = await requireHospitalStaffContext()
   if (isContextError(ctx)) return ctx
 
-  const cap = await requireHospitalCapability(ctx, 'payment', 'collect', 'billing')
+  const cap = await requireHospitalCapability(ctx, 'payment', 'record', 'billing')
   if (cap) return cap
 
   const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, 'billing')
@@ -80,6 +80,7 @@ export async function POST(
             hospitalId: ctx.hospitalId,
             patientId,
             encounterId,
+            paymentId: result.paymentId,
             amount: result.amount,
             receiptNumber: result.receiptNumber,
             paymentMethod: parsed.data.payment_method,

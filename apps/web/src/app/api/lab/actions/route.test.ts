@@ -215,6 +215,29 @@ describe("POST /api/lab/actions", () => {
       }),
     )
   })
+
+  it("verify uses session tenant, not body tenantId", async () => {
+    getCurrentUser.mockResolvedValue({ id: USER, role: "lab_scientist", email: "s@example.test" })
+    requireHospitalStaffContext.mockResolvedValue(staff("lab_scientist", TENANT_A))
+    const { POST } = await import("./route")
+    await POST(
+      new Request("https://synapseos.tech/api/lab/actions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          orderId: ORDER,
+          action: "verify",
+          tenantId: TENANT_B,
+        }),
+      }),
+    )
+    expect(executeHospitalLabAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "verify",
+        ctx: expect.objectContaining({ tenantId: TENANT_A }),
+      }),
+    )
+  })
   it("requires durable audit before verify success", async () => {
     getCurrentUser.mockResolvedValue({ id: USER, role: "lab_scientist", email: "s@example.test" })
     requireHospitalStaffContext.mockResolvedValue(staff("lab_scientist"))

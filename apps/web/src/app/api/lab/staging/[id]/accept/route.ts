@@ -49,7 +49,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const lab = new LabWorkflow([order])
   const entered = lab.enterResult({ resultId: crypto.randomUUID(), orderId: order.id, value: String(staging.value), analyzer: String(staging.device_id ?? "analyzer") })
-  const resultPersist = await persistLabResultBestEffort(db, entered.result, { enteredBy: ctx.userId, source: "ANALYZER" })
+  const resultPersist = await persistLabResultBestEffort(db, entered.result, {
+    enteredBy: ctx.userId,
+    source: "ANALYZER",
+    encounterId: order.encounterId,
+  })
   if (!resultPersist.ok) return NextResponse.json({ error: resultPersist.error }, { status: 500 })
   const orderPersist = await persistLabOrderBestEffort(db, entered.order)
   if (!orderPersist.ok) return NextResponse.json({ error: orderPersist.error }, { status: 500 })

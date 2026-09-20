@@ -207,6 +207,22 @@ describe("facility-invitations.server", () => {
     if (!result.ok) expect(result.code).toBe("SCHEMA_INCOMPATIBLE")
   })
 
+  it("normalizes lab_tech to lab_technician before persisting the invitation", async () => {
+    const { createFacilityInvitation, normalizeFacilityInvitationRole } = await import("./facility-invitations.server")
+    expect(normalizeFacilityInvitationRole("lab_tech")).toBe("lab_technician")
+    const result = await createFacilityInvitation({ tenantId: "lab-1", email: "alias@example.test", fullName: "Alias Person", role: "lab_tech", actorId: "admin-1" })
+    expect(result.ok).toBe(true)
+    expect(fakeDb.__tables.facility_invitations[0].role).toBe("lab_technician")
+  })
+
+  it("rejects an unsupported invitation role", async () => {
+    const { createFacilityInvitation } = await import("./facility-invitations.server")
+    const result = await createFacilityInvitation({ tenantId: "lab-1", email: "bad@example.test", fullName: "Bad Role", role: "lab_supervisor", actorId: "admin-1" })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe("INVALID_INPUT")
+    expect(fakeDb.__tables.facility_invitations).toHaveLength(0)
+  })
+
   it("creates an invitation with a fresh identity, storing only a token hash and the invited department", async () => {
     const { createFacilityInvitation } = await import("./facility-invitations.server")
     const result = await createFacilityInvitation({ tenantId: "lab-1", email: "new@example.test", fullName: "New Person", role: "lab_scientist", departmentId: "dept-1", actorId: "admin-1" })

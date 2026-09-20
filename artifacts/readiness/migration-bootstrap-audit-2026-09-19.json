@@ -1,0 +1,1206 @@
+{
+  "generated_at": "2026-09-19T16:28:49.540645+00:00",
+  "scope": "local_disposable_only",
+  "remote_projects_touched": [],
+  "total_repo_migrations": 166,
+  "versioned_repo_migrations": 165,
+  "unversioned_skipped_by_cli": [
+    "demo_schema_init.sql"
+  ],
+  "local_cli_reset": {
+    "command": "npx supabase db reset --local --no-seed",
+    "result": "FAIL",
+    "sqlstate": "42P01",
+    "first_failing_migration": "20260410211144_dduka_dash_schema_v2.sql",
+    "error": "relation \"public.profiles\" does not exist",
+    "classification": "historical migration assumes dashboard-created schema"
+  },
+  "first_failure": {
+    "migration_version": "20260410211144",
+    "migration_name": "dduka_dash_schema_v2",
+    "sqlstate": "42P01",
+    "error": "relation \"public.profiles\" does not exist",
+    "missing_relation": "public.profiles",
+    "where_predecessor_should_have_been_created": "Never created in supabase/migrations. Exists only in quarantine 20260511_production_schema.sql and live production.",
+    "exists_in_repo_history": "quarantine_only",
+    "classification": "historical migration assumes dashboard-created schema"
+  },
+  "walk_forward": {
+    "applied": 29,
+    "failed": 136,
+    "total_versioned": 165,
+    "unique_missing_objects": 49,
+    "missing_object_counts": {
+      "tenants": 39,
+      "profiles": 21,
+      "hospitals": 7,
+      "pharmacy_products": 6,
+      "encounters": 5,
+      "pharmacy_pos_sales": 4,
+      "patient_profiles": 3,
+      "pharmacy_onboarding": 3,
+      "facility_invitations": 3,
+      "pharmacy_settings": 2,
+      "pharmacy_product_batches": 2,
+      "pharmacy_stock_transfers": 2,
+      "clinical_pathway_templates": 2,
+      "lab_orders": 2,
+      "products": 1,
+      "encounter_orders": 1,
+      "aefi_reports": 1,
+      "hospital_modules": 1,
+      "pharmacy_customers": 1,
+      "pharmacy_orders": 1,
+      "pharmacy_profiles": 1,
+      "pharmacy_credit_ledger": 1,
+      "health_bulletins": 1,
+      "drug_shortage_alerts": 1,
+      "refill_reminders": 1,
+      "body_register": 1,
+      "housekeeping_tasks": 1,
+      "partograph_records": 1,
+      "visitor_log": 1,
+      "facility_resource_logs": 1,
+      "surveillance_reports": 1,
+      "sdg_reports": 1,
+      "OTHER::function is_platform_admin() does not exist": 1,
+      "OTHER::function current_tenant_id() does not exist": 1,
+      "tenant_subscriptions": 1,
+      "pharmacy_user_settings": 1,
+      "patients": 1,
+      "person_identifiers": 1,
+      "pharmacy_stock_transfer_items": 1,
+      "pharmacy_cashier_sessions": 1,
+      "lab_results": 1,
+      "departments": 1,
+      "dhis2_data_element_mappings": 1,
+      "dhis2_org_unit_mappings": 1,
+      "pharmacy_inventory_summary": 1,
+      "feature_flags": 1,
+      "synapse_sessions": 1,
+      "facility_referrals": 1,
+      "OTHER::public.billing_payments requires public.billing_invoices": 1
+    },
+    "failures": [
+      {
+        "file": "20260410211144_dduka_dash_schema_v2.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.profiles\" does not exist"
+      },
+      {
+        "file": "20260410211427_seed_data.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.products\" does not exist"
+      },
+      {
+        "file": "20260503150842_extend_profiles_role_enum_superadmin.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.profiles\" does not exist"
+      },
+      {
+        "file": "20260604163130_add_tenant_performance_indexes.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"encounters\" does not exist"
+      },
+      {
+        "file": "20260604163142_add_missing_platform_tables.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"hospitals\" does not exist"
+      },
+      {
+        "file": "20260605150957_add_synapse_id_core_tables.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"hospitals\" does not exist"
+      },
+      {
+        "file": "20260605193131_fix_rls_8_exposed_tables.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.patient_profiles\" does not exist"
+      },
+      {
+        "file": "20260605193214_add_tenant_id_indexes_batch.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.encounter_orders\" does not exist"
+      },
+      {
+        "file": "20260605193303_seed_demo_labs_and_modules.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"hospitals\" does not exist"
+      },
+      {
+        "file": "20260605194256_enable_rls_on_8_exposed_tables.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.patient_profiles\" does not exist"
+      },
+      {
+        "file": "20260605194359_add_tenant_id_indexes_all_70_tables.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.aefi_reports\" does not exist"
+      },
+      {
+        "file": "20260605194536_seed_demo_lab_results_and_upsert_modules.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"hospital_modules\" does not exist"
+      },
+      {
+        "file": "20260607130305_synapse_app_mobile_schema.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"profiles\" does not exist"
+      },
+      {
+        "file": "20260608134937_pharmacy_core_tables.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"tenants\" does not exist"
+      },
+      {
+        "file": "20260608135011_pharmacy_transactions_and_orders.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"tenants\" does not exist"
+      },
+      {
+        "file": "20260608135026_pharmacy_audit_and_notifications.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"tenants\" does not exist"
+      },
+      {
+        "file": "20260608135056_pharmacy_rls_policies.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_settings\" does not exist"
+      },
+      {
+        "file": "20260608165417_add_password_hash_to_pharmacy_customers.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_customers\" does not exist"
+      },
+      {
+        "file": "20260609000112_add_missing_synapse_operational_tables.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260609154759_tenant_facility_compatibility_columns.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260611084450_pharmacy_domain_provisioning.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260611084534_pharmacy_orders_patient_compatibility.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.pharmacy_orders\" does not exist"
+      },
+      {
+        "file": "20260611084554_pharmacy_network_rls_policies_retry.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.pharmacy_profiles\" does not exist"
+      },
+      {
+        "file": "20260611141817_pharmacy_tenant_columns.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"tenants\" does not exist"
+      },
+      {
+        "file": "20260611141830_pharmacy_rls_fix_locked_tables.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_credit_ledger\" does not exist"
+      },
+      {
+        "file": "20260611141844_pharmacy_onboarding_table.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"tenants\" does not exist"
+      },
+      {
+        "file": "20260611141915_pharmacy_network_inventory_trigger.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_products\" does not exist"
+      },
+      {
+        "file": "20260611154006_pharmacy_onboarding_rls_and_printer_type.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_onboarding\" does not exist"
+      },
+      {
+        "file": "20260612055928_synapse_sessions.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"profiles\" does not exist"
+      },
+      {
+        "file": "20260612055938_profiles_custom_auth_columns.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"profiles\" does not exist"
+      },
+      {
+        "file": "20260612055951_rls_helper_functions.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"profiles\" does not exist"
+      },
+      {
+        "file": "20260612060857_fix_zero_policy_auth_otps.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"profiles\" does not exist"
+      },
+      {
+        "file": "20260612060916_fix_zero_policy_health_bulletins.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"health_bulletins\" does not exist"
+      },
+      {
+        "file": "20260612060922_fix_zero_policy_drug_shortage_alerts.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"drug_shortage_alerts\" does not exist"
+      },
+      {
+        "file": "20260612060928_fix_zero_policy_refill_reminders.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"refill_reminders\" does not exist"
+      },
+      {
+        "file": "20260612060935_fix_zero_policy_body_register.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"body_register\" does not exist"
+      },
+      {
+        "file": "20260612060940_fix_zero_policy_housekeeping_tasks.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"housekeeping_tasks\" does not exist"
+      },
+      {
+        "file": "20260612060945_fix_zero_policy_partograph_records.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"partograph_records\" does not exist"
+      },
+      {
+        "file": "20260612061003_fix_zero_policy_visitor_log.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"visitor_log\" does not exist"
+      },
+      {
+        "file": "20260612061012_fix_zero_policy_facility_resource_logs.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"facility_resource_logs\" does not exist"
+      },
+      {
+        "file": "20260612061014_fix_zero_policy_surveillance_reports.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"surveillance_reports\" does not exist"
+      },
+      {
+        "file": "20260612061028_fix_zero_policy_sdg_reports.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"sdg_reports\" does not exist"
+      },
+      {
+        "file": "20260612061031_fix_zero_policy_newsletter_subscribers.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "function is_platform_admin() does not exist"
+      },
+      {
+        "file": "20260612142246_add_encounter_status_column.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"encounters\" does not exist"
+      },
+      {
+        "file": "20260612154805_reasoning_engine_tables_and_functions.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"encounters\" does not exist"
+      },
+      {
+        "file": "20260612230655_subscriptions_and_feature_gates.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"tenants\" does not exist"
+      },
+      {
+        "file": "20260612231111_pharmacy_pos_tables.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"tenants\" does not exist"
+      },
+      {
+        "file": "20260612231409_insurance_copilot_tables.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"tenants\" does not exist"
+      },
+      {
+        "file": "20260612231541_longitudinal_patient_intelligence.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"tenants\" does not exist"
+      },
+      {
+        "file": "20260612231920_rls_phi_hardening.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"profiles\" does not exist"
+      },
+      {
+        "file": "20260613104631_emergency_auth_rls_convergence.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"profiles\" does not exist"
+      },
+      {
+        "file": "20260613104742_lock_down_auth_rls_helpers_anon_execute.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "function current_tenant_id() does not exist"
+      },
+      {
+        "file": "20260613171512_email_activation_gate.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.profiles\" does not exist"
+      },
+      {
+        "file": "20260614084545_password_reset_tokens.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.profiles\" does not exist"
+      },
+      {
+        "file": "20260614192359_allow_public_invite_lookup.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_onboarding\" does not exist"
+      },
+      {
+        "file": "20260615112752_add_pharmacy_admin_role.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.profiles\" does not exist"
+      },
+      {
+        "file": "20260615122022_add_admin_contact_to_pharmacy_onboarding.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.pharmacy_onboarding\" does not exist"
+      },
+      {
+        "file": "20260616145543_add_pharmacy_staff_ceo_to_role_check.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.profiles\" does not exist"
+      },
+      {
+        "file": "20260620223902_subscription_billing_flutterwave.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"tenants\" does not exist"
+      },
+      {
+        "file": "20260621013812_pharmacy_custom_domains.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260621193519_add_sms_credits_to_tenants.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"tenants\" does not exist"
+      },
+      {
+        "file": "20260621193522_add_phone_to_profiles.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"profiles\" does not exist"
+      },
+      {
+        "file": "20260703185455_create_complete_pharmacy_sale_rpc.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_products\" does not exist"
+      },
+      {
+        "file": "20260706073556_create_hospital_leads.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.profiles\" does not exist"
+      },
+      {
+        "file": "20260714172600_pharm_plans_canonical_pricing.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"tenant_subscriptions\" does not exist"
+      },
+      {
+        "file": "20260715120935_subscription_invoices.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"tenants\" does not exist"
+      },
+      {
+        "file": "20260715192400_fix_complete_pharmacy_sale_generated_line_total.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_products\" does not exist"
+      },
+      {
+        "file": "20260716104221_custom_auth_profile_ids.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.patient_profiles\" does not exist"
+      },
+      {
+        "file": "20260716104232_add_mobile_push_tokens.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.profiles\" does not exist"
+      },
+      {
+        "file": "20260716110812_backfill_missing_baseline_tables.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"tenants\" does not exist"
+      },
+      {
+        "file": "20260718183718_nda_batch_manufacturer_and_sale_item_audit.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_product_batches\" does not exist"
+      },
+      {
+        "file": "20260718183725_sales_receipt_void_offline_and_session_variance.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_pos_sales\" does not exist"
+      },
+      {
+        "file": "20260718183749_append_only_sales_guard_and_batch_sale_rules.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_pos_sales\" does not exist"
+      },
+      {
+        "file": "20260718183757_reprint_log_and_stock_adjustment_hardening.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_pos_sales\" does not exist"
+      },
+      {
+        "file": "20260718183806_tenant_tax_efris_settings_and_vat_category.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_settings\" does not exist"
+      },
+      {
+        "file": "20260725095606_pharmacy_sale_idempotency.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260725102530_pharmacy_capability_roles.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.pharmacy_user_settings\" does not exist"
+      },
+      {
+        "file": "20260725103907_fix_complete_sale_pending_then_complete.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_products\" does not exist"
+      },
+      {
+        "file": "20260801181742_pos_sale_idempotency_in_rpc.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_products\" does not exist"
+      },
+      {
+        "file": "20260810093356_pharmacy_inventory_authority.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.pharmacy_product_batches\" does not exist"
+      },
+      {
+        "file": "20260810093436_pharmacy_stock_authority_and_perms.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_products\" does not exist"
+      },
+      {
+        "file": "20260817120000_synapse_network_identity_foundations.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260817164805_synapse_network_identity_foundations.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260817164837_synapse_network_identity_foundations_persons.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260817164848_synapse_network_identity_foundations_profile.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.profiles\" does not exist"
+      },
+      {
+        "file": "20260817164902_synapse_network_identity_foundations_mpi_consent.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.profiles\" does not exist"
+      },
+      {
+        "file": "20260817164946_synapse_network_identity_foundations_links_scope.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.patients\" does not exist"
+      },
+      {
+        "file": "20260817164959_synapse_network_identity_foundations_pharmacy_interop.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260817165015_synapse_network_identity_foundations_rls.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.person_identifiers\" does not exist"
+      },
+      {
+        "file": "20260823105807_pharmacy_stock_transfers_execute.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.pharmacy_stock_transfer_items\" does not exist"
+      },
+      {
+        "file": "20260823105809_pharmacy_cashier_sessions_v1.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.pharmacy_cashier_sessions\" does not exist"
+      },
+      {
+        "file": "20260823105821_pharmacy_stock_transfer_rpcs.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_stock_transfers\" does not exist"
+      },
+      {
+        "file": "20260823105844_pharmacy_stock_transfer_receive_rpc.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"pharmacy_stock_transfers\" does not exist"
+      },
+      {
+        "file": "20260827231349_synapse_exchange_lab_pathways_simulation.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260827231417_synapse_exchange_events_and_lab_safety.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260827231431_synapse_exchange_pathways_simulation_control.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260827231454_project_golden_intelligence_icd11.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260828164925_clinical_intelligence_sessions.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.hospitals\" does not exist"
+      },
+      {
+        "file": "20260828165136_pathway_dka_pneumonia_seeds.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.clinical_pathway_templates\" does not exist"
+      },
+      {
+        "file": "20260828165138_pathway_slug_aliases_malaria_sepsis.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.clinical_pathway_templates\" does not exist"
+      },
+      {
+        "file": "20260828165139_domain_event_log_wave1.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.hospitals\" does not exist"
+      },
+      {
+        "file": "20260828174832_platform_control_plane_core.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.hospitals\" does not exist"
+      },
+      {
+        "file": "20260828175203_platform_control_plane_audit_incidents.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.hospitals\" does not exist"
+      },
+      {
+        "file": "20260828175226_platform_control_plane_ops_tables.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.profiles\" does not exist"
+      },
+      {
+        "file": "20260830071642_platform_access_governance.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.profiles\" does not exist"
+      },
+      {
+        "file": "20260830074132_add_platform_observer_role.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.profiles\" does not exist"
+      },
+      {
+        "file": "20260830081931_hospital_acceptance_infrastructure.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260830082558_encounter_signing.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.encounters\" does not exist"
+      },
+      {
+        "file": "20260830115410_encounter_amendments_and_guards.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260831190000_dhis2_export_pipeline.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260902163011_hospital_onboarding_tables.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260902163050_facility_provisioning_runs.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260902170756_lab_lims_wave1_devices.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.lab_results\" does not exist"
+      },
+      {
+        "file": "20260903090143_fix_departments_tenant_scoped_unique.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.departments\" does not exist"
+      },
+      {
+        "file": "20260903092150_facility_domain_records.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260903123000_feature_flags.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260904090000_expand_facility_type_check.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260904093000_qualify_tenants_updated_at_trigger.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260904110000_dhis2_simulation_mappings.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.dhis2_data_element_mappings\" does not exist"
+      },
+      {
+        "file": "20260904120000_dhis2_global_simulation_org_unit.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.dhis2_org_unit_mappings\" does not exist"
+      },
+      {
+        "file": "20260907083248_pharmacy_inventory_summary_invoker.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.pharmacy_inventory_summary\" does not exist"
+      },
+      {
+        "file": "20260907100539_feature_flags_postgrest_conflict_target.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.feature_flags\" does not exist"
+      },
+      {
+        "file": "20260907123159_backfill_canonical_hospital_locations.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260908120000_lab_reports_release_artifacts.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260909100000_manual_subscription_grants.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260909130000_scope_pharmacy_receipts_to_tenant.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.pharmacy_pos_sales\" does not exist"
+      },
+      {
+        "file": "20260910120000_facility_invitations_token_hash.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.facility_invitations\" does not exist"
+      },
+      {
+        "file": "20260910130000_facility_invitations_acceptance_tx.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.facility_invitations\" does not exist"
+      },
+      {
+        "file": "20260911100000_session_bound_mfa_assurance.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.synapse_sessions\" does not exist"
+      },
+      {
+        "file": "20260911120000_fix_invite_acceptance_verification_status.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.facility_invitations\" does not exist"
+      },
+      {
+        "file": "20260912184600_encounter_disposition_columns.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.encounters\" does not exist"
+      },
+      {
+        "file": "20260912190100_facility_referrals_lifecycle_columns.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.facility_referrals\" does not exist"
+      },
+      {
+        "file": "20260913010000_lab_order_replacement_link.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.lab_orders\" does not exist"
+      },
+      {
+        "file": "20260913020000_lab_order_one_open_replacement.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.lab_orders\" does not exist"
+      },
+      {
+        "file": "20260918120000_facility_lifecycle_control_plane.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "relation \"public.tenants\" does not exist"
+      },
+      {
+        "file": "20260918140000_hospital_billing_payments.sql",
+        "status": "FAILED",
+        "sqlstate": null,
+        "error": "public.billing_payments requires public.billing_invoices"
+      }
+    ]
+  },
+  "dependency_chain": {
+    "never_created_in_repo_migrations": [
+      "tenants",
+      "profiles",
+      "patients",
+      "encounters",
+      "vitals",
+      "lab_results",
+      "prescriptions"
+    ],
+    "created_after_first_use": {
+      "hospitals": "20260902163011_hospital_onboarding_tables.sql but earlier migrations already ALTER hospitals",
+      "persons": "20260817120000_synapse_network_identity_foundations.sql",
+      "person_identifiers": "20260817120000_synapse_network_identity_foundations.sql",
+      "auth_otps": "20260607111937_custom_otp_and_newsletter.sql",
+      "synapse_sessions": "20260612055928_synapse_sessions.sql",
+      "lab_orders": "20260716110812_backfill_missing_baseline_tables.sql",
+      "pharmacy_product_batches": "20260608134937_pharmacy_core_tables.sql (fails because tenants missing)",
+      "billing_payments": "20260918140000_hospital_billing_payments.sql",
+      "clinical_prescriptions": "20260827231431_synapse_exchange_pathways_simulation_control.sql"
+    },
+    "root_predecessors": [
+      "public.profiles",
+      "public.tenants",
+      "public.patients",
+      "public.encounters",
+      "public.hospitals"
+    ],
+    "note": "The 166-file folder is a production ledger dump of ALTERs against an already-evolved database. It is not a bootstrap chain."
+  },
+  "remote_only_historical_on_acceptance": [
+    {
+      "remote_version": "20260919152630",
+      "remote_name": "acceptance_preexisting_baseline",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": false
+    },
+    {
+      "remote_version": "20260919152723",
+      "remote_name": "dduka_dash_schema_v2",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": true
+    },
+    {
+      "remote_version": "20260919152940",
+      "remote_name": "acceptance_preexisting_clinical_stubs",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": false
+    },
+    {
+      "remote_version": "20260919153012",
+      "remote_name": "acceptance_insurance_claims_stub",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": false
+    },
+    {
+      "remote_version": "20260919153125",
+      "remote_name": "extend_profiles_role_enum_superadmin",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": true
+    },
+    {
+      "remote_version": "20260919153235",
+      "remote_name": "e2e_acceptance_core_schema",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": false
+    },
+    {
+      "remote_version": "20260919153447",
+      "remote_name": "e2e_acceptance_hospital_journey_schema",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": false
+    },
+    {
+      "remote_version": "20260919153523",
+      "remote_name": "lock_down_auth_rls_helpers_anon_execute",
+      "status": "REMOTE_ONLY",
+      "name_exists_in_repo": true
+    }
+  ],
+  "same_name_different_timestamp_collisions": [
+    {
+      "name": "dduka_dash_schema_v2",
+      "repo": "20260410211144",
+      "acceptance_remote": "20260919152723"
+    },
+    {
+      "name": "extend_profiles_role_enum_superadmin",
+      "repo": "20260503150842",
+      "acceptance_remote": "20260919153125"
+    },
+    {
+      "name": "lock_down_auth_rls_helpers_anon_execute",
+      "repo": "20260613104742",
+      "acceptance_remote": "20260919153523"
+    }
+  ],
+  "candidate_repair_strategy": {
+    "chosen": "BASELINE",
+    "rejected": {
+      "HISTORICAL_REPAIR": "136 of 165 versioned files fail; not a small ordering defect. Editing already-applied production versions is forbidden.",
+      "SQUASH_INTO_MIGRATIONS_FOLDER": "Would make db push try to apply a new version onto production or require production ledger repair."
+    },
+    "implementation": {
+      "canonical_schema": "supabase/bootstrap/canonical_public_schema.sql",
+      "source": "read-only supabase db dump --linked --schema public from qfqakzmjatszisuqjwon",
+      "contains_table_data": false,
+      "fresh_command": "npm run db:reset:fresh",
+      "historical_files_modified": 0,
+      "production_ledger": "untouched"
+    }
+  },
+  "local_fresh_proof": {
+    "run_1": "PASS",
+    "run_2": "PASS",
+    "schema_equivalence": {
+      "tables": {
+        "dump": 317,
+        "local": 317,
+        "match": true
+      },
+      "policies": {
+        "dump": 572,
+        "local": 572,
+        "match": true
+      },
+      "rls_enabled_tables": {
+        "dump": 317,
+        "local": 317,
+        "match": true
+      },
+      "foreign_keys": {
+        "dump": 847,
+        "local": 847,
+        "match": true
+      },
+      "triggers_in_dump_create_or_replace": 311,
+      "triggers_local": 317,
+      "functions_dump_create_or_replace_approx": 68,
+      "functions_local": 217,
+      "indexes": {
+        "dump_create_index_stmts": 595,
+        "local_including_pk_unique": 998,
+        "note": "local includes implicit PK/unique indexes not always emitted as CREATE INDEX"
+      }
+    },
+    "critical": [
+      {
+        "table": "tenants",
+        "exists": true,
+        "rls": true,
+        "policies": 2,
+        "rows": 0
+      },
+      {
+        "table": "hospitals",
+        "exists": true,
+        "rls": true,
+        "policies": 3,
+        "rows": 0
+      },
+      {
+        "table": "profiles",
+        "exists": true,
+        "rls": true,
+        "policies": 4,
+        "rows": 0
+      },
+      {
+        "table": "persons",
+        "exists": true,
+        "rls": true,
+        "policies": 3,
+        "rows": 0
+      },
+      {
+        "table": "person_identifiers",
+        "exists": true,
+        "rls": true,
+        "policies": 1,
+        "rows": 0
+      },
+      {
+        "table": "patients",
+        "exists": true,
+        "rls": true,
+        "policies": 3,
+        "rows": 0
+      },
+      {
+        "table": "encounters",
+        "exists": true,
+        "rls": true,
+        "policies": 3,
+        "rows": 0
+      },
+      {
+        "table": "auth_otps",
+        "exists": true,
+        "rls": true,
+        "policies": 1,
+        "rows": 0
+      },
+      {
+        "table": "synapse_sessions",
+        "exists": true,
+        "rls": true,
+        "policies": 2,
+        "rows": 0
+      },
+      {
+        "table": "vitals",
+        "exists": true,
+        "rls": true,
+        "policies": 3,
+        "rows": 0
+      },
+      {
+        "table": "lab_orders",
+        "exists": true,
+        "rls": true,
+        "policies": 1,
+        "rows": 0
+      },
+      {
+        "table": "lab_results",
+        "exists": true,
+        "rls": true,
+        "policies": 3,
+        "rows": 0
+      },
+      {
+        "table": "prescriptions",
+        "exists": false
+      },
+      {
+        "table": "clinical_prescriptions",
+        "exists": true,
+        "rls": true,
+        "policies": 1,
+        "rows": 0
+      },
+      {
+        "table": "pharmacy_product_batches",
+        "exists": true,
+        "rls": true,
+        "policies": 1,
+        "rows": 0
+      },
+      {
+        "table": "billing_payments",
+        "exists": true,
+        "rls": true,
+        "policies": 1,
+        "rows": 0
+      }
+    ],
+    "prescriptions_note": "public.prescriptions does not exist in production; OS uses public.clinical_prescriptions",
+    "zero_policy_rls_tables_count": 36,
+    "zero_policy_rls_tables": [
+      "blood_deferrals",
+      "blood_donation_profiles",
+      "blood_donations",
+      "clinical_intelligence_decisions",
+      "clinical_intelligence_sessions",
+      "dhis2_data_element_mappings",
+      "dhis2_export_log",
+      "emergency_access_events",
+      "facility_domain_records",
+      "facility_invitations",
+      "facility_provisioning_runs",
+      "facility_provisioning_steps",
+      "feature_flags",
+      "icd11_cache",
+      "identity_match_candidates",
+      "identity_merge_events",
+      "imid_access_log",
+      "imid_codes",
+      "intelligence_actions",
+      "intelligence_recommendations",
+      "lab_accession_counters",
+      "lab_device_messages",
+      "lab_device_test_mappings",
+      "lab_devices",
+      "lab_reference_ranges",
+      "lab_result_staging",
+      "mfa_step_up_replays",
+      "mobile_push_tokens",
+      "password_reset_tokens",
+      "person_consent_events",
+      "person_relationships",
+      "pharmacy_receipt_reprints",
+      "pharmacy_sale_idempotency",
+      "pilot_applications",
+      "platform_health_checks",
+      "synapse_adapters"
+    ],
+    "zero_policy_note": "These 36 tables match production dump policy counts. Critical OS tables all have >=1 policy.",
+    "auth_users_local": 1,
+    "auth_users_note": "Local demo identity only (demo@synapseos.tech). No public clinical rows. Schema dump contained no COPY/INSERT."
+  },
+  "next_action": "READY_FOR_ACCEPTANCE_DB_RESET",
+  "next_action_constraint": "Reset jbojujxpyxsdiukmrwzs using the canonical bootstrap path (supabase/bootstrap/canonical_public_schema.sql). Do not replay the 166 historical files. Do not repair production ledger. Do not seed until operator approves remote reset and post-reset proof."
+}

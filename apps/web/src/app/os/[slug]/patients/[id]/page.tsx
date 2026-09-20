@@ -1,6 +1,6 @@
-import { createClient } from "../../../../../lib/supabase/server";
 import { headers } from "next/headers";
 import { resolveTenant } from "../../../../../lib/tenant";
+import { getHospitalPatientChart } from "../../../../../lib/hospital-os-data";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -15,37 +15,9 @@ export default async function PatientDetailPage({
   const tenant = await resolveTenant(subdomain);
   if (!tenant) return <div className="p-8 text-red-400">Tenant not found</div>;
 
-  const supabase = await createClient();
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: patient } = await (supabase as any)
-    .from("patients")
-    .select("*")
-    .eq("id", id)
-    .eq("tenant_id", tenant.tenantId)
-    .single();
-
-  if (!patient) notFound();
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: encounters } = await (supabase as any)
-    .from("encounters")
-    .select("id, visit_date, status, chief_complaint, clinical_stage")
-    .eq("patient_id", id)
-    .eq("tenant_id", tenant.tenantId)
-    .order("visit_date", { ascending: false })
-    .limit(10);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: vitals } = await (supabase as any)
-    .from("vitals")
-    .select("bp_systolic, bp_diastolic, heart_rate, temperature_c, spo2, respiratory_rate, created_at")
-    .eq("patient_id", id)
-    .eq("tenant_id", tenant.tenantId)
-    .order("created_at", { ascending: false })
-    .limit(1);
-
-  const latestVitals = vitals?.[0] as Record<string, unknown> | undefined;
+  const chart = await getHospitalPatientChart(tenant.tenantId, id);
+  if (!chart) notFound();
+  const { patient, encounters, latestVitals } = chart;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -56,7 +28,7 @@ export default async function PatientDetailPage({
           </Link>
           <h1 className="text-2xl font-bold">{patient.full_name}</h1>
           <p className="text-slate-400 text-sm mt-1">
-            MRN: {patient.mrn ?? "—"} · {patient.sex ?? "—"} · DOB: {patient.date_of_birth ?? "—"}
+            MRN: {patient.mrn ?? "—"} · Synapse ID: {patient.synapse_id ?? "—"} · {patient.sex ?? "—"} · DOB: {patient.dob ?? patient.date_of_birth ?? "—"}
           </p>
         </div>
         <Link

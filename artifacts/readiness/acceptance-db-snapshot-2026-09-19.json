@@ -1,0 +1,140 @@
+{
+  "generated_at": "2026-09-19T16:00:25.728315+00:00",
+  "project_ref": "jbojujxpyxsdiukmrwzs",
+  "project_name": "synapse-e2e-acceptance",
+  "organization_id": "rjbwiwscdgnelipidood",
+  "region": "eu-west-1",
+  "status": "ACTIVE_HEALTHY",
+  "resource_type": "standalone_project",
+  "parent_project": null,
+  "counts": {
+    "auth_users": 0,
+    "tenants": 0,
+    "profiles": 0,
+    "persons": 0,
+    "patients": 0,
+    "encounters": 0
+  },
+  "remote_migrations_before": 8,
+  "latest_remote_version": "20260919153523",
+  "installed_extensions": [
+    "plpgsql",
+    "pg_trgm",
+    "supabase_vault",
+    "pg_stat_statements",
+    "uuid-ossp",
+    "pgcrypto"
+  ],
+  "public_functions_app": [
+    "current_tenant_id",
+    "generate_synapse_id",
+    "handle_new_user",
+    "is_platform_admin",
+    "persons_assign_synapse_id",
+    "rls_auto_enable"
+  ],
+  "triggers": [
+    {
+      "schema": "auth",
+      "table": "users",
+      "name": "on_auth_user_created",
+      "timing": "AFTER",
+      "event": "INSERT"
+    },
+    {
+      "schema": "public",
+      "table": "persons",
+      "name": "persons_assign_synapse_id",
+      "timing": "BEFORE",
+      "event": "INSERT"
+    },
+    {
+      "schema": "public",
+      "table": "persons",
+      "name": "persons_assign_synapse_id",
+      "timing": "BEFORE",
+      "event": "UPDATE"
+    }
+  ],
+  "critical_tables": {
+    "tenants": {
+      "exists": true,
+      "rls": true,
+      "policies": 0
+    },
+    "hospitals": {
+      "exists": true,
+      "rls": true,
+      "policies": 0
+    },
+    "profiles": {
+      "exists": true,
+      "rls": true,
+      "policies": 3
+    },
+    "persons": {
+      "exists": true,
+      "rls": true,
+      "policies": 0
+    },
+    "person_identifiers": {
+      "exists": true,
+      "rls": true,
+      "policies": 0
+    },
+    "patients": {
+      "exists": true,
+      "rls": true,
+      "policies": 1
+    },
+    "encounters": {
+      "exists": true,
+      "rls": true,
+      "policies": 1
+    },
+    "auth_otps": {
+      "exists": true,
+      "rls": true,
+      "policies": 0
+    },
+    "synapse_sessions": {
+      "exists": true,
+      "rls": true,
+      "policies": 1
+    },
+    "vitals": {
+      "exists": true,
+      "rls": true,
+      "policies": 0
+    },
+    "lab_orders": {
+      "exists": true,
+      "rls": true,
+      "policies": 1
+    },
+    "lab_results": {
+      "exists": true,
+      "rls": true,
+      "policies": 0
+    },
+    "clinical_prescriptions": {
+      "exists": true,
+      "rls": true,
+      "policies": 0
+    },
+    "pharmacy_product_batches": {
+      "exists": false,
+      "rls": null,
+      "policies": null
+    },
+    "billing_payments": {
+      "exists": true,
+      "rls": true,
+      "policies": 0
+    }
+  },
+  "notes": [
+    "No secrets stored.",
+    "Schema is a custom acceptance bootstrap, not the 166-file repo ledger."
+  ]
+}

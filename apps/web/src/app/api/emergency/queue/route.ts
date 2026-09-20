@@ -37,7 +37,7 @@ export async function GET() {
 
   const patientIds = [...new Set((encounters ?? []).map((e: { patient_id: string }) => e.patient_id))]
   const { data: patients } = patientIds.length
-    ? await db.from('patients').select('id, full_name, mrn').in('id', patientIds)
+    ? await db.from('patients').select('id, full_name, mrn').eq('tenant_id', ctx.tenantId).in('id', patientIds)
     : { data: [] }
 
   const patientMap = new Map(

@@ -155,21 +155,86 @@ export function labResultToTimelineEvent(params: {
   }
 }
 
+export const CANONICAL_TIMELINE_EVENT_TYPES = [
+  "encounter",
+  "vital",
+  "lab_result",
+  "imaging",
+  "medication",
+  "procedure",
+  "note",
+  "discharge",
+  "referral",
+  "immunization",
+  "allergy",
+  "diagnosis",
+  "surgery",
+  "maternity",
+  "telemedicine",
+] as const
+
+export type CanonicalTimelineEventType = (typeof CANONICAL_TIMELINE_EVENT_TYPES)[number]
+
+const DOMAIN_TO_CANONICAL_EVENT_TYPE: Record<string, CanonicalTimelineEventType> = {
+  consultation: "encounter",
+  laboratory: "lab_result",
+  critical_result: "lab_result",
+  pharmacy: "medication",
+  prescription: "medication",
+  insurance: "note",
+  blood_donation: "procedure",
+  vaccination: "immunization",
+  admission: "encounter",
+  document: "note",
+  registration: "encounter",
+  pathway: "note",
+  billing: "note",
+  encounter: "encounter",
+  vital: "vital",
+  lab_result: "lab_result",
+  imaging: "imaging",
+  medication: "medication",
+  procedure: "procedure",
+  note: "note",
+  discharge: "discharge",
+  referral: "referral",
+  immunization: "immunization",
+  allergy: "allergy",
+  diagnosis: "diagnosis",
+  surgery: "surgery",
+  maternity: "maternity",
+  telemedicine: "telemedicine",
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+export function toCanonicalTimelineEventType(eventType: string): CanonicalTimelineEventType {
+  return DOMAIN_TO_CANONICAL_EVENT_TYPE[eventType] ?? "note"
+}
+
+export function toCanonicalTimelineSeverity(severity: string | null | undefined): "info" | "warning" | "critical" | null {
+  if (!severity) return null
+  if (severity === "info" || severity === "warning" || severity === "critical") return severity
+  if (severity === "abnormal") return "warning"
+  return null
+}
+
 export function toTimelineInsert(event: TimelineEventInput): Record<string, unknown> {
   assertTimelineSubject(event)
+  const sourceId = event.sourceId && UUID_RE.test(event.sourceId) ? event.sourceId : null
   return {
     person_id: event.personId ?? null,
     patient_id: event.patientId ?? null,
     tenant_id: event.tenantId,
     hospital_id: event.hospitalId ?? null,
     site_id: event.siteId ?? null,
-    event_type: event.eventType,
+    event_type: toCanonicalTimelineEventType(event.eventType),
     title: event.title,
     summary: event.summary ?? null,
     event_date: event.eventDate ?? new Date().toISOString(),
-    severity: event.severity ?? null,
+    severity: toCanonicalTimelineSeverity(event.severity),
     source_table: event.sourceTable ?? null,
-    source_id: event.sourceId ?? null,
+    source_id: sourceId,
     provenance: event.provenance ?? "SYSTEM_GENERATED",
     payload: event.payload ?? {},
     tags: event.tags ?? [],

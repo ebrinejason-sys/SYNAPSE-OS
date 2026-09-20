@@ -13,8 +13,9 @@ export async function POST(req: NextRequest) {
   const ctx = await requireHospitalStaffContext()
   if (isContextError(ctx)) return ctx
 
-  const cap = await requireHospitalCapability(ctx, 'triage', 'assign', 'opd')
-  if (cap) return cap
+  const triageCap = await requireHospitalCapability(ctx, 'triage', 'assign', 'opd')
+  const createCap = triageCap ? await requireHospitalCapability(ctx, 'encounter', 'create', 'opd') : null
+  if (triageCap && createCap) return triageCap
 
   const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, 'opd')
   if (moduleBlock) return moduleBlock
@@ -41,7 +42,6 @@ export async function POST(req: NextRequest) {
       status: 'open',
       visit_date: new Date().toISOString(),
       is_deleted: false,
-      created_by: ctx.userId,
     })
     .select('id')
     .single()

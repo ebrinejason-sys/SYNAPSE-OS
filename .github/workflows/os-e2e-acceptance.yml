@@ -1,0 +1,117 @@
+name: OS E2E Acceptance
+
+# Privileged synthetic hospital browser acceptance.
+# Never attach production service-role secrets to pull_request jobs.
+on:
+  workflow_dispatch:
+    inputs:
+      EXPECTED_SHA:
+        description: Exact git SHA that must match the checked-out commit
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      EXPECTED_SHA:
+        description: Exact git SHA that must match the checked-out commit
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  hospital-acceptance:
+    runs-on: ubuntu-latest
+    environment: production-acceptance
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enforce exact expected SHA
+        env:
+          EXPECTED_SHA: ${{ inputs.EXPECTED_SHA }}
+        run: |
+          set -euo pipefail
+          ACTUAL="$(git rev-parse HEAD)"
+          if [[ -z "${EXPECTED_SHA}" ]]; then
+            echo "EXPECTED_SHA is required"
+            exit 1
+          fi
+          if [[ "${ACTUAL}" != "${EXPECTED_SHA}" ]]; then
+            echo "Refusing to run: HEAD ${ACTUAL} != EXPECTED_SHA ${EXPECTED_SHA}"
+            exit 1
+          fi
+          echo "Acceptance SHA OK: ${ACTUAL}"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Preflight configuration check
+        env:
+          EXPECTED_SHA: ${{ inputs.EXPECTED_SHA }}
+          SYNAPSE_E2E_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
+          SYNAPSE_E2E_EMAIL: ${{ secrets.SYNAPSE_E2E_EMAIL }}
+          SYNAPSE_E2E_PASSWORD: ${{ secrets.SYNAPSE_E2E_PASSWORD }}
+          SYNAPSE_E2E_FIXED_OTP: ${{ secrets.SYNAPSE_E2E_FIXED_OTP }}
+          SYNAPSE_E2E_SUPABASE_URL: ${{ secrets.SYNAPSE_E2E_SUPABASE_URL }}
+          SYNAPSE_E2E_SERVICE_ROLE_KEY: ${{ secrets.SYNAPSE_E2E_SERVICE_ROLE_KEY }}
+          SYNAPSE_E2E_REMOTE_HOST_READY: ${{ secrets.SYNAPSE_E2E_REMOTE_HOST_READY }}
+          SYNAPSE_E2E_VERCEL_BYPASS: ${{ secrets.SYNAPSE_E2E_VERCEL_BYPASS }}
+        run: npm run e2e:acceptance:doctor
+
+      - name: Require remote acceptance target
+        env:
+          SYNAPSE_E2E_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
+          PLAYWRIGHT_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
+        run: |
+          set -euo pipefail
+          TARGET="$(node --input-type=module -e "import { resolveE2eTarget } from './scripts/e2e-target.mjs'; const t = resolveE2eTarget(); if (t.mode !== 'remote') { console.error('Refusing to start localhost for privileged acceptance'); process.exit(1) }; console.log(t.baseURL)")"
+          echo "Remote target: ${TARGET}"
+
+
+      - name: Confirm remote host has E2E OTP server gates
+        env:
+          SYNAPSE_E2E_REMOTE_HOST_READY: ${{ secrets.SYNAPSE_E2E_REMOTE_HOST_READY }}
+        run: |
+          set -euo pipefail
+          if [[ "${SYNAPSE_E2E_REMOTE_HOST_READY}" != "true" ]]; then
+            echo "Remote acceptance requires the deployment at SYNAPSE_E2E_BASE_URL to already have:"
+            echo "  SYNAPSE_E2E_AUTH=true"
+            echo "  SYNAPSE_E2E_ACCEPTANCE_ENV=true"
+            echo "  SYNAPSE_E2E_FIXED_OTP=(same value as this environment secret)"
+            echo "After configuring the host, set SYNAPSE_E2E_REMOTE_HOST_READY=true on the production-acceptance GitHub environment."
+            exit 1
+          fi
+          echo "Operator attested remote host E2E OTP gates are configured."
+
+      - name: Seed synthetic OS fixtures (idempotent)
+        env:
+          SYNAPSE_E2E_SEED: "true"
+          SYNAPSE_E2E_PASSWORD: ${{ secrets.SYNAPSE_E2E_PASSWORD }}
+          SYNAPSE_E2E_SUPABASE_URL: ${{ secrets.SYNAPSE_E2E_SUPABASE_URL }}
+          SYNAPSE_E2E_SERVICE_ROLE_KEY: ${{ secrets.SYNAPSE_E2E_SERVICE_ROLE_KEY }}
+        run: npm run seed:e2e-os
+
+      - name: Hospital Golden Journey (remote only)
+        # SYNAPSE_E2E_FIXED_OTP on the runner is only for typing into the UI.
+        # SYNAPSE_E2E_AUTH / ACCEPTANCE_ENV / FIXED_OTP must already be on the remote Next.js host.
+        env:
+          SYNAPSE_E2E_FIXED_OTP: ${{ secrets.SYNAPSE_E2E_FIXED_OTP }}
+          SYNAPSE_E2E_EMAIL: ${{ secrets.SYNAPSE_E2E_EMAIL }}
+          SYNAPSE_E2E_PASSWORD: ${{ secrets.SYNAPSE_E2E_PASSWORD }}
+          SYNAPSE_E2E_FACILITY_SLUG: synapse-e2e-hospital
+          SYNAPSE_E2E_FACILITY_B_SLUG: synapse-e2e-hospital-b
+          SYNAPSE_E2E_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
+          PLAYWRIGHT_BASE_URL: ${{ secrets.SYNAPSE_E2E_BASE_URL }}
+          SYNAPSE_E2E_VERCEL_BYPASS: ${{ secrets.SYNAPSE_E2E_VERCEL_BYPASS }}
+        run: |
+          node scripts/e2e-target.mjs
+          npm run test:e2e:hospital
+          npm run test:e2e:hospital:smoke

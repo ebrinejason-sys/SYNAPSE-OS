@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyPassword, createAndSendOTP } from '@synapse/auth'
+import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyPassword, createAndSendOTP, shouldSkipOtpEmailDelivery } from '@synapse/auth'
 import { signMfaPendingToken, mfaCookieOptions, MFA_PENDING_COOKIE } from '@synapse/auth/mfa'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { sendOtpEmail } from '../../../../lib/resend'
+
+export const dynamic = 'force-dynamic'
 
 const MAX_ATTEMPTS    = 10
 const LOCKOUT_MINUTES = 30
@@ -111,9 +113,23 @@ export async function POST(req: NextRequest) {
     // No MFA enrolled yet — fall through to OTP for initial setup
   }
 
-  let otp: string
+  const { data: tenantRow } = await db
+    .from('tenants')
+    .select('is_synthetic, slug')
+    .eq('id', profile.tenant_id as string)
+    .maybeSingle()
+
+  const e2e = {
+    email,
+    isSyntheticTenant: Boolean(tenantRow?.is_synthetic),
+    facilitySlug: typeof tenantRow?.slug === 'string' ? tenantRow.slug : null,
+  }
+
   try {
-    otp = await createAndSendOTP({ channel: 'email', target: email })
+    const otp = await createAndSendOTP({ channel: 'email', target: email, e2e })
+    if (!shouldSkipOtpEmailDelivery(e2e)) {
+      await sendOtpEmail(email, otp)
+    }
   } catch (error) {
     const msg = error instanceof Error ? error.message : ''
     if (msg === 'TOO_MANY_REQUESTS') {
@@ -122,14 +138,11 @@ export async function POST(req: NextRequest) {
         { status: 429 }
       )
     }
-    return NextResponse.json({ error: 'Failed to create verification code.' }, { status: 500 })
-  }
-
-  try {
-    await sendOtpEmail(email, otp)
-  } catch (error) {
+    if (msg.startsWith('OTP ')) {
+      return NextResponse.json({ error: 'Failed to create verification code.' }, { status: 500 })
+    }
     console.error('[auth/password-login] otp email failed', {
-      error: error instanceof Error ? error.message : String(error),
+      error: msg || String(error),
     })
     return NextResponse.json({ error: 'Failed to send verification email. Please try again.' }, { status: 500 })
   }

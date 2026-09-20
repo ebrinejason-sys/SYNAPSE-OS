@@ -125,7 +125,9 @@ jobs:
         run: node -e "const fs=require('fs'); const p='docs/implementation/capability-registry.json'; if(!fs.existsSync(p)){console.error('Missing capability registry'); process.exit(1)} console.log('capability registry exists')"
 
       - name: Security assertions
-        run: npm run test:workflow-safety && node scripts/check-workflow-safety.mjs
+        run: |
+          npm run test:workflow-safety && node scripts/check-workflow-safety.mjs
+          npx tsx --test packages/auth/src/e2e-otp.test.ts packages/auth/src/password.test.ts e2e/os-location.test.ts
 
       - name: Route and link integrity
         run: npm run test:routes
@@ -165,16 +167,8 @@ jobs:
           npx playwright install --with-deps chromium
           npm run test:e2e:demo
 
-      - name: Browser Golden Journey (requires SYNAPSE_E2E_BASE_URL)
-        run: |
-          mkdir -p artifacts/readiness
-          if [ -z "${SYNAPSE_E2E_BASE_URL:-}" ]; then
-            printf '{"status":"BLOCKED","reason":"SYNAPSE_E2E_BASE_URL not configured","journey":"hospital-browser"}\n' > artifacts/readiness/hospital-browser-journey.json
-            echo "Hospital browser journey BLOCKED (no synthetic browser target)"
-            exit 0
-          fi
-          npx playwright install --with-deps chromium
-          PLAYWRIGHT_BASE_URL="$SYNAPSE_E2E_BASE_URL" node scripts/e2e-hospital-browser.mjs
+      - name: OS surface Playwright (nonprivileged)
+        run: npm run test:e2e:hospital
 
       - name: Readiness evidence gate behavioral tests
         run: npm run test:readiness-report

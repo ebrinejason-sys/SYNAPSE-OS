@@ -93,4 +93,54 @@ describe("clinical-payment idempotency", () => {
     )
     assert.equal(called, false)
   })
+
+  it("rejects a non-positive payment amount", async () => {
+    const db = paymentDb({
+      invoice: {
+        id: crypto.randomUUID(),
+        patient_id: crypto.randomUUID(),
+        status: "draft",
+        currency: "UGX",
+        total_amount: 10000,
+        paid_amount: 0,
+        invoice_number: "INV-2",
+      },
+    })
+    await assert.rejects(
+      () =>
+        recordEncounterPayment(db, {
+          tenantId: crypto.randomUUID(),
+          hospitalId: crypto.randomUUID(),
+          encounterId: crypto.randomUUID(),
+          amount: 0,
+          paymentMethod: "cash",
+        }),
+      /INVALID_AMOUNT/,
+    )
+  })
+
+  it("rejects overpayment", async () => {
+    const db = paymentDb({
+      invoice: {
+        id: crypto.randomUUID(),
+        patient_id: crypto.randomUUID(),
+        status: "draft",
+        currency: "UGX",
+        total_amount: 10000,
+        paid_amount: 0,
+        invoice_number: "INV-3",
+      },
+    })
+    await assert.rejects(
+      () =>
+        recordEncounterPayment(db, {
+          tenantId: crypto.randomUUID(),
+          hospitalId: crypto.randomUUID(),
+          encounterId: crypto.randomUUID(),
+          amount: 10001,
+          paymentMethod: "cash",
+        }),
+      /AMOUNT_EXCEEDS_BALANCE/,
+    )
+  })
 })

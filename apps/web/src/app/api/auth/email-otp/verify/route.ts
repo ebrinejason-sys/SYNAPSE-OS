@@ -5,6 +5,8 @@ import { getPostLoginPath } from '@synapse/auth/redirects'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   const body  = await req.json().catch(() => ({}))
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''

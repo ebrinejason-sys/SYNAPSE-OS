@@ -1,0 +1,146 @@
+/**
+ * Fail-closed identity checks for the isolated SYNAPSE acceptance database.
+ * Never print secrets. Never treat production as acceptance.
+ */
+
+export const PRODUCTION_PROJECT_REF = "qfqakzmjatszisuqjwon"
+export const EXPECTED_ACCEPTANCE_PROJECT_REF = "jbojujxpyxsdiukmrwzs"
+export const EXPECTED_ACCEPTANCE_PROJECT_NAME = "synapse-e2e-acceptance"
+
+export function supabaseProjectRefFromUrl(value) {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    const match = url.hostname.match(/^([a-z0-9]+)\.supabase\.co$/i)
+    return match ? match[1].toLowerCase() : null
+  } catch {
+    return null
+  }
+}
+
+export function validateIsolatedSupabaseUrl(value, expectedRef = EXPECTED_ACCEPTANCE_PROJECT_REF) {
+  if (!value) return { status: "MISSING" }
+  let url
+  try {
+    url = new URL(value)
+  } catch {
+    return { status: "INVALID", reason: "Not a valid URL" }
+  }
+  if (url.protocol !== "https:") {
+    return { status: "INVALID", reason: "Must use https://" }
+  }
+  const ref = supabaseProjectRefFromUrl(value)
+  if (!ref) {
+    return { status: "INVALID", reason: "Must be a *.supabase.co project URL" }
+  }
+  if (ref === PRODUCTION_PROJECT_REF) {
+    return { status: "INVALID", reason: "Refuses production SYNAPSE_OS project" }
+  }
+  if (ref !== expectedRef.toLowerCase()) {
+    return {
+      status: "INVALID",
+      reason: `URL is not the documented isolated acceptance project (${expectedRef})`,
+    }
+  }
+  return { status: "FOUND", projectRef: ref }
+}
+
+export function validateAcceptanceBaseUrl(value) {
+  if (!value) return { status: "MISSING" }
+  let url
+  try {
+    url = new URL(value)
+  } catch {
+    return { status: "INVALID", reason: "Not a valid URL" }
+  }
+  if (url.protocol !== "https:") {
+    return { status: "INVALID", reason: "Must use https://" }
+  }
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+    return { status: "INVALID", reason: "Must be remote, not localhost" }
+  }
+  if (url.hostname.endsWith(".invalid") || url.hostname.endsWith(".example") || url.hostname.endsWith(".test")) {
+    return { status: "INVALID", reason: "Must be a real Vercel Preview host, not a placeholder" }
+  }
+  if (url.hostname === "synapseos.tech" || url.hostname === "www.synapseos.tech") {
+    return { status: "INVALID", reason: "Refuses production OS host; use isolated Preview" }
+  }
+  const productionLike = new Set([
+    "admin.synapseos.tech",
+    "pharm.synapseos.tech",
+    "pharmacy.synapseos.tech",
+    "demo.synapseos.tech",
+    "app.synapseos.tech",
+  ])
+  if (productionLike.has(url.hostname)) {
+    return { status: "INVALID", reason: `Refuses ${url.hostname}; use isolated Preview` }
+  }
+  return { status: "FOUND", hostname: url.hostname }
+}
+
+export function vercelBypassHeaders(env = process.env) {
+  const bypass = (env.SYNAPSE_E2E_VERCEL_BYPASS || "").trim()
+  if (!bypass) return {}
+  // JSON probes use redirect:manual. The cookie-set header makes Vercel 307 to
+  // the same path, which is not an SSO login redirect. Playwright still sends
+  // x-vercel-set-bypass-cookie via e2e-target.mjs so the browser can keep a cookie.
+  return {
+    "x-vercel-protection-bypass": bypass,
+  }
+}
+
+export function serviceRoleIdentity(token) {
+  if (!token || token.split(".").length < 2) return { ref: null, role: null }
+  try {
+    const payload = token.split(".")[1]
+    const pad = "=".repeat((4 - (payload.length % 4)) % 4)
+    const data = JSON.parse(Buffer.from(payload + pad, "base64url").toString("utf8"))
+    return {
+      ref: typeof data.ref === "string" ? data.ref.toLowerCase() : null,
+      role: typeof data.role === "string" ? data.role : null,
+    }
+  } catch {
+    return { ref: null, role: null }
+  }
+}
+
+export function validateServiceRoleKey(value, expectedRef = EXPECTED_ACCEPTANCE_PROJECT_REF) {
+  if (!value) return { status: "MISSING" }
+  if (value.length < 32) {
+    return { status: "INVALID", reason: "Too short to be a service role key" }
+  }
+  const identity = serviceRoleIdentity(value)
+  if (!identity.role || !identity.ref) {
+    return { status: "INVALID", reason: "Service role token is not a readable Supabase JWT" }
+  }
+  if (identity.role !== "service_role") {
+    return { status: "INVALID", reason: "Token role is not service_role" }
+  }
+  if (identity.ref === PRODUCTION_PROJECT_REF) {
+    return { status: "INVALID", reason: "Refuses production SYNAPSE_OS service role" }
+  }
+  if (identity.ref !== expectedRef.toLowerCase()) {
+    return {
+      status: "INVALID",
+      reason: `Service role is not bound to isolated acceptance project (${expectedRef})`,
+    }
+  }
+  return { status: "FOUND", projectRef: identity.ref }
+}
+
+export function interpretReadyPayload(payload, expectedSha) {
+  if (!payload || typeof payload !== "object") {
+    return { status: "INVALID", reason: "Ready payload is not JSON" }
+  }
+  if (payload.status !== "ready") {
+    return { status: "INVALID", reason: `Ready status is ${payload.status || "missing"}` }
+  }
+  if (!payload.checks?.database?.ok) {
+    return { status: "INVALID", reason: "Ready database check is not ok" }
+  }
+  const sha = typeof payload.commitSha === "string" ? payload.commitSha : null
+  if (expectedSha && sha && !sha.startsWith(expectedSha.slice(0, 7)) && !expectedSha.startsWith(sha.slice(0, 7))) {
+    return { status: "INVALID", reason: "Preview SHA does not match EXPECTED_SHA" }
+  }
+  return { status: "FOUND", commitSha: sha }
+}
