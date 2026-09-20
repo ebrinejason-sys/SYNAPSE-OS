@@ -19,6 +19,7 @@ import {
   createExchangeEvent,
   createNotification
 } from "../../../lib/demo/browser-repository"
+import { DemoIntelligenceCopilot } from "../../../components/demo/DemoIntelligenceCopilot"
 
 type OrderStatus = "ordered" | "acknowledged" | "collected" | "processing" | "verified" | "released" | "cancelled"
 
@@ -622,6 +623,25 @@ export default function LabDemoPage() {
                   ))}
                 </div>
               )}
+
+              {results.length > 0 ? (
+                <DemoIntelligenceCopilot
+                  entryLabel="AI Result Analysis"
+                  defaultTask="lab_interpretation"
+                  allowTaskSwitch={false}
+                  packet={{
+                    patientId: patient?.id ?? "demo-person-amina",
+                    tenantId: "demo-hospital",
+                    clinicianId: role === "lab_scientist" ? "lab-scientist-demo" : "lab-tech-demo",
+                    presentingComplaint: encounter?.complaint || "Fever and headache for 3 days",
+                    laboratory: results.map((row: { testName?: string; value?: string; interpretation?: string }) => ({
+                      test: String(row.testName ?? "result"),
+                      value: String(row.value ?? ""),
+                      flag: row.interpretation === "high" || row.interpretation === "critical" ? "H" : undefined,
+                    })),
+                  }}
+                />
+              ) : null}
 
               {/* Verify Results (Lab Scientist only) */}
               {canVerify && (

@@ -1,6 +1,6 @@
 import { expect, type Page, type Request } from "playwright/test"
 
-export const FORBIDDEN_WRITE = /\/rest\/v1\/(persons|patients|encounters|triage|observations|lab_|prescriptions|inventory|billing|payments|referrals)/i
+export const FORBIDDEN_WRITE = /\/rest\/v1\/(persons|patients|encounters|triage|observations|lab_|prescriptions|inventory|billing|payments|referrals|invoices|dispenses|diagnoses|clinical_notes|vitals)/i
 
 export async function resetDemo(page: Page) {
   await page.goto("/demo")
@@ -20,10 +20,14 @@ export async function resetDemo(page: Page) {
 export async function readDemoStore(page: Page, store: string) {
   return page.evaluate(async (storeName) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open("synapse-demo-playground", 2)
+      const req = indexedDB.open("synapse-demo-playground")
       req.onsuccess = () => resolve(req.result)
       req.onerror = () => reject(req.error)
     })
+    if (!db.objectStoreNames.contains(storeName)) {
+      db.close()
+      return []
+    }
     const rows = await new Promise<unknown[]>((resolve, reject) => {
       const r = db.transaction(storeName).objectStore(storeName).getAll()
       r.onsuccess = () => resolve(r.result as unknown[])

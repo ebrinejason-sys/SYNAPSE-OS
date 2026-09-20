@@ -2,7 +2,7 @@
 
 /** Local-only synthetic playground storage. This module never calls Supabase. */
 export const DEMO_DB_NAME = "synapse-demo-playground"
-export const DEMO_DB_VERSION = 2
+export const DEMO_DB_VERSION = 3
 export const DEMO_STORES = [
   "facilities", 
   "users", 
@@ -29,7 +29,8 @@ export const DEMO_STORES = [
   "notifications",    // NEW: user notifications
   "timeline", 
   "sync_queue", 
-  "audit"
+  "audit",
+  "intelligence_decisions",
 ] as const
 export type DemoStore = typeof DEMO_STORES[number]
 export type DemoState = Partial<Record<DemoStore, unknown[]>>
@@ -116,6 +117,27 @@ export const updateLabResult = async (id: string, updates: Partial<DemoLabResult
 export const getLabResults = () => all<DemoLabResult>("lab_results")
 export const getLabResultsByOrder = async (orderId: string) =>
   (await getLabResults()).filter(r => r.orderId === orderId)
+
+export type DemoIntelligenceDecision = {
+  id: string
+  recommendationId: string
+  task: string
+  decision: "ACCEPT" | "MODIFY" | "REJECT" | "DEFER"
+  reason?: string | null
+  modifiedText?: string | null
+  clinicianId: string
+  createdAt: string
+}
+
+export async function saveIntelligenceDecision(input: Omit<DemoIntelligenceDecision, "id" | "createdAt">) {
+  return put<DemoIntelligenceDecision>("intelligence_decisions", {
+    ...input,
+    id: crypto.randomUUID(),
+    createdAt: now(),
+  })
+}
+
+export const getIntelligenceDecisions = () => all<DemoIntelligenceDecision>("intelligence_decisions")
 
 // Clinical workflow
 export const createDiagnosis = async (input: Omit<DemoDiagnosis, "id"|"createdAt"|"updatedAt">) => {
@@ -290,9 +312,11 @@ function openDb(): Promise<IDBDatabase> {
         }
       }
       
-      // Migration from v1 to v2: no data migration needed, just new stores
       if (oldVersion === 1) {
         console.log("[Demo DB] Upgraded from v1 to v2: added queues, clinical_notes, batches, invoice_items, exchange_events, notifications")
+      }
+      if (oldVersion < 3) {
+        console.log("[Demo DB] Upgraded to v3: added intelligence_decisions")
       }
     }
     request.onsuccess = () => resolve(request.result)

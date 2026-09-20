@@ -288,6 +288,9 @@ export default function DemoPage() {
             <button type="button" className="demo-btn-secondary" onClick={() => window.location.assign(demoHref("guide"))}>
               View Guide
             </button>
+            <a className="demo-btn-secondary" href={demoHref("intelligence")}>
+              Open Intelligence Playground
+            </a>
             <button type="button" className="demo-btn-secondary" onClick={resetPlayground}>
               Reset Playground
             </button>
@@ -320,7 +323,7 @@ export default function DemoPage() {
             Try Clinical AI
           </h2>
           <p className="text-sm mb-3" style={{ color: "var(--text-secondary)" }}>
-            Optional and educational. The Test Drive above does not require AI.
+            Optional and educational. The Test Drive above does not require AI. For governed kernel output, open the Intelligence playground.
           </p>
           <p className="text-xs mb-6" style={{ color: "var(--brand-orange)" }}>
             Synthetic/de-identified clinical context may be sent to the configured AI provider.

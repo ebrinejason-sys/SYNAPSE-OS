@@ -16,6 +16,7 @@ const ROUTES = [
   "/demo/guide",
   "/demo/feedback",
   "/demo/login",
+  "/demo/intelligence",
 ]
 
 test.describe("Demo acceptance", () => {
