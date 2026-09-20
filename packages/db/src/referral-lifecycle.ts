@@ -51,6 +51,54 @@ export function canTransitionReferral(from: ReferralStatus, to: ReferralStatus):
   return ALLOWED[from]?.includes(to) ?? false
 }
 
+export function facilityReferralFromRow(row: Record<string, unknown>): FacilityReferral {
+  return {
+    id: String(row.id),
+    fromTenantId: String(row.from_tenant_id),
+    toTenantId: String(row.to_tenant_id),
+    patientId: String(row.patient_id),
+    encounterId: String(row.encounter_id),
+    status: row.status as ReferralStatus,
+    speciality: String(row.speciality ?? ""),
+    urgency: (row.urgency as ReferralUrgency) ?? "ROUTINE",
+    clinicalSummary: String(row.clinical_summary ?? ""),
+    consentObtained: Boolean(row.consent_obtained),
+    consentMethod: (row.consent_method as FacilityReferral["consentMethod"]) ?? null,
+    createdBy: String(row.created_by ?? ""),
+    createdAt: String(row.created_at ?? ""),
+    acceptedBy: row.accepted_by ? String(row.accepted_by) : null,
+    acceptedAt: row.accepted_at ? String(row.accepted_at) : null,
+    rejectedReason: row.rejected_reason ? String(row.rejected_reason) : null,
+    completedAt: row.completed_at ? String(row.completed_at) : null,
+    cancelledAt: row.cancelled_at ? String(row.cancelled_at) : null,
+    isSynthetic: Boolean(row.is_synthetic),
+  }
+}
+
+export function facilityReferralToRow(ref: FacilityReferral) {
+  return {
+    id: ref.id,
+    from_tenant_id: ref.fromTenantId,
+    to_tenant_id: ref.toTenantId,
+    patient_id: ref.patientId,
+    encounter_id: ref.encounterId,
+    status: ref.status,
+    speciality: ref.speciality,
+    urgency: ref.urgency,
+    clinical_summary: ref.clinicalSummary,
+    consent_obtained: ref.consentObtained,
+    consent_method: ref.consentMethod,
+    created_by: ref.createdBy,
+    created_at: ref.createdAt,
+    accepted_by: ref.acceptedBy ?? null,
+    accepted_at: ref.acceptedAt ?? null,
+    rejected_reason: ref.rejectedReason ?? null,
+    completed_at: ref.completedAt ?? null,
+    cancelled_at: ref.cancelledAt ?? null,
+    updated_at: new Date().toISOString(),
+  }
+}
+
 export function createFacilityReferral(input: {
   id?: string
   fromTenantId: string

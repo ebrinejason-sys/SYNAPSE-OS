@@ -34,6 +34,15 @@ vi.mock('@synapse/db/admin', () => ({
   supabaseAdmin: { from: (...args: unknown[]) => dbFrom(...args) },
 }))
 
+vi.mock('@synapse/db/clinical-timeline', () => ({
+  referralLoopTimelineEvent: vi.fn(() => ({})),
+  publishClinicalTimelineBestEffort: vi.fn(async () => null),
+}))
+
+vi.mock('@synapse/db/identity-persist', () => ({
+  publishTimelineEvent: vi.fn(async () => null),
+}))
+
 const TENANT = '11111111-1111-4111-8111-111111111111'
 const OTHER = '22222222-2222-4222-8222-222222222222'
 const PATIENT = '33333333-3333-4333-8333-333333333333'
