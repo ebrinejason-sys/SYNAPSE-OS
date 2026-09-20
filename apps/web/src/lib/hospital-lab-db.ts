@@ -264,7 +264,8 @@ export async function executeHospitalLabAction(params: {
   }
 
   if (result) {
-    const resultPersist = await persistLabResultBestEffort(db, result, {
+    const persistedResult = result
+    const resultPersist = await persistLabResultBestEffort(db, persistedResult, {
       enteredBy,
       source: resultSource,
       encounterId: updated.encounterId,
@@ -276,7 +277,7 @@ export async function executeHospitalLabAction(params: {
       warnings.push(resultPersist.error)
     } else if (['enter_result', 'verify', 'release', 'amend'].includes(params.action)) {
       const reloaded = await loadLabResultsForOrder(db, params.ctx.tenantId, params.orderId)
-      const found = reloaded.find((row) => row.id === result.id) ?? reloaded[0] ?? null
+      const found = reloaded.find((row) => row.id === persistedResult.id) ?? reloaded[0] ?? null
       if (!found) throw new Error('LAB_RESULT_NOT_FOUND')
       if (found.tenantId !== params.ctx.tenantId) throw new Error('LAB_RESULT_TENANT_MISMATCH')
       if (found.labOrderId !== params.orderId) throw new Error('LAB_RESULT_ORDER_MISMATCH')
