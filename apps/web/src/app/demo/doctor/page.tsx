@@ -21,6 +21,7 @@ import {
   getInventoryItems,
   getLabResults,
 } from "../../../lib/demo/browser-repository"
+import { DemoIntelligenceCopilot } from "../../../components/demo/DemoIntelligenceCopilot"
 
 type Tab = "history" | "examination" | "assessment" | "investigations" | "results" | "prescriptions" | "disposition"
 
@@ -536,6 +537,33 @@ export default function DoctorDemoPage() {
           )}
         </div>
 
+        <DemoIntelligenceCopilot
+          entryLabel="Synapse AI"
+          defaultTask="clinical_copilot"
+          packet={{
+            patientId: patient.id,
+            tenantId: "demo-hospital",
+            clinicianId: "doctor-demo",
+            presentingComplaint: chiefComplaint || encounter.complaint || "Fever and headache for 3 days",
+            history: [hpi, pmh].filter(Boolean),
+            examination: [generalExam, systemicExam].filter(Boolean),
+            vitals: triage ? {
+              temperatureC: triage.temperatureC,
+              heartRate: triage.heartRate,
+              bpSystolic: triage.bpSystolic,
+              bpDiastolic: triage.bpDiastolic,
+              spo2: triage.spo2,
+            } : undefined,
+            laboratory: labResults.map((row: { testName?: string; value?: string; interpretation?: string }) => ({
+              test: String(row.testName ?? "result"),
+              value: String(row.value ?? ""),
+              flag: row.interpretation === "high" || row.interpretation === "critical" ? "H" : undefined,
+            })),
+            medications: currentMedications ? [currentMedications] : undefined,
+            allergies: allergies ? [allergies] : undefined,
+          }}
+        />
+
         {/* Tabs */}
         <div className="border-b">
           <div className="flex gap-1 overflow-x-auto">
@@ -856,6 +884,24 @@ export default function DoctorDemoPage() {
                 <button type="button" className="demo-btn-primary" onClick={() => { setResultsAcknowledged(true); setActiveTab("assessment") }}>
                   Acknowledge results
                 </button>
+              ) : null}
+              {labResults.length > 0 ? (
+                <DemoIntelligenceCopilot
+                  entryLabel="AI Result Analysis"
+                  defaultTask="lab_interpretation"
+                  allowTaskSwitch={false}
+                  packet={{
+                    patientId: patient.id,
+                    tenantId: "demo-hospital",
+                    clinicianId: "doctor-demo",
+                    presentingComplaint: chiefComplaint || encounter.complaint || "Fever and headache for 3 days",
+                    laboratory: labResults.map((row: { testName?: string; value?: string; interpretation?: string }) => ({
+                      test: String(row.testName ?? "result"),
+                      value: String(row.value ?? ""),
+                      flag: row.interpretation === "high" || row.interpretation === "critical" ? "H" : undefined,
+                    })),
+                  }}
+                />
               ) : null}
             </div>
           )}

@@ -153,6 +153,7 @@ export function DemoShell({ title, description, children, requiresRole }: DemoSh
           {moreOpen ? (
             <div className="demo-menu">
               <button type="button" onClick={() => window.location.assign(demoHref("guide"))}>Guide</button>
+              <button type="button" onClick={() => window.location.assign(demoHref("intelligence"))}>Intelligence</button>
               <button type="button" onClick={handleExport}>Export</button>
               <button type="button" onClick={handleImport}>Import</button>
               <button type="button" onClick={() => window.location.assign(demoHref("network"))}>Network</button>
