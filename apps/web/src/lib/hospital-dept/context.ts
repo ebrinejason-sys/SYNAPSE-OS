@@ -41,7 +41,7 @@ export async function requireHospitalStaffContext(): Promise<
 
   const { data: tenant } = await db
     .from('tenants')
-    .select('facility_type')
+    .select('facility_type, slug')
     .eq('id', profile.tenant_id)
     .maybeSingle()
 
@@ -51,7 +51,18 @@ export async function requireHospitalStaffContext(): Promise<
     return NextResponse.json({ error: 'Hospital or laboratory facility required' }, { status: 403 })
   }
 
-  const hospitalId = profile.hospital_id ?? profile.tenant_id
+  let hospitalId = typeof profile.hospital_id === 'string' ? profile.hospital_id : null
+  if (!hospitalId && tenant?.slug) {
+    const { data: hospital } = await db
+      .from('hospitals')
+      .select('id')
+      .eq('subdomain', tenant.slug)
+      .maybeSingle()
+    hospitalId = hospital?.id ?? null
+  }
+  if (!hospitalId) {
+    return NextResponse.json({ error: 'No hospital context' }, { status: 403 })
+  }
 
   return {
     userId: profile.id,

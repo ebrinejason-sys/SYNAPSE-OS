@@ -171,7 +171,7 @@ async function ensureHospital(tenant: { id: string; slug: string }, name: string
   return ins.data
 }
 
-async function ensureProfile(input: { tenantId: string; role: string; email: string; fullName: string }) {
+async function ensureProfile(input: { tenantId: string; hospitalId: string; role: string; email: string; fullName: string }) {
   const { data: existing } = await db.from("profiles").select("id,email,role,tenant_id").eq("email", input.email).maybeSingle()
   if (existing && existing.tenant_id && existing.tenant_id !== input.tenantId) {
     throw new Error(`Refusing to reassign ${input.email} away from its existing tenant`)
@@ -181,6 +181,7 @@ async function ensureProfile(input: { tenantId: string; role: string; email: str
     email: input.email,
     role: input.role,
     tenant_id: input.tenantId,
+    hospital_id: input.hospitalId,
     full_name: input.fullName,
     first_name: "E2E",
     last_name: input.role,
@@ -275,6 +276,7 @@ const created = []
 for (const user of ROLE_USERS) {
   created.push(await ensureProfile({
     tenantId: user.tenant === "a" ? tenantA.id : tenantB.id,
+    hospitalId: user.tenant === "a" ? hospitalA.id : hospitalB.id,
     role: ROLE_MAP[user.role],
     email: E2E_ROLE_EMAILS[user.role],
     fullName: user.fullName,
