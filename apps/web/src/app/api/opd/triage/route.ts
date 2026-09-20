@@ -4,8 +4,8 @@ import { recordEncounterOpened, recordTriageCompleted } from '@synapse/db/clinic
 import { persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-persist'
 import { encounterOpenedTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
-import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../lib/hospital-shared'
-import { requireHospitalStaffContext, triageSchema } from '../../../../lib/hospital-dept'
+import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '@/lib/hospital-shared'
+import { requireHospitalStaffContext, triageSchema } from '@/lib/hospital-dept'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,9 +13,11 @@ export async function POST(req: NextRequest) {
   const ctx = await requireHospitalStaffContext()
   if (isContextError(ctx)) return ctx
 
-  const triageCap = await requireHospitalCapability(ctx, 'triage', 'assign', 'opd')
-  const createCap = triageCap ? await requireHospitalCapability(ctx, 'encounter', 'create', 'opd') : null
-  if (triageCap && createCap) return triageCap
+  const triageBlock = await requireHospitalCapability(ctx, 'triage', 'assign', 'opd')
+  if (triageBlock) return triageBlock
+
+  const createBlock = await requireHospitalCapability(ctx, 'encounter', 'create', 'opd')
+  if (createBlock) return createBlock
 
   const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, 'opd')
   if (moduleBlock) return moduleBlock

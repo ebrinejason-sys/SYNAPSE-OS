@@ -48,6 +48,7 @@ test.describe("hospital golden journey", () => {
     await expect(page.getByRole("heading", { name: /amina e2e/i })).toBeVisible()
     await expect(page.locator("body")).toContainText(SYNAPSE_ID)
 
+    await loginOs(page, e2eEmail("doctor"), password)
     const encounterRes = await authedJson(page, "/api/opd/triage", {
       method: "POST",
       data: {

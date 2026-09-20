@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-09-18T13:22:00Z",
-  "approved_main_sha": "81bc3c1fe15a9c993d0996fa316d736ed7bc51f6",
-  "source": "Do not infer from date/time. SHAs taken from Vercel deployment meta.githubCommitSha after inspect.",
+  "generated_at": "2026-09-20T18:35:00Z",
+  "approved_main_sha": "30b9324baf59070864ac59c28cf409ebdd281d60",
+  "source": "Do not infer GREEN from Vercel READY. SHAs from git rev-parse origin/main, vercel inspect deployment ids, and /api/ready commitSha where the route exists.",
   "status": "FAIL",
-  "detail": "Demo and Pharmacy production match approved main. OS production is still 12a46f8 (PR #78). Git OS production deploys of 81bc3c1 were canceled by vercel-build-gate.",
+  "detail": "origin/main is 30b9324. OS production alias is still dpl_49df54 (12a46f8, PR #78). The 30b9324 OS Git production deploy dpl_FNWcemX was Canceled by vercel-build-gate (production OS git deploys are acceptance-gated). Demo production /api/ready reports commitSha=30b9324 but status=not_ready because the Demo project has no service-role database config. Pharmacy Git production of 20 Sep 21:06 is READY (dpl_9yiaYFrf) with no /api/ready route. Admin aliases the stale OS deployment. No promotion performed.",
   "surfaces": {
     "github_main": {
-      "sha": "81bc3c1fe15a9c993d0996fa316d736ed7bc51f6",
+      "sha": "30b9324baf59070864ac59c28cf409ebdd281d60",
       "ref": "main",
       "source": "git rev-parse origin/main"
     },
@@ -16,27 +16,46 @@
       "deployment_id": "dpl_49df54hiUwXgyrsMAwWGVgo75dkY",
       "sha": "12a46f825611efeecbf56f03b18a061259a2562c",
       "git_ref": "main",
-      "source": "git",
-      "match_approved_main": false
+      "source": "aliased production; /api/ready and /api/health/live return HTML 404",
+      "match_approved_main": false,
+      "login": "/login HTTP 200",
+      "latest_git_production": {
+        "deployment_id": "dpl_FNWcemXPdTapf3n25DL5q2a3M6oA",
+        "status": "Canceled",
+        "created": "2026-09-20T18:06:44Z",
+        "reason": "vercel-build-gate skips production OS git deploys"
+      }
+    },
+    "admin": {
+      "project": "synpase-os",
+      "host": "admin.synapseos.tech",
+      "deployment_id": "dpl_49df54hiUwXgyrsMAwWGVgo75dkY",
+      "sha": "12a46f825611efeecbf56f03b18a061259a2562c",
+      "match_approved_main": false,
+      "login": "/platform/login HTTP 200",
+      "ready": "/api/ready HTML 404"
     },
     "demo": {
       "project": "synapse-demo",
       "host": "demo.synapseos.tech",
-      "deployment_id": "dpl_G9mi1jGtjiWFbc2ULbtfkzhFKGmX",
-      "sha": "81bc3c1fe15a9c993d0996fa316d736ed7bc51f6",
+      "deployment_id": "dpl_2vyv8pFoRo3iYQRx5d5ADBwdZb35",
+      "sha": "30b9324baf59070864ac59c28cf409ebdd281d60",
       "git_ref": "main",
-      "source": "cli",
+      "source": "/api/ready commitSha",
       "match_approved_main": true,
-      "note": "Git production of 81bc3c1 was CANCELED (dpl_3oau32sxGNBKLhALoqewyLW9NGi8). CLI promote aliased demo.synapseos.tech."
+      "ready_status": "not_ready",
+      "ready_detail": "Demo project is missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY. Synthetic playground HTML still serves 200.",
+      "note": "SHA matches accepted main. Do not treat as production healthcare GREEN; Demo must stay isolated."
     },
     "pharmacy": {
       "project": "synapse-pharm",
       "host": "pharm.synapseos.tech",
-      "deployment_id": "dpl_7ncsPWHdGGwYVmKoG6iUUdZvAb3s",
-      "sha": "81bc3c1fe15a9c993d0996fa316d736ed7bc51f6",
+      "deployment_id": "dpl_9yiaYFrfG9WEaaCeexDV2hr5ehCf",
+      "sha": null,
       "git_ref": "main",
-      "source": "git",
-      "match_approved_main": true
+      "source": "vercel inspect READY at 2026-09-20T18:06:44Z (same Git production wave as Demo 30b9324); /api/ready is not implemented on Pharmacy",
+      "match_approved_main": null,
+      "login": "/login HTTP 200"
     }
   }
 }

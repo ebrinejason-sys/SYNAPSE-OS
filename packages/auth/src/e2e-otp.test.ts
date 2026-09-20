@@ -101,15 +101,17 @@ describe("E2E OTP policy", () => {
     }))
   })
 
-  it("does not bypass OTP rate limits unless a protected E2E OTP was resolved", () => {
+  it("never bypasses the hourly OTP send cap or deletes unused rows, even for protected E2E OTP", () => {
     const denied = otpCreatePolicy(SYNTHETIC_RECEPTION, {})
     assert.equal(denied.bypassHourlyLimit, false)
     assert.equal(denied.replaceUnusedRows, false)
     assert.equal(denied.otpOverride, null)
+    assert.equal(denied.reuseExistingUnused, false)
 
     const allowed = otpCreatePolicy(SYNTHETIC_RECEPTION, ACCEPTANCE_ENV)
-    assert.equal(allowed.bypassHourlyLimit, true)
-    assert.equal(allowed.replaceUnusedRows, true)
+    assert.equal(allowed.bypassHourlyLimit, false)
+    assert.equal(allowed.replaceUnusedRows, false)
+    assert.equal(allowed.reuseExistingUnused, true)
     assert.equal(allowed.otpOverride, "135790")
   })
 
