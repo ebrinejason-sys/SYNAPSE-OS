@@ -46,6 +46,9 @@ export const RLS_MATRIX = [
   { table: "billing_payments", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: false, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
   { table: "persons", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: false, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
   { table: "clinical_documents", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: true, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
+  { table: "lab_devices", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: true, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
+  { table: "lab_device_messages", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: false, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
+  { table: "lab_result_staging", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: true, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
 ]
 
 describe("RLS tenancy matrix contract", () => {
@@ -84,10 +87,12 @@ describe("hospital BFF tenant filter (service_role defence-in-depth)", () => {
     const search = readFileSync(join(root, "apps/web/src/app/api/patients/search/route.ts"), "utf8")
     const billing = readFileSync(join(root, "apps/web/src/app/api/hospital/billing/encounter/[id]/route.ts"), "utf8")
     const lab = readFileSync(join(root, "apps/web/src/app/api/lab/orders/[id]/cancel/route.ts"), "utf8")
+    const ingest = readFileSync(join(root, "apps/web/src/app/api/lab/instrument-ingest/route.ts"), "utf8")
     const pharmacy = readFileSync(join(root, "apps/web/src/app/api/hospital/pharmacy/dispense/route.ts"), "utf8")
     assert.match(search, /\.eq\('tenant_id', ctx\.tenantId\)/)
     assert.match(billing, /\.eq\('tenant_id', ctx\.tenantId\)/)
     assert.match(lab, /\.eq\('tenant_id', ctx\.tenantId\)/)
+    assert.match(ingest, /\.eq\("tenant_id", bridge\.tenant_id\)/)
     assert.match(pharmacy, /\.eq\('tenant_id', ctx\.tenantId\)/)
   })
 })
@@ -101,5 +106,30 @@ describe("clinical documents migration tenancy", () => {
     assert.match(sql, /ALTER TABLE public\.clinical_documents ENABLE ROW LEVEL SECURITY/)
     assert.match(sql, /tenant_id = current_tenant_id\(\)/)
     assert.match(sql, /DOCUMENT_IMMUTABLE/)
+  })
+})
+
+describe("lab device intelligence tenancy", () => {
+  it("scopes devices, messages, mappings, and staging with RLS", () => {
+    const sql = readFileSync(
+      join(root, "supabase/migrations/20260920220000_lab_device_intelligence.sql"),
+      "utf8",
+    )
+    assert.match(sql, /ALTER TABLE public\.lab_devices ENABLE ROW LEVEL SECURITY/)
+    assert.match(sql, /ALTER TABLE public\.lab_device_messages ENABLE ROW LEVEL SECURITY/)
+    assert.match(sql, /ALTER TABLE public\.lab_result_staging ENABLE ROW LEVEL SECURITY/)
+    assert.match(sql, /api_key_hash/)
+  })
+
+  it("makes hashed Lab Edge credentials XOR with plaintext and uniquely indexed", () => {
+    const sql = readFileSync(
+      join(root, "supabase/migrations/20260920224500_lab_bridge_hashed_credentials.sql"),
+      "utf8",
+    )
+    assert.match(sql, /ALTER COLUMN api_key DROP NOT NULL/)
+    assert.match(sql, /lab_instrument_bridges_credential_xor/)
+    assert.match(sql, /idx_lab_instrument_bridges_hash_unique/)
+    assert.match(sql, /SET api_key = NULL/)
+    assert.match(sql, /api_key_hash IS NOT NULL/)
   })
 })

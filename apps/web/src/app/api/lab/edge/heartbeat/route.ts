@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@synapse/db/admin"
+import { lookupLabBridgeDetailed } from "@/lib/lab-bridge-auth"
 
 export const dynamic = "force-dynamic"
 
 const HEARTBEAT_FIELDS = new Set([
   "bridgeId", "deviceId", "edgeVersion", "serviceState", "timestamp", "queueDepth",
   "queuedCount", "failedCount", "deadLetterCount", "lastSuccessfulUpload", "deviceIds",
+  "edgeIdentity", "facilityId", "connectionState", "lastAnalyzerFrameAt", "clock",
 ])
 
 export async function POST(request: Request) {
@@ -18,23 +20,26 @@ export async function POST(request: Request) {
   }
   const deviceId = typeof body.deviceId === "string" ? body.deviceId.trim() : ""
   const bridgeId = typeof body.bridgeId === "string" ? body.bridgeId.trim() : ""
-  const db = supabaseAdmin as any
-  const { data: bridge } = await db
-    .from("lab_instrument_bridges")
-    .select("id, tenant_id, device_id, is_active")
-    .eq("api_key", apiKey)
-    .eq("is_active", true)
-    .maybeSingle()
-  if (!bridge || (bridgeId && bridge.id !== bridgeId)) return NextResponse.json({ error: "Invalid or inactive bridge key" }, { status: 401 })
+  const lookup = await lookupLabBridgeDetailed(apiKey)
+  if (!lookup.ok) {
+    if (lookup.reason === "hash_unavailable") {
+      return NextResponse.json({ error: "Lab Edge hashed credentials unavailable" }, { status: 503 })
+    }
+    return NextResponse.json({ error: "Invalid or inactive bridge key" }, { status: 401 })
+  }
+  const bridge = lookup.bridge
+  if (bridgeId && bridge.id !== bridgeId) return NextResponse.json({ error: "Invalid or inactive bridge key" }, { status: 401 })
   if (!deviceId || bridge.device_id !== deviceId) return NextResponse.json({ error: "Registered device is required for this bridge" }, { status: 403 })
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any
   const { data: device } = await db
     .from("lab_devices")
-    .select("id, active")
+    .select("id, active, validation_status")
     .eq("id", deviceId)
     .eq("tenant_id", bridge.tenant_id)
     .maybeSingle()
-  if (!device || !device.active) return NextResponse.json({ error: "Device is not registered or active" }, { status: 403 })
+  if (!device) return NextResponse.json({ error: "Device is not registered" }, { status: 403 })
 
   const now = new Date().toISOString()
   const { error } = await db.from("lab_instrument_bridges").update({
@@ -46,11 +51,19 @@ export async function POST(request: Request) {
       queuedCount: Number(body.queuedCount ?? 0),
       failedCount: Number(body.failedCount ?? 0),
       deadLetterCount: Number(body.deadLetterCount ?? 0),
+      lastAnalyzerFrameAt: typeof body.lastAnalyzerFrameAt === "string" ? body.lastAnalyzerFrameAt : null,
+      connectionState: typeof body.connectionState === "string" ? body.connectionState : null,
+      clock: typeof body.clock === "string" ? body.clock : now,
+      edgeIdentity: typeof body.edgeIdentity === "string" ? body.edgeIdentity : null,
     },
     last_successful_upload: typeof body.lastSuccessfulUpload === "string" ? body.lastSuccessfulUpload : null,
     heartbeat_at: typeof body.timestamp === "string" ? body.timestamp : now,
   }).eq("id", bridge.id).eq("tenant_id", bridge.tenant_id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  await db.from("lab_devices").update({ last_seen_at: now, health_status: "ONLINE" }).eq("id", deviceId).eq("tenant_id", bridge.tenant_id)
+  await db.from("lab_devices").update({
+    last_seen_at: now,
+    health_status: "ONLINE",
+    ...(typeof body.lastAnalyzerFrameAt === "string" ? { last_message_at: body.lastAnalyzerFrameAt } : {}),
+  }).eq("id", deviceId).eq("tenant_id", bridge.tenant_id)
   return NextResponse.json({ ok: true, bridgeId: bridge.id, deviceId, heartbeatAt: now })
 }
