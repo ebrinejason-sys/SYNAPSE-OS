@@ -74,6 +74,9 @@ export const ROLE_CAPABILITIES: Record<PharmacyCapabilityRole, readonly Pharmacy
     "rx.verify",
     "rx.dispense",
     "inventory.read",
+    "inventory.write",
+    "inventory.adjust",
+    "purchasing.manage",
     "reports.operational",
   ],
   inventory_officer: [

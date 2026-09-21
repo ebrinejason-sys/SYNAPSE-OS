@@ -92,11 +92,13 @@ describe("hospital BFF tenant filter (service_role defence-in-depth)", () => {
     const lab = readFileSync(join(root, "apps/web/src/app/api/lab/orders/[id]/cancel/route.ts"), "utf8")
     const ingest = readFileSync(join(root, "apps/web/src/app/api/lab/instrument-ingest/route.ts"), "utf8")
     const pharmacy = readFileSync(join(root, "apps/web/src/app/api/hospital/pharmacy/dispense/route.ts"), "utf8")
+    const purchases = readFileSync(join(root, "apps/web/src/app/api/hospital/pharmacy/purchases/route.ts"), "utf8")
     assert.match(search, /\.eq\('tenant_id', ctx\.tenantId\)/)
     assert.match(billing, /\.eq\('tenant_id', ctx\.tenantId\)/)
     assert.match(lab, /\.eq\('tenant_id', ctx\.tenantId\)/)
     assert.match(ingest, /\.eq\("tenant_id", bridge\.tenant_id\)/)
     assert.match(pharmacy, /\.eq\('tenant_id', ctx\.tenantId\)/)
+    assert.match(purchases, /\.eq\('tenant_id', ctx\.tenantId\)/)
   })
 })
 
@@ -160,5 +162,18 @@ describe("death pronouncement and mortuary tenancy", () => {
     assert.match(sql, /NEW\.findings IS DISTINCT FROM OLD\.findings/)
     assert.match(sql, /NEW\.status IS NOT DISTINCT FROM OLD\.status/)
     assert.doesNotMatch(sql, /RETURN NEW;\s*END IF;\s*IF NEW\.pronouncement_document_id/)
+  })
+})
+
+describe("pharmacy purchases tenancy", () => {
+  it("enables RLS on purchase receipt tables", () => {
+    const sql = readFileSync(
+      join(root, "supabase/migrations/20260921120000_pharmacy_purchases.sql"),
+      "utf8",
+    )
+    assert.match(sql, /create table if not exists public\.pharmacy_purchases/)
+    assert.match(sql, /create table if not exists public\.pharmacy_purchase_items/)
+    assert.match(sql, /pharmacy_purchases_tenant_isolation/)
+    assert.match(sql, /receive_pharmacy_stock/)
   })
 })
