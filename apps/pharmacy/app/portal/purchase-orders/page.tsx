@@ -63,6 +63,7 @@ const statusConfig = {
   CONFIRMED: { label: "Confirmed", color: "bg-purple-500/15 text-purple-400", icon: CheckCircle },
   SHIPPED: { label: "Shipped", color: "bg-indigo-500/15 text-indigo-400", icon: Truck },
   RECEIVED: { label: "Received", color: "bg-green-500/15 text-[#22C55E]", icon: CheckCircle },
+  PARTIALLY_RECEIVED: { label: "Partially received", color: "bg-amber-500/15 text-amber-400", icon: Package },
   CANCELLED: { label: "Cancelled", color: "bg-red-500/15 text-destructive", icon: XCircle },
 } as const
 

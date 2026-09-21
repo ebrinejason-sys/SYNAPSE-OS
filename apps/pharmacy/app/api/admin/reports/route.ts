@@ -643,6 +643,72 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    if (reportType === "purchases") {
+      const { data: purchases, error } = await (supabaseAdmin as any)
+        .from("pharmacy_purchases")
+        .select(
+          "id, purchase_no, supplier_id, total, amount_paid, balance, payment_status, status, purchase_date, received_by, created_at, pharmacy_suppliers(name), pharmacy_purchase_items(product_id, product_name, quantity, unit_cost, line_total, batch_number)",
+        )
+        .eq("tenant_id", tenantId)
+        .gte("purchase_date", dateFromISO.slice(0, 10))
+        .lte("purchase_date", dateToISO.slice(0, 10))
+        .order("purchase_date", { ascending: false })
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+
+      const rows = purchases ?? []
+      const bySupplier = new Map<string, { supplier: string; total: number; paid: number; balance: number; count: number }>()
+      const byProduct = new Map<string, { product: string; quantity: number; cost: number }>()
+      for (const row of rows) {
+        const supplierName = (row.pharmacy_suppliers as { name?: string } | null)?.name ?? "Unknown"
+        const current = bySupplier.get(row.supplier_id) ?? {
+          supplier: supplierName,
+          total: 0,
+          paid: 0,
+          balance: 0,
+          count: 0,
+        }
+        current.total += Number(row.total ?? 0)
+        current.paid += Number(row.amount_paid ?? 0)
+        current.balance += Number(row.balance ?? 0)
+        current.count += 1
+        bySupplier.set(row.supplier_id, current)
+        for (const item of row.pharmacy_purchase_items ?? []) {
+          const key = item.product_id ?? item.product_name
+          const prod = byProduct.get(key) ?? { product: item.product_name, quantity: 0, cost: 0 }
+          prod.quantity += Number(item.quantity ?? 0)
+          prod.cost += Number(item.line_total ?? 0)
+          byProduct.set(key, prod)
+        }
+      }
+
+      return NextResponse.json({
+        type: "purchases",
+        period,
+        dateFrom,
+        dateTo,
+        summary: {
+          purchaseCount: rows.length,
+          purchaseValue: rows.reduce((sum: number, row: { total?: number }) => sum + Number(row.total ?? 0), 0),
+          amountPaid: rows.reduce((sum: number, row: { amount_paid?: number }) => sum + Number(row.amount_paid ?? 0), 0),
+          outstanding: rows.reduce((sum: number, row: { balance?: number }) => sum + Number(row.balance ?? 0), 0),
+        },
+        purchasesBySupplier: Array.from(bySupplier.values()).sort((a, b) => b.total - a.total),
+        purchasesByProduct: Array.from(byProduct.values()).sort((a, b) => b.cost - a.cost).slice(0, 50),
+        rows: rows.map((row: Record<string, unknown>) => ({
+          id: row.id,
+          purchaseNo: row.purchase_no,
+          supplier: (row.pharmacy_suppliers as { name?: string } | null)?.name ?? "",
+          total: Number(row.total ?? 0),
+          paymentStatus: row.payment_status,
+          status: row.status,
+          date: row.purchase_date,
+        })),
+      })
+    }
+
     return NextResponse.json({ error: "Invalid report type" }, { status: 400 })
   } catch (error) {
     console.error("Reports error:", error)

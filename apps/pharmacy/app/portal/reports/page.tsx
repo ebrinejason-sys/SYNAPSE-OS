@@ -17,7 +17,8 @@ import {
   Users,
   AlertTriangle,
   Clock,
-  PieChart as PieChartIcon
+  PieChart as PieChartIcon,
+  Truck
 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import {
@@ -40,7 +41,7 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-type ReportType = "sales" | "inventory" | "profit"
+type ReportType = "sales" | "inventory" | "profit" | "purchases"
 type Period = "today" | "yesterday" | "week" | "month" | "year" | "custom"
 
 interface SalesReport {
@@ -144,7 +145,20 @@ interface ProfitReport {
   }>
 }
 
-type Report = SalesReport | InventoryReport | ProfitReport
+type Report = SalesReport | InventoryReport | ProfitReport | PurchasesReport
+
+interface PurchasesReport {
+  type: "purchases"
+  summary: {
+    purchaseCount: number
+    purchaseValue: number
+    amountPaid: number
+    outstanding: number
+  }
+  purchasesBySupplier: Array<{ supplier: string; total: number; paid: number; balance: number; count: number }>
+  purchasesByProduct: Array<{ product: string; quantity: number; cost: number }>
+  rows: Array<{ id: string; purchaseNo: string; supplier: string; total: number; paymentStatus: string; status: string; date: string }>
+}
 
 export default function ReportsPage() {
   const [reportType, setReportType] = useState<ReportType>("sales")
@@ -255,6 +269,31 @@ export default function ReportsPage() {
         const margin = c.revenue > 0 ? ((c.profit / c.revenue) * 100).toFixed(2) : 0
         csvContent += `${c.category},${c.revenue},${c.cost},${c.profit},${margin}\n`
       })
+    } else if (report.type === "purchases") {
+      const purchases = report as PurchasesReport
+      csvContent = "PURCHASES REPORT\n"
+      csvContent += `Period: ${period}\n\n`
+      csvContent += "SUMMARY\n"
+      csvContent += "Purchases,Purchase Value,Paid,Outstanding\n"
+      csvContent += `${purchases.summary.purchaseCount},${purchases.summary.purchaseValue},${purchases.summary.amountPaid},${purchases.summary.outstanding}\n\n`
+
+      csvContent += "BY SUPPLIER\n"
+      csvContent += "Supplier,Purchases,Value,Paid,Balance\n"
+      ;(purchases.purchasesBySupplier ?? []).forEach((row) => {
+        csvContent += `${row.supplier},${row.count},${row.total},${row.paid},${row.balance}\n`
+      })
+
+      csvContent += "\nBY PRODUCT\n"
+      csvContent += "Product,Quantity,Cost\n"
+      ;(purchases.purchasesByProduct ?? []).forEach((row) => {
+        csvContent += `${row.product},${row.quantity},${row.cost}\n`
+      })
+
+      csvContent += "\nPURCHASES\n"
+      csvContent += "Date,Purchase No,Supplier,Total,Payment Status,Status\n"
+      ;(purchases.rows ?? []).forEach((row) => {
+        csvContent += `${row.date},${row.purchaseNo},${row.supplier},${row.total},${row.paymentStatus},${row.status}\n`
+      })
     }
 
     const blob = new Blob([csvContent], { type: "text/csv" })
@@ -293,6 +332,7 @@ export default function ReportsPage() {
                   { value: "sales", label: "Sales", icon: DollarSign },
                   { value: "inventory", label: "Inventory", icon: Package },
                   { value: "profit", label: "Profit", icon: TrendingUp },
+                  { value: "purchases", label: "Purchases", icon: Truck },
                 ].map((type) => (
                   <Button
                     key={type.value}
@@ -1037,6 +1077,77 @@ export default function ReportsPage() {
                       <TableCell className="text-right">
                         {product.revenue > 0 ? ((product.profit / product.revenue) * 100).toFixed(1) : 0}%
                       </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {!isLoading && report?.type === "purchases" && (
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Purchases</CardTitle></CardHeader>
+              <CardContent><div className="text-2xl font-bold">{(report as PurchasesReport).summary.purchaseCount}</div></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Purchase value</CardTitle></CardHeader>
+              <CardContent><div className="text-2xl font-bold">{formatCurrency((report as PurchasesReport).summary.purchaseValue)}</div></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Paid</CardTitle></CardHeader>
+              <CardContent><div className="text-2xl font-bold">{formatCurrency((report as PurchasesReport).summary.amountPaid)}</div></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Supplier balances</CardTitle></CardHeader>
+              <CardContent><div className="text-2xl font-bold">{formatCurrency((report as PurchasesReport).summary.outstanding)}</div></CardContent>
+            </Card>
+          </div>
+          <Card>
+            <CardHeader><CardTitle>By supplier</CardTitle></CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Supplier</TableHead>
+                    <TableHead className="text-right">Purchases</TableHead>
+                    <TableHead className="text-right">Value</TableHead>
+                    <TableHead className="text-right">Balance</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {((report as PurchasesReport).purchasesBySupplier ?? []).map((row) => (
+                    <TableRow key={row.supplier}>
+                      <TableCell>{row.supplier}</TableCell>
+                      <TableCell className="text-right">{row.count}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.total)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.balance)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>By product</CardTitle></CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead className="text-right">Quantity</TableHead>
+                    <TableHead className="text-right">Cost</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {((report as PurchasesReport).purchasesByProduct ?? []).map((row) => (
+                    <TableRow key={row.product}>
+                      <TableCell>{row.product}</TableCell>
+                      <TableCell className="text-right">{row.quantity}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.cost)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
