@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   applyMortuaryTransitionCommand,
+  assertGenericCustodyDestination,
   assignMortuaryStorage,
   authorizeMortuaryRelease,
   createMortuaryBody,
@@ -150,5 +151,67 @@ describe("mortuary custody", () => {
       actorId: "staff",
     })
     assert.equal(replay.audit.length, body.audit.length)
+  })
+
+  it("does not allow generic custody commands to enter release states", () => {
+    const stored = assignMortuaryStorage(
+      transitionMortuaryBody(
+        transitionMortuaryBody(
+          recordMortuaryProperty(
+            transitionMortuaryBody(
+              transitionMortuaryBody(
+                createMortuaryBody({
+                  tenantId,
+                  facilityId: "22222222-2222-4222-8222-222222222222",
+                  pronouncementId: "77777777-7777-4777-8777-777777777777",
+                  actorId: "staff",
+                  identity: { patientId: "p1" },
+                }),
+                { to: "identified", actorId: "staff" },
+              ),
+              { to: "tagged", actorId: "staff" },
+            ),
+            { actorId: "staff", items: [{ item: "ID card", quantity: 1, recordedBy: "staff" }] },
+          ),
+          { to: "transport_requested", actorId: "staff" },
+        ),
+        { to: "received", actorId: "staff" },
+      ),
+      { actorId: "staff", occupiedSlotIds: [], storage: { mortuaryId: "main", slotCode: "B-1" } },
+    )
+    assert.throws(() => assertGenericCustodyDestination("release_authorized"), /MORTUARY_RELEASE_REQUIRES_AUTHORIZED_WORKFLOW/)
+    assert.throws(() => assertGenericCustodyDestination("released"), /MORTUARY_RELEASE_REQUIRES_AUTHORIZED_WORKFLOW/)
+    assert.throws(
+      () => applyMortuaryTransitionCommand({
+        body: stored,
+        commandId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        appliedCommandIds: [],
+        to: "released",
+        actorId: "staff",
+      }),
+      /MORTUARY_RELEASE_REQUIRES_AUTHORIZED_WORKFLOW/,
+    )
+    assert.throws(
+      () => applyMortuaryTransitionCommand({
+        body: stored,
+        commandId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        appliedCommandIds: ["cccccccc-cccc-4ccc-8ccc-cccccccccccc"],
+        to: "release_authorized",
+        actorId: "staff",
+      }),
+      /MORTUARY_RELEASE_REQUIRES_AUTHORIZED_WORKFLOW/,
+    )
+    const authorized = authorizeMortuaryRelease(stored, {
+      hasReleaseCapability: true,
+      authorizedBy: "manager",
+      recipientName: "Relative",
+      recipientIdentity: "NIN-1",
+      relationshipOrAuthority: "next of kin",
+    })
+    assert.equal(authorized.status, "release_authorized")
+    const released = releaseMortuaryBody(authorized, { staffId: "manager", hasReleaseCapability: true })
+    assert.equal(released.status, "released")
+    assert.ok(released.storage?.releasedAt)
+    assert.ok(released.audit.some((row) => row.to === "released"))
   })
 })

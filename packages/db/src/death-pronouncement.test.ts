@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   assertCanPronounce,
+  assertDeceasedPronouncementBinding,
   certifyCauseOfDeath,
   createDeathPronouncement,
   deathTimelineEvents,
@@ -83,5 +84,60 @@ describe("death pronouncement domain", () => {
 
   it("denies pronouncement without permission", () => {
     assert.throws(() => assertCanPronounce(false), /DEATH_PRONOUNCE_FORBIDDEN/)
+  })
+
+  it("binds DECEASED to a recorded pronouncement without requiring certification", () => {
+    const record = createDeathPronouncement({
+      ...base,
+      personId: "99999999-9999-4999-8999-999999999999",
+      deathTimePrecision: "EXACT",
+      deathDateTime: "2026-09-21T03:42:00+03:00",
+    })
+    assert.equal(record.status, "pronounced")
+    assert.equal(record.certifiedBy, undefined)
+    assertDeceasedPronouncementBinding({
+      pronouncement: record,
+      tenantId: base.tenantId,
+      encounterId: base.encounterId,
+      patientId: base.patientId,
+      personId: "99999999-9999-4999-8999-999999999999",
+      hospitalId: base.facilityId,
+    })
+    assert.throws(
+      () => assertDeceasedPronouncementBinding({
+        pronouncement: record,
+        tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        encounterId: base.encounterId,
+        patientId: base.patientId,
+      }),
+      /DEATH_PRONOUNCEMENT_NOT_FOUND/,
+    )
+    assert.throws(
+      () => assertDeceasedPronouncementBinding({
+        pronouncement: record,
+        tenantId: base.tenantId,
+        encounterId: "44444444-4444-4444-8444-444444444445",
+        patientId: base.patientId,
+      }),
+      /DEATH_PRONOUNCEMENT_ENCOUNTER_MISMATCH/,
+    )
+    assert.throws(
+      () => assertDeceasedPronouncementBinding({
+        pronouncement: record,
+        tenantId: base.tenantId,
+        encounterId: base.encounterId,
+        patientId: "33333333-3333-4333-8333-333333333334",
+      }),
+      /DEATH_PRONOUNCEMENT_PATIENT_MISMATCH/,
+    )
+    assert.throws(
+      () => assertDeceasedPronouncementBinding({
+        pronouncement: { ...record, status: "draft" },
+        tenantId: base.tenantId,
+        encounterId: base.encounterId,
+        patientId: base.patientId,
+      }),
+      /DEATH_PRONOUNCEMENT_NOT_RECORDED/,
+    )
   })
 })

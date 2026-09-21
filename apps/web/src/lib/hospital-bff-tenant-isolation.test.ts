@@ -38,6 +38,8 @@ describe("hospital BFF explicit tenant filters", () => {
     "apps/web/src/app/api/lab/interpretation/route.ts",
     "apps/web/src/app/api/clinical/death-pronouncements/route.ts",
     "apps/web/src/app/api/mortuary/bodies/route.ts",
+    "apps/web/src/app/api/mortuary/tag/[bodyNumber]/route.ts",
+    "apps/web/src/app/api/opd/encounters/[id]/disposition/route.ts",
     "apps/web/src/app/api/clinical/pathways/care-plans/route.ts",
   ]
 

@@ -4,8 +4,10 @@ import { supabaseAdmin } from "@synapse/db/admin"
 import {
   MORTUARY_STATUSES,
   applyMortuaryTransitionCommand,
+  assertGenericCustodyDestination,
   assertSameMortuaryTenant,
   assignMortuaryStorage,
+  isProtectedMortuaryReleaseStatus,
   mortuaryBodyFromRow,
   mortuaryBodyToRow,
   recordMortuaryProperty,
@@ -42,6 +44,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (cap) return cap
   const parsed = bodySchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+  if (isProtectedMortuaryReleaseStatus(parsed.data.to)) {
+    return NextResponse.json({ error: "Use the authorized mortuary release workflow" }, { status: 403 })
+  }
+  try {
+    assertGenericCustodyDestination(parsed.data.to)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Use the authorized mortuary release workflow"
+    return NextResponse.json({ error: message }, { status: 403 })
+  }
   const { id } = await params
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
@@ -91,7 +102,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid transition"
-    return NextResponse.json({ error: message }, { status: message === "MORTUARY_TRANSITION_DUPLICATE" ? 409 : 400 })
+    const status = message === "MORTUARY_TRANSITION_DUPLICATE"
+      ? 409
+      : message === "MORTUARY_RELEASE_REQUIRES_AUTHORIZED_WORKFLOW"
+        ? 403
+        : 400
+    return NextResponse.json({ error: message }, { status })
   }
 
   const { error } = await db.from("mortuary_bodies").update(mortuaryBodyToRow(body)).eq("id", id).eq("tenant_id", ctx.tenantId)

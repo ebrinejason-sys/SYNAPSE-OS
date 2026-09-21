@@ -351,6 +351,39 @@ export function deceasedDisposition(pronouncementId: string): {
   return { disposition: "DECEASED", pronouncementId }
 }
 
+/** Clinical pronouncement is valid for DECEASED even before cause-of-death certification. */
+export const DECEASED_VALID_PRONOUNCEMENT_STATUSES = ["pronounced", "certified", "amended"] as const
+
+export function assertDeceasedPronouncementBinding(params: {
+  pronouncement: {
+    id: string
+    tenantId: string
+    encounterId: string
+    patientId: string
+    personId?: string | null
+    facilityId?: string | null
+    status: DeathRecordStatus
+  }
+  tenantId: string
+  encounterId: string
+  patientId: string
+  personId?: string | null
+  hospitalId?: string | null
+}): void {
+  if (params.pronouncement.tenantId !== params.tenantId) throw new Error("DEATH_PRONOUNCEMENT_NOT_FOUND")
+  if (params.pronouncement.encounterId !== params.encounterId) throw new Error("DEATH_PRONOUNCEMENT_ENCOUNTER_MISMATCH")
+  if (params.pronouncement.patientId !== params.patientId) throw new Error("DEATH_PRONOUNCEMENT_PATIENT_MISMATCH")
+  if (params.pronouncement.personId && params.personId && params.pronouncement.personId !== params.personId) {
+    throw new Error("DEATH_PRONOUNCEMENT_PERSON_MISMATCH")
+  }
+  if (params.pronouncement.facilityId && params.hospitalId && params.pronouncement.facilityId !== params.hospitalId) {
+    throw new Error("DEATH_PRONOUNCEMENT_FACILITY_MISMATCH")
+  }
+  if (!(DECEASED_VALID_PRONOUNCEMENT_STATUSES as readonly string[]).includes(params.pronouncement.status)) {
+    throw new Error("DEATH_PRONOUNCEMENT_NOT_RECORDED")
+  }
+}
+
 export function renderPronouncementSnapshot(record: DeathPronouncement, patientDisplay: string): string {
   const time =
     record.deathTimePrecision === "EXACT"

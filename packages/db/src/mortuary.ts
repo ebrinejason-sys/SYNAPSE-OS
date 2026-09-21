@@ -16,6 +16,20 @@ export const MORTUARY_STATUSES = [
 ] as const
 export type MortuaryStatus = (typeof MORTUARY_STATUSES)[number]
 
+/** Release destinations belong exclusively to the dedicated release APIs. */
+export const PROTECTED_MORTUARY_RELEASE_STATUSES = ["release_authorized", "released"] as const
+export type ProtectedMortuaryReleaseStatus = (typeof PROTECTED_MORTUARY_RELEASE_STATUSES)[number]
+
+export function isProtectedMortuaryReleaseStatus(status: string): status is ProtectedMortuaryReleaseStatus {
+  return status === "release_authorized" || status === "released"
+}
+
+export function assertGenericCustodyDestination(to: MortuaryStatus): void {
+  if (isProtectedMortuaryReleaseStatus(to)) {
+    throw new Error("MORTUARY_RELEASE_REQUIRES_AUTHORIZED_WORKFLOW")
+  }
+}
+
 export const MORTUARY_CAPABILITIES = {
   registerRead: { module: "mortuary", resource: "register", action: "read" },
   registerWrite: { module: "mortuary", resource: "register", action: "write" },
@@ -310,6 +324,7 @@ export function applyMortuaryTransitionCommand(params: {
   to: MortuaryStatus
   actorId: string
 }): MortuaryBody {
+  assertGenericCustodyDestination(params.to)
   if (params.appliedCommandIds.includes(params.commandId)) return params.body
   return transitionMortuaryBody(params.body, { to: params.to, actorId: params.actorId, detail: params.commandId })
 }
