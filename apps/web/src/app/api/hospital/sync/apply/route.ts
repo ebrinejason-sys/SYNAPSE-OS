@@ -76,6 +76,17 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  if (command.commandType === 'clinical.death.pronouncement.v1') {
+    return NextResponse.json(
+      {
+        error: 'Death pronouncement is online-only until the dedicated SyncCommand is proven',
+        outcome: 'rejected',
+        reason: 'DEATH_PRONOUNCEMENT_ONLINE_ONLY',
+      },
+      { status: 409 },
+    )
+  }
+
   const supported =
     command.aggregateType === 'encounter' &&
     (command.commandType === CLINICAL_WRITEUP_COMMAND ||
@@ -280,6 +291,17 @@ export async function POST(request: NextRequest) {
       }
     } else {
       const disposition = String(command.payload.disposition ?? '')
+      if (disposition === 'DECEASED') {
+        await markOutbox(outbox.id, ctx.tenantId, 'rejected', 'DEATH_REQUIRES_PRONOUNCEMENT_COMMAND')
+        return NextResponse.json(
+          {
+            error: 'DECEASED is not available through generic offline disposition',
+            outcome: 'rejected',
+            reason: 'DEATH_REQUIRES_PRONOUNCEMENT_COMMAND',
+          },
+          { status: 409 },
+        )
+      }
       if (!isClinicalDisposition(disposition)) {
         await markOutbox(outbox.id, ctx.tenantId, 'rejected', 'INVALID_DISPOSITION')
         return NextResponse.json({ error: 'Invalid disposition', outcome: 'rejected' }, { status: 400 })

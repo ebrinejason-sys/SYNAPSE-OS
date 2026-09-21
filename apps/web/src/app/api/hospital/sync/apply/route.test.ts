@@ -575,6 +575,101 @@ describe('POST /api/hospital/sync/apply', () => {
     expect(applyWriteupSyncCommand).not.toHaveBeenCalled()
   })
 
+  it('rejects DECEASED on generic offline disposition', async () => {
+    requireHospitalStaffContext.mockResolvedValue({
+      tenantId: TENANT,
+      userId: USER,
+      hospitalId: FACILITY,
+    })
+    requireHospitalCapability.mockResolvedValue(null)
+    assertSyncCommand.mockImplementation(() => undefined)
+    hashPayload.mockResolvedValue('hash-ok')
+    toSyncOutboxRow.mockReturnValue({ idempotency_key: CMD })
+
+    const findChain = chain({ data: null })
+    const insertChain = chain({
+      data: {
+        id: OUTBOX,
+        tenant_id: TENANT,
+        idempotency_key: CMD,
+        payload: {},
+        status: 'queued',
+        applied_at: null,
+        conflict_reason: null,
+      },
+    })
+    const syncingChain = chain({ data: null })
+    const encounterChain = chain({
+      data: {
+        id: ENCOUNTER,
+        metadata: {},
+        is_signed: false,
+        chief_complaint: 'Fever',
+        status: 'in_progress',
+        disposition: null,
+        disposition_reason: null,
+        disposition_by: null,
+        disposition_at: null,
+      },
+    })
+    const rejectedChain = chain({ data: null })
+
+    let outboxOps = 0
+    dbFrom.mockImplementation((table: string) => {
+      if (table === 'offline_mutation_outbox') {
+        outboxOps += 1
+        if (outboxOps === 1) return findChain
+        if (outboxOps === 2) return insertChain
+        if (outboxOps === 3) return syncingChain
+        return rejectedChain
+      }
+      if (table === 'encounters') return encounterChain
+      return chain({ data: null })
+    })
+
+    const { POST } = await import('./route')
+    const res = await POST(
+      makeRequest({
+        command: makeCommand({
+          commandType: 'clinical.encounter.disposition.v1',
+          payload: {
+            encounter_id: ENCOUNTER,
+            disposition: 'DECEASED',
+            reason: 'Offline death',
+          },
+        }),
+      }),
+    )
+    expect(res.status).toBe(409)
+    const json = await res.json()
+    expect(json.outcome).toBe('rejected')
+    expect(json.reason).toBe('DEATH_REQUIRES_PRONOUNCEMENT_COMMAND')
+    expect(applyDispositionSyncCommand).not.toHaveBeenCalled()
+  })
+
+  it('keeps death pronouncement online-only', async () => {
+    requireHospitalStaffContext.mockResolvedValue({
+      tenantId: TENANT,
+      userId: USER,
+      hospitalId: FACILITY,
+    })
+    requireHospitalCapability.mockResolvedValue(null)
+    assertSyncCommand.mockImplementation(() => undefined)
+
+    const { POST } = await import('./route')
+    const res = await POST(
+      makeRequest({
+        command: makeCommand({
+          commandType: 'clinical.death.pronouncement.v1',
+          aggregateType: 'death_pronouncement',
+          payload: { encounter_id: ENCOUNTER },
+        }),
+      }),
+    )
+    expect(res.status).toBe(409)
+    const json = await res.json()
+    expect(json.reason).toBe('DEATH_PRONOUNCEMENT_ONLINE_ONLY')
+  })
 
   it('applies triage using a server-owned vitals id, never the client command id', async () => {
     requireHospitalStaffContext.mockResolvedValue({
