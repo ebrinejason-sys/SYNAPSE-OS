@@ -208,6 +208,193 @@ export function findDuplicateProducts(
   return rankProductMatches(draft, products, 5).filter((row) => row.score >= DUPLICATE_PRODUCT_THRESHOLD)
 }
 
+/** Catalogue writes from Purchase never invent stock. Receipt creates the first batch. */
+export function purchaseProductOpeningQuantity(_requested?: unknown): 0 {
+  return 0
+}
+
+export function catalogProductFromRow(row: Record<string, unknown>): CatalogProduct {
+  return {
+    id: String(row.id),
+    name: String(row.name ?? ""),
+    sku: (row.sku as string | null) ?? null,
+    barcode: (row.barcode as string | null) ?? null,
+    genericName: (row.generic_name as string | null) ?? (row.genericName as string | null) ?? null,
+    brandName: (row.brand as string | null) ?? (row.brandName as string | null) ?? (row.name as string | null) ?? null,
+    strength: (row.strength as string | null) ?? null,
+    dosageForm: (row.dosage_form as string | null) ?? (row.dosageForm as string | null) ?? null,
+    manufacturer: (row.manufacturer as string | null) ?? null,
+    price: row.price != null ? Number(row.price) : row.sellingPrice != null ? Number(row.sellingPrice) : null,
+    costPrice: row.cost_price != null ? Number(row.cost_price) : row.costPrice != null ? Number(row.costPrice) : null,
+  }
+}
+
+export function matchCatalogProducts(
+  query: ProductMatchQuery,
+  rows: Array<Record<string, unknown>>,
+  limit = 12,
+): Array<CatalogProduct & { score: number; existing: true }> {
+  return rankProductMatches(query, rows.map(catalogProductFromRow), limit).map((row) => ({
+    ...row,
+    existing: true as const,
+  }))
+}
+
+export function allocatePurchaseIdempotencyKey(existing: string | null, randomUUID: () => string): string {
+  const current = existing?.trim()
+  return current ? current : randomUUID()
+}
+
+export type CreatedPurchaseProduct = {
+  id: string
+  name: string
+  sku: string | null
+  barcode: string | null
+  price: number
+  costPrice: number | null
+  genericName: string | null
+  strength: string | null
+  dosageForm: string | null
+  manufacturer: string | null
+}
+
+export type CreatePurchaseProductInput = {
+  tenantId: string
+  actorId: string
+  name: string
+  genericName?: string | null
+  brand?: string | null
+  strength?: string | null
+  dosageForm?: string | null
+  unit?: string | null
+  barcode?: string | null
+  sku?: string | null
+  manufacturer?: string | null
+  category?: string | null
+  sellingPrice?: number | null
+  costPrice?: number | null
+  reorderLevel?: number | null
+  expiryRequired?: boolean
+  createAnyway?: boolean
+  quantity?: unknown
+}
+
+export async function createPurchaseCatalogProduct(
+  client: DbClient,
+  input: CreatePurchaseProductInput,
+): Promise<
+  | { ok: true; product: CreatedPurchaseProduct; duplicateOverride: boolean }
+  | { ok: false; code: "DUPLICATE_PRODUCT"; error: string; candidates: Array<CatalogProduct & { score: number }> }
+  | { ok: false; code: "NAME_REQUIRED" | "SKU_EXISTS" | "CATALOG_LOOKUP" | "PRODUCT_CREATE"; error: string }
+> {
+  const name = String(input.name ?? "").trim()
+  if (!name) return { ok: false, code: "NAME_REQUIRED", error: "Product name is required" }
+
+  const catalog = await client
+    .from("pharmacy_products")
+    .select(
+      "id, name, sku, barcode, generic_name, strength, dosage_form, manufacturer, price, cost_price, unit_of_measure, category, reorder_level",
+    )
+    .eq("tenant_id", input.tenantId)
+    .eq("is_active", true)
+    .limit(2000)
+  if (catalog.error) return { ok: false, code: "CATALOG_LOOKUP", error: catalog.error.message }
+  const rows = (catalog.data ?? []) as Array<Record<string, unknown>>
+  const products = rows.map(catalogProductFromRow)
+  const candidates = findDuplicateProducts(
+    {
+      q: name,
+      name,
+      genericName: input.genericName ?? null,
+      brandName: input.brand ?? name,
+      barcode: input.barcode ?? null,
+      sku: input.sku ?? null,
+      strength: input.strength ?? null,
+      dosageForm: input.dosageForm ?? null,
+      manufacturer: input.manufacturer ?? null,
+    },
+    products,
+  )
+
+  if (candidates.length > 0 && input.createAnyway !== true) {
+    return {
+      ok: false,
+      code: "DUPLICATE_PRODUCT",
+      error: "A similar product already exists.",
+      candidates,
+    }
+  }
+
+  const sku = String(input.sku ?? "").trim() || generateProductSku()
+  const existingSku = await client
+    .from("pharmacy_products")
+    .select("id")
+    .eq("tenant_id", input.tenantId)
+    .eq("sku", sku)
+    .maybeSingle()
+  if (existingSku.data) return { ok: false, code: "SKU_EXISTS", error: "Product with this SKU already exists" }
+
+  const inserted = await client
+    .from("pharmacy_products")
+    .insert({
+      tenant_id: input.tenantId,
+      name,
+      sku,
+      barcode: String(input.barcode ?? "").trim() || null,
+      category: String(input.category ?? "General"),
+      price: Number(input.sellingPrice ?? 0),
+      cost_price: Number(input.costPrice ?? 0),
+      quantity: purchaseProductOpeningQuantity(input.quantity),
+      reorder_level: Number(input.reorderLevel ?? 10),
+      unit_of_measure: String(input.unit ?? "Tablet"),
+      manufacturer: String(input.manufacturer ?? "").trim() || null,
+      strength: String(input.strength ?? "").trim() || null,
+      dosage_form: String(input.dosageForm ?? "").trim() || null,
+      generic_name: String(input.genericName ?? "").trim() || null,
+      expiry_required: input.expiryRequired === false ? false : true,
+    })
+    .select()
+    .single()
+
+  if (inserted.error || !inserted.data) {
+    return { ok: false, code: "PRODUCT_CREATE", error: inserted.error?.message ?? "Failed to create product" }
+  }
+
+  const product = inserted.data as Record<string, unknown>
+  const duplicateOverride = input.createAnyway === true
+  await client.from("pharmacy_audit_logs").insert({
+    tenant_id: input.tenantId,
+    profile_id: input.actorId,
+    action: duplicateOverride ? "product.created_duplicate_override" : "product.created_from_purchase",
+    entity: "PRODUCT",
+    entity_id: product.id,
+    details: JSON.stringify({
+      name,
+      sku,
+      barcode: product.barcode ?? null,
+      duplicateOverride,
+      candidates: candidates.map((c) => ({ id: c.id, name: c.name, score: c.score })),
+    }),
+  })
+
+  return {
+    ok: true,
+    duplicateOverride,
+    product: {
+      id: String(product.id),
+      name: String(product.name ?? name),
+      sku: (product.sku as string | null) ?? sku,
+      barcode: (product.barcode as string | null) ?? null,
+      price: Number(product.price ?? 0),
+      costPrice: product.cost_price != null ? Number(product.cost_price) : null,
+      genericName: (product.generic_name as string | null) ?? null,
+      strength: (product.strength as string | null) ?? null,
+      dosageForm: (product.dosage_form as string | null) ?? null,
+      manufacturer: (product.manufacturer as string | null) ?? null,
+    },
+  }
+}
+
 export function poStatusFromReceived(ordered: number, received: number): "RECEIVED" | "PARTIALLY_RECEIVED" | "ORDERED" {
   if (received <= 0) return "ORDERED"
   if (received + 0.0001 >= ordered) return "RECEIVED"

@@ -19,9 +19,11 @@ describe("pharmacy capabilities", () => {
 
   it("lets pharmacists record purchases and receive stock, but not cashiers", () => {
     expect(roleHasCapability("pharmacist", "purchasing.manage")).toBe(true)
+    expect(roleHasCapability("inventory_officer", "purchasing.manage")).toBe(true)
     expect(roleHasCapability("pharmacist", "inventory.adjust")).toBe(true)
     expect(roleHasCapability("pharmacy_cashier", "purchasing.manage")).toBe(false)
     expect(roleHasCapability("pharmacy_cashier", "inventory.adjust")).toBe(false)
+    expect(roleHasCapability("pharmacy_cashier", "inventory.write")).toBe(false)
   })
 
   it("grants owners all capabilities", () => {

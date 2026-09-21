@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePharmacyPermission } from "@/lib/api-auth"
-import { supabaseAdmin } from "@/lib/supabase/admin"
-import { createPurchaseCatalogProduct, matchCatalogProducts } from "@synapse/db/pharmacy-purchases"
+import { supabaseAdmin } from "@synapse/db/admin"
+import {
+  createPurchaseCatalogProduct,
+  matchCatalogProducts,
+} from "@synapse/db/pharmacy-purchases"
+import {
+  isMobileAuth,
+  mobileHasPharmacyCapability,
+  requireMobilePharmacyAuth,
+} from "../../../../../../lib/mobile-pharmacy-auth"
+
+export const dynamic = "force-dynamic"
 
 const db = () => supabaseAdmin as any
 
@@ -18,27 +27,39 @@ async function loadCatalog(tenantId: string) {
   return (data ?? []) as Array<Record<string, unknown>>
 }
 
-export async function GET(request: NextRequest) {
-  const auth = await requirePharmacyPermission(["purchasing.manage", "inventory.read"])
-  if (!auth.ok) return auth.response
-  const { tenantId } = auth
-  const { searchParams } = new URL(request.url)
+export async function GET(req: NextRequest) {
+  const auth = await requireMobilePharmacyAuth(req)
+  if (!isMobileAuth(auth)) return auth
+  if (
+    !mobileHasPharmacyCapability(auth, "purchasing.manage") &&
+    !mobileHasPharmacyCapability(auth, "inventory.read")
+  ) {
+    return NextResponse.json({ error: "Purchasing permission required" }, { status: 403 })
+  }
+
+  const { searchParams } = new URL(req.url)
   const q = searchParams.get("q") ?? ""
   const barcode = searchParams.get("barcode")
   const sku = searchParams.get("sku")
-  const rows = await loadCatalog(tenantId)
+  const rows = await loadCatalog(auth.tenantId)
   const matches = matchCatalogProducts({ q, barcode, sku, name: q, genericName: q }, rows, 12)
   return NextResponse.json({ matches })
 }
 
-export async function POST(request: NextRequest) {
-  const auth = await requirePharmacyPermission(["purchasing.manage", "inventory.write"])
-  if (!auth.ok) return auth.response
-  const { session, tenantId } = auth
-  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+export async function POST(req: NextRequest) {
+  const auth = await requireMobilePharmacyAuth(req)
+  if (!isMobileAuth(auth)) return auth
+  if (
+    !mobileHasPharmacyCapability(auth, "purchasing.manage") ||
+    !mobileHasPharmacyCapability(auth, "inventory.write")
+  ) {
+    return NextResponse.json({ error: "Purchasing permission required" }, { status: 403 })
+  }
+
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
   const result = await createPurchaseCatalogProduct(db(), {
-    tenantId,
-    actorId: session.user.id,
+    tenantId: auth.tenantId,
+    actorId: auth.userId,
     name: String(body.name ?? ""),
     genericName: (body.genericName as string | null) ?? null,
     brand: (body.brand as string | null) ?? null,

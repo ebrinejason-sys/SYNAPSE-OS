@@ -2,14 +2,18 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   DUPLICATE_PRODUCT_THRESHOLD,
+  allocatePurchaseIdempotencyKey,
+  createPurchaseCatalogProduct,
   derivePaymentStatus,
   findDuplicateProducts,
   generatePurchaseNo,
   isPurchasePaymentStatus,
   lineTotal,
   mapPoStatusToExisting,
+  matchCatalogProducts,
   poStatusFromReceived,
   purchaseMargin,
+  purchaseProductOpeningQuantity,
   purchaseTotals,
   rankProductMatches,
   receivePharmacyPurchase,
@@ -247,5 +251,287 @@ describe("pharmacy purchases domain", () => {
     })
     assert.equal("ok" in result && result.ok, true)
     assert.equal(rpcCalls, 1)
+  })
+
+  it("keeps a failed retry on the same key and issues a new key after cancel", () => {
+    const first = allocatePurchaseIdempotencyKey(null, () => "key-1")
+    const retry = allocatePurchaseIdempotencyKey(first, () => "key-2")
+    assert.equal(retry, "key-1")
+    const afterCancel = allocatePurchaseIdempotencyKey(null, () => "key-3")
+    assert.equal(afterCancel, "key-3")
+    assert.notEqual(afterCancel, first)
+  })
+
+  it("creates a purchase catalog product with zero opening quantity and audits override", async () => {
+    assert.equal(purchaseProductOpeningQuantity(200), 0)
+    const audits: unknown[] = []
+    const para = {
+      id: "para",
+      name: "Paracetamol 500 mg Tablets",
+      generic_name: "Paracetamol",
+      sku: "PARA-500",
+      strength: "500 mg",
+      dosage_form: "Tablet",
+    }
+    const client = {
+      rpc: async () => ({ data: null, error: null }),
+      from: (table: string) => {
+        const api: Record<string, unknown> = {}
+        const self = () => api
+        for (const m of ["select", "eq", "limit"]) api[m] = self
+        api.insert = (row: Record<string, unknown>) => {
+          if (table === "pharmacy_audit_logs") audits.push(row)
+          api._row = row
+          return api
+        }
+        api.maybeSingle = async () => ({ data: null, error: null })
+        api.single = async () => ({
+          data: {
+            id: "cet-1",
+            name: "Cetirizine 10 mg Tablet",
+            sku: "CET-10",
+            barcode: null,
+            price: 0,
+            cost_price: 0,
+            generic_name: "Cetirizine",
+            strength: "10 mg",
+            dosage_form: "Tablet",
+            manufacturer: null,
+            quantity: (api._row as { quantity?: number } | undefined)?.quantity,
+          },
+          error: null,
+        })
+        api.then = (resolve: (value: unknown) => unknown) =>
+          Promise.resolve(resolve({ data: table === "pharmacy_products" ? [para] : [], error: null }))
+        return api
+      },
+    }
+
+    const blocked = await createPurchaseCatalogProduct(client as never, {
+      tenantId: "t1",
+      actorId: "u1",
+      name: "Paracetamol 500 mg Tablets",
+      strength: "500 mg",
+    })
+    assert.equal(blocked.ok, false)
+    if (!blocked.ok) {
+      assert.equal(blocked.code, "DUPLICATE_PRODUCT")
+      assert.equal(blocked.candidates[0]?.id, "para")
+    }
+
+    const created = await createPurchaseCatalogProduct(client as never, {
+      tenantId: "t1",
+      actorId: "u1",
+      name: "Paracetamol 500 mg Tablets",
+      genericName: "Paracetamol",
+      strength: "500 mg",
+      dosageForm: "Tablet",
+      quantity: 200,
+      createAnyway: true,
+    })
+    assert.equal(created.ok, true)
+    if (created.ok) {
+      assert.equal(created.duplicateOverride, true)
+      assert.equal(created.product.id, "cet-1")
+    }
+    const audit = audits[0] as { action?: string; details?: string }
+    assert.equal(audit.action, "product.created_duplicate_override")
+    assert.match(String(audit.details), /para/)
+  })
+
+  it("does not match another tenant's barcode or sku", () => {
+    const tenantA = [
+      { id: "para", name: "Paracetamol 500 mg Tablets", sku: "PARA-500", barcode: "1234567890123" },
+    ]
+    const foreignBarcode = matchCatalogProducts({ barcode: "9999999999999" }, tenantA)
+    const foreignSku = matchCatalogProducts({ sku: "SEC-B" }, tenantA)
+    assert.equal(foreignBarcode.length, 0)
+    assert.equal(foreignSku.length, 0)
+  })
+
+  it("creates a new catalog product at quantity 0 and audits purchase origin", async () => {
+    const productInserts: Array<Record<string, unknown>> = []
+    const audits: Array<Record<string, unknown>> = []
+    const client = {
+      rpc: async () => ({ data: null, error: null }),
+      from: (table: string) => {
+        const api: Record<string, unknown> = {}
+        const self = () => api
+        for (const m of ["select", "eq", "limit"]) api[m] = self
+        api.insert = (row: Record<string, unknown>) => {
+          if (table === "pharmacy_products") productInserts.push(row)
+          if (table === "pharmacy_audit_logs") audits.push(row)
+          api._row = row
+          return api
+        }
+        api.maybeSingle = async () => ({ data: null, error: null })
+        api.single = async () => ({
+          data: {
+            id: "cet-1",
+            name: "Cetirizine 10 mg Tablet",
+            sku: "CET-10",
+            barcode: "6281001234567",
+            price: 500,
+            cost_price: 0,
+            generic_name: "Cetirizine",
+            strength: "10 mg",
+            dosage_form: "Tablet",
+            manufacturer: null,
+            quantity: 0,
+          },
+          error: null,
+        })
+        api.then = (resolve: (value: unknown) => unknown) => Promise.resolve(resolve({ data: [], error: null }))
+        return api
+      },
+    }
+    const created = await createPurchaseCatalogProduct(client as never, {
+      tenantId: "t1",
+      actorId: "u1",
+      name: "Cetirizine 10 mg Tablet",
+      genericName: "Cetirizine",
+      strength: "10 mg",
+      dosageForm: "Tablet",
+      barcode: "6281001234567",
+      sellingPrice: 500,
+      quantity: 200,
+    })
+    assert.equal(created.ok, true)
+    if (created.ok) {
+      assert.equal(created.duplicateOverride, false)
+      assert.equal(created.product.id, "cet-1")
+    }
+    assert.equal(productInserts[0]?.quantity, 0)
+    assert.equal(productInserts[0]?.tenant_id, "t1")
+    assert.equal(audits[0]?.action, "product.created_from_purchase")
+  })
+
+  it("receives mixed existing Paracetamol and new Cetirizine stock exactly once", async () => {
+    const rpcArgs: Array<Record<string, unknown>> = []
+    let purchaseInserts = 0
+    let itemInserts = 0
+    const client = {
+      rpc: async (_fn: string, args: Record<string, unknown>) => {
+        rpcArgs.push(args)
+        const productId = String(args.p_product_id ?? args.product_id ?? "")
+        return {
+          data: { batch_id: productId === "para" ? "b-para" : "b-cet", product_id: productId, received: args.p_quantity ?? args.quantity },
+          error: null,
+        }
+      },
+      from: (table: string) => {
+        const api: Record<string, unknown> = {}
+        const self = () => api
+        for (const m of ["select", "insert", "update", "delete", "eq", "upsert"]) api[m] = self
+        api.insert = (row: unknown) => {
+          if (table === "pharmacy_purchases") purchaseInserts += 1
+          if (table === "pharmacy_purchase_items") {
+            itemInserts += Array.isArray(row) ? row.length : 1
+          }
+          return api
+        }
+        api.maybeSingle = async () => {
+          if (table === "pharmacy_purchase_idempotency") return { data: null, error: null }
+          if (table === "pharmacy_suppliers") return { data: { id: "s1", name: "Supplier A" }, error: null }
+          if (table === "pharmacy_product_batches") return { data: null, error: null }
+          return { data: null, error: null }
+        }
+        api.single = async () => ({ data: { id: "p-mix", purchase_no: "PUR-MIX" }, error: null })
+        if (table === "pharmacy_purchase_items") {
+          api.select = () => ({
+            then: (resolve: (value: unknown) => unknown) =>
+              Promise.resolve(
+                resolve({
+                  data: [
+                    {
+                      id: "i-para",
+                      product_id: "para",
+                      quantity: 500,
+                      received_quantity: 0,
+                      unit_cost: 200,
+                      batch_number: "PAR-01",
+                      expiry_date: "2027-01-01",
+                      selling_price: null,
+                      receipt_idempotency_key: "mix-1:line-para:PAR-01",
+                      purchase_order_item_id: null,
+                    },
+                    {
+                      id: "i-cet",
+                      product_id: "cet-1",
+                      quantity: 200,
+                      received_quantity: 0,
+                      unit_cost: 350,
+                      batch_number: "CET-44",
+                      expiry_date: "2027-06-01",
+                      selling_price: null,
+                      receipt_idempotency_key: "mix-1:line-cet:CET-44",
+                      purchase_order_item_id: null,
+                    },
+                  ],
+                  error: null,
+                }),
+              ),
+          })
+        }
+        return api
+      },
+    }
+
+    const result = await receivePharmacyPurchase(client as never, {
+      tenantId: "t1",
+      actorId: "u1",
+      supplierId: "s1",
+      idempotencyKey: "mix-1",
+      lines: [
+        {
+          clientItemId: "line-para",
+          productId: "para",
+          productName: "Paracetamol 500 mg Tablets",
+          quantity: 500,
+          unitCost: 200,
+          batchNumber: "PAR-01",
+          expiryDate: "2027-01-01",
+        },
+        {
+          clientItemId: "line-cet",
+          productId: "cet-1",
+          productName: "Cetirizine 10 mg Tablet",
+          quantity: 200,
+          unitCost: 350,
+          batchNumber: "CET-44",
+          expiryDate: "2027-06-01",
+        },
+      ],
+    })
+    assert.equal("ok" in result && result.ok, true)
+    if ("ok" in result && result.ok) {
+      assert.equal(result.replay, undefined)
+      assert.equal(result.received.length, 2)
+      assert.equal(result.received[0]?.productId, "para")
+      assert.equal(result.received[1]?.productId, "cet-1")
+    }
+    assert.equal(purchaseInserts, 1)
+    assert.equal(itemInserts, 2)
+    assert.equal(rpcArgs.length, 2)
+    assert.deepEqual(
+      rpcArgs.map((args) => args.p_product_id),
+      ["para", "cet-1"],
+    )
+    assert.deepEqual(
+      rpcArgs.map((args) => args.p_quantity),
+      [500, 200],
+    )
+  })
+
+
+  it("ranks barcode and SKU matches above fuzzy names", () => {
+    const catalog = [
+      { id: "name-hit", name: "Something 500", sku: "X", barcode: "000" },
+      { id: "code-hit", name: "Other", sku: "CET-10", barcode: "6281001234567" },
+    ]
+    const barcode = matchCatalogProducts({ barcode: "6281001234567", q: "something" }, catalog)
+    assert.equal(barcode[0]?.id, "code-hit")
+    const sku = matchCatalogProducts({ sku: "CET-10" }, catalog)
+    assert.equal(sku[0]?.id, "code-hit")
   })
 })

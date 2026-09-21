@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@synapse/db/admin'
 import { receivePharmacyPurchase } from '@synapse/db/pharmacy-purchases'
 import {
   isMobileAuth,
-  isMobilePharmacyAdmin,
+  mobileHasPharmacyCapability,
   requireMobilePharmacyAuth,
   type MobileAuth,
 } from '../../../../../lib/mobile-pharmacy-auth'
@@ -13,16 +13,8 @@ export const dynamic = 'force-dynamic'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = () => supabaseAdmin as any
 
-const PURCHASING_ROLES = new Set([
-  'pharmacy_admin',
-  'pharmacy_ceo',
-  'pharmacist',
-  'pharmacy_store_manager',
-  'inventory_officer',
-])
-
 function canManagePurchasing(auth: MobileAuth): boolean {
-  return PURCHASING_ROLES.has(auth.role) || isMobilePharmacyAdmin(auth)
+  return mobileHasPharmacyCapability(auth, 'purchasing.manage')
 }
 
 function generatePurchaseOrderNo(): string {

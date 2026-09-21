@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
 import {
   isMobileAuth,
-  isMobilePharmacyAdmin,
+  mobileHasPharmacyCapability,
   requireMobilePharmacyAuth,
 } from '../../../../../lib/mobile-pharmacy-auth'
 
@@ -14,6 +14,12 @@ const db = () => supabaseAdmin as any
 export async function GET(req: NextRequest) {
   const auth = await requireMobilePharmacyAuth(req)
   if (!isMobileAuth(auth)) return auth
+  if (
+    !mobileHasPharmacyCapability(auth, 'purchasing.manage') &&
+    !mobileHasPharmacyCapability(auth, 'inventory.read')
+  ) {
+    return NextResponse.json({ error: 'Purchasing permission required' }, { status: 403 })
+  }
 
   const { data } = await db()
     .from('pharmacy_suppliers')
@@ -22,7 +28,7 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
 
   return NextResponse.json({
-    canManage: isMobilePharmacyAdmin(auth),
+    canManage: mobileHasPharmacyCapability(auth, 'purchasing.manage'),
     suppliers: (data ?? []).map((s: any) => ({
       id: s.id,
       name: s.name,
@@ -39,7 +45,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await requireMobilePharmacyAuth(req)
   if (!isMobileAuth(auth)) return auth
-  if (!isMobilePharmacyAdmin(auth)) return NextResponse.json({ error: 'Admin role required' }, { status: 403 })
+  if (!mobileHasPharmacyCapability(auth, 'purchasing.manage')) {
+    return NextResponse.json({ error: 'Purchasing permission required' }, { status: 403 })
+  }
 
   const { name, email, phone, address, contactPerson, notes, taxNumber } = (await req.json().catch(() => ({}))) as Record<string, string>
   if (!name) return NextResponse.json({ error: 'Supplier name is required' }, { status: 400 })
@@ -76,7 +84,9 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const auth = await requireMobilePharmacyAuth(req)
   if (!isMobileAuth(auth)) return auth
-  if (!isMobilePharmacyAdmin(auth)) return NextResponse.json({ error: 'Admin role required' }, { status: 403 })
+  if (!mobileHasPharmacyCapability(auth, 'purchasing.manage')) {
+    return NextResponse.json({ error: 'Purchasing permission required' }, { status: 403 })
+  }
 
   const { id, name, email, phone, address, contactPerson, notes, isActive } = (await req.json().catch(() => ({}))) as Record<string, unknown>
   if (!id || typeof id !== 'string') return NextResponse.json({ error: 'Supplier id required' }, { status: 400 })

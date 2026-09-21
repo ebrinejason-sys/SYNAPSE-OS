@@ -99,3 +99,20 @@ export {
   PHARMACY_INVENTORY_MUTATOR_ROLES,
   canMutatePharmacyInventory,
 } from './pharmacy-mobile-roles'
+export {
+  PHARMACY_CAPABILITIES,
+  LEGACY_PERMISSION_TO_CAPABILITY,
+  ROLE_CAPABILITIES,
+  normalizePharmacyRole,
+  isPharmacyCapability,
+  resolveCapability,
+  capabilitiesForRole,
+  roleHasCapability,
+  sessionHasCapability,
+  sessionHasAnyCapability,
+} from './pharmacy-capabilities'
+export type {
+  PharmacyCapability,
+  PharmacyCapabilityRole,
+  CapabilitySession,
+} from './pharmacy-capabilities'

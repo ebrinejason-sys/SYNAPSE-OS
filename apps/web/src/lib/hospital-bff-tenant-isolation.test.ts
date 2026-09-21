@@ -63,3 +63,20 @@ describe("hospital BFF explicit tenant filters", () => {
     }
   })
 })
+
+describe("mobile pharmacy purchase tenant filters", () => {
+  const files = [
+    "apps/web/src/app/api/mobile/pharmacy/purchases/route.ts",
+    "apps/web/src/app/api/mobile/pharmacy/purchases/products/route.ts",
+    "apps/web/src/app/api/mobile/pharmacy/suppliers/route.ts",
+  ]
+
+  it("derives tenant from auth and never from client tenant_id", () => {
+    for (const file of files) {
+      const text = src(file)
+      expect(text, file).toMatch(/auth\.tenantId/)
+      expect(text, file).toMatch(/tenant_id/)
+      expect(text, file).not.toMatch(/body\.tenantId|body\.tenant_id/)
+    }
+  })
+})

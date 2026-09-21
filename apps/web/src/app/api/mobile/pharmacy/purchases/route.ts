@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@synapse/db/admin'
 import { receivePharmacyPurchase, type ReceivePurchaseLine } from '@synapse/db/pharmacy-purchases'
 import {
   isMobileAuth,
-  isMobilePharmacyAdmin,
+  mobileHasPharmacyCapability,
   requireMobilePharmacyAuth,
   type MobileAuth,
 } from '../../../../../lib/mobile-pharmacy-auth'
@@ -12,16 +12,8 @@ export const dynamic = 'force-dynamic'
 
 const db = () => supabaseAdmin as any
 
-const PURCHASING_ROLES = new Set([
-  'pharmacy_admin',
-  'pharmacy_ceo',
-  'pharmacist',
-  'pharmacy_store_manager',
-  'inventory_officer',
-])
-
 function canManagePurchasing(auth: MobileAuth): boolean {
-  return PURCHASING_ROLES.has(auth.role) || isMobilePharmacyAdmin(auth)
+  return mobileHasPharmacyCapability(auth, 'purchasing.manage')
 }
 
 function mapPurchase(row: Record<string, unknown>) {
@@ -144,6 +136,8 @@ export async function POST(req: NextRequest) {
     purchaseId: result.purchaseId,
     purchaseNo: result.purchaseNo,
     status: result.status,
+    paymentStatus: result.paymentStatus,
+    grandTotal: result.grandTotal,
     received: result.received,
   })
 }

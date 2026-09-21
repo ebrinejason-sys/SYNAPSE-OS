@@ -191,7 +191,7 @@ export type PharmacyStaffUser = {
 }
 
 export function fetchPharmacySuppliers(token: string) {
-  return apiRequest<{ suppliers: PharmacySupplier[] }>('/api/mobile/pharmacy/suppliers', {
+  return apiRequest<{ suppliers: PharmacySupplier[]; canManage: boolean }>('/api/mobile/pharmacy/suppliers', {
     token,
   })
 }
@@ -312,8 +312,74 @@ export function createPharmacyPurchase(
     purchaseId: string
     purchaseNo: string
     status: string
+    paymentStatus?: string
+    grandTotal?: number
     received: Array<{ productId: string; batchId: string; quantity: number }>
   }>('/api/mobile/pharmacy/purchases', { method: 'POST', token, body })
+}
+
+export type PurchaseProductMatch = {
+  id: string
+  name: string
+  sku?: string | null
+  barcode?: string | null
+  genericName?: string | null
+  brandName?: string | null
+  strength?: string | null
+  dosageForm?: string | null
+  manufacturer?: string | null
+  price?: number | null
+  costPrice?: number | null
+  score: number
+  existing: true
+}
+
+export function searchPurchaseProducts(
+  token: string,
+  input: { q?: string; barcode?: string; sku?: string },
+) {
+  const params = new URLSearchParams()
+  if (input.q) params.set('q', input.q)
+  if (input.barcode) params.set('barcode', input.barcode)
+  if (input.sku) params.set('sku', input.sku)
+  return apiRequest<{ matches: PurchaseProductMatch[] }>(
+    `/api/mobile/pharmacy/purchases/products?${params.toString()}`,
+    { token },
+  )
+}
+
+export type PurchaseProductDraft = {
+  name: string
+  genericName?: string
+  brand?: string
+  strength?: string
+  dosageForm?: string
+  unit?: string
+  barcode?: string
+  sku?: string
+  manufacturer?: string
+  category?: string
+  sellingPrice?: number
+  reorderLevel?: number
+  createAnyway?: boolean
+}
+
+export function createPurchaseProduct(token: string, body: PurchaseProductDraft) {
+  return apiRequest<{
+    ok: boolean
+    product: {
+      id: string
+      name: string
+      sku: string | null
+      barcode: string | null
+      price: number
+      costPrice: number | null
+      genericName: string | null
+      strength: string | null
+      dosageForm: string | null
+      manufacturer: string | null
+    }
+  }>('/api/mobile/pharmacy/purchases/products', { method: 'POST', token, body })
 }
 
 export function fetchPharmacyReport(
