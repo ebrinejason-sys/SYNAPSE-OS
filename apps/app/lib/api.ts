@@ -200,7 +200,7 @@ export function createPharmacySupplier(
   token: string,
   body: {
     name: string
-    email: string
+    email?: string
     phone?: string
     address?: string
     contactPerson?: string
@@ -255,6 +255,65 @@ export function updatePharmacyPurchaseOrderStatus(
     purchaseOrder: PharmacyPurchaseOrder | null
     received?: Array<{ productId: string; batchId: string; quantity: number }>
   }>('/api/mobile/pharmacy/purchase-orders', { method: 'PATCH', token, body })
+}
+
+export type PharmacyPurchase = {
+  id: string
+  purchaseNo: string
+  status: string
+  paymentStatus: string
+  paymentMethod: string | null
+  supplierInvoiceNo: string | null
+  total: number
+  amountPaid: number
+  balance: number
+  purchaseDate: string | null
+  receivedDate: string | null
+  notes: string | null
+  createdAt: string | null
+  supplier: { id: string; name: string }
+  items: Array<{
+    id: string
+    productId: string | null
+    productName: string
+    quantity: number
+    unitCost: number
+    lineTotal: number
+    batchNumber: string | null
+    expiryDate: string | null
+  }>
+}
+
+export function fetchPharmacyPurchases(token: string) {
+  return apiRequest<{ purchases: PharmacyPurchase[] }>('/api/mobile/pharmacy/purchases', { token })
+}
+
+export function createPharmacyPurchase(
+  token: string,
+  body: {
+    supplierId: string
+    supplierInvoiceNo?: string
+    idempotencyKey: string
+    receiveNow?: boolean
+    lines: Array<{
+      clientItemId?: string
+      productId: string
+      productName: string
+      quantity: number
+      unitCost: number
+      batchNumber: string
+      expiryDate: string
+    }>
+  },
+) {
+  return apiRequest<{
+    ok: boolean
+    replay?: boolean
+    purchaseId: string
+    purchaseNo: string
+    status: string
+    received: Array<{ productId: string; batchId: string; quantity: number }>
+  }>('/api/mobile/pharmacy/purchases', { method: 'POST', token, body })
 }
 
 export function fetchPharmacyReport(

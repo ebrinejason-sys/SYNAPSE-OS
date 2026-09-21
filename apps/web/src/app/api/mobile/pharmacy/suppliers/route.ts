@@ -41,9 +41,10 @@ export async function POST(req: NextRequest) {
   if (!isMobileAuth(auth)) return auth
   if (!isMobilePharmacyAdmin(auth)) return NextResponse.json({ error: 'Admin role required' }, { status: 403 })
 
-  const { name, email, phone, address, contactPerson, notes } = (await req.json().catch(() => ({}))) as Record<string, string>
-  if (!name || !email) return NextResponse.json({ error: 'Name and email are required' }, { status: 400 })
+  const { name, email, phone, address, contactPerson, notes, taxNumber } = (await req.json().catch(() => ({}))) as Record<string, string>
+  if (!name) return NextResponse.json({ error: 'Supplier name is required' }, { status: 400 })
 
+  if (email) {
   const { data: existing } = await db()
     .from('pharmacy_suppliers')
     .select('id')
@@ -51,16 +52,18 @@ export async function POST(req: NextRequest) {
     .eq('email', email)
     .maybeSingle()
   if (existing) return NextResponse.json({ error: 'Supplier with this email already exists' }, { status: 400 })
+  }
 
   const { data: supplier, error } = await db()
     .from('pharmacy_suppliers')
     .insert({
       tenant_id: auth.tenantId,
       name,
-      email,
+      email: email ?? null,
       phone: phone ?? null,
       address: address ?? null,
       contact_person: contactPerson ?? null,
+      tax_number: taxNumber ?? null,
       notes: notes ?? null,
     })
     .select()
