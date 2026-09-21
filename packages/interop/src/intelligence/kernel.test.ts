@@ -9,7 +9,7 @@ import {
 } from "./kernel"
 
 describe("intelligence kernel safety", () => {
-  it("forbids signing, lab release, dispensing, and claim submission", () => {
+  it("forbids signing, lab release, dispensing, claims, death acts, and pathway execution", () => {
     for (const action of INTELLIGENCE_FORBIDDEN_ACTIONS) {
       expect(() => assertNotForbidden(action)).toThrow(/INTELLIGENCE_FORBIDDEN/)
     }

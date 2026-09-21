@@ -17,6 +17,7 @@ const DEMO_LEAVES = {
   guide: "/guide",
   feedback: "/feedback",
   intelligence: "/intelligence",
+  death: "/death",
 } as const
 
 export const DEMO_ROUTES = {
@@ -36,6 +37,7 @@ export const DEMO_ROUTES = {
   guide: "/demo/guide",
   feedback: "/demo/feedback",
   intelligence: "/demo/intelligence",
+  death: "/demo/death",
 } as const
 
 export type DemoRoute = (typeof DEMO_ROUTES)[keyof typeof DEMO_ROUTES]

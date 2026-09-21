@@ -26336,6 +26336,11 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
 
+-- Additive death/mortuary/pathway tables live in
+-- supabase/migrations/20260921080000_death_pronouncement_pathways.sql
+-- (death_pronouncements, mortuary_bodies, mortuary_storage_slots, patient_care_plans, pathway_overrides).
+
+
 
 
 

@@ -36,7 +36,7 @@ export const CANONICAL_HOSPITAL_MODULES = [
   { key: "immunization", label: "Immunization / Paediatrics", status: "DEVELOPMENT" as const, defaultEnabled: false },
   { key: "theatre", label: "Theatre / Surgery", status: "NOT_IMPLEMENTED" as const, defaultEnabled: false },
   { key: "emergency", label: "Emergency", status: "PILOT" as const, defaultEnabled: true },
-  { key: "mortuary", label: "Mortuary", status: "NOT_IMPLEMENTED" as const, defaultEnabled: false },
+  { key: "mortuary", label: "Mortuary", status: "PILOT" as const, defaultEnabled: false },
   { key: "support_ops", label: "Support Operations", status: "DEVELOPMENT" as const, defaultEnabled: false },
   { key: "hr", label: "HR-lite", status: "DEVELOPMENT" as const, defaultEnabled: false },
   { key: "billing", label: "Revenue / Billing", status: "AVAILABLE" as const, defaultEnabled: true },

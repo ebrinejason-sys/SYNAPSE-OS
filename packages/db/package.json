@@ -66,6 +66,8 @@
     "./referral-lifecycle": "./src/referral-lifecycle.ts",
     "./referral-loop": "./src/referral-loop.ts",
     "./clinical-documents": "./src/clinical-documents.ts",
+    "./death-pronouncement": "./src/death-pronouncement.ts",
+    "./mortuary": "./src/mortuary.ts",
     "./clinical-offline-writeup": "./src/clinical-offline-writeup.ts",
     "./clinical-offline-disposition": "./src/clinical-offline-disposition.ts",
     "./clinical-offline-triage": "./src/clinical-offline-triage.ts",

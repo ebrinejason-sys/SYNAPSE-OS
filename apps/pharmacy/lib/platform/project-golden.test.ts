@@ -206,10 +206,31 @@ describe("adapter SDK", () => {
 })
 
 describe("pathways and overlay journey", () => {
-  it("catalogs sepsis, malaria, DKA and pneumonia", () => {
-    expect(PATHWAY_CATALOG.map((item) => item.id).sort()).toEqual(
-      ["pathway.adult-sepsis", "pathway.dka", "pathway.malaria", "pathway.pneumonia"].sort(),
+  it("preserves foundational pathways while allowing the versioned catalog to expand", () => {
+    const ids = PATHWAY_CATALOG.map((item) => item.id)
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        "pathway.adult-sepsis",
+        "pathway.dka",
+        "pathway.malaria",
+        "pathway.pneumonia",
+      ]),
     )
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        "pathway.acs",
+        "pathway.stroke",
+        "pathway.aki",
+        "pathway.snakebite",
+        "pathway.postpartum-hemorrhage",
+      ]),
+    )
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(PATHWAY_CATALOG.every((item) => item.version.length > 0)).toBe(true)
+    expect(PATHWAY_CATALOG.every((item) => item.source?.id && item.source.organization)).toBe(true)
+    expect(PATHWAY_CATALOG.every((item) => item.countryPack.length > 0)).toBe(true)
+    expect(PATHWAY_CATALOG.every((item) => item.effectiveDate && item.reviewDate)).toBe(true)
+    expect(PATHWAY_CATALOG.filter((item) => item.status === "retired")).toHaveLength(0)
   })
 
   it("runs malaria/dka/pneumonia simulations with lab and Rx events", () => {

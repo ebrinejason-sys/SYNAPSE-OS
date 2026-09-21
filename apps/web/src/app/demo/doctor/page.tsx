@@ -22,6 +22,7 @@ import {
   getLabResults,
 } from "../../../lib/demo/browser-repository"
 import { DemoIntelligenceCopilot } from "../../../components/demo/DemoIntelligenceCopilot"
+import { DemoPathwaysPanel } from "../../../components/demo/DemoPathwaysPanel"
 
 type Tab = "history" | "examination" | "assessment" | "investigations" | "results" | "prescriptions" | "disposition"
 
@@ -562,6 +563,16 @@ export default function DoctorDemoPage() {
             medications: currentMedications ? [currentMedications] : undefined,
             allergies: allergies ? [allergies] : undefined,
           }}
+        />
+        <DemoPathwaysPanel
+          patientId={patient.id}
+          encounterId={encounter.id}
+          presentingComplaint={chiefComplaint || encounter.complaint || "Fever and headache for 3 days"}
+          laboratory={labResults.map((row: { testName?: string; value?: string; interpretation?: string }) => ({
+            test: String(row.testName ?? "result"),
+            value: String(row.value ?? ""),
+            flag: row.interpretation === "high" || row.interpretation === "critical" ? "H" : undefined,
+          }))}
         />
 
         {/* Tabs */}

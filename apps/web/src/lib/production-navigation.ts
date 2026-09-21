@@ -30,6 +30,7 @@ export function facilityClinicalNav(slug: string): ProductionNavItem[] {
     { name: "Departments", href: "/hospital/admin/departments" },
     { name: "Facility admin", href: "/hospital/admin" },
     { name: "Referrals", href: "/referrals" },
+    { name: "Mortuary", href: "/mortuary" },
     { name: "Import", href: `/os/${slug}/migrate` },
   ]
 }
@@ -90,6 +91,8 @@ export function doctorWorkspaceTabs(slug?: string | null): ProductionNavItem[] {
     { name: "Orders & billing", href: slug ? `/os/${slug}/clinical/orders` : "/doctor" },
     { name: "Nursing board", href: slug ? `/os/${slug}/clinical/nursing` : "/nurse" },
     { name: "Referrals", href: "/referrals" },
+    { name: "Pathways", href: slug ? `/os/${slug}/encounters/new` : "/doctor" },
+    { name: "Mortuary", href: "/mortuary" },
   ]
 }
 

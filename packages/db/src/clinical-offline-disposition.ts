@@ -13,6 +13,11 @@ import {
 
 export const CLINICAL_DISPOSITION_COMMAND = "clinical.encounter.disposition.v1" as const
 
+/**
+ * Generic offline closeout dispositions.
+ * DECEASED is intentionally excluded: death must go through
+ * clinical.death.pronouncement.v1 (online-only until that command is proven).
+ */
 export const CLINICAL_DISPOSITIONS = [
   "LOCAL_PHARMACY",
   "EXTERNAL_PHARMACY",
@@ -21,6 +26,12 @@ export const CLINICAL_DISPOSITIONS = [
   "REFERRAL",
   "FOLLOW_UP",
   "CLINICAL_COMPLETE",
+  "DISCHARGED",
+  "ADMITTED",
+  "TRANSFERRED",
+  "REFERRED",
+  "AMA",
+  "LEFT_BEFORE_COMPLETION",
 ] as const
 
 export type ClinicalDisposition = (typeof CLINICAL_DISPOSITIONS)[number]
@@ -51,6 +62,9 @@ export async function buildDispositionSyncCommand(input: {
   baseRevision?: number | null
   correlationId?: string | null
 }): Promise<SyncCommand> {
+  if (String(input.disposition) === "DECEASED") {
+    throw new Error("DEATH_REQUIRES_PRONOUNCEMENT_COMMAND")
+  }
   if (!isClinicalDisposition(input.disposition)) {
     throw new Error("INVALID_DISPOSITION")
   }
@@ -94,6 +108,9 @@ export function applyDispositionSyncCommand(
     throw new Error("ENCOUNTER_SIGNED_IMMUTABLE")
   }
   const disposition = String(command.payload.disposition ?? "")
+  if (disposition === "DECEASED") {
+    throw new Error("DEATH_REQUIRES_PRONOUNCEMENT_COMMAND")
+  }
   if (!isClinicalDisposition(disposition)) {
     throw new Error("INVALID_DISPOSITION")
   }

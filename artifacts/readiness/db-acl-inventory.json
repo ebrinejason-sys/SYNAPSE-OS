@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-20T06:19:22.532Z",
-  "security_definer_count": 38,
+  "generated_at": "2026-09-21T06:19:06.099Z",
+  "security_definer_count": 39,
   "public_or_anon_execute_grants": [],
   "unexpected_public_execute": [],
   "status": "PASS",
@@ -157,6 +157,10 @@
     {
       "file": "20260912220000_synapse_remote_migration_head.sql",
       "fn": "public.synapse_remote_migration_head"
+    },
+    {
+      "file": "20260920190000_facility_invitation_new_account_canonical_profile.sql",
+      "fn": "public.accept_facility_invitation_new_account"
     }
   ]
 }

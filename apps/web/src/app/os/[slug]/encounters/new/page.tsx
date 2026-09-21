@@ -2,6 +2,8 @@
 
 import { Suspense, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { ClinicalPathwaysPanel } from "../../../../../components/clinical/ClinicalPathwaysPanel";
+import { DeathPronouncementPanel } from "../../../../../components/clinical/DeathPronouncementPanel";
 
 type Differential = {
   condition: string;
@@ -345,6 +347,8 @@ function NewEncounterInner() {
               >
                 Done — view orders & timeline
               </button>
+              <ClinicalPathwaysPanel encounterId={encounterId} patientId={patientId} presentingComplaint={complaint} />
+              <DeathPronouncementPanel encounterId={encounterId} patientId={patientId} />
             </div>
           ) : null}
         </div>
