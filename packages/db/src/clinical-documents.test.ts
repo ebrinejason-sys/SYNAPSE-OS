@@ -71,4 +71,10 @@ describe("clinical documents engine", () => {
       /DOCUMENT_IMMUTABLE/,
     )
   })
+
+  it("supports death and mortuary document types through the same immutable engine", () => {
+    const doc = createClinicalDocument({ ...base, documentType: "DEATH_PRONOUNCEMENT", renderedSnapshot: "Pronounced EXACT" })
+    const signed = signClinicalDocument(doc, { signedBy: base.authorId })
+    assert.throws(() => assertDocumentMutable(signed), /DOCUMENT_IMMUTABLE/)
+  })
 })

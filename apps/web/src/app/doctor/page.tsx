@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { OpdQueuePanel } from '../../components/clinical/OpdQueuePanel'
+import { ClinicalPathwaysPanel } from '../../components/clinical/ClinicalPathwaysPanel'
 import { doctorWorkspaceTabs } from '../../lib/production-navigation'
 
 type MeUser = { tenantSlug?: string; role?: string; fullName?: string }
@@ -62,6 +63,7 @@ export default function DoctorWorkspacePage() {
       {slug ? (
         <div className="mt-6">
           <OpdQueuePanel slug={slug} />
+          <ClinicalPathwaysPanel />
         </div>
       ) : null}
     </main>

@@ -21,6 +21,13 @@ export const CLINICAL_DISPOSITIONS = [
   "REFERRAL",
   "FOLLOW_UP",
   "CLINICAL_COMPLETE",
+  "DISCHARGED",
+  "ADMITTED",
+  "TRANSFERRED",
+  "REFERRED",
+  "DECEASED",
+  "AMA",
+  "LEFT_BEFORE_COMPLETION",
 ] as const
 
 export type ClinicalDisposition = (typeof CLINICAL_DISPOSITIONS)[number]

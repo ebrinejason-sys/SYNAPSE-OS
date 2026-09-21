@@ -2,7 +2,7 @@
 
 /** Local-only synthetic playground storage. This module never calls Supabase. */
 export const DEMO_DB_NAME = "synapse-demo-playground"
-export const DEMO_DB_VERSION = 3
+export const DEMO_DB_VERSION = 4
 export const DEMO_STORES = [
   "facilities", 
   "users", 
@@ -31,6 +31,9 @@ export const DEMO_STORES = [
   "sync_queue", 
   "audit",
   "intelligence_decisions",
+  "care_plans",
+  "death_pronouncements",
+  "mortuary_bodies",
 ] as const
 export type DemoStore = typeof DEMO_STORES[number]
 export type DemoState = Partial<Record<DemoStore, unknown[]>>
@@ -39,7 +42,28 @@ import { assertDemoPermission, currentDemoRole } from "./entities"
 const now = () => new Date().toISOString()
 async function put<T>(store: DemoStore, value: T) { const db = await openDb(); await new Promise<void>((resolve, reject) => { const tx = db.transaction(store, "readwrite"); tx.objectStore(store).put(value); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error) }); db.close(); return value }
 async function all<T>(store: DemoStore): Promise<T[]> { const db = await openDb(); return await new Promise<T[]>((resolve, reject) => { const r = db.transaction(store, "readonly").objectStore(store).getAll(); r.onsuccess = () => { db.close(); resolve(r.result as T[]) }; r.onerror = () => reject(r.error) }) }
-export async function initializePlayground() { await openDb(); if ((await all("persons")).length === 0) await resetDemoPlayground() }
+export async function initializePlayground() {
+  await openDb()
+  const persons = await all<DemoPerson>("persons")
+  if (persons.length === 0) {
+    await resetDemoPlayground()
+    return
+  }
+  if (!persons.some((row) => row.id === "demo-person-joseph")) {
+    await put<DemoPerson>("persons", {
+      id: "demo-person-joseph",
+      name: "Joseph Demo",
+      synapseId: "SYN-UG-DEMO-0002",
+      dateOfBirth: "1948-11-02",
+      sex: "male",
+      phone: "+256700000002",
+      address: "Demo District, Kampala",
+      synthetic: true,
+      createdAt: now(),
+      updatedAt: now(),
+    })
+  }
+}
 export const getFacilities = () => all<DemoFacility>("facilities")
 export const getUsers = () => all<DemoUser>("users")
 export const getPersons = () => all<DemoPerson>("persons")
@@ -138,6 +162,59 @@ export async function saveIntelligenceDecision(input: Omit<DemoIntelligenceDecis
 }
 
 export const getIntelligenceDecisions = () => all<DemoIntelligenceDecision>("intelligence_decisions")
+
+export type DemoCarePlan = {
+  id: string
+  patientId: string
+  encounterId: string
+  pathwayId: string
+  pathwayVersion: string
+  status: "active" | "completed" | "overridden" | "abandoned"
+  currentStep: string
+  recommendedAction: string
+  actualAction: string | null
+  overrideReason: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type DemoDeathPronouncement = {
+  id: string
+  personId: string
+  encounterId: string
+  precision: "EXACT" | "ESTIMATED" | "UNKNOWN"
+  deathDateTime: string | null
+  deathTimeText: string | null
+  pronouncedBy: string
+  nextOfKinNotified: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type DemoMortuaryBody = {
+  id: string
+  pronouncementId: string
+  bodyNumber: string
+  tagCode: string
+  status: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export const getDemoCarePlans = () => all<DemoCarePlan>("care_plans")
+export const saveDemoCarePlan = (plan: DemoCarePlan) => put<DemoCarePlan>("care_plans", { ...plan, createdAt: plan.createdAt ?? now(), updatedAt: now() })
+export async function completeDemoCarePlanStep(id: string, actualAction: string) {
+  const plan = (await getDemoCarePlans()).find((row) => row.id === id)
+  if (!plan) throw new Error("CARE_PLAN_NOT_FOUND")
+  return saveDemoCarePlan({ ...plan, status: "completed", actualAction, currentStep: "outcome" })
+}
+export async function overrideDemoCarePlanStep(id: string, actualAction: string, reason: string) {
+  const plan = (await getDemoCarePlans()).find((row) => row.id === id)
+  if (!plan) throw new Error("CARE_PLAN_NOT_FOUND")
+  return saveDemoCarePlan({ ...plan, status: "overridden", actualAction, overrideReason: reason })
+}
+export const saveDemoDeathPronouncement = (row: DemoDeathPronouncement) => put<DemoDeathPronouncement>("death_pronouncements", { ...row, createdAt: row.createdAt ?? now(), updatedAt: now() })
+export const saveDemoMortuaryBody = (row: DemoMortuaryBody) => put<DemoMortuaryBody>("mortuary_bodies", { ...row, createdAt: row.createdAt ?? now(), updatedAt: now() })
 
 // Clinical workflow
 export const createDiagnosis = async (input: Omit<DemoDiagnosis, "id"|"createdAt"|"updatedAt">) => {
@@ -279,6 +356,18 @@ const seed: DemoState = {
       synthetic: true,
       createdAt: now(),
       updatedAt: now()
+    },
+    {
+      id: "demo-person-joseph",
+      name: "Joseph Demo",
+      synapseId: "SYN-UG-DEMO-0002",
+      dateOfBirth: "1948-11-02",
+      sex: "male",
+      phone: "+256700000002",
+      address: "Demo District, Kampala",
+      synthetic: true,
+      createdAt: now(),
+      updatedAt: now()
     }
   ],
   inventory: [
@@ -317,6 +406,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (oldVersion < 3) {
         console.log("[Demo DB] Upgraded to v3: added intelligence_decisions")
+      }
+      if (oldVersion < 4) {
+        console.log("[Demo DB] Upgraded to v4: added care_plans, death_pronouncements, mortuary_bodies")
       }
     }
     request.onsuccess = () => resolve(request.result)

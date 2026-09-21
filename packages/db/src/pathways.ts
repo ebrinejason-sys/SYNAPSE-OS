@@ -4,6 +4,8 @@
  * Overrides never auto-retrain AI.
  */
 
+import { EXPANDED_PATHWAYS } from "./pathways-catalog"
+
 export type GuidelineSource = {
   id: string
   name: string
@@ -18,7 +20,9 @@ export type PathwayActionKind =
   | "lab_order"
   | "imaging_order"
   | "medication"
+  | "procedure"
   | "monitoring"
+  | "referral"
   | "escalation"
   | "outcome"
 
@@ -471,12 +475,130 @@ export const PATHWAY_CATALOG: ClinicalPathwayDefinition[] = [
   MALARIA_PATHWAY,
   DKA_PATHWAY,
   PNEUMONIA_PATHWAY,
+  ...EXPANDED_PATHWAYS,
 ]
 
+export function listPathways(params?: { countryPack?: string; status?: ClinicalPathwayDefinition["status"] }): ClinicalPathwayDefinition[] {
+  return PATHWAY_CATALOG.filter((item) => {
+    if (params?.countryPack && item.countryPack !== params.countryPack) return false
+    if (params?.status && item.status !== params.status) return false
+    return true
+  })
+}
+
 export function getPathway(id: string, version?: string): ClinicalPathwayDefinition {
-  const found = PATHWAY_CATALOG.find((item) => item.id === id && (!version || item.version === version))
+  if (version) {
+    const found = PATHWAY_CATALOG.find((item) => item.id === id && item.version === version)
+    if (!found) throw new Error("PATHWAY_NOT_FOUND")
+    return found
+  }
+  const active = PATHWAY_CATALOG.find((item) => item.id === id && item.status === "active")
+  if (active) return active
+  const found = PATHWAY_CATALOG.find((item) => item.id === id)
   if (!found) throw new Error("PATHWAY_NOT_FOUND")
   return found
+}
+
+export function retirePathway(definition: ClinicalPathwayDefinition): ClinicalPathwayDefinition {
+  return { ...definition, status: "retired" }
+}
+
+export function assertClinicianActivatesPathway(actor: { kind: "clinician" | "ai" }): void {
+  if (actor.kind === "ai") throw new Error("PATHWAY_AI_CANNOT_ACTIVATE")
+}
+
+export function assertClinicianPlacesOrder(actor: { kind: "clinician" | "ai" }): void {
+  if (actor.kind === "ai") throw new Error("PATHWAY_AI_CANNOT_ORDER")
+}
+
+export type PathwaySuggestion = {
+  pathwayId: string
+  pathwayName: string
+  version: string
+  source: string
+  why: string
+  keyTrigger: string
+}
+
+export function suggestPathwaysFromContext(input: {
+  presentingComplaint?: string
+  vitals?: Record<string, number | string | undefined>
+  diagnoses?: string[]
+  laboratory?: Array<{ test: string; value: string; flag?: string }>
+  assessment?: string
+  countryPack?: string
+}): PathwaySuggestion[] {
+  const hay = [
+    input.presentingComplaint,
+    input.assessment,
+    ...(input.diagnoses ?? []),
+    ...(input.laboratory ?? []).map((row) => `${row.test} ${row.value} ${row.flag ?? ""}`),
+    input.vitals ? Object.entries(input.vitals).map(([key, value]) => `${key} ${value}`).join(" ") : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+  const catalog = listPathways({ countryPack: input.countryPack, status: "active" })
+  const suggestions: PathwaySuggestion[] = []
+  for (const pathway of catalog) {
+    const hit = pathway.triggers.find((trigger) => {
+      const needle = trigger.replaceAll("_", " ").toLowerCase()
+      return hay.includes(needle) || hay.includes(trigger.toLowerCase())
+    })
+    if (!hit) continue
+    suggestions.push({
+      pathwayId: pathway.id,
+      pathwayName: pathway.name,
+      version: pathway.version,
+      source: `${pathway.source.organization} · ${pathway.source.version}`,
+      why: `Matched clinical context against ${pathway.name}. Suggestion only — clinician chooses activation.`,
+      keyTrigger: hit,
+    })
+  }
+  const labs = (input.laboratory ?? []).map((row) => `${row.test} ${row.value} ${row.flag ?? ""}`.toLowerCase())
+  if (labs.some((row) => /malaria/.test(row) && /positive|detected|\+/.test(row))) {
+    const severe = /prostration|convuls|severe|acidosis/.test(hay)
+    const target = catalog.find((item) => item.id === (severe ? "pathway.severe-malaria" : "pathway.malaria"))
+    if (target && !suggestions.some((row) => row.pathwayId === target.id)) {
+      suggestions.unshift({
+        pathwayId: target.id,
+        pathwayName: target.name,
+        version: target.version,
+        source: `${target.source.organization} · ${target.source.version}`,
+        why: "Released malaria-positive result. Suggestion only.",
+        keyTrigger: "malaria_positive",
+      })
+    }
+  }
+  if (labs.some((row) => /creatinine|potassium|k\+/.test(row) && /h|high|critical/.test(row))) {
+    const aki = catalog.find((item) => item.id === "pathway.aki")
+    if (aki && !suggestions.some((row) => row.pathwayId === aki.id)) {
+      suggestions.push({
+        pathwayId: aki.id,
+        pathwayName: aki.name,
+        version: aki.version,
+        source: `${aki.source.organization} · ${aki.source.version}`,
+        why: "Severe electrolyte/renal pattern. Suggestion only.",
+        keyTrigger: "raised_creatinine",
+      })
+    }
+  }
+  const infection = /fever|infection|tachycardia/.test(hay)
+  const hypotensive = Number(input.vitals?.sbp ?? input.vitals?.bp_systolic ?? 999) < 100 || /hypotens/.test(hay)
+  if (infection && hypotensive) {
+    const sepsis = catalog.find((item) => item.id === "pathway.adult-sepsis")
+    if (sepsis && !suggestions.some((row) => row.pathwayId === sepsis.id)) {
+      suggestions.unshift({
+        pathwayId: sepsis.id,
+        pathwayName: sepsis.name,
+        version: sepsis.version,
+        source: `${sepsis.source.organization} · ${sepsis.source.version}`,
+        why: "Infection pattern plus abnormal vitals. Suggestion only.",
+        keyTrigger: "suspected_infection",
+      })
+    }
+  }
+  return suggestions
 }
 
 export function instantiateCarePlan(params: {
@@ -606,6 +728,16 @@ export class PathwayRuntime {
       plan.status = "completed"
       plan.completedAt = new Date().toISOString()
     }
+    return plan
+  }
+
+  abandon(carePlanId: string, reason: string): PatientCarePlan {
+    if (!reason.trim()) throw new Error("ABANDON_REASON_REQUIRED")
+    const plan = this.get(carePlanId)
+    if (plan.status !== "active") throw new Error("CARE_PLAN_NOT_ACTIVE")
+    plan.status = "abandoned"
+    plan.outcome = reason.trim()
+    plan.completedAt = new Date().toISOString()
     return plan
   }
 

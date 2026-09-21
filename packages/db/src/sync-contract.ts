@@ -31,6 +31,10 @@ export const SYNC_COMMAND_TYPES = [
   "clinical.encounter.prescribe.v1",
   /** Facility-side queued aggregate export; payload must already be privacy-gated */
   "public_health.dhis2_export.v1",
+  /** Offline death pronouncement; applied with idempotent replay */
+  "clinical.death.pronouncement.v1",
+  /** Offline mortuary custody transition; duplicate transitions are rejected */
+  "mortuary.body.transition.v1",
 ] as const
 
 export type SyncCommandType = (typeof SYNC_COMMAND_TYPES)[number]
@@ -42,6 +46,8 @@ export const SYNC_AGGREGATE_TYPES = [
   "person",
   "encounter",
   "dhis2_export_job",
+  "death_pronouncement",
+  "mortuary_body",
 ] as const
 
 export type SyncAggregateType = (typeof SYNC_AGGREGATE_TYPES)[number]
@@ -185,8 +191,11 @@ export function conflictPolicyFor(commandType: string): SyncConflictPolicy {
   if (commandType.startsWith("pharmacy.sale.") || commandType.startsWith("pharmacy.stock.")) {
     return "idempotent_replay"
   }
-  if (commandType.startsWith("clinical.encounter.")) {
+  if (commandType.startsWith("clinical.encounter.") || commandType.startsWith("clinical.death.")) {
     return "idempotent_replay"
+  }
+  if (commandType.startsWith("mortuary.")) {
+    return "human_review"
   }
   if (commandType.startsWith("identity.")) return "human_review"
   return "reject_stale"

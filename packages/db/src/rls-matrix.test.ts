@@ -49,6 +49,9 @@ export const RLS_MATRIX = [
   { table: "lab_devices", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: true, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
   { table: "lab_device_messages", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: false, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
   { table: "lab_result_staging", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: true, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
+  { table: "death_pronouncements", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: true, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
+  { table: "mortuary_bodies", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: true, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
+  { table: "patient_care_plans", anonymous: { select: false, insert: false, update: false, delete: false }, tenantA: { select: true, insert: true, update: true, delete: false }, tenantB: { select: false, insert: false, update: false, delete: false }, platformAdmin: { select: false, insert: false, update: false, delete: false } },
 ]
 
 describe("RLS tenancy matrix contract", () => {
@@ -131,5 +134,19 @@ describe("lab device intelligence tenancy", () => {
     assert.match(sql, /idx_lab_instrument_bridges_hash_unique/)
     assert.match(sql, /SET api_key = NULL/)
     assert.match(sql, /api_key_hash IS NOT NULL/)
+  })
+})
+
+describe("death pronouncement and mortuary tenancy", () => {
+  it("enables RLS on death, mortuary, and care-plan tables", () => {
+    const sql = readFileSync(
+      join(root, "supabase/migrations/20260921080000_death_pronouncement_pathways.sql"),
+      "utf8",
+    )
+    assert.match(sql, /ALTER TABLE public\.death_pronouncements ENABLE ROW LEVEL SECURITY/)
+    assert.match(sql, /ALTER TABLE public\.mortuary_bodies ENABLE ROW LEVEL SECURITY/)
+    assert.match(sql, /ALTER TABLE public\.patient_care_plans ENABLE ROW LEVEL SECURITY/)
+    assert.match(sql, /PRONOUNCEMENT_IMMUTABLE/)
+    assert.match(sql, /idx_mortuary_bodies_active_slot/)
   })
 })

@@ -19,6 +19,8 @@ export * from "./audit-contract";
 export * from "./exchange";
 export * from "./lab-workflow";
 export * from "./pathways";
+export * from "./death-pronouncement";
+export * from "./mortuary";
 export * from "./simulation";
 export * from "./prescription-bridge";
 export * from "./identity-crosswalk";

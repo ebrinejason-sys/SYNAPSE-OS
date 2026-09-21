@@ -7,7 +7,7 @@ import { requireHospitalStaffContext } from '@/lib/hospital-dept'
 import { clinicalActionTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
 
-const DISPOSITIONS = ['LOCAL_PHARMACY', 'EXTERNAL_PHARMACY', 'NO_MEDICATION', 'FURTHER_LAB', 'REFERRAL', 'FOLLOW_UP', 'CLINICAL_COMPLETE'] as const
+const DISPOSITIONS = ['LOCAL_PHARMACY', 'EXTERNAL_PHARMACY', 'NO_MEDICATION', 'FURTHER_LAB', 'REFERRAL', 'FOLLOW_UP', 'CLINICAL_COMPLETE', 'DISCHARGED', 'ADMITTED', 'TRANSFERRED', 'REFERRED', 'DECEASED', 'AMA', 'LEFT_BEFORE_COMPLETION'] as const
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -17,9 +17,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (cap) return cap
   const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, 'opd')
   if (moduleBlock) return moduleBlock
-  const body = await req.json().catch(() => null) as { disposition?: string; reason?: string } | null
+  const body = await req.json().catch(() => null) as { disposition?: string; reason?: string; pronouncement_id?: string } | null
   const disposition = body?.disposition
   if (!disposition || !DISPOSITIONS.includes(disposition as typeof DISPOSITIONS[number])) return NextResponse.json({ error: 'Valid disposition is required' }, { status: 400 })
+  if (disposition === 'DECEASED' && !body?.pronouncement_id) {
+    return NextResponse.json({ error: 'DECEASED disposition requires a pronouncement record' }, { status: 409 })
+  }
   const { id: encounterId } = await params
   const db = supabaseAdmin as any
   const { data: encounter } = await db.from('encounters').select('id, tenant_id, hospital_id, patient_id, disposition').eq('id', encounterId).eq('tenant_id', ctx.tenantId).maybeSingle()

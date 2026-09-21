@@ -14,6 +14,13 @@ export const INTELLIGENCE_FORBIDDEN_ACTIONS = [
   "release_lab_result",
   "dispense_medication",
   "submit_insurance_claim",
+  "pronounce_death",
+  "certify_death",
+  "release_body",
+  "activate_pathway",
+  "place_order",
+  "prescribe",
+  "sign",
 ] as const
 
 export const INTELLIGENCE_TASKS = [
@@ -105,9 +112,29 @@ export type DifferentialProposal = {
 
 export const PATHWAY_TERM_MAP: Array<{ pattern: RegExp; pathwayId: string }> = [
   { pattern: /sepsis|septic shock|qsofa/i, pathwayId: "pathway.adult-sepsis" },
+  { pattern: /severe malaria|prostration|artesunate/i, pathwayId: "pathway.severe-malaria" },
   { pattern: /malaria|falciparum|plasmodium/i, pathwayId: "pathway.malaria" },
   { pattern: /ketoacidosis|\bdka\b|diabetic keto/i, pathwayId: "pathway.dka" },
   { pattern: /pneumonia|hypox/i, pathwayId: "pathway.pneumonia" },
+  { pattern: /hypertensive emergency|encephalopath/i, pathwayId: "pathway.hypertensive-emergency" },
+  { pattern: /acute coronary|stemi|nstemi|troponin/i, pathwayId: "pathway.acs" },
+  { pattern: /stroke|hemiparesis|facial droop/i, pathwayId: "pathway.stroke" },
+  { pattern: /asthma/i, pathwayId: "pathway.asthma-exacerbation" },
+  { pattern: /\bcopd\b/i, pathwayId: "pathway.copd-exacerbation" },
+  { pattern: /heart failure|pulmonary oedema|pulmonary edema/i, pathwayId: "pathway.acute-heart-failure" },
+  { pattern: /\baki\b|acute kidney|hyperkalaem/i, pathwayId: "pathway.aki" },
+  { pattern: /meningitis|neck stiffness|photophobia/i, pathwayId: "pathway.meningitis" },
+  { pattern: /haematemesis|hematemesis|melaena|melena|gi bleed/i, pathwayId: "pathway.upper-gi-bleed" },
+  { pattern: /poison|organophosphate|toxin/i, pathwayId: "pathway.poisoning" },
+  { pattern: /snakebite|snake bite|envenom/i, pathwayId: "pathway.snakebite" },
+  { pattern: /trauma|rta|gunshot|stab/i, pathwayId: "pathway.trauma" },
+  { pattern: /\btb\b|tuberculosis/i, pathwayId: "pathway.tuberculosis" },
+  { pattern: /\bhiv\b|antiretroviral/i, pathwayId: "pathway.hiv" },
+  { pattern: /anaemia|anemia|pallor/i, pathwayId: "pathway.anaemia" },
+  { pattern: /neonat|newborn|asphyxia/i, pathwayId: "pathway.neonatal-emergency" },
+  { pattern: /obstetric h(ae)?morrhage|antepartum bleed/i, pathwayId: "pathway.obstetric-hemorrhage" },
+  { pattern: /pre-?eclampsia|eclampsia/i, pathwayId: "pathway.pre-eclampsia" },
+  { pattern: /postpartum h(ae)?morrhage|\bpph\b/i, pathwayId: "pathway.postpartum-hemorrhage" },
 ]
 
 export function suggestPathway(terms: string[]): string | null {

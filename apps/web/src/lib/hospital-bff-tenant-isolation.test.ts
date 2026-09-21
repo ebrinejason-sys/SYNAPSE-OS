@@ -36,6 +36,9 @@ describe("hospital BFF explicit tenant filters", () => {
     "apps/web/src/app/api/patient/consent/route.ts",
     "apps/web/src/app/api/lab/instruments/route.ts",
     "apps/web/src/app/api/lab/interpretation/route.ts",
+    "apps/web/src/app/api/clinical/death-pronouncements/route.ts",
+    "apps/web/src/app/api/mortuary/bodies/route.ts",
+    "apps/web/src/app/api/clinical/pathways/care-plans/route.ts",
   ]
 
   it("scopes representative hospital healthcare queries by ctx.tenantId", () => {

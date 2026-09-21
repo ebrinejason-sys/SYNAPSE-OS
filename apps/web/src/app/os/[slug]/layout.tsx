@@ -40,7 +40,7 @@ export default async function PortalLayout({
     if (role === "nurse") return ["OPD queue", "Nursing", "My Work"].includes(label);
     if (role === "doctor" || role === "clinical_officer") return ["OPD queue", "Billing", "My Work", "Referrals"].includes(label);
     if (["lab_tech", "lab_scientist", "lab_admin", "lab_supervisor"].includes(role)) return ["Lab worklist", "Analyzer staging", "Instruments", "Analyzer mappings", "Specimens", "Results", "Verification", "My Work"].includes(label);
-    if (role === "hospital_admin" || role === "facility_admin") return ["Lab worklist", "Analyzer staging", "Instruments", "Analyzer mappings", "Specimens", "Results", "Verification", "People", "Departments", "Facility admin", "My Work"].includes(label);
+    if (role === "hospital_admin" || role === "facility_admin") return ["Lab worklist", "Analyzer staging", "Instruments", "Analyzer mappings", "Specimens", "Results", "Verification", "People", "Departments", "Facility admin", "Mortuary", "My Work"].includes(label);
     if (role.startsWith("pharmacy")) return ["Dispense"].includes(label);
     return true;
   });

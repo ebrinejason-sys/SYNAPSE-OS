@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-20T06:19:22.218Z",
+  "generated_at": "2026-09-21T05:20:15.124Z",
   "routes": [
     {
       "route": "/",
@@ -692,6 +692,11 @@
       "classification": "ACTIVE"
     },
     {
+      "route": "/mortuary",
+      "source_file": "apps/web/src/app/mortuary/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
       "route": "/nurse",
       "source_file": "apps/web/src/app/nurse/page.tsx",
       "classification": "ACTIVE"
@@ -859,7 +864,7 @@
     {
       "route": "/patient/consent",
       "source_file": "apps/web/src/app/patient/consent/page.tsx",
-      "classification": "ROADMAP"
+      "classification": "FEATURE_GATED"
     },
     {
       "route": "/patient/dashboard",
@@ -1269,6 +1274,11 @@
     {
       "route": "/referrals/[id]",
       "source_file": "apps/web/src/app/referrals/[id]/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/referrals/[id]/letter",
+      "source_file": "apps/web/src/app/referrals/[id]/letter/page.tsx",
       "classification": "ACTIVE"
     },
     {

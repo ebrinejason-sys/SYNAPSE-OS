@@ -449,3 +449,58 @@ export function clinicalActionTimelineEvent(params: {
     createdBy: params.createdBy,
   }
 }
+
+export function deathPronouncedTimelineEvent(params: {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  encounterId: string
+  pronouncementId: string
+  precision: string
+  createdBy: string
+}): TimelineEventInput {
+  return clinicalActionTimelineEvent({
+    ...params,
+    sourceTable: "death_pronouncements",
+    sourceId: params.pronouncementId,
+    title: "Death pronounced",
+    summary: `Time precision ${params.precision}`,
+    tags: ["death", "pronouncement"],
+  })
+}
+
+export function nextOfKinTimelineEvent(params: {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  encounterId: string
+  pronouncementId: string
+  createdBy: string
+}): TimelineEventInput {
+  return clinicalActionTimelineEvent({
+    ...params,
+    sourceTable: "death_pronouncements",
+    sourceId: params.pronouncementId,
+    title: "Next of kin notified",
+    summary: "Notification recorded",
+    tags: ["death", "next_of_kin"],
+  })
+}
+
+export function mortuaryTransferTimelineEvent(params: {
+  tenantId: string
+  hospitalId: string
+  patientId: string
+  encounterId: string
+  bodyId: string
+  createdBy: string
+}): TimelineEventInput {
+  return clinicalActionTimelineEvent({
+    ...params,
+    sourceTable: "mortuary_bodies",
+    sourceId: params.bodyId,
+    title: "Mortuary transfer",
+    summary: "Body transferred to mortuary custody",
+    tags: ["death", "mortuary"],
+  })
+}
