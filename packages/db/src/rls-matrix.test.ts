@@ -149,4 +149,16 @@ describe("death pronouncement and mortuary tenancy", () => {
     assert.match(sql, /PRONOUNCEMENT_IMMUTABLE/)
     assert.match(sql, /idx_mortuary_bodies_active_slot/)
   })
+
+  it("locks identity and pronouncement facts when next-of-kin or document FKs change", () => {
+    const sql = readFileSync(
+      join(root, "supabase/migrations/20260921090000_death_pronouncement_signed_column_lock.sql"),
+      "utf8",
+    )
+    assert.match(sql, /CREATE OR REPLACE FUNCTION public\.death_pronouncements_protect_signed/)
+    assert.match(sql, /NEW\.tenant_id IS DISTINCT FROM OLD\.tenant_id/)
+    assert.match(sql, /NEW\.findings IS DISTINCT FROM OLD\.findings/)
+    assert.match(sql, /NEW\.status IS NOT DISTINCT FROM OLD\.status/)
+    assert.doesNotMatch(sql, /RETURN NEW;\s*END IF;\s*IF NEW\.pronouncement_document_id/)
+  })
 })
