@@ -13,6 +13,7 @@
     "./comparison": "./src/comparison-matrix.ts",
     "./deployment-modes": "./src/deployment-modes.ts",
     "./theme": "./src/theme.ts",
+    "./company": "./src/company.ts",
     "./typography.css": "./typography.css"
   },
   "devDependencies": {

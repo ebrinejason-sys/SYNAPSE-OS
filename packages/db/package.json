@@ -73,7 +73,9 @@
     "./clinical-offline-triage": "./src/clinical-offline-triage.ts",
     "./clinical-offline-prescribe": "./src/clinical-offline-prescribe.ts",
     "./ehr-continuity-golden": "./src/ehr-continuity-golden.ts",
-    "./pharmacy-purchases": "./src/pharmacy-purchases.ts"
+    "./pharmacy-purchases": "./src/pharmacy-purchases.ts",
+    "./commercial-pricing": "./src/commercial-pricing.ts",
+    "./commercial-crm": "./src/commercial-crm.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",
