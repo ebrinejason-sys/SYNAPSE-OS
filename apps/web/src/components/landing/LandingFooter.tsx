@@ -1,23 +1,26 @@
 import Link from 'next/link'
 import { SynapseLogo } from '../SynapseLogo'
+import { COMPANY, PUBLIC_CONTACT_EMAIL } from '@synapse/config/company'
 
 const FOOTER_LINKS = {
   Product: [
-    { href: 'https://pharm.synapseos.tech', label: 'Synapse Pharm' },
-    { href: '/download/android', label: 'Android APK' },
-    { href: '/docs', label: 'Documentation' },
+    { href: '/products/os', label: 'SYNAPSE OS' },
+    { href: '/products/pharmacy', label: 'SYNAPSE Pharmacy' },
+    { href: '/products/lab', label: 'SYNAPSE Lab' },
+    { href: '/pricing', label: 'Pricing' },
+    { href: COMPANY.domains.pharmacy, label: 'Pharmacy app' },
+    { href: COMPANY.domains.lab, label: 'Lab product' },
     { href: '/status', label: 'Status' },
-    { href: '/changelog', label: 'Changelog' },
-    { href: '/download', label: 'Patient app' },
   ],
   Company: [
-    { href: '/apply', label: 'Apply for pilot' },
-    { href: '/contact', label: 'Contact us' },
+    { href: '/book-meeting', label: 'Book a Meeting' },
+    { href: '/contact', label: 'Contact' },
     { href: '/careers', label: 'Careers' },
+    { href: '/about', label: 'About' },
   ],
   Legal: [
     { href: '/legal/privacy', label: 'Privacy' },
-    { href: '/legal', label: 'Terms' },
+    { href: '/legal/terms', label: 'Terms' },
     { href: '/legal/dpa', label: 'Data processing' },
   ],
 } as const
@@ -30,38 +33,47 @@ export function LandingFooter() {
           <div>
             <SynapseLogo size="sm" className="mb-4" />
             <p className="max-w-xs text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              Hospital information system, pharmacy POS, and patient access, built in Kampala for East
-              African care delivery.
+              {COMPANY.tagline}
             </p>
             <p className="mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>
-              Synapse Health Technologies Ltd · Kampala, Uganda
+              {COMPANY.legalName} · {COMPANY.location}
             </p>
+            <a
+              href={`mailto:${PUBLIC_CONTACT_EMAIL}`}
+              className="mt-3 inline-block text-sm"
+              style={{ color: 'var(--brand-orange)' }}
+            >
+              {PUBLIC_CONTACT_EMAIL}
+            </a>
           </div>
 
-          {(Object.entries(FOOTER_LINKS) as [keyof typeof FOOTER_LINKS, typeof FOOTER_LINKS[keyof typeof FOOTER_LINKS]][]).map(
-            ([group, links]) => (
-              <div key={group}>
-                <p className="landing-footer-heading">{group}</p>
-                <ul className="space-y-2.5">
-                  {links.map((link) => (
-                    <li key={link.label}>
-                      <Link href={link.href} className="landing-footer-link">
-                        {link.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ),
-          )}
+          {(
+            Object.entries(FOOTER_LINKS) as [
+              keyof typeof FOOTER_LINKS,
+              (typeof FOOTER_LINKS)[keyof typeof FOOTER_LINKS],
+            ][]
+          ).map(([group, links]) => (
+            <div key={group}>
+              <p className="landing-footer-heading">{group}</p>
+              <ul className="space-y-2.5">
+                {links.map((link) => (
+                  <li key={link.label}>
+                    <Link href={link.href} className="landing-footer-link">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
         <div className="landing-footer-bar">
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            © {new Date().getFullYear()} Synapse Health Technologies Ltd. All rights reserved.
+            © {new Date().getFullYear()} {COMPANY.legalName}. All rights reserved.
           </p>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Standards-aligned design · ICD-11 · DPPA 2019
+            Built for African healthcare environments · ICD-11 · FHIR-oriented APIs
           </p>
         </div>
       </div>

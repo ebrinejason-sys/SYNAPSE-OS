@@ -359,6 +359,29 @@ export async function middleware(request: NextRequest) {
     return rewrite(url);
   }
 
+  // ── LAB subdomain: product marketing + lab workspace entry ───────
+  // Authenticated lab workspaces remain under facility hosts / /lab/* routes.
+  // lab.synapseos.tech is the canonical Lab product surface (marketing + login CTA).
+  if (subdomain === "lab") {
+    if (pathname === "/api" || pathname.startsWith("/api/")) return next();
+    if (pathname === "/login" || pathname.startsWith("/invite/")) return next();
+    if (pathname.startsWith("/products/lab") || pathname.startsWith("/book-meeting") || pathname.startsWith("/pricing") || pathname.startsWith("/contact")) {
+      return next();
+    }
+    if (pathname === "/" || pathname === "") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/products/lab";
+      return rewrite(url);
+    }
+    // Do not rewrite authenticated clinical /lab/* tools onto the product host.
+    if (pathname === "/lab" || pathname.startsWith("/lab/")) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/products/lab";
+      return NextResponse.redirect(url);
+    }
+    return next();
+  }
+
   // ── PHARM subdomain: standalone pharmacy app ─────────────────────
   if (subdomain === "pharm") {
     // OS health/ready APIs are not Pharmacy portal pages.

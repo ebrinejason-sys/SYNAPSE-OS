@@ -71,7 +71,7 @@ export const resend = {
   },
 }
 
-export const NOTIFY_EMAILS = ['ebrinetushabe@gmail.com', 'nathandavid762@gmail.com']
+export const NOTIFY_EMAILS = ['synapseostech@gmail.com']
 export const FROM_EMAIL    = process.env.RESEND_FROM_EMAIL ?? 'noreply@synapseos.tech'
 export const FROM_NAME     = 'Synapse OS'
 export const MAILING_ADDRESS = "Ebrine's Residence; Katuuso Cresecent; Buziga"

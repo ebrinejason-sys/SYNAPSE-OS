@@ -17,6 +17,14 @@ import type { ComparisonCell } from '@synapse/config/gates'
 import { INTEGRATIONS } from '@synapse/config/manifest'
 import { Eyebrow, LeadText, SectionHeading } from '../components/typography'
 
+import { COMPANY, PUBLIC_CONTACT_EMAIL } from '@synapse/config/company'
+import {
+  CANONICAL_PLAN_SLUGS,
+  FALLBACK_PUBLIC_PLANS,
+  findPlanBySlug,
+  formatUgxAnnual,
+} from '@synapse/db/commercial-pricing'
+
 const MODULES = [
   { abbr: 'OPD', name: 'OPD / Consultation', desc: 'Queue, consultation notes, fee schedules' },
   { abbr: 'A&E', name: 'Emergency A&E', desc: 'ESI triage, START, resuscitation records' },
@@ -59,101 +67,17 @@ const DEPLOY_STEPS = [
   },
 ]
 
-const TIERS = [
-  {
-    name: 'Trial',
-    price: 'Free',
-    period: '30 days',
-    description: 'Evaluate the platform with one department and a small staff group.',
-    highlight: false,
-    badge: null,
-    features: ['1 department', 'Up to 10 staff', 'Core AI diagnosis', 'Community support'],
-    cta: 'Start trial',
-    ctaHref: '/signup?plan=trial',
-  },
-  {
-    name: 'Starter',
-    price: 'UGX 250,000',
-    period: '/month',
-    description: 'Small clinics and health centres.',
-    highlight: false,
-    badge: null,
-    features: ['3 departments', 'Up to 25 staff', 'Full AI diagnosis', 'Basic insurance copilot', 'Email support'],
-    cta: 'Subscribe',
-    ctaHref: '/signup?plan=starter',
-  },
-  {
-    name: 'Professional',
-    price: 'UGX 750,000',
-    period: '/month',
-    description: 'Hospitals running multiple departments.',
-    highlight: true,
-    badge: 'Common choice',
-    features: [
-      'All departments',
-      'Up to 100 staff',
-      'AI + UCG-grounded RAG',
-      'Full insurance copilot',
-      'API access',
-      'Custom domain',
-      'Priority support',
-    ],
-    cta: 'Subscribe',
-    ctaHref: '/signup?plan=professional',
-  },
-  {
-    name: 'Enterprise',
-    price: 'Custom',
-    period: 'pricing',
-    description: 'Hospital networks and referral centres.',
-    highlight: false,
-    badge: null,
-    features: [
-      'Unlimited departments & staff',
-      'Dedicated customer success',
-      'On-premise option',
-      'SLA 99.9%',
-      'SAML / SSO',
-    ],
-    cta: 'Contact sales',
-    ctaHref: '/contact?intent=enterprise',
-  },
-]
-
-// Must match the active pharm_* rows in subscription_plans (canonical Pharm pricing).
-const PHARM_PLANS = [
-  {
-    slug: 'pharm_monthly',
-    name: 'Pharm Monthly',
-    price: 'UGX 20,000',
-    period: '/month',
-    effective: null,
-    badge: null,
-    description: 'Full product, one flat monthly price.',
-  },
-  {
-    slug: 'pharm_quarterly',
-    name: 'Pharm Quarterly',
-    price: 'UGX 52,000',
-    period: '/quarter',
-    effective: '≈ UGX 17,333 per month',
-    badge: 'Save UGX 8,000',
-    description: 'One payment per quarter.',
-  },
-  {
-    slug: 'pharm_yearly',
-    name: 'Pharm Yearly',
-    price: 'UGX 200,000',
-    period: '/year',
-    effective: '≈ UGX 16,667 per month',
-    badge: 'Save UGX 40,000',
-    description: 'One payment per year.',
-  },
+const HOME_PLANS = [
+  findPlanBySlug(FALLBACK_PUBLIC_PLANS, CANONICAL_PLAN_SLUGS.pharmacy)!,
+  findPlanBySlug(FALLBACK_PUBLIC_PLANS, CANONICAL_PLAN_SLUGS.lab)!,
+  findPlanBySlug(FALLBACK_PUBLIC_PLANS, CANONICAL_PLAN_SLUGS.osBasic)!,
+  findPlanBySlug(FALLBACK_PUBLIC_PLANS, CANONICAL_PLAN_SLUGS.enterprise)!,
 ]
 
 const PHARM_FEATURES = [
   'POS with printed receipts',
   'FEFO expiry-aware batch inventory',
+  'Purchasing & goods receipt',
   'Sales reporting',
   'Staff roles & cashier sessions',
 ]
@@ -289,66 +213,38 @@ export default function HomePage() {
 
       <SectionShell
         id="pharm"
-        label="Synapse Pharm"
-        title="Pharmacy POS with expiry-aware inventory"
-        description="POS with printed receipts, FEFO batch inventory, sales reporting, and staff roles — built for Ugandan pharmacies. Register self-serve and start selling the same day. Every plan starts with a 14-day free trial, no card required."
+        label="Synapse Pharmacy"
+        title="Pharmacy operations for community pharmacies"
+        description="Inventory, purchasing, dispensing, POS/billing, batch/expiry tracking, and reports — with mobile access where production-supported."
         variant="cool"
       >
-        <div className="grid gap-4 lg:grid-cols-3">
-          {PHARM_PLANS.map((plan) => (
-            <div
-              key={plan.slug}
-              className="landing-card flex flex-col !p-5"
-              style={{
-                borderColor: plan.badge ? 'var(--brand-teal)' : undefined,
-                boxShadow: plan.badge ? '0 0 0 1px var(--brand-teal), 0 8px 32px rgba(31,166,166,0.14)' : undefined,
-              }}
-            >
-              {plan.badge && (
-                <span className="mb-2 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--brand-teal)' }}>
-                  <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: 'var(--brand-teal)' }} />
-                  {plan.badge}
+        <div className="landing-card flex max-w-xl flex-col !p-6">
+          <p className="font-bold">SYNAPSE Pharmacy</p>
+          <p className="font-display my-2 text-heading-2 tabular-nums tracking-tight">
+            {formatUgxAnnual(
+              findPlanBySlug(FALLBACK_PUBLIC_PLANS, CANONICAL_PLAN_SLUGS.pharmacy)!.priceUgx,
+              'PUBLIC_FIXED',
+            )}
+          </p>
+          <ul className="mb-4 space-y-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+            {PHARM_FEATURES.map((f) => (
+              <li key={f} className="flex items-start gap-1.5">
+                <span className="mt-0.5 shrink-0" style={{ color: 'var(--brand-teal)' }}>
+                  ✓
                 </span>
-              )}
-              <p className="font-bold">{plan.name}</p>
-              <p className="font-display my-1 text-heading-2 tabular-nums tracking-tight">
-                {plan.price}
-                <span className="ml-1 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>
-                  {plan.period}
-                </span>
-              </p>
-              {plan.effective && (
-                <p className="font-mono text-xs" style={{ color: 'var(--brand-teal)' }}>
-                  {plan.effective}
-                </p>
-              )}
-              <p className="mb-4 mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                {plan.description}
-              </p>
-              <ul className="mb-4 flex-1 space-y-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                {PHARM_FEATURES.map((f) => (
-                  <li key={f} className="flex items-start gap-1.5">
-                    <span className="mt-0.5 shrink-0" style={{ color: 'var(--brand-teal)' }}>✓</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <a
-                href="https://pharm.synapseos.tech"
-                className={`glow-ring text-center text-sm font-semibold py-2.5 rounded-lg ${plan.badge ? 'landing-btn-primary !w-full' : 'landing-btn-secondary !w-full'}`}
-              >
-                Start free trial
-              </a>
-            </div>
-          ))}
+                {f}
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/products/pharmacy" className="landing-btn-primary">
+              Product details
+            </Link>
+            <a href={COMPANY.domains.pharmacy} className="landing-btn-secondary">
+              Open Pharmacy app
+            </a>
+          </div>
         </div>
-        <p className="mt-6 text-xs" style={{ color: 'var(--text-muted)' }}>
-          Same product on every plan — quarterly and yearly only change how often you pay. Sign in or register at{' '}
-          <a href="https://pharm.synapseos.tech" className="font-mono underline underline-offset-2" style={{ color: 'var(--brand-teal)' }}>
-            pharm.synapseos.tech
-          </a>
-          .
-        </p>
       </SectionShell>
 
       <SectionShell id="deploy" label="Deployment" title="How a hospital goes live" tight>
@@ -435,63 +331,39 @@ export default function HomePage() {
       <SectionShell
         id="pricing"
         label="Pricing"
-        title="Plans (UGX)"
-        description="Prices shown on the marketing site; confirm current rates with sales before procurement."
+        title="Annual plans (UGX)"
+        description="Canonical commercial pricing — edited in Platform Admin, not hard-coded across the site."
         variant="warm"
       >
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {TIERS.map((tier) => (
-            <div
-              key={tier.name}
-              className={`flex flex-col !p-5 ${tier.highlight ? 'landing-card relative overflow-hidden' : 'landing-card'}`}
-              style={{
-                borderColor: tier.highlight ? 'var(--brand-orange)' : undefined,
-                boxShadow: tier.highlight ? '0 0 0 1px var(--brand-orange), 0 8px 32px rgba(249,115,22,0.18)' : undefined,
-              }}
-            >
-              {tier.highlight && (
-                <div
-                  aria-hidden
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: 'radial-gradient(ellipse 80% 60% at 50% -20%, rgba(249,115,22,0.12) 0%, transparent 70%)',
-                    pointerEvents: 'none',
-                  }}
-                />
-              )}
-              {tier.badge && (
-                <span className="mb-2 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--brand-orange)' }}>
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-orange-500" />
-                  {tier.badge}
-                </span>
-              )}
-              <p className="font-bold">{tier.name}</p>
-              <p className="font-display my-1 text-heading-2 tabular-nums tracking-tight">
-                {tier.price}
-                <span className="ml-1 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>
-                  {tier.period}
-                </span>
+          {HOME_PLANS.map((plan) => (
+            <div key={plan.slug} className="landing-card flex flex-col !p-5">
+              <p className="font-bold">{plan.name}</p>
+              <p className="font-display my-2 text-heading-3 tabular-nums tracking-tight">
+                {formatUgxAnnual(plan.priceUgx, plan.pricingState)}
               </p>
-              <p className="mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
-                {tier.description}
+              <p className="mb-4 flex-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                {plan.description}
               </p>
-              <ul className="mb-4 flex-1 space-y-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                {tier.features.map((f) => (
-                  <li key={f} className="flex items-start gap-1.5">
-                    <span className="mt-0.5 shrink-0" style={{ color: 'var(--brand-teal)' }}>✓</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
               <Link
-                href={tier.ctaHref}
-                className={`glow-ring text-center text-sm font-semibold py-2.5 rounded-lg ${tier.highlight ? 'landing-btn-primary !w-full' : 'landing-btn-secondary !w-full'}`}
+                href={plan.ctaHref || '/pricing'}
+                className="landing-btn-secondary !w-full text-center text-sm font-semibold"
               >
-                {tier.cta}
+                {plan.ctaLabel || 'Learn more'}
               </Link>
             </div>
           ))}
+        </div>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link href="/pricing" className="landing-btn-primary">
+            Full pricing
+          </Link>
+          <Link href="/book-meeting" className="landing-btn-secondary">
+            Book a Meeting
+          </Link>
+          <a href={`mailto:${PUBLIC_CONTACT_EMAIL}`} className="landing-btn-secondary">
+            {PUBLIC_CONTACT_EMAIL}
+          </a>
         </div>
       </SectionShell>
 
