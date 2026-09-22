@@ -7,12 +7,15 @@ import {
   recordAndSendTrialReceipt,
 } from "@synapse/auth"
 import { SESSION_COOKIE, SESSION_DURATION_DAYS, UGANDA_DISTRICTS } from "@synapse/config/constants"
+import { CANONICAL_PLAN_SLUGS } from "@synapse/db/commercial-pricing"
 import { sendWelcome } from "@synapse/email"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 export const runtime = "nodejs"
 
-const PLAN_SLUGS = new Set(["pharm_monthly", "pharm_quarterly", "pharm_yearly"])
+const LEGACY_PLAN_SLUGS = new Set(["pharm_monthly", "pharm_quarterly", "pharm_yearly"])
+const CANONICAL_PHARMACY_SLUG = CANONICAL_PLAN_SLUGS.pharmacy
+const ALLOWED_PLAN_SLUGS = new Set([...LEGACY_PLAN_SLUGS, CANONICAL_PHARMACY_SLUG])
 const PHONE_RE = /^\+256[7]\d{8}$/
 
 function slugify(value: string) {
@@ -96,7 +99,7 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     )
   }
-  if (!PLAN_SLUGS.has(planSlug)) {
+  if (!ALLOWED_PLAN_SLUGS.has(planSlug)) {
     return NextResponse.json({ error: "Select a valid plan." }, { status: 400 })
   }
   if (!pdpoConsent) {

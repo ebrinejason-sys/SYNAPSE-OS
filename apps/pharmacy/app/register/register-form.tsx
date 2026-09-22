@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { UGANDA_DISTRICTS } from "@synapse/config/constants"
+import { CANONICAL_PLAN_SLUGS } from "@synapse/db/commercial-pricing"
 import { SynapseMark } from "@/components/brand/synapse-mark"
 import { formatUgx } from "@/lib/format-ugx"
 
@@ -15,9 +16,7 @@ type PlanOption = {
 }
 
 const FALLBACK_PLANS: PlanOption[] = [
-  { slug: "pharm_monthly", name: "Pharm Monthly", price_ugx: 20000, billing_cycle: "monthly" },
-  { slug: "pharm_quarterly", name: "Pharm Quarterly", price_ugx: 52000, billing_cycle: "quarterly" },
-  { slug: "pharm_yearly", name: "Pharm Yearly", price_ugx: 200000, billing_cycle: "yearly" },
+  { slug: CANONICAL_PLAN_SLUGS.pharmacy, name: "SYNAPSE Pharmacy", price_ugx: 240_000, billing_cycle: "yearly" },
 ]
 
 function normalizePhone(raw: string): string {
@@ -31,7 +30,7 @@ function normalizePhone(raw: string): string {
 
 export default function RegisterForm({ plans }: { plans: PlanOption[] }) {
   const searchParams = useSearchParams()
-  const initialPlan = searchParams.get("plan") ?? "pharm_monthly"
+  const initialPlan = searchParams.get("plan") ?? CANONICAL_PLAN_SLUGS.pharmacy
   const planList = plans.length > 0 ? plans : FALLBACK_PLANS
 
   const [step, setStep] = useState(1)
@@ -44,7 +43,7 @@ export default function RegisterForm({ plans }: { plans: PlanOption[] }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [planSlug, setPlanSlug] = useState(
-    planList.some((p) => p.slug === initialPlan) ? initialPlan : "pharm_monthly",
+    planList.some((p) => p.slug === initialPlan) ? initialPlan : CANONICAL_PLAN_SLUGS.pharmacy,
   )
   const [pdpoConsent, setPdpoConsent] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -162,7 +161,7 @@ export default function RegisterForm({ plans }: { plans: PlanOption[] }) {
           {step === 3 && "Plan & consent"}
         </h1>
         <p className="mt-2 text-sm text-zinc-400">
-          14-day free trial. No card required.
+          7-day free trial. No card required.
         </p>
 
         <div className="mt-8 space-y-4 rounded-2xl border border-[#2A2A36] bg-[#111117] p-5 sm:p-6">
@@ -304,7 +303,7 @@ export default function RegisterForm({ plans }: { plans: PlanOption[] }) {
                 </div>
                 {selectedPlan ? (
                   <p className="mt-3 text-xs text-zinc-500">
-                    Starts as a 14-day trial on {selectedPlan.name}. You won&apos;t be charged until
+                    Starts as a 7-day trial on {selectedPlan.name}. You won&apos;t be charged until
                     you subscribe after the trial.
                   </p>
                 ) : null}

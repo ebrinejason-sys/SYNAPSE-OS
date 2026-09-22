@@ -1,5 +1,10 @@
 import { Suspense } from "react"
-import { supabaseAdmin } from "@/lib/supabase/admin"
+import {
+  FALLBACK_PUBLIC_PLANS,
+  findPlanBySlug,
+  CANONICAL_PLAN_SLUGS,
+  type CommercialPlan,
+} from "@synapse/db/commercial-pricing"
 import RegisterForm from "./register-form"
 
 export const dynamic = "force-dynamic"
@@ -9,29 +14,26 @@ export const metadata = {
   description: "Start a 7-day free trial of Synapse Pharm for your Ugandan pharmacy.",
 }
 
-async function loadPlans() {
-  const { data } = await supabaseAdmin
-    .from("subscription_plans")
-    .select("slug, name, price_ugx, billing_cycle")
-    .eq("facility_type", "pharmacy")
-    .eq("is_active", true)
-    .order("price_ugx", { ascending: true })
+type PlanOption = {
+  slug: string
+  name: string
+  price_ugx: number
+  billing_cycle: string
+}
 
-  return ((data ?? []) as Array<{
-    slug: string
-    name: string
-    price_ugx: number | string | null
-    billing_cycle: string
-  }>).map((p) => ({
-    slug: String(p.slug),
-    name: String(p.name),
-    price_ugx: Number(p.price_ugx ?? 0),
-    billing_cycle: String(p.billing_cycle),
-  }))
+function mapCommercialPlan(plan: CommercialPlan): PlanOption {
+  return {
+    slug: plan.slug,
+    name: plan.name,
+    price_ugx: plan.priceUgx ?? 0,
+    billing_cycle: plan.billingCycle,
+  }
 }
 
 export default async function RegisterPage() {
-  const plans = await loadPlans()
+  const canonicalPlan = findPlanBySlug(FALLBACK_PUBLIC_PLANS, CANONICAL_PLAN_SLUGS.pharmacy)
+  const plans: PlanOption[] = canonicalPlan ? [mapCommercialPlan(canonicalPlan)] : []
+  
   return (
     <Suspense
       fallback={
