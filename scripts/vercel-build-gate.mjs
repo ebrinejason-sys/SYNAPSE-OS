@@ -3,8 +3,8 @@
  * Vercel ignoreCommand gate — exit 1 = build, exit 0 = skip (cancel deploy).
  * @see https://vercel.com/docs/project-configuration/vercel-json#ignorecommand
  *
- * Preview/development always builds. Production OS/Pharmacy Git deploys stay
- * skipped so promotion remains acceptance-gated. Demo production is allowed.
+ * All environments build: preview, development, demo production, and OS/Pharmacy
+ * production Git deploys to main.
  *
  * Do not run type-check here: ignoreCommand often runs before install, which
  * would cancel every OS preview.
@@ -15,10 +15,10 @@ export function vercelGitDeployDecision(env = process.env) {
   if (env.VERCEL_ENV === "production") {
     const productionUrl = env.VERCEL_PROJECT_PRODUCTION_URL ?? ""
     const isDemoProject = productionUrl.includes("demo.synapseos.tech")
-    if (!isDemoProject) {
-      return { skip: true, reason: "production OS/Pharmacy git deploy is acceptance-gated" }
+    if (isDemoProject) {
+      return { skip: false, reason: "demo production host" }
     }
-    return { skip: false, reason: "demo production host" }
+    return { skip: false, reason: "production OS/Pharmacy git deploy to main" }
   }
   return { skip: false, reason: "preview/dev always builds" }
 }
