@@ -161,7 +161,7 @@ export default function RegisterForm({ plans }: { plans: PlanOption[] }) {
           {step === 3 && "Plan & consent"}
         </h1>
         <p className="mt-2 text-sm text-zinc-400">
-          14-day free trial. No card required.
+          7-day free trial. No card required.
         </p>
 
         <div className="mt-8 space-y-4 rounded-2xl border border-[#2A2A36] bg-[#111117] p-5 sm:p-6">
@@ -303,7 +303,7 @@ export default function RegisterForm({ plans }: { plans: PlanOption[] }) {
                 </div>
                 {selectedPlan ? (
                   <p className="mt-3 text-xs text-zinc-500">
-                    Starts as a 14-day trial on {selectedPlan.name}. You won&apos;t be charged until
+                    Starts as a 7-day trial on {selectedPlan.name}. You won&apos;t be charged until
                     you subscribe after the trial.
                   </p>
                 ) : null}
