@@ -57,6 +57,10 @@ export const PLATFORM_CAPABILITIES = [
   "tenant.manage",
   "platform.subscription.read",
   "platform.subscription.manage",
+  "platform.pricing.read",
+  "platform.pricing.manage",
+  "platform.crm.read",
+  "platform.crm.manage",
 ] as const;
 
 export type PlatformCapability = (typeof PLATFORM_CAPABILITIES)[number];
@@ -104,6 +108,10 @@ const ROLE_CAPABILITIES: Record<PlatformRole, PlatformCapability[]> = {
     "tenant.manage",
     "platform.subscription.read",
     "platform.subscription.manage",
+    "platform.pricing.read",
+    "platform.pricing.manage",
+    "platform.crm.read",
+    "platform.crm.manage",
   ],
   RELEASE_MANAGER: [
     ...ALL_READ,
@@ -129,6 +137,10 @@ const ROLE_CAPABILITIES: Record<PlatformRole, PlatformCapability[]> = {
     "analytics.read",
     "finance_summary.read",
     "audit.read",
+    "platform.pricing.read",
+    "platform.pricing.manage",
+    "platform.crm.read",
+    "platform.subscription.read",
   ],
   SUPPORT_ADMIN: [
     "platform.dashboard.read",
@@ -137,6 +149,7 @@ const ROLE_CAPABILITIES: Record<PlatformRole, PlatformCapability[]> = {
     "incident.read",
     "user.read",
     "user.password_reset",
+    "platform.crm.read",
   ],
   CLINICAL_GOVERNANCE: [
     ...OBSERVER_READ,
@@ -262,8 +275,13 @@ export const NAV_CAPABILITY_MAP: Record<string, PlatformCapability> = {
   "/platform/incidents": "incident.read",
   "/platform/applications": "tenant.manage",
   "/platform/approvals": "tenant.manage",
-  "/platform/sales": "tenant.manage",
+  "/platform/sales": "platform.crm.read",
+  "/platform/commercial/leads": "platform.crm.read",
+  "/platform/commercial/meetings": "platform.crm.read",
+  "/platform/commercial/pricing": "platform.pricing.read",
+  "/platform/commercial/subscriptions": "platform.subscription.read",
   "/platform/hospitals": "tenant.manage",
+  "/platform/facilities": "tenant.manage",
   "/platform/users": "user.read",
   "/platform/access": "user.read",
   "/platform/pharmacy-network": "tenant.manage",
@@ -271,6 +289,7 @@ export const NAV_CAPABILITY_MAP: Record<string, PlatformCapability> = {
   "/platform/broadcasts": "tenant.manage",
   "/platform/billing": "finance_summary.read",
   "/platform/receipts": "finance_summary.read",
+  "/platform/subscriptions": "platform.subscription.read",
   "/platform/analytics": "analytics.read",
   "/platform/public-health": "analytics.read",
   "/platform/security": "security_summary.read",

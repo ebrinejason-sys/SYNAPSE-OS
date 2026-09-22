@@ -207,7 +207,7 @@ export function buildMeetingLeadRow(value: MeetingRequestInput & { name: string;
     contact_email: value.workEmail,
     contact_phone: value.phone,
     country: value.country ?? 'UG',
-    location: [value.city, value.country].filter(Boolean).join(', ') || null,
+    location: [value.country].filter(Boolean).join(', ') || null,
     estimated_size: value.approximateSize,
     locations_count: value.locationsCount,
     requested_products: value.productsInterested ?? [],

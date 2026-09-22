@@ -20,6 +20,8 @@ export const rateLimiters = {
   auth: makeRatelimit(10, "1 m", "rl:auth"),
   api: makeRatelimit(120, "1 m", "rl:api"),
   import: makeRatelimit(5, "1 m", "rl:import"),
+  meeting: makeRatelimit(5, "1 h", "rl:meeting"),
+  contact: makeRatelimit(8, "1 h", "rl:contact"),
 };
 
 export async function checkRateLimit(
