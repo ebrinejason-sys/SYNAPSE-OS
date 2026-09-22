@@ -8,7 +8,6 @@ import {
   updateCommercialPlan,
 } from '@synapse/db/commercial-pricing'
 import { requirePlatformAdminApi } from '@/lib/platform/auth'
-import { logPlatformAccessEvent } from '@/lib/platform/access-audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,25 +98,6 @@ export async function PATCH(req: NextRequest) {
       auth.profile.id,
     )
 
-    await logPlatformAccessEvent({
-      actorId: auth.profile.id,
-      actorRole: auth.profile.platformRole,
-      action: 'PLATFORM_MEMBER_ROLE_CHANGED',
-      resourceId: updated.id,
-      reason: parsed.data.changeReason ?? 'commercial_price_update',
-      before: {
-        slug: current.slug,
-        priceUgx: current.priceUgx,
-        pricingState: current.pricingState,
-      },
-      after: {
-        slug: updated.slug,
-        priceUgx: updated.priceUgx,
-        pricingState: updated.pricingState,
-      },
-    }).catch(() => {})
-
-    // Prefer dedicated commercial audit via platform_audit_events
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabaseAdmin as any
     await db.from('platform_audit_events').insert({

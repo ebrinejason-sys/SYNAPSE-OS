@@ -207,6 +207,25 @@ EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
 
+-- Expand facility types for Lab / clinic / enterprise meeting requests
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'hospital_leads_facility_type_check'
+      AND conrelid = 'public.hospital_leads'::regclass
+  ) THEN
+    ALTER TABLE public.hospital_leads DROP CONSTRAINT hospital_leads_facility_type_check;
+  END IF;
+  ALTER TABLE public.hospital_leads
+    ADD CONSTRAINT hospital_leads_facility_type_check
+    CHECK (facility_type IN (
+      'hospital','clinic','pharmacy','laboratory','lab','other'
+    ));
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
 -- Map legacy stages to new pipeline (non-destructive alias; keep legacy values)
 -- New inserts should use uppercase stages.
 
