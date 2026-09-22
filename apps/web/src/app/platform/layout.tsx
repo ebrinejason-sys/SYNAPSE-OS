@@ -88,29 +88,37 @@ const SIDEBAR_SECTIONS: NavSection[] = [
     ],
   },
   {
-    caption: "Growth",
+    caption: "Customers",
     items: [
-      { href: "/platform/applications", label: "Applications", icon: Kanban },
-      { href: "/platform/approvals", label: "Approvals", icon: ClipboardCheck },
-      { href: "/platform/sales", label: "Sales Pipeline", icon: TrendingUp },
       { href: "/platform/facilities", label: "Facilities", icon: Building2 },
       { href: "/platform/hospitals", label: "Hospitals", icon: Stethoscope },
       { href: "/platform/users", label: "Users & Professionals", icon: Users },
+      { href: "/platform/applications", label: "Applications", icon: Kanban },
+      { href: "/platform/approvals", label: "Approvals", icon: ClipboardCheck },
+    ],
+  },
+  {
+    caption: "Commercial",
+    items: [
+      { href: "/platform/commercial/leads", label: "Leads", icon: TrendingUp },
+      { href: "/platform/commercial/meetings", label: "Meetings", icon: ClipboardList },
+      { href: "/platform/commercial/pricing", label: "Pricing", icon: CreditCard },
+      { href: "/platform/sales", label: "Legacy pipeline", icon: Kanban },
+      { href: "/platform/billing", label: "Revenue & Billing", icon: CreditCard },
+      { href: "/platform/subscriptions", label: "Subscriptions", icon: Receipt },
+    ],
+  },
+  {
+    caption: "Growth",
+    items: [
+      { href: "/platform/pharmacy-network", label: "Pharmacies", icon: Pill },
     ],
   },
   {
     caption: "Operations",
     items: [
-      { href: "/platform/pharmacy-network", label: "Pharmacies", icon: Pill },
       { href: "/platform/support", label: "Support", icon: LifeBuoy },
       { href: "/platform/broadcasts", label: "Broadcasts", icon: HeartPulse },
-    ],
-  },
-  {
-    caption: "Money",
-    items: [
-      { href: "/platform/billing", label: "Revenue & Billing", icon: CreditCard },
-      { href: "/platform/subscriptions", label: "Manual Grants", icon: CreditCard },
       { href: "/platform/receipts", label: "Receipts & Invoices", icon: Receipt },
     ],
   },

@@ -1,5 +1,5 @@
 /** Host classification and tenant lookup shared by middleware and routing tests. */
-export const RESERVED_HOSTS = new Set(['admin', 'app', 'www', 'pharm', 'api', 'status', 'docs', 'demo'])
+export const RESERVED_HOSTS = new Set(['admin', 'app', 'www', 'pharm', 'lab', 'api', 'status', 'docs', 'demo'])
 
 export function sanitizedTenantHeaders(input: Headers): Headers {
   const headers = new Headers(input)

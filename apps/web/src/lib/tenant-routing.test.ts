@@ -52,11 +52,18 @@ describe('host-derived tenant boundary', () => {
     expect(await lookupActiveTenant('facility-a', {})).toBeNull()
     expect(await lookupActiveTenant('facility-a', { url: 'https://db.test', key: 'test' }, vi.fn(async () => { throw new Error('offline') }))).toBeNull()
   })
-  it.each(['admin', 'app', 'www', 'pharm', 'api', 'status', 'docs', 'demo'])('reserves %s', async slug => {
+  it.each(['admin', 'app', 'www', 'pharm', 'lab', 'api', 'status', 'docs', 'demo'])('reserves %s', async slug => {
     expect(facilitySlugFromHost(`${slug}.synapseos.tech`)).toBeNull()
     setup()
     const res = await middleware(request(`${slug}.synapseos.tech`, '/api/example'))
     expect(res.headers.get('x-middleware-request-x-tenant-id')).toBeNull()
+  })
+
+  it('rewrites lab product host root to the Lab product page without tenant headers', async () => {
+    setup()
+    const res = await middleware(request('lab.synapseos.tech', '/'))
+    expect(res.headers.get('x-middleware-request-x-tenant-id')).toBeNull()
+    expect(res.headers.get('x-middleware-rewrite')).toContain('/products/lab')
   })
 
   it('does not rewrite health/ready under managed shells or www/apex', async () => {
@@ -67,6 +74,7 @@ describe('host-derived tenant boundary', () => {
       'admin.synapseos.tech',
       'demo.synapseos.tech',
       'pharm.synapseos.tech',
+      'lab.synapseos.tech',
     ]) {
       for (const path of ['/api/health/live', '/api/ready']) {
         const res = await middleware(request(host, path))
