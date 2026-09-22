@@ -14,6 +14,41 @@ async function countOpenPurchaseOrders(tenantId: string): Promise<number> {
   return count ?? 0
 }
 
+async function purchaseDashboard(tenantId: string, todayStartISO: string) {
+  const monthStart = new Date()
+  monthStart.setDate(1)
+  monthStart.setHours(0, 0, 0, 0)
+  const monthISO = monthStart.toISOString().slice(0, 10)
+  const todayDate = todayStartISO.slice(0, 10)
+  const db = supabaseAdmin as any
+  const [todayRows, monthRows] = await Promise.all([
+    db
+      .from("pharmacy_purchases")
+      .select("id, total, balance, payment_status, status")
+      .eq("tenant_id", tenantId)
+      .gte("purchase_date", todayDate),
+    db
+      .from("pharmacy_purchases")
+      .select("id, total, balance, payment_status, status")
+      .eq("tenant_id", tenantId)
+      .gte("purchase_date", monthISO),
+  ])
+  const today = todayRows.data ?? []
+  const month = monthRows.data ?? []
+  const receivedToday = today.filter((row: { status?: string }) => row.status === "RECEIVED")
+  return {
+    purchasesToday: today.length,
+    purchasesThisMonth: month.length,
+    purchaseValueMonth: month.reduce((sum: number, row: { total?: number }) => sum + Number(row.total ?? 0), 0),
+    outstandingSupplierBalances: month.reduce(
+      (sum: number, row: { balance?: number; payment_status?: string }) =>
+        row.payment_status === "PAID" ? sum : sum + Number(row.balance ?? 0),
+      0,
+    ),
+    stockReceivedToday: receivedToday.length,
+  }
+}
+
 async function countPendingCustomerOrders(tenantId: string): Promise<number> {
   const { count } = await (supabaseAdmin as any)
     .from("pharmacy_orders")
@@ -73,6 +108,7 @@ export async function GET(request: NextRequest) {
         staffSettingsResult,
         openPoCount,
         pendingCustomerOrders,
+        purchaseStats,
       ] = await Promise.all([
         // Total active products
         (supabaseAdmin as any)
@@ -113,6 +149,7 @@ export async function GET(request: NextRequest) {
           .eq("is_active", true),
         countOpenPurchaseOrders(tenantId),
         countPendingCustomerOrders(tenantId),
+        purchaseDashboard(tenantId, todayStartISO),
       ])
 
       const totalRevenueAmount = totalRevenue.amount
@@ -177,6 +214,7 @@ export async function GET(request: NextRequest) {
         todaySales: todaySalesAmount,
         lowStockCount: lowStockResult.count ?? 0,
         pendingOrders: openPoCount + pendingCustomerOrders,
+        ...purchaseStats,
         expiringProducts: expiringResult.data ?? [],
         recentActivity,
         userStats,

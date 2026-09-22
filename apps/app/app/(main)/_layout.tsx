@@ -196,6 +196,7 @@ export default function MainLayout() {
         name="purchase-orders"
         options={{ href: null, title: 'Purchase orders', headerTitle: 'Purchase orders' }}
       />
+      <Tabs.Screen name="purchases" options={{ href: null, title: 'Purchases', headerTitle: 'Purchases' }} />
       <Tabs.Screen name="reports" options={{ href: null, title: 'Reports', headerTitle: 'Reports' }} />
       <Tabs.Screen name="refunds" options={{ href: null, title: 'Refunds', headerTitle: 'Refunds' }} />
       <Tabs.Screen

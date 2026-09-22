@@ -11,6 +11,7 @@ const NAV = [
   { href: '/pharmacy/queue', label: 'Queue', icon: ShoppingCart },
   { href: '/pharmacy/dispense', label: 'Dispense', icon: FlaskConical },
   { href: '/pharmacy/inventory', label: 'Inventory', icon: Package },
+  { href: '/pharmacy/purchases', label: 'Purchases', icon: ShoppingCart },
   { href: '/pharmacy/expiry', label: 'Expiry', icon: AlertTriangle },
   { href: '/pharmacy/nms', label: 'NMS', icon: FlaskConical },
   { href: '/pharmacy/reports', label: 'Reports', icon: BarChart2 },

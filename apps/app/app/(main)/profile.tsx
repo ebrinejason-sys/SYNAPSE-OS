@@ -93,6 +93,7 @@ export default function ProfileScreen() {
   ]
 
   const purchasingItems: NavItem[] = [
+    { label: 'Purchases', subtitle: 'Walk-in receive + history', icon: 'cart-outline', route: '/(main)/purchases' },
     { label: 'Orders', subtitle: 'Customer / counter orders', icon: 'bag-handle-outline', route: '/(main)/orders' },
     { label: 'Purchase orders', subtitle: 'Supplier POs', icon: 'clipboard-outline', route: '/(main)/purchase-orders' },
     { label: 'Suppliers', subtitle: 'Vendor directory', icon: 'business-outline', route: '/suppliers' },

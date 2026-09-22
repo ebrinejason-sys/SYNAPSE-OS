@@ -31,6 +31,7 @@ describe("hospital BFF explicit tenant filters", () => {
     "apps/web/src/app/api/hospital/billing/encounter/[id]/route.ts",
     "apps/web/src/app/api/hospital/billing/encounter/[id]/pay/route.ts",
     "apps/web/src/app/api/hospital/pharmacy/dispense/route.ts",
+    "apps/web/src/app/api/hospital/pharmacy/purchases/route.ts",
     "apps/web/src/app/api/lab/orders/[id]/cancel/route.ts",
     "apps/web/src/app/api/clinical/documents/route.ts",
     "apps/web/src/app/api/patient/consent/route.ts",
@@ -59,6 +60,23 @@ describe("hospital BFF explicit tenant filters", () => {
     ]) {
       const text = src(file)
       expect(text, file).toMatch(/from\('patients'\)[\s\S]{0,180}eq\('tenant_id', ctx\.tenantId\)/)
+    }
+  })
+})
+
+describe("mobile pharmacy purchase tenant filters", () => {
+  const files = [
+    "apps/web/src/app/api/mobile/pharmacy/purchases/route.ts",
+    "apps/web/src/app/api/mobile/pharmacy/purchases/products/route.ts",
+    "apps/web/src/app/api/mobile/pharmacy/suppliers/route.ts",
+  ]
+
+  it("derives tenant from auth and never from client tenant_id", () => {
+    for (const file of files) {
+      const text = src(file)
+      expect(text, file).toMatch(/auth\.tenantId/)
+      expect(text, file).toMatch(/tenant_id/)
+      expect(text, file).not.toMatch(/body\.tenantId|body\.tenant_id/)
     }
   })
 })

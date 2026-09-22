@@ -8,7 +8,7 @@ import {
   Settings, LogOut, Menu, X, UserCheck, ClipboardList,
   MessageSquare, Activity, Truck, FileText, BarChart3,
   RotateCcw, Wifi, WifiOff, CalendarClock, WalletCards, BrainCircuit,
-  CreditCard, UserCircle, Building2,
+  CreditCard, UserCircle, Building2, ShoppingBag,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NotificationBell } from "@/components/ui/notification-bell"
@@ -32,9 +32,15 @@ const NAV_GROUPS = [
     label: 'Inventory',
     items: [
       { name: 'Inventory',        href: '/portal/inventory',        icon: Package,      permission: 'MANAGE_INVENTORY' },
-      { name: 'Suppliers',        href: '/portal/suppliers',        icon: Truck,        permission: 'MANAGE_INVENTORY' },
-      { name: 'Purchase Orders',  href: '/portal/purchase-orders',  icon: FileText,     permission: 'MANAGE_INVENTORY' },
       { name: 'Import Assistant', href: '/portal/import-assistant', icon: BrainCircuit, permission: 'MANAGE_INVENTORY' },
+    ],
+  },
+  {
+    label: 'Purchases',
+    items: [
+      { name: 'Purchases',        href: '/portal/purchases',        icon: ShoppingBag,  permission: 'MANAGE_INVENTORY' },
+      { name: 'Purchase Orders',  href: '/portal/purchase-orders',  icon: FileText,     permission: 'MANAGE_INVENTORY' },
+      { name: 'Suppliers',        href: '/portal/suppliers',        icon: Truck,        permission: 'MANAGE_INVENTORY' },
     ],
   },
   {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken, validateSession, canMutatePharmacyInventory } from '@synapse/auth'
+import { verifyToken, validateSession, roleHasCapability, type PharmacyCapability } from '@synapse/auth'
 
 const PHARMACY_ROLES = new Set([
   'pharmacist',
@@ -9,6 +9,7 @@ const PHARMACY_ROLES = new Set([
   'cashier',
   'pharmacy_staff',
   'pharmacy_ceo',
+  'inventory_officer',
 ])
 
 export type MobileAuth = {
@@ -21,11 +22,15 @@ export type MobileAuth = {
 const ADMIN_ROLES = new Set(['pharmacy_admin', 'pharmacy_ceo', 'pharmacist'])
 
 export function isMobilePharmacyAdmin(auth: MobileAuth): boolean {
-  return ADMIN_ROLES.has(auth.role)
+  return ADMIN_ROLES.has(auth.role) || roleHasCapability(auth.role, 'settings.manage')
+}
+
+export function mobileHasPharmacyCapability(auth: MobileAuth, capability: PharmacyCapability): boolean {
+  return roleHasCapability(auth.role, capability)
 }
 
 export function canWriteMobilePharmacyInventory(auth: MobileAuth): boolean {
-  return canMutatePharmacyInventory(auth.role) || isMobilePharmacyAdmin(auth)
+  return roleHasCapability(auth.role, 'inventory.adjust') || roleHasCapability(auth.role, 'inventory.write')
 }
 
 export async function requireMobilePharmacyAuth(

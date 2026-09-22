@@ -28,6 +28,7 @@ export type MappedSupplier = {
   phone: string | null
   address: string | null
   contactPerson: string | null
+  taxNumber: string | null
   notes: string | null
   isActive: boolean
   createdAt: string | null
@@ -45,6 +46,7 @@ export function mapSupplier(
     phone: (row.phone as string | null) ?? null,
     address: (row.address as string | null) ?? null,
     contactPerson: (row.contact_person as string | null) ?? null,
+    taxNumber: (row.tax_number as string | null) ?? null,
     notes: (row.notes as string | null) ?? null,
     isActive: Boolean(row.is_active ?? true),
     createdAt: (row.created_at as string | null) ?? null,
@@ -57,6 +59,7 @@ export type MappedPurchaseOrderItem = {
   productId: string | null
   productName: string
   quantity: number
+  receivedQuantity: number
   unitPrice: number
   totalPrice: number
   product?: { name: string; sku: string }
@@ -88,6 +91,7 @@ function mapPoItem(item: Record<string, unknown>): MappedPurchaseOrderItem {
     productId: (item.product_id as string | null) ?? null,
     productName: String(item.product_name ?? ""),
     quantity: Number(item.quantity ?? 0),
+    receivedQuantity: Number(item.received_quantity ?? 0),
     unitPrice: Number(item.unit_price ?? 0),
     totalPrice: Number(item.total_price ?? 0),
     ...(product
@@ -125,6 +129,104 @@ export function mapPurchaseOrder(
     },
     items: itemsRaw.map(mapPoItem),
     createdBy: { name: createdByName ?? "Unknown" },
+  }
+}
+
+export type MappedPurchaseItem = {
+  id: string
+  productId: string | null
+  productName: string
+  quantity: number
+  receivedQuantity: number
+  purchaseUnit: string | null
+  unitCost: number
+  lineTotal: number
+  batchNumber: string | null
+  expiryDate: string | null
+  manufactureDate: string | null
+  batchId: string | null
+  sellingPrice: number | null
+  supplierProductRef: string | null
+}
+
+export type MappedPurchase = {
+  id: string
+  purchaseNo: string
+  status: string
+  paymentStatus: string
+  paymentMethod: string | null
+  currency: string
+  supplierInvoiceNo: string | null
+  supplierReceiptRef: string | null
+  purchaseDate: string | null
+  receivedDate: string | null
+  subtotal: number
+  tax: number
+  discount: number
+  otherCost: number
+  total: number
+  amountPaid: number
+  balance: number
+  notes: string | null
+  createdAt: string | null
+  supplier: { id: string; name: string; email: string | null; phone: string | null }
+  items: MappedPurchaseItem[]
+  createdByName: string
+  receivedByName: string | null
+  purchaseOrderId: string | null
+}
+
+export function mapPurchase(
+  row: Record<string, unknown>,
+  names?: { createdByName?: string | null; receivedByName?: string | null },
+): MappedPurchase {
+  const supplierRaw = (row.supplier as Record<string, unknown> | null) ?? null
+  const itemsRaw = (row.items as Record<string, unknown>[] | null) ?? []
+  return {
+    id: String(row.id),
+    purchaseNo: String(row.purchase_no ?? ""),
+    status: String(row.status ?? "DRAFT"),
+    paymentStatus: String(row.payment_status ?? "UNPAID"),
+    paymentMethod: (row.payment_method as string | null) ?? null,
+    currency: String(row.currency ?? "UGX"),
+    supplierInvoiceNo: (row.supplier_invoice_no as string | null) ?? null,
+    supplierReceiptRef: (row.supplier_receipt_ref as string | null) ?? null,
+    purchaseDate: (row.purchase_date as string | null) ?? null,
+    receivedDate: (row.received_date as string | null) ?? null,
+    subtotal: Number(row.subtotal ?? 0),
+    tax: Number(row.tax ?? 0),
+    discount: Number(row.discount ?? 0),
+    otherCost: Number(row.other_cost ?? 0),
+    total: Number(row.total ?? 0),
+    amountPaid: Number(row.amount_paid ?? 0),
+    balance: Number(row.balance ?? 0),
+    notes: (row.notes as string | null) ?? null,
+    createdAt: (row.created_at as string | null) ?? null,
+    supplier: {
+      id: String(supplierRaw?.id ?? row.supplier_id ?? ""),
+      name: String(supplierRaw?.name ?? ""),
+      email: (supplierRaw?.email as string | null) ?? null,
+      phone: (supplierRaw?.phone as string | null) ?? null,
+    },
+    items: itemsRaw.map((item) => ({
+      id: String(item.id),
+      productId: (item.product_id as string | null) ?? null,
+      productName: String(item.product_name ?? ""),
+      quantity: Number(item.quantity ?? 0),
+      receivedQuantity: Number(item.received_quantity ?? 0),
+      purchaseUnit: (item.purchase_unit as string | null) ?? null,
+      unitCost: Number(item.unit_cost ?? 0),
+      lineTotal: Number(item.line_total ?? 0),
+      batchNumber: (item.batch_number as string | null) ?? null,
+      expiryDate: (item.expiry_date as string | null) ?? null,
+      manufactureDate: (item.manufacture_date as string | null) ?? null,
+      batchId: (item.batch_id as string | null) ?? null,
+      sellingPrice: item.selling_price != null ? Number(item.selling_price) : null,
+      supplierProductRef: (item.supplier_product_ref as string | null) ?? null,
+    })),
+    createdByName: names?.createdByName ?? "Unknown",
+    receivedByName: names?.receivedByName ?? null,
+    purchaseOrderId: (row.purchase_order_id as string | null) ?? null,
   }
 }
 

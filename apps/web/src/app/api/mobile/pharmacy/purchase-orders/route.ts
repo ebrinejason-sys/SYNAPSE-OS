@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { receivePharmacyStock } from '@synapse/db/inventory-rpc'
+import { receivePharmacyPurchase } from '@synapse/db/pharmacy-purchases'
 import {
   isMobileAuth,
-  isMobilePharmacyAdmin,
+  mobileHasPharmacyCapability,
   requireMobilePharmacyAuth,
   type MobileAuth,
 } from '../../../../../lib/mobile-pharmacy-auth'
@@ -13,15 +13,8 @@ export const dynamic = 'force-dynamic'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = () => supabaseAdmin as any
 
-const PURCHASING_ROLES = new Set([
-  'pharmacy_admin',
-  'pharmacy_ceo',
-  'pharmacist',
-  'pharmacy_store_manager',
-])
-
 function canManagePurchasing(auth: MobileAuth): boolean {
-  return PURCHASING_ROLES.has(auth.role) || isMobilePharmacyAdmin(auth)
+  return mobileHasPharmacyCapability(auth, 'purchasing.manage')
 }
 
 function generatePurchaseOrderNo(): string {
@@ -330,46 +323,50 @@ export async function PATCH(req: NextRequest) {
       )
     }
 
-    const received: Array<{ productId: string; batchId: string; quantity: number }> = []
-    for (const line of linkedItems) {
-      const receipt = body.receiptItems.find((r) => r.productId === line.product_id)
-      if (!receipt?.batchNumber?.trim() || !receipt.expiryDate) {
-        return NextResponse.json(
-          {
-            error: `Missing batch/expiry for ${line.product_name}`,
-            code: 'REQUIRES_BATCH',
-            productId: line.product_id,
-          },
-          { status: 400 },
-        )
-      }
-      const qty = Math.trunc(Number(receipt.quantity ?? line.quantity))
-      const { data, error } = await receivePharmacyStock(db(), {
-        tenantId: auth.tenantId,
-        productId: line.product_id as string,
-        batchNumber: receipt.batchNumber,
-        quantity: qty,
-        expiryDate: receipt.expiryDate,
-        costPrice: receipt.costPrice ?? line.unit_price,
-        receivedBy: auth.userId,
-        supplierId: purchaseOrder.supplier_id ?? null,
-        supplierRef: purchaseOrder.order_no,
-        purchaseOrderId: purchaseOrder.id,
-        reason: `Received from PO ${purchaseOrder.order_no} (mobile)`,
+    const lines = (body.receiptItems ?? [])
+      .map((receipt) => {
+        const line = linkedItems.find((item) => item.product_id === receipt.productId)
+        if (!line || !(Math.trunc(Number(receipt.quantity ?? line.quantity)) > 0)) return null
+        return {
+          clientItemId: line.id,
+          productId: line.product_id as string,
+          productName: line.product_name,
+          quantity: Math.trunc(Number(receipt.quantity ?? line.quantity)),
+          unitCost: receipt.costPrice ?? line.unit_price,
+          batchNumber: receipt.batchNumber,
+          expiryDate: receipt.expiryDate,
+          purchaseOrderItemId: line.id,
+        }
       })
-      if (error) {
-        return NextResponse.json(
-          { error: error.humanMessage, code: error.code, productId: line.product_id },
-          { status: 400 },
-        )
-      }
-      received.push({
-        productId: line.product_id as string,
-        batchId: data?.batchId ?? '',
-        quantity: qty,
-      })
+      .filter((line): line is NonNullable<typeof line> => Boolean(line))
+
+    const missing = lines.find((line) => !line.batchNumber?.trim() || !line.expiryDate)
+    if (missing || lines.length === 0) {
+      return NextResponse.json(
+        { error: 'Each received line needs a batch number, expiry date, and quantity.', code: 'REQUIRES_BATCH' },
+        { status: 400 },
+      )
     }
-    receivedSummary = received
+
+    const result = await receivePharmacyPurchase(db(), {
+      tenantId: auth.tenantId,
+      actorId: auth.userId,
+      supplierId: purchaseOrder.supplier_id,
+      supplierInvoiceNo: purchaseOrder.order_no,
+      purchaseOrderId: purchaseOrder.id,
+      idempotencyKey: `po-receive:${purchaseOrder.id}:${lines.map((l) => `${l.productId}:${l.batchNumber}:${l.quantity}`).join('|')}`,
+      receiveNow: true,
+      lines,
+    })
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error, code: result.code }, { status: 400 })
+    }
+    receivedSummary = result.received.map((row) => ({
+      productId: row.productId,
+      batchId: row.batchId,
+      quantity: row.quantity,
+    }))
+    delete updateData.status
   }
 
   const { data: updated, error: updateError } = await db()

@@ -191,7 +191,7 @@ export type PharmacyStaffUser = {
 }
 
 export function fetchPharmacySuppliers(token: string) {
-  return apiRequest<{ suppliers: PharmacySupplier[] }>('/api/mobile/pharmacy/suppliers', {
+  return apiRequest<{ suppliers: PharmacySupplier[]; canManage: boolean }>('/api/mobile/pharmacy/suppliers', {
     token,
   })
 }
@@ -200,7 +200,7 @@ export function createPharmacySupplier(
   token: string,
   body: {
     name: string
-    email: string
+    email?: string
     phone?: string
     address?: string
     contactPerson?: string
@@ -255,6 +255,133 @@ export function updatePharmacyPurchaseOrderStatus(
     purchaseOrder: PharmacyPurchaseOrder | null
     received?: Array<{ productId: string; batchId: string; quantity: number }>
   }>('/api/mobile/pharmacy/purchase-orders', { method: 'PATCH', token, body })
+}
+
+export type PharmacyPurchase = {
+  id: string
+  purchaseNo: string
+  status: string
+  paymentStatus: string
+  paymentMethod: string | null
+  supplierInvoiceNo: string | null
+  total: number
+  amountPaid: number
+  balance: number
+  purchaseDate: string | null
+  receivedDate: string | null
+  notes: string | null
+  createdAt: string | null
+  supplier: { id: string; name: string }
+  items: Array<{
+    id: string
+    productId: string | null
+    productName: string
+    quantity: number
+    unitCost: number
+    lineTotal: number
+    batchNumber: string | null
+    expiryDate: string | null
+  }>
+}
+
+export function fetchPharmacyPurchases(token: string) {
+  return apiRequest<{ purchases: PharmacyPurchase[] }>('/api/mobile/pharmacy/purchases', { token })
+}
+
+export function createPharmacyPurchase(
+  token: string,
+  body: {
+    supplierId: string
+    supplierInvoiceNo?: string
+    idempotencyKey: string
+    receiveNow?: boolean
+    lines: Array<{
+      clientItemId?: string
+      productId: string
+      productName: string
+      quantity: number
+      unitCost: number
+      batchNumber: string
+      expiryDate: string
+      sellingPrice?: number | null
+      updateSellingPrice?: boolean
+    }>
+  },
+) {
+  return apiRequest<{
+    ok: boolean
+    replay?: boolean
+    purchaseId: string
+    purchaseNo: string
+    status: string
+    paymentStatus?: string
+    grandTotal?: number
+    received: Array<{ productId: string; batchId: string; quantity: number }>
+  }>('/api/mobile/pharmacy/purchases', { method: 'POST', token, body })
+}
+
+export type PurchaseProductMatch = {
+  id: string
+  name: string
+  sku?: string | null
+  barcode?: string | null
+  genericName?: string | null
+  brandName?: string | null
+  strength?: string | null
+  dosageForm?: string | null
+  manufacturer?: string | null
+  price?: number | null
+  costPrice?: number | null
+  score: number
+  existing: true
+}
+
+export function searchPurchaseProducts(
+  token: string,
+  input: { q?: string; barcode?: string; sku?: string },
+) {
+  const params = new URLSearchParams()
+  if (input.q) params.set('q', input.q)
+  if (input.barcode) params.set('barcode', input.barcode)
+  if (input.sku) params.set('sku', input.sku)
+  return apiRequest<{ matches: PurchaseProductMatch[] }>(
+    `/api/mobile/pharmacy/purchases/products?${params.toString()}`,
+    { token },
+  )
+}
+
+export type PurchaseProductDraft = {
+  name: string
+  genericName?: string
+  brand?: string
+  strength?: string
+  dosageForm?: string
+  unit?: string
+  barcode?: string
+  sku?: string
+  manufacturer?: string
+  category?: string
+  sellingPrice?: number
+  reorderLevel?: number
+  createAnyway?: boolean
+}
+
+export function createPurchaseProduct(token: string, body: PurchaseProductDraft) {
+  return apiRequest<{
+    ok: boolean
+    product: {
+      id: string
+      name: string
+      sku: string | null
+      barcode: string | null
+      price: number
+      costPrice: number | null
+      genericName: string | null
+      strength: string | null
+      dosageForm: string | null
+      manufacturer: string | null
+    }
+  }>('/api/mobile/pharmacy/purchases/products', { method: 'POST', token, body })
 }
 
 export function fetchPharmacyReport(

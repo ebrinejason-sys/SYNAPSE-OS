@@ -50,23 +50,23 @@ export async function POST(request: NextRequest) {
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 
-    const { name, email, phone, address, contactPerson, notes } =
+    const { name, email, phone, address, contactPerson, notes, taxNumber } =
       await request.json()
 
-    if (!name || !email) {
+    if (!name) {
       return NextResponse.json(
-        { error: "Name and email are required" },
+        { error: "Supplier name is required" },
         { status: 400 }
       )
     }
 
-    // Check if supplier with email already exists for this tenant
+    if (email) {
     const { data: existing } = await (supabaseAdmin as any)
       .from("pharmacy_suppliers")
       .select("id")
       .eq("tenant_id", tenantId)
       .eq("email", email)
-      .single()
+      .maybeSingle()
 
     if (existing) {
       return NextResponse.json(
@@ -74,16 +74,18 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+    }
 
     const { data: supplier, error } = await supabaseAdmin
       .from("pharmacy_suppliers")
       .insert({
         tenant_id: tenantId,
         name,
-        email,
+        email: email ?? null,
         phone: phone ?? null,
         address: address ?? null,
         contact_person: contactPerson ?? null,
+        tax_number: taxNumber ?? null,
         notes: notes ?? null,
       })
       .select()
@@ -119,7 +121,7 @@ export async function PATCH(request: NextRequest) {
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 
-    const { id, name, email, phone, address, contactPerson, notes, isActive } =
+    const { id, name, email, phone, address, contactPerson, notes, isActive, taxNumber } =
       await request.json()
 
     if (!id) {
@@ -152,6 +154,7 @@ export async function PATCH(request: NextRequest) {
         phone: phone ?? null,
         address: address ?? null,
         contact_person: contactPerson ?? null,
+        tax_number: taxNumber ?? null,
         notes: notes ?? null,
         is_active: isActive,
         updated_at: new Date().toISOString(),

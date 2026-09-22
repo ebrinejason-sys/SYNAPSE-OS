@@ -5,7 +5,7 @@ import { usePharmacySession } from "@/hooks/use-pharmacy-session"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Users, Package, DollarSign, ShoppingCart, TrendingUp, AlertTriangle, Calendar, Activity, Clock, User, Receipt } from "lucide-react"
+import { Users, Package, DollarSign, ShoppingCart, TrendingUp, AlertTriangle, Calendar, Activity, Clock, User, Receipt, Truck, WalletCards } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 
 // Force dynamic rendering
@@ -19,6 +19,11 @@ interface DashboardStats {
   todaySales?: number
   lowStockCount?: number
   pendingOrders?: number
+  purchasesToday?: number
+  purchasesThisMonth?: number
+  purchaseValueMonth?: number
+  outstandingSupplierBalances?: number
+  stockReceivedToday?: number
   expiringProducts?: Array<{
     id: string
     name: string
@@ -142,6 +147,30 @@ export default function AdminDashboard() {
         color: "text-indigo-400",
         bgColor: "bg-indigo-500/15",
         href: "/portal/orders",
+      },
+      {
+        title: "Purchases today",
+        value: stats?.purchasesToday || 0,
+        icon: Truck,
+        color: "text-amber-400",
+        bgColor: "bg-amber-500/15",
+        href: "/portal/purchases",
+      },
+      {
+        title: "Purchases this month",
+        value: formatCurrency(stats?.purchaseValueMonth || 0),
+        icon: Receipt,
+        color: "text-teal-400",
+        bgColor: "bg-teal-500/15",
+        href: "/portal/purchases",
+      },
+      {
+        title: "Supplier balances",
+        value: formatCurrency(stats?.outstandingSupplierBalances || 0),
+        icon: WalletCards,
+        color: "text-orange-400",
+        bgColor: "bg-orange-500/15",
+        href: "/portal/purchases",
       },
     ]
 

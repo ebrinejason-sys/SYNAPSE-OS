@@ -1,0 +1,699 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import { usePharmacySession } from "@/hooks/use-pharmacy-session"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useToast } from "@/hooks/use-toast"
+import { Loader2, Plus, Search, Eye, X } from "lucide-react"
+import { formatCurrency } from "@/lib/utils"
+import { purchaseMargin, purchaseTotals } from "@synapse/db/pharmacy-purchases"
+
+export const dynamic = "force-dynamic"
+
+type Supplier = { id: string; name: string; email: string | null; phone: string | null }
+type Match = {
+  id: string
+  name: string
+  sku?: string | null
+  barcode?: string | null
+  genericName?: string | null
+  strength?: string | null
+  dosageForm?: string | null
+  price?: number | null
+  costPrice?: number | null
+  score: number
+}
+type Line = {
+  clientItemId: string
+  productId: string
+  productName: string
+  quantity: string
+  unitCost: string
+  batchNumber: string
+  expiryDate: string
+  sellingPrice: string
+  updateSellingPrice: boolean
+}
+type Purchase = {
+  id: string
+  purchaseNo: string
+  status: string
+  paymentStatus: string
+  supplierInvoiceNo: string | null
+  total: number
+  purchaseDate: string | null
+  receivedByName: string | null
+  createdByName: string
+  supplier: { id: string; name: string }
+  items: Array<{
+    productName: string
+    quantity: number
+    unitCost: number
+    lineTotal: number
+    batchNumber: string | null
+    expiryDate: string | null
+  }>
+}
+
+const SECTIONS = [
+  { id: "new", label: "New Purchase" },
+  { id: "history", label: "Purchase History" },
+  { id: "orders", label: "Purchase Orders", href: "/portal/purchase-orders" },
+  { id: "receive", label: "Receive Stock", href: "/portal/purchase-orders" },
+  { id: "suppliers", label: "Suppliers", href: "/portal/suppliers" },
+] as const
+
+export default function PurchasesPage() {
+  const { user } = usePharmacySession()
+  const { toast } = useToast()
+  const [section, setSection] = useState<"new" | "history">("new")
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [purchases, setPurchases] = useState<Purchase[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [query, setQuery] = useState("")
+  const [matches, setMatches] = useState<Match[]>([])
+  const [searching, setSearching] = useState(false)
+  const [selected, setSelected] = useState<Purchase | null>(null)
+  const [createProduct, setCreateProduct] = useState(false)
+  const [dupes, setDupes] = useState<Match[]>([])
+  const [supplierId, setSupplierId] = useState("")
+  const [invoice, setInvoice] = useState("")
+  const [receiptRef, setReceiptRef] = useState("")
+  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 10))
+  const [paymentStatus, setPaymentStatus] = useState("UNPAID")
+  const [paymentMethod, setPaymentMethod] = useState("")
+  const [amountPaid, setAmountPaid] = useState("0")
+  const [tax, setTax] = useState("0")
+  const [discount, setDiscount] = useState("0")
+  const [otherCost, setOtherCost] = useState("0")
+  const [notes, setNotes] = useState("")
+  const [lines, setLines] = useState<Line[]>([])
+  const [newSupplier, setNewSupplier] = useState({ name: "", phone: "", email: "", contactPerson: "", taxNumber: "" })
+  const [newProduct, setNewProduct] = useState({
+    name: "",
+    genericName: "",
+    brand: "",
+    strength: "",
+    dosageForm: "Tablet",
+    unit: "Tablet",
+    barcode: "",
+    sku: "",
+    manufacturer: "",
+    category: "General",
+    sellingPrice: "",
+    reorderLevel: "10",
+  })
+  const [draftQty, setDraftQty] = useState("1")
+  const [draftCost, setDraftCost] = useState("")
+  const [draftBatch, setDraftBatch] = useState("")
+  const [draftExpiry, setDraftExpiry] = useState("")
+  const [draftSell, setDraftSell] = useState("")
+  const [picked, setPicked] = useState<Match | null>(null)
+  const [filter, setFilter] = useState({ supplierId: "", status: "", paymentStatus: "", q: "" })
+
+  const totals = useMemo(
+    () =>
+      purchaseTotals({
+        lines: lines.map((line) => ({ quantity: Number(line.quantity) || 0, unitCost: Number(line.unitCost) || 0 })),
+        tax: Number(tax) || 0,
+        discount: Number(discount) || 0,
+        otherCost: Number(otherCost) || 0,
+      }),
+    [lines, tax, discount, otherCost],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all([
+      fetch("/api/admin/suppliers").then((r) => r.json()),
+      fetch("/api/admin/purchases").then((r) => r.json()),
+    ])
+      .then(([supplierData, purchaseData]) => {
+        if (cancelled) return
+        const nextSuppliers = Array.isArray(supplierData) ? supplierData : []
+        setSuppliers(nextSuppliers)
+        setPurchases(Array.isArray(purchaseData?.purchases) ? purchaseData.purchases : [])
+        setSupplierId((current) => current || nextSuppliers[0]?.id || "")
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const searchProducts = async (q: string) => {
+    setQuery(q)
+    if (q.trim().length < 2) {
+      setMatches([])
+      return
+    }
+    setSearching(true)
+    try {
+      const res = await fetch(`/api/admin/purchases/products?q=${encodeURIComponent(q.trim())}`)
+      const data = await res.json()
+      setMatches(data.matches ?? [])
+    } catch {
+      setMatches([])
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const addPickedLine = () => {
+    if (!picked) return
+    if (!draftBatch.trim() || !(Number(draftQty) > 0) || !draftExpiry.trim() || !(Number(draftCost) >= 0)) {
+      toast({ variant: "destructive", title: "Batch, quantity, expiry and cost are required" })
+      return
+    }
+    setLines((prev) => [
+      ...prev,
+      {
+        clientItemId: crypto.randomUUID(),
+        productId: picked.id,
+        productName: picked.name,
+        quantity: draftQty,
+        unitCost: draftCost,
+        batchNumber: draftBatch.trim(),
+        expiryDate: draftExpiry,
+        sellingPrice: draftSell,
+        updateSellingPrice: false,
+      },
+    ])
+    setPicked(null)
+    setQuery("")
+    setMatches([])
+    setDraftQty("1")
+    setDraftCost("")
+    setDraftBatch("")
+    setDraftExpiry("")
+    setDraftSell("")
+  }
+
+  const createSupplier = async () => {
+    if (!newSupplier.name.trim()) {
+      toast({ variant: "destructive", title: "Supplier name is required" })
+      return
+    }
+    const res = await fetch("/api/admin/suppliers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newSupplier),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      toast({ variant: "destructive", title: data.error || "Could not create supplier" })
+      return
+    }
+    const created = data.supplier as Supplier
+    setSuppliers((prev) => [created, ...prev])
+    setSupplierId(created.id)
+    toast({ title: "Supplier created" })
+  }
+
+  const submitNewProduct = async (createAnyway = false) => {
+    const res = await fetch("/api/admin/purchases/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...newProduct, price: Number(newProduct.sellingPrice || 0), createAnyway }),
+    })
+    const data = await res.json()
+    if (res.status === 409) {
+      setDupes(data.candidates ?? [])
+      toast({ variant: "destructive", title: "A similar product already exists." })
+      return
+    }
+    if (!res.ok) {
+      toast({ variant: "destructive", title: data.error || "Could not create product" })
+      return
+    }
+    setPicked({
+      id: data.product.id,
+      name: data.product.name,
+      sku: data.product.sku,
+      barcode: data.product.barcode,
+      price: data.product.price,
+      costPrice: data.product.costPrice,
+      score: 100,
+    })
+    if (data.product.barcode) setQuery(data.product.barcode)
+    setCreateProduct(false)
+    setDupes([])
+    toast({ title: "Product created — continue this purchase line" })
+  }
+
+  const receivePurchase = async () => {
+    if (!supplierId || lines.length === 0) {
+      toast({ variant: "destructive", title: "Select a supplier and add at least one item" })
+      return
+    }
+    setSaving(true)
+    try {
+      const idempotencyKey = crypto.randomUUID()
+      const res = await fetch("/api/admin/purchases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify({
+          supplierId,
+          supplierInvoiceNo: invoice || null,
+          supplierReceiptRef: receiptRef || null,
+          purchaseDate,
+          paymentStatus,
+          paymentMethod: paymentMethod || null,
+          amountPaid: Number(amountPaid) || 0,
+          tax: Number(tax) || 0,
+          discount: Number(discount) || 0,
+          otherCost: Number(otherCost) || 0,
+          notes: notes || null,
+          receiveNow: true,
+          idempotencyKey,
+          lines: lines.map((line) => ({
+            ...line,
+            quantity: Number(line.quantity),
+            unitCost: Number(line.unitCost),
+            sellingPrice: line.sellingPrice ? Number(line.sellingPrice) : null,
+          })),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ variant: "destructive", title: data.error || "Receive failed" })
+        return
+      }
+      toast({ title: data.replay ? "Already received" : `Received ${data.purchase?.purchaseNo ?? "purchase"}` })
+      setLines([])
+      setInvoice("")
+      setReceiptRef("")
+      setNotes("")
+      const refreshed = await fetch("/api/admin/purchases").then((r) => r.json())
+      setPurchases(Array.isArray(refreshed.purchases) ? refreshed.purchases : [])
+      setSection("history")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const filtered = purchases.filter((p) => {
+    if (filter.supplierId && p.supplier.id !== filter.supplierId) return false
+    if (filter.status && p.status !== filter.status) return false
+    if (filter.paymentStatus && p.paymentStatus !== filter.paymentStatus) return false
+    if (filter.q) {
+      const hay = `${p.purchaseNo} ${p.supplier.name} ${p.supplierInvoiceNo ?? ""}`.toLowerCase()
+      if (!hay.includes(filter.q.toLowerCase())) return false
+    }
+    return true
+  })
+
+  const margin = picked
+    ? purchaseMargin(Number(draftCost) || Number(picked.costPrice) || 0, Number(draftSell) || Number(picked.price) || 0)
+    : null
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold">Purchases</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Record a supplier purchase even without a purchase order. Stock still enters through genuine batches.
+          </p>
+        </div>
+        <Button onClick={() => setSection("new")}>
+          <Plus className="h-4 w-4 mr-2" />
+          New Purchase
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {SECTIONS.map((item) =>
+          "href" in item && item.href ? (
+            <Button key={item.id} variant="outline" size="sm" asChild>
+              <Link href={item.href}>{item.label}</Link>
+            </Button>
+          ) : (
+            <Button
+              key={item.id}
+              size="sm"
+              variant={section === item.id ? "default" : "outline"}
+              onClick={() => setSection(item.id as "new" | "history")}
+            >
+              {item.label}
+            </Button>
+          ),
+        )}
+      </div>
+
+      {section === "new" && (
+        <div className="grid lg:grid-cols-3 gap-6">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Receive purchase</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <Label>Supplier</Label>
+                  <select
+                    className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+                    value={supplierId}
+                    onChange={(e) => setSupplierId(e.target.value)}
+                  >
+                    <option value="">Select supplier</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="New supplier name" value={newSupplier.name} onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })} />
+                  <Button type="button" variant="outline" onClick={() => void createSupplier()}>
+                    + Create Supplier
+                  </Button>
+                </div>
+                <div>
+                  <Label>Supplier invoice</Label>
+                  <Input value={invoice} onChange={(e) => setInvoice(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Receipt / reference</Label>
+                  <Input value={receiptRef} onChange={(e) => setReceiptRef(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Purchase date</Label>
+                  <Input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Payment status</Label>
+                  <select
+                    className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+                    value={paymentStatus}
+                    onChange={(e) => setPaymentStatus(e.target.value)}
+                  >
+                    <option value="UNPAID">UNPAID</option>
+                    <option value="PARTIAL">PARTIAL</option>
+                    <option value="PAID">PAID</option>
+                    <option value="CREDIT">CREDIT</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-3 space-y-3">
+                <Label>Add item — scan barcode or search catalog</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Barcode, SKU, generic, brand, strength…"
+                    value={query}
+                    onChange={(e) => void searchProducts(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void searchProducts(query)
+                    }}
+                  />
+                  <Button type="button" variant="outline" onClick={() => void searchProducts(query)}>
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </div>
+                {searching && <p className="text-xs text-muted-foreground">Searching…</p>}
+                {matches.length > 0 && (
+                  <div className="space-y-2">
+                    {matches.map((m) => (
+                      <div key={m.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium">{m.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Existing product · {m.sku || m.barcode || m.genericName || "catalog match"}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setPicked(m)
+                            setDraftCost(m.costPrice != null ? String(m.costPrice) : "")
+                            setDraftSell(m.price != null ? String(m.price) : "")
+                          }}
+                        >
+                          Use Existing Product
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {query.trim().length >= 2 && matches.length === 0 && !searching && (
+                  <Button type="button" variant="secondary" onClick={() => { setCreateProduct(true); setNewProduct((p) => ({ ...p, name: query, barcode: /^\d{8,}$/.test(query) ? query : p.barcode })) }}>
+                    + Create New Product
+                  </Button>
+                )}
+
+                {picked && (
+                  <div className="grid sm:grid-cols-2 gap-2 rounded-md bg-muted/40 p-3">
+                    <p className="sm:col-span-2 text-sm font-medium">{picked.name}</p>
+                    <Input placeholder="Qty" value={draftQty} onChange={(e) => setDraftQty(e.target.value)} />
+                    <Input placeholder="Unit cost" value={draftCost} onChange={(e) => setDraftCost(e.target.value)} />
+                    <Input placeholder="Batch number" value={draftBatch} onChange={(e) => setDraftBatch(e.target.value)} />
+                    <Input type="date" value={draftExpiry} onChange={(e) => setDraftExpiry(e.target.value)} />
+                    <Input placeholder="Selling price (optional)" value={draftSell} onChange={(e) => setDraftSell(e.target.value)} />
+                    {margin && margin.selling > 0 && (
+                      <p className="text-xs text-muted-foreground sm:col-span-2">
+                        Current selling: {formatCurrency(margin.selling)} · Cost {formatCurrency(margin.cost)} ·
+                        Margin {margin.marginPct ?? 0}% · Markup {margin.markupPct ?? 0}%
+                      </p>
+                    )}
+                    <Button type="button" onClick={addPickedLine}>
+                      Add line
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {lines.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Qty</TableHead>
+                      <TableHead>Batch</TableHead>
+                      <TableHead>Expiry</TableHead>
+                      <TableHead>Cost</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {lines.map((line) => (
+                      <TableRow key={line.clientItemId}>
+                        <TableCell>{line.productName}</TableCell>
+                        <TableCell>{line.quantity}</TableCell>
+                        <TableCell className="font-mono text-xs">{line.batchNumber}</TableCell>
+                        <TableCell>{line.expiryDate}</TableCell>
+                        <TableCell>{formatCurrency(Number(line.unitCost) * Number(line.quantity))}</TableCell>
+                        <TableCell>
+                          <Button size="sm" variant="ghost" onClick={() => setLines((prev) => prev.filter((l) => l.clientItemId !== line.clientItemId))}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Review</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(totals.subtotal)}</span></div>
+                <Input placeholder="Tax" value={tax} onChange={(e) => setTax(e.target.value)} />
+                <Input placeholder="Discount" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+                <Input placeholder="Other cost" value={otherCost} onChange={(e) => setOtherCost(e.target.value)} />
+                <Input placeholder="Amount paid" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} />
+                <Input placeholder="Payment method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} />
+                <Input placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                <div className="flex justify-between font-semibold pt-2">
+                  <span>Grand total</span>
+                  <span>{formatCurrency(totals.grandTotal)}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Receiving uses receive_pharmacy_stock. Selling price is not changed unless you tick it on a line.
+                </p>
+                <Button className="w-full" disabled={saving || loading} onClick={() => void receivePurchase()}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Receive Purchase"}
+                </Button>
+              </CardContent>
+            </Card>
+            <p className="text-xs text-muted-foreground">Signed in as {user?.fullName ?? user?.email}</p>
+          </div>
+        </div>
+      )}
+
+      {section === "history" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Purchase history</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid sm:grid-cols-4 gap-2">
+              <Input placeholder="Search no. / supplier / invoice" value={filter.q} onChange={(e) => setFilter({ ...filter, q: e.target.value })} />
+              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={filter.supplierId} onChange={(e) => setFilter({ ...filter, supplierId: e.target.value })}>
+                <option value="">All suppliers</option>
+                {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={filter.status} onChange={(e) => setFilter({ ...filter, status: e.target.value })}>
+                <option value="">All statuses</option>
+                <option value="DRAFT">DRAFT</option>
+                <option value="RECEIVED">RECEIVED</option>
+                <option value="PARTIALLY_RECEIVED">PARTIALLY_RECEIVED</option>
+                <option value="CANCELLED">CANCELLED</option>
+              </select>
+              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={filter.paymentStatus} onChange={(e) => setFilter({ ...filter, paymentStatus: e.target.value })}>
+                <option value="">All payments</option>
+                <option value="UNPAID">UNPAID</option>
+                <option value="PARTIAL">PARTIAL</option>
+                <option value="PAID">PAID</option>
+                <option value="CREDIT">CREDIT</option>
+              </select>
+            </div>
+            {loading ? (
+              <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin" /></div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Purchase No.</TableHead>
+                    <TableHead>Supplier</TableHead>
+                    <TableHead>Invoice</TableHead>
+                    <TableHead>Items</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead>Received by</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell>{p.purchaseDate ?? "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">{p.purchaseNo}</TableCell>
+                      <TableCell>{p.supplier.name}</TableCell>
+                      <TableCell>{p.supplierInvoiceNo ?? "—"}</TableCell>
+                      <TableCell>{p.items.length}</TableCell>
+                      <TableCell>{formatCurrency(p.total)}</TableCell>
+                      <TableCell>{p.paymentStatus}</TableCell>
+                      <TableCell>{p.receivedByName ?? "—"}</TableCell>
+                      <TableCell>{p.status}</TableCell>
+                      <TableCell>
+                        <Button size="sm" variant="outline" onClick={() => setSelected(p)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {createProduct && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <Card className="w-full max-w-lg">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Create new product</CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setCreateProduct(false)}><X className="h-4 w-4" /></Button>
+            </CardHeader>
+            <CardContent className="grid sm:grid-cols-2 gap-2">
+              <Input placeholder="Name" value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })} />
+              <Input placeholder="Generic name" value={newProduct.genericName} onChange={(e) => setNewProduct({ ...newProduct, genericName: e.target.value })} />
+              <Input placeholder="Brand" value={newProduct.brand} onChange={(e) => setNewProduct({ ...newProduct, brand: e.target.value })} />
+              <Input placeholder="Strength" value={newProduct.strength} onChange={(e) => setNewProduct({ ...newProduct, strength: e.target.value })} />
+              <Input placeholder="Dosage form" value={newProduct.dosageForm} onChange={(e) => setNewProduct({ ...newProduct, dosageForm: e.target.value })} />
+              <Input placeholder="Unit" value={newProduct.unit} onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })} />
+              <Input placeholder="Barcode / SKU" value={newProduct.barcode} onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })} />
+              <Input placeholder="Manufacturer" value={newProduct.manufacturer} onChange={(e) => setNewProduct({ ...newProduct, manufacturer: e.target.value })} />
+              <Input placeholder="Category" value={newProduct.category} onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })} />
+              <Input placeholder="Selling price" value={newProduct.sellingPrice} onChange={(e) => setNewProduct({ ...newProduct, sellingPrice: e.target.value })} />
+              {dupes.length > 0 && (
+                <div className="sm:col-span-2 rounded-md border border-amber-500/40 p-2 text-sm">
+                  <p className="font-medium">A similar product already exists.</p>
+                  {dupes.map((d) => (
+                    <button key={d.id} className="block text-left w-full py-1" onClick={() => { setPicked(d); setCreateProduct(false); setDupes([]) }}>
+                      Use existing: {d.name}
+                    </button>
+                  ))}
+                  <div className="flex gap-2 mt-2">
+                    <Button variant="outline" onClick={() => void submitNewProduct(true)}>Create anyway</Button>
+                    <Button variant="ghost" onClick={() => { setCreateProduct(false); setDupes([]) }}>Cancel</Button>
+                  </div>
+                </div>
+              )}
+              <div className="sm:col-span-2 flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setCreateProduct(false)}>Cancel</Button>
+                <Button onClick={() => void submitNewProduct(false)}>Create product</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {selected && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>{selected.purchaseNo}</CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setSelected(null)}><X className="h-4 w-4" /></Button>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p>Supplier: {selected.supplier.name}</p>
+              <p>Invoice: {selected.supplierInvoiceNo ?? "—"}</p>
+              <p>Dates: {selected.purchaseDate ?? "—"}</p>
+              <p>Payment: {selected.paymentStatus} · Status: {selected.status}</p>
+              <p>Created by {selected.createdByName} · Received by {selected.receivedByName ?? "—"}</p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead>Batch</TableHead>
+                    <TableHead>Expiry</TableHead>
+                    <TableHead>Unit cost</TableHead>
+                    <TableHead>Line</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selected.items.map((item, i) => (
+                    <TableRow key={i}>
+                      <TableCell>{item.productName}</TableCell>
+                      <TableCell>{item.quantity}</TableCell>
+                      <TableCell className="font-mono text-xs">{item.batchNumber}</TableCell>
+                      <TableCell>{item.expiryDate}</TableCell>
+                      <TableCell>{formatCurrency(item.unitCost)}</TableCell>
+                      <TableCell>{formatCurrency(item.lineTotal)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div className="flex justify-between font-semibold">
+                <span>Total</span>
+                <span>{formatCurrency(selected.total)}</span>
+              </div>
+              <Button variant="outline" onClick={() => window.print()}>Print / Export</Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  )
+}
