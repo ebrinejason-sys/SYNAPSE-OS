@@ -78,6 +78,15 @@ export async function POST(req: NextRequest) {
     .single()
   if (error) return NextResponse.json({ error: 'Failed to create supplier' }, { status: 500 })
 
+  await db().from('pharmacy_audit_logs').insert({
+    tenant_id: auth.tenantId,
+    profile_id: auth.userId,
+    action: 'CREATE_SUPPLIER',
+    entity: 'SUPPLIER',
+    entity_id: supplier.id,
+    details: `Created supplier: ${name}`,
+  })
+
   return NextResponse.json({ ok: true, supplier })
 }
 

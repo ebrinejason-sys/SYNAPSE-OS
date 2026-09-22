@@ -11,6 +11,7 @@ import {
   Text,
   View,
 } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Crypto from 'expo-crypto'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Button } from '@/components/ui/Button'
@@ -31,9 +32,13 @@ import {
   type PurchaseProductMatch,
 } from '@/lib/api'
 import {
+  buildPersistedPurchaseDraft,
   emptyNewProductDraft,
   keyForSubmit,
   looksLikeBarcode,
+  parsePersistedPurchaseDraft,
+  purchaseLocalStatusLabel,
+  PURCHASE_DRAFT_STORAGE_KEY,
   resetPurchaseDraft,
   type NewProductDraft,
   type PurchaseLineDraft,
@@ -57,16 +62,29 @@ export default function PurchasesScreen() {
   const [lines, setLines] = useState<PurchaseLineDraft[]>([])
   const [qty, setQty] = useState('1')
   const [cost, setCost] = useState('')
+  const [sell, setSell] = useState('')
   const [batch, setBatch] = useState('')
   const [expiry, setExpiry] = useState('')
-  const [picked, setPicked] = useState<{ id: string; name: string; costPrice?: number | null } | null>(null)
+  const [picked, setPicked] = useState<{
+    id: string
+    name: string
+    costPrice?: number | null
+    price?: number | null
+  } | null>(null)
   const [saving, setSaving] = useState(false)
   const [newSupplierName, setNewSupplierName] = useState('')
   const [createProduct, setCreateProduct] = useState(false)
   const [newProduct, setNewProduct] = useState<NewProductDraft>(emptyNewProductDraft())
   const [dupes, setDupes] = useState<Array<PurchaseProductMatch & { score: number }>>([])
   const [creatingProduct, setCreatingProduct] = useState(false)
+  const [draftRestored, setDraftRestored] = useState(false)
+  const [localDraftBanner, setLocalDraftBanner] = useState(false)
   const receiveKeyRef = useRef<string | null>(null)
+
+  const clearLocalDraft = useCallback(() => {
+    void AsyncStorage.removeItem(PURCHASE_DRAFT_STORAGE_KEY)
+    setLocalDraftBanner(false)
+  }, [])
 
   const resetDraft = useCallback((keepSupplierList = true) => {
     const next = resetPurchaseDraft(() => Crypto.randomUUID())
@@ -79,6 +97,7 @@ export default function PurchasesScreen() {
     setLines([])
     setQty(next.qty)
     setCost(next.cost)
+    setSell(next.sell)
     setBatch(next.batch)
     setExpiry(next.expiry)
     setPicked(null)
@@ -86,7 +105,50 @@ export default function PurchasesScreen() {
     setCreateProduct(false)
     setNewProduct(emptyNewProductDraft())
     setDupes([])
-  }, [suppliers])
+    clearLocalDraft()
+  }, [clearLocalDraft, suppliers])
+
+  // Restore unfinished purchase draft after app restart. Never treat as received stock.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const raw = await AsyncStorage.getItem(PURCHASE_DRAFT_STORAGE_KEY)
+        const draft = parsePersistedPurchaseDraft(raw)
+        if (!draft || cancelled) return
+        if (draft.lines.length === 0 && !draft.supplierId && !draft.invoice) return
+        setSupplierId(draft.supplierId)
+        setInvoice(draft.invoice)
+        setLines(draft.lines)
+        if (draft.idempotencyKey) receiveKeyRef.current = draft.idempotencyKey
+        setLocalDraftBanner(true)
+        setShowNew(true)
+      } catch {
+        /* ignore corrupt draft */
+      } finally {
+        if (!cancelled) setDraftRestored(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Persist incomplete entry locally. Server confirmation is still required for inventory.
+  useEffect(() => {
+    if (!draftRestored) return
+    const payload = buildPersistedPurchaseDraft({
+      supplierId,
+      invoice,
+      lines,
+      idempotencyKey: receiveKeyRef.current,
+    })
+    if (!payload) {
+      void AsyncStorage.removeItem(PURCHASE_DRAFT_STORAGE_KEY)
+      return
+    }
+    void AsyncStorage.setItem(PURCHASE_DRAFT_STORAGE_KEY, JSON.stringify(payload))
+  }, [draftRestored, supplierId, invoice, lines])
 
   const load = useCallback(async () => {
     if (!token) {
@@ -107,19 +169,32 @@ export default function PurchasesScreen() {
     void load()
   }, [load])
 
+  useEffect(() => {
+    if (!showNew || !token) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const data = await fetchPharmacySuppliers(token)
+        if (cancelled) return
+        setSuppliers(data.suppliers)
+        setCanCreateSupplier(Boolean(data.canManage))
+        setSupplierId((current) => current || (data.suppliers[0]?.id ?? ''))
+      } catch {
+        if (!cancelled) {
+          setSuppliers([])
+          setCanCreateSupplier(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [showNew, token])
+
   const openNew = async () => {
     if (!token) return
     resetDraft(false)
     setShowNew(true)
-    try {
-      const data = await fetchPharmacySuppliers(token)
-      setSuppliers(data.suppliers)
-      setCanCreateSupplier(Boolean(data.canManage))
-      if (data.suppliers[0]) setSupplierId(data.suppliers[0].id)
-    } catch {
-      setSuppliers([])
-      setCanCreateSupplier(false)
-    }
   }
 
   const cancelDraft = () => {
@@ -146,9 +221,16 @@ export default function PurchasesScreen() {
     }
   }
 
-  const selectExisting = (product: { id: string; name: string; costPrice?: number | null; barcode?: string | null }) => {
+  const selectExisting = (product: {
+    id: string
+    name: string
+    costPrice?: number | null
+    price?: number | null
+    barcode?: string | null
+  }) => {
     setPicked(product)
     setCost(product.costPrice != null ? String(product.costPrice) : '')
+    setSell(product.price != null ? String(product.price) : '')
     setCreateProduct(false)
     setDupes([])
     setHits([])
@@ -156,7 +238,7 @@ export default function PurchasesScreen() {
 
   const addLine = () => {
     if (!picked) return
-    if (!batch.trim() || !(Number(qty) > 0) || !expiry.trim()) {
+    if (!batch.trim() || !(Number(qty) > 0) || !expiry.trim() || !(Number(cost) >= 0) || cost.trim() === '') {
       Alert.alert('Batch required', 'Enter quantity, batch number, expiry and cost.')
       return
     }
@@ -168,6 +250,7 @@ export default function PurchasesScreen() {
         productName: picked.name,
         quantity: qty,
         unitCost: cost || '0',
+        sellingPrice: sell,
         batchNumber: batch.trim(),
         expiryDate: expiry.trim(),
       },
@@ -178,6 +261,7 @@ export default function PurchasesScreen() {
     setSearched(false)
     setQty('1')
     setCost('')
+    setSell('')
     setBatch('')
     setExpiry('')
   }
@@ -208,6 +292,7 @@ export default function PurchasesScreen() {
         id: created.product.id,
         name: created.product.name,
         costPrice: created.product.costPrice,
+        price: created.product.price,
         barcode: created.product.barcode,
       })
       setNewProduct(emptyNewProductDraft())
@@ -246,11 +331,14 @@ export default function PurchasesScreen() {
           unitCost: Number(line.unitCost),
           batchNumber: line.batchNumber,
           expiryDate: line.expiryDate,
+          sellingPrice: line.sellingPrice.trim() ? Number(line.sellingPrice) : null,
+          updateSellingPrice: Boolean(line.sellingPrice.trim()),
         })),
       })
       const supplierName = suppliers.find((s) => s.id === supplierId)?.name ?? 'Supplier'
       const itemCount = lines.length
       receiveKeyRef.current = null
+      clearLocalDraft()
       setShowNew(false)
       resetDraft(false)
       await load()
@@ -263,7 +351,12 @@ export default function PurchasesScreen() {
         )
       }
     } catch (err) {
-      Alert.alert('Receive failed', err instanceof ApiError ? err.message : 'Try again. Inventory is not updated until the server accepts the receipt.')
+      Alert.alert(
+        'Receive failed',
+        err instanceof ApiError
+          ? err.message
+          : 'Try again. Local draft kept — inventory is not updated until the server accepts the receipt.',
+      )
     } finally {
       setSaving(false)
     }
@@ -281,6 +374,11 @@ export default function PurchasesScreen() {
         <Text style={[typography.title, { color: colors.text }]}>Purchases</Text>
         <Button label="New Purchase" onPress={() => void openNew()} />
       </View>
+      {localDraftBanner ? (
+        <Text style={{ color: colors.textSecondary, paddingHorizontal: spacing.xl, paddingBottom: spacing.sm }}>
+          {purchaseLocalStatusLabel('DRAFT')}
+        </Text>
+      ) : null}
       {purchases.length === 0 ? (
         <EmptyState title="No purchases yet" body="Record a walk-in purchase without creating a purchase order first." />
       ) : (
@@ -401,6 +499,7 @@ export default function PurchasesScreen() {
                 <Text style={{ color: colors.text }}>{picked.name}</Text>
                 <TextField label="Quantity" value={qty} onChangeText={setQty} keyboardType="numeric" />
                 <TextField label="Cost" value={cost} onChangeText={setCost} keyboardType="numeric" />
+                <TextField label="Selling price" value={sell} onChangeText={setSell} keyboardType="numeric" />
                 <TextField label="Batch" value={batch} onChangeText={setBatch} />
                 <TextField label="Expiry YYYY-MM-DD" value={expiry} onChangeText={setExpiry} />
                 <Button label="Add item" onPress={addLine} />
@@ -409,10 +508,14 @@ export default function PurchasesScreen() {
             {lines.map((line) => (
               <Text key={line.clientItemId} style={{ color: colors.textSecondary }}>
                 {line.productName} × {line.quantity} · {line.batchNumber}
+                {line.sellingPrice ? ` · sell ${line.sellingPrice}` : ''}
               </Text>
             ))}
             <Text style={{ color: colors.text }}>
               {lines.length} items · Subtotal {totals.subtotal.toLocaleString()}
+            </Text>
+            <Text style={{ color: colors.textMuted }}>
+              Receive confirms on the server. A failed attempt keeps this local draft and reuses the same idempotency key.
             </Text>
             <Button label={saving ? 'Receiving…' : 'Receive'} onPress={() => void submit()} disabled={saving} />
             <Button label="Cancel" variant="ghost" onPress={cancelDraft} />

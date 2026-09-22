@@ -74,6 +74,7 @@ describe("mobile pharmacy suppliers", () => {
     expect(res.status).toBe(200)
     expect(insert).toHaveBeenCalled()
     expect(insert.mock.calls[0]?.[0]?.tenant_id).toBe("tenant-a")
+    expect(insert.mock.calls.some((call) => call[0]?.action === "CREATE_SUPPLIER")).toBe(true)
   })
 
   it("denies cashier supplier create", async () => {

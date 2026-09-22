@@ -303,6 +303,8 @@ export function createPharmacyPurchase(
       unitCost: number
       batchNumber: string
       expiryDate: string
+      sellingPrice?: number | null
+      updateSellingPrice?: boolean
     }>
   },
 ) {
