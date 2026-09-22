@@ -59,15 +59,33 @@ describe('host-derived tenant boundary', () => {
     expect(res.headers.get('x-middleware-request-x-tenant-id')).toBeNull()
   })
 
-  it('does not rewrite health/ready under admin or demo hosts', async () => {
+  it('does not rewrite health/ready under managed shells or www/apex', async () => {
     setup()
-    for (const host of ['admin.synapseos.tech', 'demo.synapseos.tech', 'pharm.synapseos.tech']) {
+    for (const host of [
+      'www.synapseos.tech',
+      'synapseos.tech',
+      'admin.synapseos.tech',
+      'demo.synapseos.tech',
+      'pharm.synapseos.tech',
+    ]) {
       for (const path of ['/api/health/live', '/api/ready']) {
         const res = await middleware(request(host, path))
         expect(res.headers.get('x-middleware-rewrite')).toBeNull()
         expect(res.status).toBe(200)
+        expect(res.headers.get('x-middleware-request-x-tenant-id')).toBeNull()
       }
     }
+  })
+
+  it('serves health/ready on facility hosts without tenant lookup or shell rewrite', async () => {
+    const f = setup(null)
+    for (const path of ['/api/health/live', '/api/ready']) {
+      const res = await middleware(request('unknown-random.synapseos.tech', path))
+      expect(res.status).toBe(200)
+      expect(res.headers.get('x-middleware-rewrite')).toBeNull()
+      expect(res.headers.get('x-middleware-request-x-tenant-id')).toBeNull()
+    }
+    expect(f).not.toHaveBeenCalled()
   })
   it.each(['synapseos.tech', 'www.synapseos.tech', 'localhost', 'preview.vercel.app'])('does not resolve root/preview %s from query input', async host => {
     expect(facilitySlugFromHost(host)).toBeNull()
