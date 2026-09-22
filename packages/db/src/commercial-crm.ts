@@ -99,6 +99,16 @@ function sanitizeEmailHeader(value: string): string {
   return value.replace(/[\r\n\0]/g, '').trim().slice(0, 254)
 }
 
+function parseTimestampOrNull(value: string | null | undefined): string | null {
+  if (!value) return null
+  const text = String(value).trim()
+  if (!text) return null
+  // Attempt to parse as a timestamp. If invalid, return null.
+  const parsed = new Date(text)
+  if (isNaN(parsed.getTime())) return null
+  return parsed.toISOString()
+}
+
 export function validateMeetingRequest(input: unknown): MeetingRequestValidation {
   if (!input || typeof input !== 'object') return { ok: false, error: 'Invalid request body' }
   const body = input as Record<string, unknown>
@@ -198,6 +208,12 @@ export function leadToProvisioningDraft(lead: {
 
 export function buildMeetingLeadRow(value: MeetingRequestInput & { name: string; workEmail: string }) {
   const facilityName = value.facilityName || value.organization || `${value.name}'s facility`
+  const parsedTimestamp = parseTimestampOrNull(value.preferredMeetingAt)
+  const notesWithPreference = parsedTimestamp
+    ? value.message
+    : [value.message, value.preferredMeetingAt ? `Preferred meeting: ${value.preferredMeetingAt}` : null]
+        .filter(Boolean)
+        .join('\n\n')
   return {
     hospital_name: facilityName,
     organization_name: value.organization || facilityName,
@@ -212,8 +228,8 @@ export function buildMeetingLeadRow(value: MeetingRequestInput & { name: string;
     locations_count: value.locationsCount,
     requested_products: value.productsInterested ?? [],
     current_system: value.currentSoftware,
-    notes: value.message,
-    meeting_preferred_at: value.preferredMeetingAt,
+    notes: notesWithPreference,
+    meeting_preferred_at: parsedTimestamp,
     stage: 'LEAD' as const,
     status: 'meeting_requested',
     source: value.source ?? 'book_meeting',
@@ -226,6 +242,12 @@ export function buildMeetingRow(
   value: MeetingRequestInput & { name: string; workEmail: string },
   leadId: string | null,
 ) {
+  const parsedTimestamp = parseTimestampOrNull(value.preferredMeetingAt)
+  const messageWithPreference = parsedTimestamp
+    ? value.message
+    : [value.message, value.preferredMeetingAt ? `Preferred meeting: ${value.preferredMeetingAt}` : null]
+        .filter(Boolean)
+        .join('\n\n')
   return {
     lead_id: leadId,
     status: 'requested' as const,
@@ -240,8 +262,8 @@ export function buildMeetingRow(
     locations_count: value.locationsCount,
     products_interested: value.productsInterested ?? [],
     current_software: value.currentSoftware,
-    preferred_at: value.preferredMeetingAt,
-    message: value.message,
+    preferred_at: parsedTimestamp,
+    message: messageWithPreference,
     scheduling_provider: null,
     external_event_id: null,
     metadata: { source: value.source ?? 'book_meeting' },

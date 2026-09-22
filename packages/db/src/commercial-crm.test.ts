@@ -66,9 +66,46 @@ describe('commercial CRM domain', () => {
     assert.equal(lead.stage, 'LEAD')
     assert.equal(lead.status, 'meeting_requested')
     assert.equal(lead.facility_name, 'Clinic A Main')
+    assert.equal(typeof lead.meeting_preferred_at, 'string')
+    assert.ok(lead.meeting_preferred_at?.startsWith('2026-10-01'))
     const meeting = buildMeetingRow(validated.value, 'lead-1')
     assert.equal(meeting.status, 'requested')
     assert.equal(meeting.lead_id, 'lead-1')
+    assert.equal(typeof meeting.preferred_at, 'string')
+    assert.ok(meeting.preferred_at?.startsWith('2026-10-01'))
+  })
+
+  it('handles free-text preferredMeetingAt without breaking timestamptz', () => {
+    const validated = validateMeetingRequest({
+      name: 'Alex',
+      workEmail: 'alex@lab.ug',
+      message: 'Interested in Lab module',
+      preferredMeetingAt: 'weekday mornings',
+    })
+    assert.equal(validated.ok, true)
+    if (!validated.ok) return
+    const lead = buildMeetingLeadRow(validated.value)
+    assert.equal(lead.meeting_preferred_at, null)
+    assert.ok(lead.notes?.includes('Preferred meeting: weekday mornings'))
+    assert.ok(lead.notes?.includes('Interested in Lab module'))
+    const meeting = buildMeetingRow(validated.value, 'lead-2')
+    assert.equal(meeting.preferred_at, null)
+    assert.ok(meeting.message?.includes('Preferred meeting: weekday mornings'))
+    assert.ok(meeting.message?.includes('Interested in Lab module'))
+  })
+
+  it('parses valid ISO timestamp into timestamptz', () => {
+    const validated = validateMeetingRequest({
+      name: 'Taylor',
+      workEmail: 'taylor@hospital.ug',
+      preferredMeetingAt: '2026-11-15T14:30:00Z',
+    })
+    assert.equal(validated.ok, true)
+    if (!validated.ok) return
+    const lead = buildMeetingLeadRow(validated.value)
+    assert.equal(lead.meeting_preferred_at, '2026-11-15T14:30:00.000Z')
+    const meeting = buildMeetingRow(validated.value, 'lead-3')
+    assert.equal(meeting.preferred_at, '2026-11-15T14:30:00.000Z')
   })
 
   it('converts a lead into a provisioning draft without retyping', () => {

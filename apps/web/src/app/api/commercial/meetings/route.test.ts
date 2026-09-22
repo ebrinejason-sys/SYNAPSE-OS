@@ -193,4 +193,37 @@ describe('POST /api/commercial/meetings', () => {
     expect(confirmHtml).not.toContain('<script>')
     expect(confirmHtml).toContain('&lt;script&gt;')
   })
+
+  it('handles free-text preferredMeetingAt without timestamptz error', async () => {
+    const res = await POST(
+      req({
+        name: 'Jordan',
+        workEmail: 'jordan@clinic.ug',
+        preferredMeetingAt: 'weekday mornings',
+        message: 'Looking for Lab solution',
+      }),
+    )
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.leadId).toBeTruthy()
+    expect(json.meetingId).toBeTruthy()
+    expect(insertLead).toHaveBeenCalled()
+    expect(insertMeeting).toHaveBeenCalled()
+  })
+
+  it('accepts ISO timestamp for preferredMeetingAt', async () => {
+    const res = await POST(
+      req({
+        name: 'Casey',
+        workEmail: 'casey@hospital.ug',
+        preferredMeetingAt: '2026-12-10T09:00:00Z',
+      }),
+    )
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.leadId).toBeTruthy()
+    expect(json.meetingId).toBeTruthy()
+  })
 })
