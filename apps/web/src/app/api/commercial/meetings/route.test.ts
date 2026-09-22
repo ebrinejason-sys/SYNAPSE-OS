@@ -108,6 +108,18 @@ describe('POST /api/commercial/meetings', () => {
     expect(res.status).toBe(429)
   })
 
+  it('fails when lead update fails after insert conflict', async () => {
+    insertLead.mockResolvedValueOnce({ data: null, error: { message: 'unique violation' } })
+    selectLead.mockResolvedValueOnce({ data: { id: 'existing-lead' } })
+    updateLead.mockResolvedValueOnce({ error: { message: 'update failed' } })
+
+    const res = await POST(req({ name: 'Bob', workEmail: 'bob@test.ug' }))
+    expect(res.status).toBe(500)
+    const json = await res.json()
+    expect(json.error).toContain('Could not update lead record')
+    expect(insertMeeting).not.toHaveBeenCalled()
+  })
+
   it('persists meeting when email provider is not configured', async () => {
     const res = await POST(
       req({
@@ -125,5 +137,60 @@ describe('POST /api/commercial/meetings', () => {
     expect(insertLead).toHaveBeenCalled()
     expect(insertMeeting).toHaveBeenCalled()
     expect(insertActivity).toHaveBeenCalled()
+  })
+
+  it('escapes HTML in outbound notification email', async () => {
+    process.env.RESEND_API_KEY = 'test-key'
+    const mockSend = vi.fn(async () => ({ data: { id: 'sent' }, error: null }))
+    const { resend } = await import('@/lib/resend')
+    vi.mocked(resend.emails.send).mockImplementation(mockSend)
+
+    const res = await POST(
+      req({
+        name: '<script>alert(1)</script>',
+        workEmail: 'test@clinic.ug',
+        organization: '<img src=x onerror=alert(1)>',
+        facilityName: '<b>Evil</b>',
+        facilityType: '<i>Phish</i>',
+        message: '<script>document.location="http://evil.com"</script>',
+        preferredMeetingAt: '<a href="javascript:void(0)">click</a>',
+      }),
+    )
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.emailStatus).toBe('sent')
+
+    expect(mockSend).toHaveBeenCalledTimes(2)
+    const [notifyCall] = mockSend.mock.calls
+    const notifyHtml = notifyCall[0].html as string
+    expect(notifyHtml).not.toContain('<script>')
+    expect(notifyHtml).not.toMatch(/<img[^>]*src=/i)
+    expect(notifyHtml).not.toMatch(/<a[^>]*href=["']?javascript:/i)
+    expect(notifyHtml).toContain('&lt;script&gt;')
+    expect(notifyHtml).toContain('&lt;img')
+    expect(notifyHtml).toContain('&lt;b&gt;Evil&lt;&#x2F;b&gt;')
+  })
+
+  it('escapes HTML in user confirmation email', async () => {
+    process.env.RESEND_API_KEY = 'test-key'
+    const mockSend = vi.fn(async () => ({ data: { id: 'sent' }, error: null }))
+    const { resend } = await import('@/lib/resend')
+    vi.mocked(resend.emails.send).mockImplementation(mockSend)
+
+    const res = await POST(
+      req({
+        name: '<script>xss</script>',
+        workEmail: 'user@test.ug',
+      }),
+    )
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.emailStatus).toBe('sent')
+
+    expect(mockSend).toHaveBeenCalledTimes(2)
+    const [, confirmCall] = mockSend.mock.calls
+    const confirmHtml = confirmCall[0].html as string
+    expect(confirmHtml).not.toContain('<script>')
+    expect(confirmHtml).toContain('&lt;script&gt;')
   })
 })

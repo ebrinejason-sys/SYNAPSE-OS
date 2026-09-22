@@ -6,6 +6,7 @@ import {
   buildMeetingRow,
   validateMeetingRequest,
 } from '@synapse/db/commercial-crm'
+import { escapeHtml } from '@synapse/db/html-escape'
 import { checkRateLimit, rateLimiters } from '@/lib/rate-limit'
 import { resend, FROM_EMAIL, FROM_NAME, brandedEmail } from '@/lib/resend'
 
@@ -56,13 +57,20 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
     if (existing?.id) {
       leadId = existing.id
-      await db
+      const { error: updateError } = await db
         .from('hospital_leads')
         .update({
           ...leadPayload,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existing.id)
+      if (updateError) {
+        console.error('[book-meeting] lead update failed', updateError.message)
+        return NextResponse.json(
+          { error: 'Could not update lead record. Please email us directly.' },
+          { status: 500 },
+        )
+      }
     } else {
       console.error('[book-meeting] lead insert failed', leadInsertError.message)
       return NextResponse.json(
@@ -93,7 +101,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (leadId) {
-    await db.from('commercial_lead_activities').insert({
+    const { error: activityError } = await db.from('commercial_lead_activities').insert({
       lead_id: leadId,
       meeting_id: meeting?.id ?? null,
       activity_type: 'meeting_requested',
@@ -102,6 +110,9 @@ export async function POST(req: NextRequest) {
       to_stage: 'LEAD',
       metadata: { source: value.source, ip },
     })
+    if (activityError) {
+      console.error('[book-meeting] activity insert failed', activityError.message)
+    }
   }
 
   let emailStatus: 'sent' | 'skipped' | 'failed' = 'skipped'
@@ -125,16 +136,16 @@ export async function POST(req: NextRequest) {
         replyTo: value.workEmail,
         subject: `Meeting request — ${value.organization || value.facilityName || value.name}`,
         html: brandedEmail({
-          subject: `Meeting request — ${value.name}`,
+          subject: `Meeting request — ${escapeHtml(value.name)}`,
           body: `
             <h2 style="margin:0 0 16px;font-size:20px;color:#F5F5F7;">New Book a Meeting request</h2>
             <p style="color:#A0A0B0;font-size:14px;">
-              ${value.name} · ${value.workEmail}<br/>
-              ${value.organization || '—'} / ${value.facilityName || '—'} · ${value.facilityType || '—'}<br/>
-              Preferred: ${value.preferredMeetingAt || 'not specified'}
+              ${escapeHtml(value.name)} · ${escapeHtml(value.workEmail)}<br/>
+              ${escapeHtml(value.organization) || '—'} / ${escapeHtml(value.facilityName) || '—'} · ${escapeHtml(value.facilityType) || '—'}<br/>
+              Preferred: ${escapeHtml(value.preferredMeetingAt) || 'not specified'}
             </p>
-            <p style="color:#A0A0B0;font-size:14px;white-space:pre-wrap;">${value.message || ''}</p>
-            <p style="color:#A0A0B0;font-size:12px;">Lead ${leadId ?? 'n/a'} · Meeting ${meeting?.id ?? 'n/a'}</p>
+            <p style="color:#A0A0B0;font-size:14px;white-space:pre-wrap;">${escapeHtml(value.message)}</p>
+            <p style="color:#A0A0B0;font-size:12px;">Lead ${escapeHtml(leadId)} · Meeting ${escapeHtml(meeting?.id)}</p>
           `,
         }),
       })
@@ -145,10 +156,10 @@ export async function POST(req: NextRequest) {
         html: brandedEmail({
           subject: 'Meeting request received',
           body: `
-            <h2 style="margin:0 0 12px;font-size:20px;color:#F5F5F7;">Thanks, ${value.name}.</h2>
+            <h2 style="margin:0 0 12px;font-size:20px;color:#F5F5F7;">Thanks, ${escapeHtml(value.name)}.</h2>
             <p style="color:#A0A0B0;font-size:15px;line-height:1.7;">
               We received your request to meet with the SYNAPSE team. A colleague will follow up
-              shortly. You can also reach us at ${PUBLIC_CONTACT_EMAIL}.
+              shortly. You can also reach us at ${escapeHtml(PUBLIC_CONTACT_EMAIL)}.
             </p>
           `,
         }),

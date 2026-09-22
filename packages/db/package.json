@@ -75,7 +75,8 @@
     "./ehr-continuity-golden": "./src/ehr-continuity-golden.ts",
     "./pharmacy-purchases": "./src/pharmacy-purchases.ts",
     "./commercial-pricing": "./src/commercial-pricing.ts",
-    "./commercial-crm": "./src/commercial-crm.ts"
+    "./commercial-crm": "./src/commercial-crm.ts",
+    "./html-escape": "./src/html-escape.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",
