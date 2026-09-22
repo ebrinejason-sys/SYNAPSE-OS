@@ -35,15 +35,23 @@ export async function GET() {
   const aiConfigured = isOpenRouterConfigured()
   const ready = db.ok
   const commitSha = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? null
-  return NextResponse.json({
-    status: ready ? "ready" : "not_ready",
-    checkedAt: new Date().toISOString(),
-    commitSha,
-    checks: {
-      database: db,
-      migrationHead: { ok: Boolean(migrationHead), version: migrationHead },
-      icd11: { ok: true, optional: true, configured: icdConfigured, degraded: !icdConfigured },
-      ai: { ok: true, optional: true, configured: aiConfigured, degraded: !aiConfigured },
+  return NextResponse.json(
+    {
+      status: ready ? "ready" : "not_ready",
+      checkedAt: new Date().toISOString(),
+      commitSha,
+      checks: {
+        database: db,
+        migrationHead: { ok: Boolean(migrationHead), version: migrationHead },
+        icd11: { ok: true, optional: true, configured: icdConfigured, degraded: !icdConfigured },
+        ai: { ok: true, optional: true, configured: aiConfigured, degraded: !aiConfigured },
+      },
     },
-  }, { status: ready ? 200 : 503 })
+    {
+      status: ready ? 200 : 503,
+      headers: {
+        "Cache-Control": "no-store, max-age=0",
+      },
+    },
+  )
 }

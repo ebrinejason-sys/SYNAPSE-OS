@@ -264,7 +264,9 @@ export async function middleware(request: NextRequest) {
   // ── DEMO subdomain ────────────────────────────────────────────────
   // Public CTA HTML is prerendered as /demo/login. On this host that
   // double-prefixes to /demo/demo/login (404). Strip /demo and rewrite.
+  // Health/ready must never be rewritten under /demo/*.
   if (subdomain === "demo") {
+    if (pathname === "/api" || pathname.startsWith("/api/")) return next();
     const url = request.nextUrl.clone();
     if (pathname === "/demo" || pathname.startsWith("/demo/")) {
       url.pathname = pathname.replace(/^(?:\/demo)+/, "") || "/";
@@ -286,6 +288,8 @@ export async function middleware(request: NextRequest) {
 
   // ── ADMIN subdomain: email-gated ──────────────────────────────────
   if (subdomain === "admin") {
+    // API probes and BFF routes must not be rewritten under /platform/*.
+    if (pathname === "/api" || pathname.startsWith("/api/")) return next();
     // Invite redemption is public — don't rewrite or gate it
     if (pathname.startsWith("/invite/") || pathname.startsWith("/platform/invite/")) {
       return next();
@@ -348,6 +352,8 @@ export async function middleware(request: NextRequest) {
 
   // ── PHARM subdomain: standalone pharmacy app ─────────────────────
   if (subdomain === "pharm") {
+    // OS health/ready APIs are not Pharmacy portal pages.
+    if (pathname === "/api" || pathname.startsWith("/api/")) return next();
     // Invite redemption is public — no auth, no rewrite
     if (pathname.startsWith("/invite/")) {
       return next();

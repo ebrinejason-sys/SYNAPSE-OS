@@ -58,6 +58,17 @@ describe('host-derived tenant boundary', () => {
     const res = await middleware(request(`${slug}.synapseos.tech`, '/api/example'))
     expect(res.headers.get('x-middleware-request-x-tenant-id')).toBeNull()
   })
+
+  it('does not rewrite health/ready under admin or demo hosts', async () => {
+    setup()
+    for (const host of ['admin.synapseos.tech', 'demo.synapseos.tech', 'pharm.synapseos.tech']) {
+      for (const path of ['/api/health/live', '/api/ready']) {
+        const res = await middleware(request(host, path))
+        expect(res.headers.get('x-middleware-rewrite')).toBeNull()
+        expect(res.status).toBe(200)
+      }
+    }
+  })
   it.each(['synapseos.tech', 'www.synapseos.tech', 'localhost', 'preview.vercel.app'])('does not resolve root/preview %s from query input', async host => {
     expect(facilitySlugFromHost(host)).toBeNull()
     setup()
