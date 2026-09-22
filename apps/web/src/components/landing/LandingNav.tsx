@@ -7,14 +7,12 @@ import { SynapseLogo } from '../SynapseLogo'
 import { ThemeToggle } from '../ThemeToggle'
 
 const NAV = [
-  ['#platform', 'Platform'],
-  ['#get-started', 'Get started'],
-  ['#products', 'Products'],
-  ['#pharm', 'Pharmacy'],
-  ['#features', 'Features'],
-  ['#pricing', 'Pricing'],
-  ['/download/android', 'Get the app'],
-  ['#demo', 'Demo'],
+  ['/products/os', 'Products'],
+  ['/pricing', 'Pricing'],
+  ['/products/pharmacy', 'Pharmacy'],
+  ['/products/lab', 'Lab'],
+  ['/book-meeting', 'Enterprise'],
+  ['/contact', 'Contact'],
   ['/docs', 'Docs'],
 ] as const
 
@@ -61,18 +59,18 @@ export function LandingNav() {
           <Link href="/login" className="landing-nav-link">
             Sign in
           </Link>
-          <Link href="/apply" className="landing-btn-secondary">
-            Onboard facility
+          <Link href="/book-meeting" className="landing-btn-secondary">
+            Book a Meeting
           </Link>
-          <Link href="/signup" className="landing-btn-primary">
-            Create account
+          <Link href="/pricing" className="landing-btn-primary">
+            View pricing
           </Link>
         </div>
 
         {/* Mobile actions: one compact CTA + hamburger only */}
         <div className="flex items-center gap-2 lg:hidden">
-          <Link href="/signup" className="landing-btn-primary landing-btn-compact">
-            Get started
+          <Link href="/book-meeting" className="landing-btn-primary landing-btn-compact">
+            Book meeting
           </Link>
           <button
             type="button"
@@ -103,19 +101,19 @@ export function LandingNav() {
 
             <div className="mt-4 flex flex-col gap-2.5">
               <Link
-                href="/signup"
+                href="/book-meeting"
                 className="landing-btn-primary w-full justify-center py-3"
                 onClick={() => setOpen(false)}
               >
-                Create account
+                Book a Meeting
                 <ArrowRight className="ml-1.5 h-4 w-4" />
               </Link>
               <Link
-                href="/apply"
+                href="/pricing"
                 className="landing-btn-secondary w-full justify-center py-3"
                 onClick={() => setOpen(false)}
               >
-                Onboard facility
+                View pricing
               </Link>
               <Link
                 href="/login"

@@ -214,7 +214,7 @@ export default function ContactPage() {
               {status === 'error' && (
                 <p className="text-xs" style={{ color: '#EF4444' }}>
                   Something went wrong. Please try again or email us directly at{' '}
-                  <a href="mailto:ebrinetushabe@gmail.com" style={{ color: 'var(--brand-orange)' }}>ebrinetushabe@gmail.com</a>
+                  <a href="mailto:synapseostech@gmail.com" style={{ color: 'var(--brand-orange)' }}>synapseostech@gmail.com</a>
                 </p>
               )}
 
@@ -241,7 +241,7 @@ export default function ContactPage() {
         {/* Direct contact */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
-            { label: 'Ebrine (CEO)', value: 'ebrinetushabe@gmail.com', href: 'mailto:ebrinetushabe@gmail.com' },
+            { label: 'SYNAPSE', value: 'synapseostech@gmail.com', href: 'mailto:synapseostech@gmail.com' },
             { label: 'Nathan (Clinical Lead)', value: 'nathandavid762@gmail.com', href: 'mailto:nathandavid762@gmail.com' },
           ].map(c => (
             <a

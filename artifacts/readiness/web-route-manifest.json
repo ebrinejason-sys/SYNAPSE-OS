@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-21T06:19:05.792Z",
+  "generated_at": "2026-09-22T18:19:05.999Z",
   "routes": [
     {
       "route": "/",
@@ -9,7 +9,7 @@
     {
       "route": "/about",
       "source_file": "apps/web/src/app/about/page.tsx",
-      "classification": "ROADMAP"
+      "classification": "ACTIVE"
     },
     {
       "route": "/admin",
@@ -170,6 +170,11 @@
       "route": "/blog/[slug]",
       "source_file": "apps/web/src/app/blog/[slug]/page.tsx",
       "classification": "ROADMAP"
+    },
+    {
+      "route": "/book-meeting",
+      "source_file": "apps/web/src/app/book-meeting/page.tsx",
+      "classification": "ACTIVE"
     },
     {
       "route": "/careers",
@@ -942,6 +947,11 @@
       "classification": "ROADMAP"
     },
     {
+      "route": "/pharmacy/purchases",
+      "source_file": "apps/web/src/app/pharmacy/purchases/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
       "route": "/pharmacy/queue",
       "source_file": "apps/web/src/app/pharmacy/queue/page.tsx",
       "classification": "ACTIVE"
@@ -999,6 +1009,21 @@
     {
       "route": "/platform/broadcasts",
       "source_file": "apps/web/src/app/platform/broadcasts/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/commercial/leads",
+      "source_file": "apps/web/src/app/platform/commercial/leads/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/commercial/meetings",
+      "source_file": "apps/web/src/app/platform/commercial/meetings/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/commercial/pricing",
+      "source_file": "apps/web/src/app/platform/commercial/pricing/page.tsx",
       "classification": "FEATURE_GATED"
     },
     {
@@ -1249,6 +1274,21 @@
     {
       "route": "/pricing",
       "source_file": "apps/web/src/app/pricing/page.tsx",
+      "classification": "ROADMAP"
+    },
+    {
+      "route": "/products/lab",
+      "source_file": "apps/web/src/app/products/lab/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/products/os",
+      "source_file": "apps/web/src/app/products/os/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/products/pharmacy",
+      "source_file": "apps/web/src/app/products/pharmacy/page.tsx",
       "classification": "ACTIVE"
     },
     {
