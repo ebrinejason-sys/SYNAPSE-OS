@@ -192,6 +192,11 @@ async function isTenantActive(tenantId: string) {
   }
 }
 
+/** Process health probes — never rewrite under tenant/admin/demo shells; no DB/tenant gate. */
+function isProcessHealthPath(pathname: string): boolean {
+  return pathname === "/api/health/live" || pathname === "/api/ready";
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = (request.headers.get("host") ?? "").split(":")[0]?.toLowerCase() ?? "";
@@ -200,6 +205,10 @@ export async function middleware(request: NextRequest) {
   const rewrite = (url: URL) => NextResponse.rewrite(url, { request: { headers: forwardedHeaders } });
   const isStatic = pathname.startsWith("/_next/") || (!/^\/(api|os)(?:\/|$)/.test(pathname) && /\.(svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2)$/.test(pathname));
   if (isStatic) return next();
+
+  // Liveness/readiness must work on every host (www, admin, demo, facility, preview)
+  // without tenant lookup, auth, or UI rewrites into /os|/platform|/demo|/pharmacy.
+  if (isProcessHealthPath(pathname)) return next();
 
   const hostSlug = facilitySlugFromHost(hostname);
   // Root /os/:slug routes are also tenant-scoped. A tenant host may never select another path tenant.
