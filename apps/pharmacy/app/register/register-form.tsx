@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { UGANDA_DISTRICTS } from "@synapse/config/constants"
+import { CANONICAL_PLAN_SLUGS } from "@synapse/db/commercial-pricing"
 import { SynapseMark } from "@/components/brand/synapse-mark"
 import { formatUgx } from "@/lib/format-ugx"
 
@@ -15,9 +16,7 @@ type PlanOption = {
 }
 
 const FALLBACK_PLANS: PlanOption[] = [
-  { slug: "pharm_monthly", name: "Pharm Monthly", price_ugx: 20000, billing_cycle: "monthly" },
-  { slug: "pharm_quarterly", name: "Pharm Quarterly", price_ugx: 52000, billing_cycle: "quarterly" },
-  { slug: "pharm_yearly", name: "Pharm Yearly", price_ugx: 200000, billing_cycle: "yearly" },
+  { slug: CANONICAL_PLAN_SLUGS.pharmacy, name: "SYNAPSE Pharmacy", price_ugx: 240_000, billing_cycle: "yearly" },
 ]
 
 function normalizePhone(raw: string): string {
@@ -31,7 +30,7 @@ function normalizePhone(raw: string): string {
 
 export default function RegisterForm({ plans }: { plans: PlanOption[] }) {
   const searchParams = useSearchParams()
-  const initialPlan = searchParams.get("plan") ?? "pharm_monthly"
+  const initialPlan = searchParams.get("plan") ?? CANONICAL_PLAN_SLUGS.pharmacy
   const planList = plans.length > 0 ? plans : FALLBACK_PLANS
 
   const [step, setStep] = useState(1)
@@ -44,7 +43,7 @@ export default function RegisterForm({ plans }: { plans: PlanOption[] }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [planSlug, setPlanSlug] = useState(
-    planList.some((p) => p.slug === initialPlan) ? initialPlan : "pharm_monthly",
+    planList.some((p) => p.slug === initialPlan) ? initialPlan : CANONICAL_PLAN_SLUGS.pharmacy,
   )
   const [pdpoConsent, setPdpoConsent] = useState(false)
   const [error, setError] = useState<string | null>(null)

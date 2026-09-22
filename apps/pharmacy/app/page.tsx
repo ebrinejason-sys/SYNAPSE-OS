@@ -2,14 +2,16 @@ import Link from "next/link"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import {
+  listPublicPricingPlans,
+  findPlanBySlug,
+  CANONICAL_PLAN_SLUGS,
+  formatUgxAnnual,
+  type CommercialPlan,
+} from "@synapse/db/commercial-pricing"
 import { SynapseMark } from "@/components/brand/synapse-mark"
 import { PosMock } from "@/components/landing/pos-mock"
 import { PharmParticleField } from "@/components/landing/pharm-particle-field"
-import {
-  effectiveMonthlyUgx,
-  formatUgx,
-  savingsVsMonthly,
-} from "@/lib/format-ugx"
 
 export const dynamic = "force-dynamic"
 
@@ -17,13 +19,6 @@ const APP_HOSTS = new Set([
   "pharm.synapseos.tech",
   "www.pharm.synapseos.tech",
 ])
-
-type PlanRow = {
-  slug: string
-  name: string
-  price_ugx: number | string | null
-  billing_cycle: string
-}
 
 function cleanHost(host: string | null) {
   return (host ?? "").split(":")[0]?.toLowerCase() ?? ""
@@ -37,21 +32,6 @@ function isManagedHost(host: string) {
     host === "localhost" ||
     host === "127.0.0.1"
   )
-}
-
-async function loadActivePharmacyPlans(): Promise<PlanRow[]> {
-  const { data, error } = await supabaseAdmin
-    .from("subscription_plans")
-    .select("slug, name, price_ugx, billing_cycle")
-    .eq("facility_type", "pharmacy")
-    .eq("is_active", true)
-    .order("price_ugx", { ascending: true })
-
-  if (error) {
-    console.error("[pharm-landing] failed to load plans:", error.message)
-    return []
-  }
-  return (data ?? []) as PlanRow[]
 }
 
 function CustomDomainPortal({
@@ -115,9 +95,8 @@ export default async function Page() {
     )
   }
 
-  const plans = await loadActivePharmacyPlans()
-  const monthlyPlan = plans.find((p) => p.billing_cycle === "monthly")
-  const monthlyPrice = Number(monthlyPlan?.price_ugx ?? 20000)
+  const { plans } = await listPublicPricingPlans(supabaseAdmin as never)
+  const pharmacyPlan = findPlanBySlug(plans, CANONICAL_PLAN_SLUGS.pharmacy)
 
   return (
     <div className="relative min-h-screen bg-[#07070A] text-[#F5F5F7]">
@@ -260,72 +239,40 @@ export default async function Page() {
           <div className="reveal max-w-2xl">
             <p className="type-overline text-[#F97316]">Pricing</p>
             <h2 className="mt-3 font-display text-heading-1 text-balance tracking-tight">
-              Simple UGX plans
+              Annual subscription
             </h2>
             <p className="mt-3 text-lead text-zinc-400">
-              7-day free trial on every tier. No card required to start.
+              7-day free trial. No card required to start.
             </p>
           </div>
 
-          <div className="mt-10 grid gap-5 lg:grid-cols-3">
-            {plans.length === 0 ? (
-              <p className="text-sm text-zinc-500">Plans are temporarily unavailable. Email hello@synapseos.tech.</p>
+          <div className="mt-10 max-w-md">
+            {!pharmacyPlan ? (
+              <p className="text-sm text-zinc-500">Pricing is temporarily unavailable. Email hello@synapseos.tech.</p>
             ) : (
-              plans.map((plan) => {
-                const price = Number(plan.price_ugx ?? 0)
-                const monthly = effectiveMonthlyUgx(price, plan.billing_cycle)
-                const saving = savingsVsMonthly(price, plan.billing_cycle, monthlyPrice)
-                const isMonthly = plan.billing_cycle === "monthly"
-                return (
-                  <article
-                    key={plan.slug}
-                    className={`reveal flex flex-col rounded-2xl border p-6 ${
-                      isMonthly
-                        ? "border-[#F97316]/60 bg-[#111117]"
-                        : "border-[#2A2A36] bg-[#0C0C10]"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="font-display text-heading-3 tracking-tight">{plan.name}</h3>
-                        <p className="mt-1 font-mono text-xs uppercase tracking-wider text-zinc-500">
-                          {plan.billing_cycle}
-                        </p>
-                      </div>
-                      {saving != null && saving > 0 ? (
-                        <span className="rounded-md bg-[#1FA6A6]/15 px-2 py-1 font-mono text-[11px] font-semibold text-[#1FA6A6]">
-                          Save {formatUgx(saving)}
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-6 font-display text-heading-1 tabular-nums tracking-tight text-white">
-                      {formatUgx(price)}
-                    </p>
-                    {!isMonthly ? (
-                      <p className="mt-1 font-mono text-xs text-zinc-500">
-                        ≈ {formatUgx(monthly)} / month
-                      </p>
-                    ) : (
-                      <p className="mt-1 font-mono text-xs text-zinc-500">per month</p>
-                    )}
-                    <ul className="mt-6 flex-1 space-y-2 text-sm text-zinc-400">
-                      <li>Full POS + FEFO inventory</li>
-                      <li>Printed receipts · staff roles</li>
-                      <li>7-day free trial</li>
-                    </ul>
-                    <Link
-                      href={`/register?plan=${encodeURIComponent(plan.slug)}`}
-                      className={`mt-8 block rounded-lg px-4 py-2.5 text-center text-sm font-semibold ${
-                        isMonthly
-                          ? "bg-[#F97316] text-white hover:bg-orange-600"
-                          : "border border-[#2A2A36] text-zinc-100 hover:border-[#E8B84B]/50"
-                      }`}
-                    >
-                      Start free trial
-                    </Link>
-                  </article>
-                )
-              })
+              <article className="reveal flex flex-col rounded-2xl border border-[#F97316]/60 bg-[#111117] p-6">
+                <div>
+                  <h3 className="font-display text-heading-3 tracking-tight">{pharmacyPlan.name}</h3>
+                  <p className="mt-1 font-mono text-xs uppercase tracking-wider text-zinc-500">
+                    Annual billing
+                  </p>
+                </div>
+                <p className="mt-6 font-display text-heading-1 tabular-nums tracking-tight text-white">
+                  {formatUgxAnnual(pharmacyPlan.priceUgx, pharmacyPlan.pricingState)}
+                </p>
+                <ul className="mt-6 flex-1 space-y-2 text-sm text-zinc-400">
+                  <li>Full POS + FEFO inventory</li>
+                  <li>Printed receipts · staff roles</li>
+                  <li>Batch & expiry tracking</li>
+                  <li>7-day free trial</li>
+                </ul>
+                <Link
+                  href={`/register?plan=${encodeURIComponent(pharmacyPlan.slug)}`}
+                  className="mt-8 block rounded-lg bg-[#F97316] px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-orange-600"
+                >
+                  Start free trial
+                </Link>
+              </article>
             )}
           </div>
         </div>
