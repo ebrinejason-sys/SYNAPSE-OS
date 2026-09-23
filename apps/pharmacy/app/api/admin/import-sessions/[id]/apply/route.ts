@@ -274,11 +274,59 @@ export async function POST(
         }
 
         // Quantity semantics: STOCK_RECEIPT_DELTA via receive_pharmacy_stock (+qty), never absolute overwrite.
-        const quantity = values.quantity ? Number(values.quantity) : 0
+        const rawQty = values.quantity?.trim() ?? ""
+        const quantity = rawQty === "" ? 0 : Number(rawQty)
+        if (rawQty !== "" && (!Number.isFinite(quantity) || quantity < 0 || !Number.isInteger(quantity))) {
+          result.failed++
+          result.rows.push({
+            rowIndex: i,
+            status: "failed",
+            reason: "Invalid quantity (must be a non-negative whole number)",
+            productName: values.name,
+          })
+          continue
+        }
+        if (values.price?.trim()) {
+          const price = Number(values.price)
+          if (!Number.isFinite(price) || price < 0) {
+            result.failed++
+            result.rows.push({
+              rowIndex: i,
+              status: "failed",
+              reason: "Malformed price",
+              productName: values.name,
+            })
+            continue
+          }
+        }
+        if (values.cost_price?.trim()) {
+          const cost = Number(values.cost_price)
+          if (!Number.isFinite(cost) || cost < 0) {
+            result.failed++
+            result.rows.push({
+              rowIndex: i,
+              status: "failed",
+              reason: "Malformed cost price",
+              productName: values.name,
+            })
+            continue
+          }
+        }
         // Stable batch key (no Date.now) so a mid-run retry of the same session row tops up the same batch.
         const batchNumber =
           values.batch_number?.trim() || `IMPORT-${sessionId.slice(0, 8)}-R${i}`
-        const expiryDate = parseDate(values.expiry_date)
+        const expiryRaw = values.expiry_date?.trim() ?? ""
+        const expiryDate = expiryRaw ? parseDate(expiryRaw) : null
+        if (expiryRaw && !expiryDate) {
+          result.failed++
+          result.rows.push({
+            rowIndex: i,
+            status: "failed",
+            reason: "Invalid expiry date",
+            productName: values.name,
+          })
+          continue
+        }
 
         if (quantity > 0 && expiryDate) {
           const { error: receiveError } = await receivePharmacyStock(db(), {

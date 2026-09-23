@@ -278,23 +278,13 @@ export function resolveImportCatalogMatch(
   const barcode = values.barcode?.trim()
   if (barcode) {
     const match = existingProducts.find((p) => norm(p.barcode) === norm(barcode))
-    if (match) {
-      if (!clinicalFieldsCompatible(values, match)) {
-        return { kind: "ambiguous_name", candidates: [match] }
-      }
-      return { kind: "match", product: match, via: "barcode" }
-    }
+    if (match) return { kind: "match", product: match, via: "barcode" }
   }
 
   const sku = values.sku?.trim()
   if (sku) {
     const match = existingProducts.find((p) => norm(p.sku) === norm(sku))
-    if (match) {
-      if (!clinicalFieldsCompatible(values, match)) {
-        return { kind: "ambiguous_name", candidates: [match] }
-      }
-      return { kind: "match", product: match, via: "sku" }
-    }
+    if (match) return { kind: "match", product: match, via: "sku" }
   }
 
   const name = values.name?.trim()
@@ -304,8 +294,9 @@ export function resolveImportCatalogMatch(
   if (nameMatches.length === 0) return { kind: "none" }
 
   const compatible = nameMatches.filter((p) => clinicalFieldsCompatible(values, p))
-  if (compatible.length === 1) {
-    return { kind: "match", product: compatible[0], via: "name" }
+  const sole = compatible.length === 1 ? compatible[0] : undefined
+  if (sole) {
+    return { kind: "match", product: sole, via: "name" }
   }
   if (compatible.length === 0) {
     // Name collided with different strength/form — do not merge.
