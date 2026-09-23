@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 import {
   DUPLICATE_PRODUCT_THRESHOLD,
   allocatePurchaseIdempotencyKey,
+  catalogProductFromRow,
   createPurchaseCatalogProduct,
   derivePaymentStatus,
   findDuplicateProducts,
@@ -11,6 +12,8 @@ import {
   lineTotal,
   mapPoStatusToExisting,
   matchCatalogProducts,
+  resolveImportCatalogMatch,
+  IMPORT_QUANTITY_SEMANTICS,
   poStatusFromReceived,
   purchaseMargin,
   purchaseProductOpeningQuantity,
@@ -533,5 +536,42 @@ describe("pharmacy purchases domain", () => {
     assert.equal(barcode[0]?.id, "code-hit")
     const sku = matchCatalogProducts({ sku: "CET-10" }, catalog)
     assert.equal(sku[0]?.id, "code-hit")
+  })
+
+  it("does not silently merge Amoxicillin 250 mg with Amoxicillin 500 mg by name", () => {
+    assert.equal(IMPORT_QUANTITY_SEMANTICS, "STOCK_RECEIPT_DELTA")
+    const catalog = [
+      catalogProductFromRow({
+        id: "amox-500",
+        name: "Amoxicillin",
+        strength: "500 mg",
+        dosage_form: "Capsule",
+        sku: "AMX-500",
+        barcode: null,
+      }),
+      catalogProductFromRow({
+        id: "amox-250",
+        name: "Amoxicillin",
+        strength: "250 mg",
+        dosage_form: "Capsule",
+        sku: "AMX-250",
+        barcode: null,
+      }),
+    ]
+    const hit = resolveImportCatalogMatch(
+      { name: "Amoxicillin", strength: "250 mg", dosageForm: "Capsule" },
+      catalog,
+    )
+    assert.equal(hit.kind, "match")
+    if (hit.kind === "match") assert.equal(hit.product.id, "amox-250")
+
+    const clash = resolveImportCatalogMatch(
+      { name: "Amoxicillin", strength: "125 mg", dosageForm: "Capsule" },
+      catalog,
+    )
+    assert.equal(clash.kind, "ambiguous_name")
+
+    const bareName = resolveImportCatalogMatch({ name: "Amoxicillin" }, catalog)
+    assert.equal(bareName.kind, "ambiguous_name")
   })
 })

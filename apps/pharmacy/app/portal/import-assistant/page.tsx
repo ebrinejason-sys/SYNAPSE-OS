@@ -206,6 +206,16 @@ export default function ImportAssistantPage() {
         <p className="text-muted-foreground mt-1 text-sm">
           Migrate stock from Tally (or other exports) into Synapse: map columns, review, then apply into inventory.
         </p>
+        <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+          <p className="font-medium text-amber-50">Quantity semantics: STOCK_RECEIPT_DELTA</p>
+          <p className="mt-1 text-amber-100/90">
+            Mapped quantity is received as a <strong>stock receipt delta</strong> (+N via{" "}
+            <code className="text-xs">receivePharmacyStock</code>), not as an absolute stock count.
+            Tally &quot;Closing Stock&quot; of 100 adds +100 units — it does not set stock to 100.
+            Re-applying a completed session is blocked; name-only matches with conflicting strength or
+            dosage form are rejected so Amoxicillin 250 mg cannot silently become 500 mg.
+          </p>
+        </div>
       </div>
 
       <Card>
