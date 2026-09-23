@@ -178,6 +178,18 @@ export default function PurchasesPage() {
     }
   }
 
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setMatches([])
+      return
+    }
+    const handle = window.setTimeout(() => {
+      void searchProducts(query)
+    }, 280)
+    return () => window.clearTimeout(handle)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- debounce only on query text
+  }, [query])
+
   const addPickedLine = () => {
     if (!picked) return
     const qty = Number(draftQty)
@@ -386,10 +398,20 @@ export default function PurchasesPage() {
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <Input placeholder="New supplier name" value={newSupplier.name} onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })} />
-                  <Button type="button" variant="outline" onClick={() => void createSupplier()}>
-                    + Create Supplier
-                  </Button>
+                  <div>
+                    <Label htmlFor="new-supplier-name">New supplier name</Label>
+                    <Input
+                      id="new-supplier-name"
+                      placeholder="e.g. Cipla Uganda"
+                      value={newSupplier.name}
+                      onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button type="button" variant="outline" className="w-full" onClick={() => void createSupplier()}>
+                      + Create Supplier
+                    </Button>
+                  </div>
                 </div>
                 <div>
                   <Label>Supplier invoice</Label>
@@ -469,24 +491,24 @@ export default function PurchasesPage() {
                   <div className="grid sm:grid-cols-2 gap-2 rounded-md bg-muted/40 p-3">
                     <p className="sm:col-span-2 text-sm font-medium">{picked.name}</p>
                     <div>
-                      <Label>Quantity</Label>
-                      <Input placeholder="Qty" value={draftQty} onChange={(e) => setDraftQty(e.target.value)} />
+                      <Label htmlFor="draft-qty">Quantity (basic units)</Label>
+                      <Input id="draft-qty" type="number" min="1" placeholder="e.g. 100" value={draftQty} onChange={(e) => setDraftQty(e.target.value)} />
                     </div>
                     <div>
-                      <Label>Unit cost</Label>
-                      <Input placeholder="Unit cost" value={draftCost} onChange={(e) => setDraftCost(e.target.value)} />
+                      <Label htmlFor="draft-cost">Unit cost</Label>
+                      <Input id="draft-cost" type="number" min="0" step="0.01" placeholder="Cost per unit" value={draftCost} onChange={(e) => setDraftCost(e.target.value)} />
                     </div>
                     <div>
-                      <Label>Batch number</Label>
-                      <Input placeholder="Batch number" value={draftBatch} onChange={(e) => setDraftBatch(e.target.value)} />
+                      <Label htmlFor="draft-batch">Batch number</Label>
+                      <Input id="draft-batch" placeholder="Supplier batch / LOT" value={draftBatch} onChange={(e) => setDraftBatch(e.target.value)} />
                     </div>
                     <div>
-                      <Label>Expiry date</Label>
-                      <Input type="date" value={draftExpiry} onChange={(e) => setDraftExpiry(e.target.value)} />
+                      <Label htmlFor="draft-expiry">Expiry date</Label>
+                      <Input id="draft-expiry" type="date" value={draftExpiry} onChange={(e) => setDraftExpiry(e.target.value)} />
                     </div>
                     <div className="sm:col-span-2">
-                      <Label>Selling price (optional)</Label>
-                      <Input placeholder="Selling price (optional)" value={draftSell} onChange={(e) => setDraftSell(e.target.value)} />
+                      <Label htmlFor="draft-sell">Selling price (optional)</Label>
+                      <Input id="draft-sell" type="number" min="0" step="0.01" placeholder="Leave blank to keep current price" value={draftSell} onChange={(e) => setDraftSell(e.target.value)} />
                     </div>
                     {margin && margin.selling > 0 && (
                       <p className="text-xs text-muted-foreground sm:col-span-2">
@@ -542,38 +564,38 @@ export default function PurchasesPage() {
               <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(totals.subtotal)}</span></div>
                 <div>
-                  <Label>Tax</Label>
-                  <Input placeholder="0" value={tax} onChange={(e) => setTax(e.target.value)} />
+                  <Label htmlFor="purchase-tax">Tax</Label>
+                  <Input id="purchase-tax" type="number" min="0" step="0.01" value={tax} onChange={(e) => setTax(e.target.value)} />
                 </div>
                 <div>
-                  <Label>Discount</Label>
-                  <Input placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+                  <Label htmlFor="purchase-discount">Discount</Label>
+                  <Input id="purchase-discount" type="number" min="0" step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value)} />
                 </div>
                 <div>
-                  <Label>Other cost</Label>
-                  <Input placeholder="0" value={otherCost} onChange={(e) => setOtherCost(e.target.value)} />
+                  <Label htmlFor="purchase-other">Other cost</Label>
+                  <Input id="purchase-other" type="number" min="0" step="0.01" value={otherCost} onChange={(e) => setOtherCost(e.target.value)} />
                 </div>
                 <div>
-                  <Label>Amount paid</Label>
-                  <Input placeholder="0" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} />
+                  <Label htmlFor="purchase-paid">Amount paid</Label>
+                  <Input id="purchase-paid" type="number" min="0" step="0.01" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} />
                 </div>
                 <div>
-                  <Label>Payment method</Label>
-                  <Input placeholder="Cash, M-Pesa, Bank..." value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} />
+                  <Label htmlFor="purchase-pay-method">Payment method</Label>
+                  <Input id="purchase-pay-method" placeholder="Cash, Mobile Money, Bank…" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} />
                 </div>
                 <div>
-                  <Label>Notes</Label>
-                  <Input placeholder="Additional notes..." value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  <Label htmlFor="purchase-notes">Notes</Label>
+                  <Input id="purchase-notes" placeholder="Optional note for this receipt" value={notes} onChange={(e) => setNotes(e.target.value)} />
                 </div>
                 <div className="flex justify-between font-semibold pt-2">
                   <span>Grand total</span>
                   <span>{formatCurrency(totals.grandTotal)}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Receiving uses receive_pharmacy_stock. Selling price is not changed unless you tick it on a line.
+                  Receiving adds stock through genuine batches (receive_pharmacy_stock). Selling price stays unchanged unless you set it on a line.
                 </p>
                 <Button className="w-full" disabled={saving || loading} onClick={() => void receivePurchase()}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Receive Purchase"}
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Receive Purchase & Update Stock"}
                 </Button>
               </CardContent>
             </Card>
@@ -589,25 +611,37 @@ export default function PurchasesPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid sm:grid-cols-4 gap-2">
-              <Input placeholder="Search no. / supplier / invoice" value={filter.q} onChange={(e) => setFilter({ ...filter, q: e.target.value })} />
-              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={filter.supplierId} onChange={(e) => setFilter({ ...filter, supplierId: e.target.value })}>
-                <option value="">All suppliers</option>
-                {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={filter.status} onChange={(e) => setFilter({ ...filter, status: e.target.value })}>
-                <option value="">All statuses</option>
-                <option value="DRAFT">DRAFT</option>
-                <option value="RECEIVED">RECEIVED</option>
-                <option value="PARTIALLY_RECEIVED">PARTIALLY_RECEIVED</option>
-                <option value="CANCELLED">CANCELLED</option>
-              </select>
-              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={filter.paymentStatus} onChange={(e) => setFilter({ ...filter, paymentStatus: e.target.value })}>
-                <option value="">All payments</option>
-                <option value="UNPAID">UNPAID</option>
-                <option value="PARTIAL">PARTIAL</option>
-                <option value="PAID">PAID</option>
-                <option value="CREDIT">CREDIT</option>
-              </select>
+              <div>
+                <Label htmlFor="hist-q">Search</Label>
+                <Input id="hist-q" placeholder="Purchase no. / supplier / invoice" value={filter.q} onChange={(e) => setFilter({ ...filter, q: e.target.value })} />
+              </div>
+              <div>
+                <Label htmlFor="hist-supplier">Supplier</Label>
+                <select id="hist-supplier" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={filter.supplierId} onChange={(e) => setFilter({ ...filter, supplierId: e.target.value })}>
+                  <option value="">All suppliers</option>
+                  {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="hist-status">Status</Label>
+                <select id="hist-status" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={filter.status} onChange={(e) => setFilter({ ...filter, status: e.target.value })}>
+                  <option value="">All statuses</option>
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="RECEIVED">RECEIVED</option>
+                  <option value="PARTIALLY_RECEIVED">PARTIALLY_RECEIVED</option>
+                  <option value="CANCELLED">CANCELLED</option>
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="hist-pay">Payment</Label>
+                <select id="hist-pay" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={filter.paymentStatus} onChange={(e) => setFilter({ ...filter, paymentStatus: e.target.value })}>
+                  <option value="">All payments</option>
+                  <option value="UNPAID">UNPAID</option>
+                  <option value="PARTIAL">PARTIAL</option>
+                  <option value="PAID">PAID</option>
+                  <option value="CREDIT">CREDIT</option>
+                </select>
+              </div>
             </div>
             {loading ? (
               <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin" /></div>

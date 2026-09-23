@@ -77,7 +77,7 @@ export default function TransactionsPage() {
     todayProfit: 0, weekProfit: 0, monthProfit: 0
   })
   const [isLoading, setIsLoading] = useState(true)
-  const [showFilters, setShowFilters] = useState(false)
+  const [showFilters, setShowFilters] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [settings, setSettings] = useState<PharmacySettings | null>(null)
   const [isResetting, setIsResetting] = useState(false)
@@ -110,6 +110,7 @@ export default function TransactionsPage() {
   const [paymentFilter, setPaymentFilter] = useState("")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
+  const [txnSearch, setTxnSearch] = useState("")
 
   useEffect(() => {
     fetchTransactions()
@@ -118,7 +119,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     applyFilters()
-  }, [transactions, cashierFilter, paymentFilter, startDate, endDate])
+  }, [transactions, cashierFilter, paymentFilter, startDate, endDate, txnSearch])
 
   useEffect(() => {
     const handleAfterPrint = () => {
@@ -140,6 +141,16 @@ export default function TransactionsPage() {
 
   const applyFilters = () => {
     let filtered = [...transactions]
+
+    if (txnSearch.trim()) {
+      const q = txnSearch.trim().toLowerCase()
+      filtered = filtered.filter(
+        (t) =>
+          t.transactionNo.toLowerCase().includes(q) ||
+          (t.clientName ?? "").toLowerCase().includes(q) ||
+          (t.clientPhone ?? "").toLowerCase().includes(q),
+      )
+    }
 
     if (cashierFilter) {
       filtered = filtered.filter(t =>
@@ -182,6 +193,7 @@ export default function TransactionsPage() {
     setPaymentFilter("")
     setStartDate("")
     setEndDate("")
+    setTxnSearch("")
   }
 
   const handleResetTransactions = async () => {
@@ -516,18 +528,29 @@ export default function TransactionsPage() {
         </CardHeader>
         {showFilters && (
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="cashier">Cashier</Label>
+                <Label htmlFor="txnSearch">Receipt / client search</Label>
+                <Input
+                  id="txnSearch"
+                  placeholder="e.g. R-20260810-0002 or client name"
+                  value={txnSearch}
+                  onChange={(e) => setTxnSearch(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Receipt number, client name, or phone</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cashier">Cashier name</Label>
                 <Input
                   id="cashier"
-                  placeholder="Filter by cashier..."
+                  placeholder="Type part of the cashier’s name"
                   value={cashierFilter}
                   onChange={(e) => setCashierFilter(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">Matches staff who completed the sale</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="payment">Payment Method</Label>
+                <Label htmlFor="payment">Payment method</Label>
                 <select
                   id="payment"
                   value={paymentFilter}
@@ -535,29 +558,32 @@ export default function TransactionsPage() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   title="Filter by Payment Method"
                 >
-                  <option value="">All Methods</option>
+                  <option value="">All methods</option>
                   <option value="CASH">Cash</option>
                   <option value="CARD">Card</option>
                   <option value="MOBILE_MONEY">Mobile Money</option>
+                  <option value="CREDIT">Credit / on account</option>
                 </select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="startDate">Start Date</Label>
+                <Label htmlFor="startDate">From date</Label>
                 <Input
                   id="startDate"
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">Inclusive start of range</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="endDate">End Date</Label>
+                <Label htmlFor="endDate">To date</Label>
                 <Input
                   id="endDate"
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">Inclusive end of range</p>
               </div>
             </div>
             <div className="mt-4 flex justify-end">
@@ -979,8 +1005,8 @@ function TransactionReceipt({
   const currency = settings?.currency || "UGX"
   const pharmacyName = settings?.pharmacyName || "SYNAPSE Pharm"
   const location = settings?.location || ""
-  const contact = "0787599099"
-  const email = settings?.email || "info@synapseos.tech"
+  const contact = settings?.contact || ""
+  const email = settings?.email || ""
   const footerText = settings?.footerText || "Thank you for your purchase!"
 
   const receiptDate = transaction?.createdAt ? new Date(transaction.createdAt) : new Date()

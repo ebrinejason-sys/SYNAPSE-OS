@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, Upload, X, Trash2, AlertTriangle } from "lucide-react"
+import { Loader2, Upload, X, Trash2, AlertTriangle, Printer } from "lucide-react"
 import Image from "next/image"
 
 interface Settings {
@@ -347,6 +347,15 @@ export default function SettingsPage() {
             <CardTitle>Printer Configuration</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm space-y-2">
+              <p className="font-medium text-foreground">Quick setup</p>
+              <ol className="list-decimal list-inside text-muted-foreground space-y-1 text-xs sm:text-sm">
+                <li>Upload your pharmacy logo above (it prints at the top of every receipt).</li>
+                <li>Choose your printer model and paper width below.</li>
+                <li>Click <strong>Test print</strong> — pick your receipt printer in the browser dialog.</li>
+                <li>Optional: enable auto-print after each POS sale.</li>
+              </ol>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="printerType">Printer Type</Label>
               <select
@@ -432,6 +441,46 @@ export default function SettingsPage() {
                 </span>
               </span>
             </label>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const win = window.open("", "_blank", "width=420,height=640")
+                if (!win) {
+                  toast({
+                    variant: "destructive",
+                    title: "Pop-up blocked",
+                    description: "Allow pop-ups for this site, then try Test print again.",
+                  })
+                  return
+                }
+                const logoHtml = logoPreview
+                  ? `<img src="${logoPreview}" alt="" style="max-height:64px;max-width:70%;display:block;margin:0 auto 8px;" />`
+                  : ""
+                win.document.write(`<!doctype html><html><head><title>Receipt test</title>
+                  <style>
+                    body{font-family:ui-monospace,Menlo,monospace;padding:16px;color:#000}
+                    .w{width:${settings.receiptPaperWidth === "58" ? "58mm" : settings.receiptPaperWidth === "a4" ? "180mm" : "80mm"};margin:0 auto;font-size:${Math.round(12 * (settings.receiptFontScale || 1))}px}
+                    .c{text-align:center}.b{font-weight:700}.row{display:flex;justify-content:space-between;gap:8px}
+                    hr{border:none;border-top:1px dashed #000;margin:8px 0}
+                  </style></head><body><div class="w">
+                  ${logoHtml}
+                  <div class="c b">${settings.pharmacyName || "Pharmacy"}</div>
+                  <div class="c">${settings.location || ""}</div>
+                  <div class="c">${settings.contact || ""}</div>
+                  <hr/><div class="c b">*** TEST RECEIPT ***</div><hr/>
+                  <div class="row"><span>Item</span><span>1,000</span></div>
+                  <div class="row b"><span>TOTAL</span><span>1,000</span></div>
+                  <hr/><div class="c">${settings.footerText || "Thank you for your purchase!"}</div>
+                  </div>
+                  <script>window.onload=function(){window.print()}</script>
+                  </body></html>`)
+                win.document.close()
+              }}
+            >
+              <Printer className="h-4 w-4 mr-2" />
+              Test print
+            </Button>
             {(settings.printerType === "brother-dcp-t300" || settings.receiptPaperWidth === "a4") && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-sm text-blue-800">
