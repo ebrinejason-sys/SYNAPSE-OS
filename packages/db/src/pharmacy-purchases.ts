@@ -302,13 +302,13 @@ export function resolveImportCatalogMatch(
     return { kind: "match", product: sole, via: "name" }
   }
   if (compatible.length === 0) {
-    // Name collided with different strength/form — do not merge.
+    // Name collided with different strength/form - do not merge.
     return { kind: "ambiguous_name", candidates: nameMatches }
   }
   return { kind: "ambiguous_name", candidates: compatible }
 }
 
-/** Import quantity is always a receipt delta via receive_pharmacy_stock — never an absolute stock overwrite. */
+/** Import quantity is always a receipt delta via receive_pharmacy_stock - never an absolute stock overwrite. */
 export const IMPORT_QUANTITY_SEMANTICS = "STOCK_RECEIPT_DELTA" as const
 
 export function allocatePurchaseIdempotencyKey(existing: string | null, randomUUID: () => string): string {
