@@ -13,106 +13,171 @@ export type PosShortcutHandlers = {
   onCompleteSale?: () => void
   /** Focus or open customer/client details (Tally Alt+C). */
   onCustomer?: () => void
+  /** Remove last cart line (Tally Ctrl+D). */
+  onDeleteLine?: () => void
+  /** Clear / abandon cart (Tally Alt+D delete voucher). */
+  onClearCart?: () => void
+  /** Preview / print receipt (Tally Alt+P / F6 Receipt). */
+  onPrintReceipt?: () => void
+  /** Switch payment method to CREDIT (Tally Ctrl+F8 Credit Note analogue). */
+  onCreditMode?: () => void
+  /** Save as order / purchase hold (Tally F9 Purchase analogue). */
+  onSaveOrder?: () => void
   onHoldSale?: () => void
   onResumeSale?: () => void
   onClose?: () => void
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true
-  return target.isContentEditable
-}
+export type PosShortcutAction =
+  | "close"
+  | "accept"
+  | "customer"
+  | "patient"
+  | "products"
+  | "prescription"
+  | "amountPaid"
+  | "paymentMethod"
+  | "completeSale"
+  | "holdSale"
+  | "resumeSale"
+  | "deleteLine"
+  | "clearCart"
+  | "printReceipt"
+  | "creditMode"
+  | "saveOrder"
 
 /**
- * POS accelerators modelled on Tally voucher keys, plus existing F-key map.
+ * Pure key → action map so Tally parity can be unit-tested.
+ * Returns null when the keystroke is not a POS accelerator.
+ */
+export function resolvePosShortcut(event: {
+  key: string
+  ctrlKey: boolean
+  metaKey: boolean
+  altKey: boolean
+  shiftKey: boolean
+}): PosShortcutAction | null {
+  const key = event.key
+  const ctrl = event.ctrlKey || event.metaKey
+  const alt = event.altKey
+  const shift = event.shiftKey
+  const lower = key.length === 1 ? key.toLowerCase() : key
+
+  if (key === "Escape") return "close"
+
+  // Ctrl+A / Ctrl+Enter → Accept (Tally)
+  if (ctrl && !alt && (key === "Enter" || lower === "a")) return "accept"
+
+  // Alt+C → create / customer (Tally)
+  if (alt && !ctrl && lower === "c") return "customer"
+
+  // Ctrl+D → delete line (Tally)
+  if (ctrl && !alt && lower === "d") return "deleteLine"
+
+  // Alt+D → delete voucher / clear cart (Tally)
+  if (alt && !ctrl && lower === "d") return "clearCart"
+
+  // Alt+P → print (Tally)
+  if (alt && !ctrl && lower === "p") return "printReceipt"
+
+  // Ctrl+P → print
+  if (ctrl && !alt && lower === "p") return "printReceipt"
+
+  // Ctrl+F8 → credit note analogue → credit payment mode
+  if (ctrl && !alt && key === "F8") return "creditMode"
+
+  if (key === "F2") return "patient"
+  if (key === "F3") return "products"
+  if (key === "F4") return "prescription"
+  if (key === "F5") return "amountPaid"
+  if (key === "F6") return "printReceipt" // Tally Receipt voucher → print/preview receipt
+  if (key === "F7" && !ctrl && !alt) return "paymentMethod"
+  if (key === "F8" && !ctrl) {
+    return shift ? "holdSale" : "completeSale"
+  }
+  if (key === "F9" && !ctrl) return "saveOrder"
+  if (key === "F10") return "resumeSale"
+
+  return null
+}
+
+export const POS_SHORTCUT_CHEATSHEET: Array<{ keys: string; label: string }> = [
+  { keys: "F3", label: "Item" },
+  { keys: "F5", label: "Payment amt" },
+  { keys: "F6", label: "Receipt" },
+  { keys: "F7", label: "Pay method" },
+  { keys: "F8", label: "Sales" },
+  { keys: "Ctrl+A", label: "Accept" },
+  { keys: "Alt+C", label: "Customer" },
+  { keys: "Ctrl+D", label: "Del line" },
+  { keys: "Alt+D", label: "Clear" },
+  { keys: "F9", label: "Order" },
+  { keys: "Ctrl+F8", label: "Credit" },
+  { keys: "Shift+F8", label: "Hold" },
+  { keys: "F10", label: "Resume" },
+  { keys: "Alt+P", label: "Print" },
+  { keys: "Esc", label: "Close" },
+]
+
+/**
+ * POS accelerators modelled on Tally.ERP 9 / TallyPrime voucher keys.
  * Never the only way to complete a sale — mouse/touch still works.
- *
- * Tally-aligned:
- *   F5          Payment / amount paid
- *   F6          Receipt / payment method (existing)
- *   F8          Sales → complete sale
- *   Ctrl+A      Accept
- *   Ctrl+Enter  Accept
- *   Alt+C       Customer
- *   Escape      Close
- *
- * Existing Synapse:
- *   F2 patient, F3 products, F4 Rx, F8 hold was remapped — hold stays F9 dual with resume;
- *   Hold remains F8 legacy? We keep F8 as Sales (Tally) and Hold as Shift+F8 / previous F8→hold moved.
- *   Hold: F9 was resume; now Hold = Shift+F8, Resume = F9 (unchanged resume).
- *   Actually previous: F8 hold, F9 resume. Tally F8 is Sales.
- *   Compromise: F8 = complete sale (Tally Sales), Shift+F8 = hold, F9 = resume.
  */
 export function usePosKeyboardShortcuts(handlers: PosShortcutHandlers) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        handlers.onClose?.()
-        return
-      }
+      const action = resolvePosShortcut(event)
+      if (!action) return
 
-      const ctrl = event.ctrlKey || event.metaKey
-      const alt = event.altKey
-      const shift = event.shiftKey
+      event.preventDefault()
 
-      // Ctrl+A / Ctrl+Enter → Accept sale (even from inputs)
-      if (ctrl && !alt && (event.key === "Enter" || event.key.toLowerCase() === "a")) {
-        // Allow Ctrl+A in text fields only when not selecting-all for edit… Tally Accept wins in POS.
-        if (event.key.toLowerCase() === "a" && isTypingTarget(event.target) && !event.shiftKey) {
-          // Still accept — cashiers expect Ctrl+A = save in Tally, not select-all.
-        }
-        event.preventDefault()
-        handlers.onCompleteSale?.()
-        return
-      }
-
-      // Alt+C → Customer
-      if (alt && !ctrl && event.key.toLowerCase() === "c") {
-        event.preventDefault()
-        handlers.onCustomer?.()
-        return
-      }
-
-      if (event.key === "F2") {
-        event.preventDefault()
-        handlers.onPatientSearch?.()
-        return
-      }
-      if (event.key === "F3") {
-        event.preventDefault()
-        handlers.onProductSearch?.()
-        return
-      }
-      if (event.key === "F4") {
-        event.preventDefault()
-        handlers.onPrescription?.()
-        return
-      }
-      if (event.key === "F5") {
-        event.preventDefault()
-        handlers.onAmountPaid?.()
-        return
-      }
-      if (event.key === "F6") {
-        event.preventDefault()
-        handlers.onPayment?.()
-        return
-      }
-      if (event.key === "F8") {
-        event.preventDefault()
-        if (shift) {
-          handlers.onHoldSale?.()
-        } else {
+      switch (action) {
+        case "close":
+          handlers.onClose?.()
+          break
+        case "accept":
+        case "completeSale":
           handlers.onCompleteSale?.()
-        }
-        return
-      }
-      if (event.key === "F9") {
-        event.preventDefault()
-        handlers.onResumeSale?.()
-        return
+          break
+        case "customer":
+          handlers.onCustomer?.()
+          break
+        case "patient":
+          handlers.onPatientSearch?.()
+          break
+        case "products":
+          handlers.onProductSearch?.()
+          break
+        case "prescription":
+          handlers.onPrescription?.()
+          break
+        case "amountPaid":
+          handlers.onAmountPaid?.()
+          break
+        case "paymentMethod":
+          handlers.onPayment?.()
+          break
+        case "holdSale":
+          handlers.onHoldSale?.()
+          break
+        case "resumeSale":
+          handlers.onResumeSale?.()
+          break
+        case "deleteLine":
+          handlers.onDeleteLine?.()
+          break
+        case "clearCart":
+          handlers.onClearCart?.()
+          break
+        case "printReceipt":
+          handlers.onPrintReceipt?.()
+          break
+        case "creditMode":
+          handlers.onCreditMode?.()
+          break
+        case "saveOrder":
+          handlers.onSaveOrder?.()
+          break
       }
     }
     window.addEventListener("keydown", onKeyDown)

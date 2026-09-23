@@ -17,7 +17,7 @@ import { Search, ShoppingCart, Trash2, Printer, Clock, Eye, Calculator, Package,
 import { getPendingActions, saveMetadata, getMetadata } from "@/lib/offlineStorage"
 import { LiveRegion } from "@synapse/ui"
 import { TillBanner } from "@/components/till-banner"
-import { usePosKeyboardShortcuts } from "@/lib/pos/keyboard"
+import { usePosKeyboardShortcuts, POS_SHORTCUT_CHEATSHEET } from "@/lib/pos/keyboard"
 import { settlePayment } from "@/lib/pos/partial-payment"
 import {
   allocateFefoBatches,
@@ -917,13 +917,46 @@ export default function POSPage() {
     onPatientSearch: () => patientRef.current?.focus(),
     onProductSearch: () => productSearchRef.current?.focus(),
     onPayment: () => paymentRef.current?.focus(),
-    onAmountPaid: () => amountPaidRef.current?.focus(),
+    onAmountPaid: () => {
+      setPaymentMethod("CASH")
+      setTimeout(() => amountPaidRef.current?.focus(), 0)
+    },
     onCustomer: () => {
       setShowClientDetailsBeforeSaleDialog(true)
-      setTimeout(() => patientRef.current?.focus(), 50)
     },
     onCompleteSale: () => {
       if (!isProcessing && cart.length > 0) handleCompleteSale()
+    },
+    onDeleteLine: () => {
+      if (cart.length === 0) {
+        setLiveMessage("Cart is empty")
+        return
+      }
+      const last = cart[cart.length - 1]
+      removeFromCart(last.id)
+      setLiveMessage(`Removed ${last.name}`)
+    },
+    onClearCart: () => {
+      if (cart.length === 0) return
+      setCart([])
+      setAmountPaid("")
+      setLiveMessage("Cart cleared")
+      toast({ title: "Cart cleared", description: "Alt+D · like Tally delete voucher" })
+    },
+    onPrintReceipt: () => {
+      if (cart.length === 0) {
+        setLiveMessage("Cart is empty — nothing to print")
+        return
+      }
+      setShowReceiptPreview(true)
+    },
+    onCreditMode: () => {
+      setPaymentMethod("CREDIT")
+      setLiveMessage("Credit mode")
+      toast({ title: "Credit sale", description: "Ctrl+F8 · select or enter customer (Alt+C)" })
+    },
+    onSaveOrder: () => {
+      saveAsOrder()
     },
     onHoldSale: () => {
       if (cart.length === 0) {
@@ -933,7 +966,7 @@ export default function POSPage() {
       localStorage.setItem("pos-cart-held", JSON.stringify(cart))
       setCart([])
       setLiveMessage("Sale held")
-      toast({ title: "Sale held", description: "Press F9 to resume. Shift+F8 holds." })
+      toast({ title: "Sale held", description: "Press F10 to resume. Shift+F8 holds." })
     },
     onResumeSale: () => {
       const held = localStorage.getItem("pos-cart-held")
@@ -952,6 +985,9 @@ export default function POSPage() {
     onClose: () => {
       setShowMobileCart(false)
       setShowReceiptPreview(false)
+      setShowClientDetailsBeforeSaleDialog(false)
+      setShowOrderDialog(false)
+      setShowPrintPrompt(false)
     },
   })
 
@@ -976,7 +1012,7 @@ export default function POSPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Point of Sale</h1>
           <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
-            Process sales and generate receipts. Shortcuts: F2 patient · F3 products · F5 amount · F6 pay method · F8 / Ctrl+A complete · Shift+F8 hold · F9 resume · Alt+C customer.
+            Tally-style keys: F8 Sales · Ctrl+A Accept · F5 Payment · F6 Receipt · Alt+C Customer · Ctrl+D Del line · F9 Order.
             {isSynapsePharmAccount && selectedStaff && (
               <span className="ml-2 text-primary font-medium">
                 {" "}Selling as: {selectedStaff.name}
@@ -1732,7 +1768,7 @@ export default function POSPage() {
                   disabled={isProcessing || cart.length === 0}
                   aria-busy={isProcessing}
                 >
-                  {isProcessing ? "Processing..." : "Complete Sale"}
+                  {isProcessing ? "Processing..." : "Complete Sale (F8 / Ctrl+A)"}
                 </Button>
 
                 <Button
@@ -1742,8 +1778,29 @@ export default function POSPage() {
                   disabled={cart.length === 0}
                 >
                   <Clock className="h-4 w-4 mr-2" />
-                  Save as Order (Tab)
+                  Save as Order (F9)
                 </Button>
+
+                {/* Tally-style shortcut strip */}
+                <div
+                  className="rounded-lg border border-border bg-muted/40 p-2"
+                  aria-label="Keyboard shortcuts"
+                >
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Tally shortcuts
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {POS_SHORTCUT_CHEATSHEET.map((row) => (
+                      <span
+                        key={row.keys}
+                        className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-foreground"
+                      >
+                        <kbd className="font-mono font-semibold text-[#F97316]">{row.keys}</kbd>
+                        <span className="text-muted-foreground">{row.label}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
