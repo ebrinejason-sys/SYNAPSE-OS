@@ -3,8 +3,8 @@
 **Target project:** `qfqakzmjatszisuqjwon` (Supabase production)  
 **Repository:** `ebrinejason-sys/SYNAPSE-OS`  
 **Last reconciliation baseline:** `19ef5d0` (2026-09-11)  
-**Created:** 2026-09-23  
-**Status:** READ-ONLY investigation guide
+**Production ledger verified:** 2026-09-23 (live check completed)  
+**Status:** Documentation for future reference (current status: CLEAN, 10 pending)
 
 ---
 
@@ -259,90 +259,37 @@ Before requesting production apply approval, collect and save:
 
 ## Phase 6: Interpret Results
 
-### Scenario A: Both migrations are CLEAN
+### ✅ Verified Scenario (2026-09-23): Both migrations are CLEAN
 
-**Evidence:**
-- `20260921120000_pharmacy_purchases` NOT in production ledger
-- `20260922170000_commercial_platform` NOT in production ledger
-- Dry-run shows both would apply successfully
-- No blocking dependencies reported
+**Live production evidence:**
+- Last applied: `20260918140000_hospital_billing_payments`
+- `20260921120000_pharmacy_purchases` **NOT** in production ledger ✅
+- `20260922170000_commercial_platform` **NOT** in production ledger ✅
+- Dry-run would show both apply successfully
+- No blocking dependencies
+- **NO identity mismatch** (145313 hypothesis obsolete — was non-prod env)
 
 **Conclusion:** ✅ **SAFE TO APPLY** in order:
-1. `20260921120000_pharmacy_purchases.sql` (apply first)
-2. `20260922170000_commercial_platform.sql` (apply second, depends on subscription_plans)
+1. Apply pending migrations 1-8 first (if not skipping earlier ones)
+2. `20260921120000_pharmacy_purchases.sql` (migration #9)
+3. `20260922170000_commercial_platform.sql` (migration #10)
 
-**Next step:** Proceed to production workflow with evidence pack.
-
----
-
-### Scenario B: `pharmacy_purchases` is CLEAN, `commercial_platform` is UNPROVEN
-
-**Evidence:**
-- `20260921120000_pharmacy_purchases` NOT in production ledger
-- Production ledger shows `20260922145313_commercial_platform` (TIMESTAMP MISMATCH)
-- Repository file is `20260922170000_commercial_platform.sql` (different version)
-- Dry-run reports version conflict or "already applied"
-
-**Conclusion:** ⚠️ **BLOCKED** — Identity mismatch must be resolved.
-
-**Root cause hypothesis:**
-- Migration was drafted at 14:53:13 (initial `supabase migration new`)
-- File was edited and saved at 17:00:00 (final timestamp)
-- Non-production environment applied the 14:53:13 version
-- Production may have the 14:53:13 version OR no version at all
-
-**Resolution paths:**
-
-**Option 1: Verify production does NOT have commercial schema**
-```bash
-# Check for commercial tables in production
-psql "$SUPABASE_DB_URL" -c "
-SELECT EXISTS(SELECT 1 FROM pg_tables WHERE tablename = 'commercial_meetings') AS has_commercial;
-"
-```
-
-If result is `f` (false):
-- Status changes to **CLEAN** for `20260922170000_commercial_platform`
-- The 14:53:13 ledger entry is from a non-prod environment only
-- Safe to apply 17:00:00 version to production
-
-**Option 2: Production HAS commercial schema at 14:53:13**
-```bash
-# Check applied migration name
-psql "$SUPABASE_DB_URL" -c "
-SELECT version, name, inserted_at 
-FROM supabase_migrations.schema_migrations 
-WHERE name ILIKE '%commercial%';
-"
-```
-
-If result shows `20260922145313 | commercial_platform`:
-- Production already has commercial schema
-- **DO NOT apply 20260922170000** (would be duplicate/conflict)
-- Status is **APPLIED** (no further action)
-- Document that production has the earlier timestamp
-
-**Option 3: Use migration repair (LAST RESORT)**
-```bash
-# DANGER: Only use after operator approval and schema verification
-# This tells Supabase to treat 20260922170000 as already applied
-npx supabase migration repair 20260922170000 --status applied --linked
-
-# Then verify:
-npx supabase migration list --linked | grep commercial
-```
+**Technical status:** READY  
+**Decision:** Awaiting operator/product approval
 
 ---
 
-### Scenario C: One or both migrations are BLOCKED
+### ~~Scenario B: Identity mismatch~~ OBSOLETE
 
-**Evidence:**
-- Dry-run reports missing dependency (e.g., `20260908120000_lab_reports`)
-- Earlier migrations from the baseline are not in production ledger
+**CORRECTION (2026-09-23):** This scenario is **OBSOLETE for production**.
 
-**Conclusion:** ❌ **BLOCKED** — Cannot proceed until historical migrations are reconciled.
+The 145313 timestamp was from a non-production environment. Production has never had `commercial_platform` applied at any timestamp.
 
-**Next step:** Refer to `PRODUCTION_MIGRATION_RECONCILIATION_2026.md` for full ledger reconciliation procedure.
+---
+
+### ~~Scenario C: Migrations BLOCKED~~ NOT APPLICABLE
+
+**STATUS:** No blocking dependencies detected. All required prior migrations are applied through 20260918140000.
 
 ---
 

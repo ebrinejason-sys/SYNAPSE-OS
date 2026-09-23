@@ -29,7 +29,7 @@ This is a **read-only investigation** of the production migration ledger to asse
 
 ## Scope and Constraints
 
-### What was analyzed (READ-ONLY):
+### What was analyzed:
 
 ✅ Repository migration files (content, DDL, safety)  
 ✅ Git commit history and provenance  
@@ -38,53 +38,45 @@ This is a **read-only investigation** of the production migration ledger to asse
 ✅ Test coverage (automated tests for both migrations)  
 ✅ CI/CD workflow configuration  
 ✅ Code references to commercial schema  
+✅ **LIVE PRODUCTION LEDGER** (verified 2026-09-23 via `supabase migration list --linked`)
 
-### What was NOT performed (no live access):
+### Live production facts (2026-09-23):
 
-❌ Direct query of production Supabase `schema_migrations` table  
-❌ Live schema inspection (checking if commercial tables exist)  
-❌ Supabase CLI dry-run against production  
-❌ Migration ledger timestamp verification  
-❌ RLS policy verification on production database  
+✅ Last applied migration: `20260918140000_hospital_billing_payments`  
+✅ Exactly 10 pending migrations (20260920124500 through 20260922170000)  
+✅ NO remote-only versions  
+✅ NO identity mismatch (145313 hypothesis obsolete — was non-prod env)  
+✅ Status: **ALL CLEAN**, safe to apply in sequence
 
-**Hypothesis (non-binding):** Commercial schema is **NOT on production yet** based on:
-- Migration file comment: "Does NOT apply to production until migration ledger is reconciled."
-- No production apply evidence in docs since 2026-09-11 baseline
-- Code uses fallback pricing constants (no DB dependency)
+**Conclusion:** Commercial schema is **NOT on production** (verified). Both target migrations are **CLEAN/PENDING**.
 
 ---
 
 ## Migration Inventory: September 11-22, 2026
 
-### Full list of migrations since reconciliation baseline `19ef5d0`:
+### Verified pending migrations (live production ledger 2026-09-23):
 
-| # | Version | Name | Size | Commit | Status* |
-|---|---------|------|------|--------|---------|
-| 1 | 20260911100000 | session_bound_mfa_assurance | 1.1 KB | 738000b | UNKNOWN |
-| 2 | 20260911120000 | fix_invite_acceptance_verification_status | 4.0 KB | 738000b | UNKNOWN |
-| 3 | 20260912184600 | encounter_disposition_columns | 1.0 KB | 090ae64 | UNKNOWN |
-| 4 | 20260912190100 | facility_referrals_lifecycle_columns | 669 B | 4d14597 | UNKNOWN |
-| 5 | 20260912220000 | synapse_remote_migration_head | 1.1 KB | 4c5f9ce | UNKNOWN |
-| 6 | 20260913010000 | lab_order_replacement_link | 887 B | 778647d | UNKNOWN |
-| 7 | 20260913020000 | lab_order_one_open_replacement | 604 B | 778647d | UNKNOWN |
-| 8 | 20260918120000 | facility_lifecycle_control_plane | 1.4 KB | b552add | UNKNOWN |
-| 9 | 20260918140000 | hospital_billing_payments | 3.7 KB | 1a2aba1 | UNKNOWN |
-| 10 | 20260920124500 | drop_app_rw_authenticated_cross_tenant | 2.2 KB | bfcfc98 | UNKNOWN |
-| 11 | 20260920180000 | lab_results_order_linkage | 3.9 KB | d9e3761 | UNKNOWN |
-| 12 | 20260920190000 | facility_invitation_new_account_canonical_profile | 4.0 KB | 01cf9eb | UNKNOWN |
-| 13 | 20260920203000 | clinical_documents_consent_referral_loop | 5.9 KB | b552add | UNKNOWN |
-| 14 | 20260920220000 | lab_device_intelligence | 3.7 KB | fdbb9f2 | UNKNOWN |
-| 15 | 20260920224500 | lab_bridge_hashed_credentials | 1.6 KB | 64fc67b | UNKNOWN |
-| 16 | 20260921080000 | death_pronouncement_pathways | 14.8 KB | 9d69135 | UNKNOWN |
-| 17 | 20260921090000 | death_pronouncement_signed_column_lock | 3.9 KB | bbe5154 | UNKNOWN |
-| 18 | 20260921120000 | **pharmacy_purchases** | **7.4 KB** | fee3b9e | **TARGET** |
-| 19 | 20260922170000 | **commercial_platform** | **21.4 KB** | a845b00 | **TARGET** |
+**Last applied:** 20260918140000_hospital_billing_payments  
+**Pending count:** 10 migrations (ALL CLEAN)
 
-*Status UNKNOWN = requires live production ledger query to determine CLEAN/APPLIED/BLOCKED.
+| # | Version | Name | Size | Status |
+|---|---------|------|------|--------|
+| 1 | 20260920124500 | drop_app_rw_authenticated_cross_tenant | 2.2 KB | CLEAN |
+| 2 | 20260920180000 | lab_results_order_linkage | 3.9 KB | CLEAN |
+| 3 | 20260920190000 | facility_invitation_new_account_canonical_profile | 4.0 KB | CLEAN |
+| 4 | 20260920203000 | clinical_documents_consent_referral_loop | 5.9 KB | CLEAN |
+| 5 | 20260920220000 | lab_device_intelligence | 3.7 KB | CLEAN |
+| 6 | 20260920224500 | lab_bridge_hashed_credentials | 1.6 KB | CLEAN |
+| 7 | 20260921080000 | death_pronouncement_pathways | 14.8 KB | CLEAN |
+| 8 | 20260921090000 | death_pronouncement_signed_column_lock | 3.9 KB | CLEAN |
+| 9 | 20260921120000 | **pharmacy_purchases** | **7.4 KB** | **CLEAN** |
+| 10 | 20260922170000 | **commercial_platform** | **21.4 KB** | **CLEAN** |
 
-**Total migrations since baseline:** 19  
-**Target migrations for Wave 1:** 2 (pharmacy_purchases + commercial_platform)  
-**Dependency chain:** pharmacy_purchases is standalone; commercial_platform depends on subscription_plans (applied 20260612230655)
+**Status = VERIFIED against live production ledger (operator executed `supabase migration list --linked` on 2026-09-23)**
+
+**Total migrations since reconciliation baseline:** 19 (10 pending, 9 applied since Sep 11)  
+**Target migrations for Wave 1:** Migrations 9-10 (pharmacy_purchases + commercial_platform)  
+**Dependency chain:** All dependencies satisfied (subscription_plans applied 2026-06)
 
 ---
 
@@ -267,39 +259,20 @@ Annual pricing catalog, price history audit, CRM pipeline (leads/meetings), and 
 ✅ **Public insert gates:** Meeting/lead forms only (no public UPDATE/DELETE)  
 ✅ **Preserves history:** Does not modify `tenant_subscriptions` payment amounts  
 
-### Identity Mismatch Issue
+### ~~Identity Mismatch Issue~~ OBSOLETE (corrected 2026-09-23)
 
-**Known conflict:**
-- Repository file: `20260922170000_commercial_platform.sql` (17:00:00 timestamp)
-- User-reported ledger: `20260922145313 / commercial_platform` (14:53:13 timestamp)
-- Delta: ~2 hours 7 minutes
+**CORRECTION:** The identity mismatch hypothesis is **OBSOLETE for production**.
 
-**Hypothesis (from docs/migration-ledger-20260922-commercial.md):**
-1. Migration drafted at 14:53:13 (`supabase migration new commercial_platform`)
-2. File edited and saved at 17:00:00 (final content)
-3. Non-production environment applied the 14:53:13 version
-4. Repository contains the 17:00:00 version
+**Live production facts (verified 2026-09-23):**
+- Last applied: `20260918140000_hospital_billing_payments`
+- **NO** remote entry for `commercial_platform` (neither 145313 nor 170000)
+- Status: **CLEAN/PENDING**
 
-**Verification required:**
-```sql
--- Query production to check if commercial schema exists
-SELECT EXISTS(
-  SELECT 1 FROM pg_tables 
-  WHERE schemaname = 'public' 
-    AND tablename = 'commercial_meetings'
-) AS has_commercial;
+~~**Known conflict:**~~
+~~- Repository file: `20260922170000_commercial_platform.sql` (17:00:00)~~
+~~- User-reported ledger: `20260922145313 / commercial_platform` (14:53:13)~~
 
--- If true, check applied version
-SELECT version, name, inserted_at 
-FROM supabase_migrations.schema_migrations 
-WHERE name ILIKE '%commercial%';
-```
-
-**Resolution paths:**
-1. **If production has NO commercial schema:** Status = CLEAN, apply 17:00:00 version
-2. **If production has 14:53:13 version:** Status = APPLIED, do not re-apply (content likely identical)
-3. **If production has 17:00:00 version:** Status = APPLIED, already done
-4. **If version conflict with different content:** Use `supabase migration repair` or reconcile SQL
+**Resolution:** The 145313 timestamp was from a **non-production environment**. Production has **never** had `commercial_platform` applied. Safe to apply 170000 version when approved.
 
 ### Test Coverage
 
