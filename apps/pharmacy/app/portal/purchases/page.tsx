@@ -149,6 +149,17 @@ export default function PurchasesPage() {
     }
   }, [])
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (query.trim().length >= 2) {
+        void searchProducts(query)
+      } else {
+        setMatches([])
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [query])
+
   const searchProducts = async (q: string) => {
     setQuery(q)
     if (q.trim().length < 2) {
@@ -413,9 +424,9 @@ export default function PurchasesPage() {
                   <Input
                     placeholder="Barcode, SKU, generic, brand, strength…"
                     value={query}
-                    onChange={(e) => void searchProducts(e.target.value)}
+                    onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") void searchProducts(query)
+                      if (e.key === "Enter" && query.trim().length >= 2) void searchProducts(query)
                     }}
                   />
                   <Button type="button" variant="outline" onClick={() => void searchProducts(query)}>
@@ -457,18 +468,33 @@ export default function PurchasesPage() {
                 {picked && (
                   <div className="grid sm:grid-cols-2 gap-2 rounded-md bg-muted/40 p-3">
                     <p className="sm:col-span-2 text-sm font-medium">{picked.name}</p>
-                    <Input placeholder="Qty" value={draftQty} onChange={(e) => setDraftQty(e.target.value)} />
-                    <Input placeholder="Unit cost" value={draftCost} onChange={(e) => setDraftCost(e.target.value)} />
-                    <Input placeholder="Batch number" value={draftBatch} onChange={(e) => setDraftBatch(e.target.value)} />
-                    <Input type="date" value={draftExpiry} onChange={(e) => setDraftExpiry(e.target.value)} />
-                    <Input placeholder="Selling price (optional)" value={draftSell} onChange={(e) => setDraftSell(e.target.value)} />
+                    <div>
+                      <Label>Quantity</Label>
+                      <Input placeholder="Qty" value={draftQty} onChange={(e) => setDraftQty(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label>Unit cost</Label>
+                      <Input placeholder="Unit cost" value={draftCost} onChange={(e) => setDraftCost(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label>Batch number</Label>
+                      <Input placeholder="Batch number" value={draftBatch} onChange={(e) => setDraftBatch(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label>Expiry date</Label>
+                      <Input type="date" value={draftExpiry} onChange={(e) => setDraftExpiry(e.target.value)} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Selling price (optional)</Label>
+                      <Input placeholder="Selling price (optional)" value={draftSell} onChange={(e) => setDraftSell(e.target.value)} />
+                    </div>
                     {margin && margin.selling > 0 && (
                       <p className="text-xs text-muted-foreground sm:col-span-2">
                         Current selling: {formatCurrency(margin.selling)} · Cost {formatCurrency(margin.cost)} ·
                         Margin {margin.marginPct ?? 0}% · Markup {margin.markupPct ?? 0}%
                       </p>
                     )}
-                    <Button type="button" onClick={addPickedLine}>
+                    <Button type="button" onClick={addPickedLine} className="sm:col-span-2">
                       Add line
                     </Button>
                   </div>
@@ -513,14 +539,32 @@ export default function PurchasesPage() {
               <CardHeader>
                 <CardTitle>Review</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm">
+              <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(totals.subtotal)}</span></div>
-                <Input placeholder="Tax" value={tax} onChange={(e) => setTax(e.target.value)} />
-                <Input placeholder="Discount" value={discount} onChange={(e) => setDiscount(e.target.value)} />
-                <Input placeholder="Other cost" value={otherCost} onChange={(e) => setOtherCost(e.target.value)} />
-                <Input placeholder="Amount paid" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} />
-                <Input placeholder="Payment method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} />
-                <Input placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                <div>
+                  <Label>Tax</Label>
+                  <Input placeholder="0" value={tax} onChange={(e) => setTax(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Discount</Label>
+                  <Input placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Other cost</Label>
+                  <Input placeholder="0" value={otherCost} onChange={(e) => setOtherCost(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Amount paid</Label>
+                  <Input placeholder="0" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Payment method</Label>
+                  <Input placeholder="Cash, M-Pesa, Bank..." value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Notes</Label>
+                  <Input placeholder="Additional notes..." value={notes} onChange={(e) => setNotes(e.target.value)} />
+                </div>
                 <div className="flex justify-between font-semibold pt-2">
                   <span>Grand total</span>
                   <span>{formatCurrency(totals.grandTotal)}</span>

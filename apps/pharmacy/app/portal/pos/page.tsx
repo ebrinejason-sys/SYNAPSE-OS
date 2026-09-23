@@ -2049,6 +2049,21 @@ function ReceiptPreviewDialog({
         <div className="print-area rounded shadow-lg overflow-hidden">
           <div className="thermal-receipt">
             {/* Header */}
+            {settings?.logo && (
+              <div className="tr-center" style={{ padding: "8px 0" }}>
+                <img 
+                  src={settings.logo} 
+                  alt={`${pharmName} logo`} 
+                  style={{ 
+                    maxWidth: "150px",
+                    maxHeight: "80px",
+                    objectFit: "contain",
+                    margin: "0 auto",
+                    display: "block"
+                  }} 
+                />
+              </div>
+            )}
             <p className="tr-center tr-bold tr-lg">{pharmName}</p>
             {location && <p className="tr-center tr-sm">{location}</p>}
             {(contact || email) && (
@@ -2180,6 +2195,21 @@ function TransactionReceipt({
     >
 
       {/* ── Header ── */}
+      {settings?.logo && (
+        <div className="tr-center" style={{ padding: "8px 0" }}>
+          <img 
+            src={settings.logo} 
+            alt={`${pharmName} logo`} 
+            style={{ 
+              maxWidth: paperWidth === "58" ? "120px" : paperWidth === "a4" ? "200px" : "150px",
+              maxHeight: "80px",
+              objectFit: "contain",
+              margin: "0 auto",
+              display: "block"
+            }} 
+          />
+        </div>
+      )}
       <p className="tr-center tr-bold tr-lg tr-brand">{pharmName}</p>
       {location && <p className="tr-center tr-sm">{location}</p>}
       {(contact || email) && (
