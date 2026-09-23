@@ -163,7 +163,7 @@ export async function provisionPharmacy(input: PharmacyProvisionInput): Promise<
       district:      input.district.trim() || null,
       status:        'pending',
       is_active:     false,
-      onboarding_completed: false,
+      onboarding_completed: true,
     })
     .select('id')
     .single()
@@ -182,6 +182,7 @@ export async function provisionPharmacy(input: PharmacyProvisionInput): Promise<
       role:       'pharmacy_admin',
       tenant_id:  tenant.id,
       is_admin:   true,
+      onboarding_complete: true,
     })
     .select('id')
     .single()
@@ -282,7 +283,8 @@ export async function provisionPharmacy(input: PharmacyProvisionInput): Promise<
 
   const { error: onboardErr } = await db.from('pharmacy_onboarding').insert({
     tenant_id:         tenant.id,
-    current_step:      0,
+    current_step:      5,
+    onboarding_completed_at: new Date().toISOString(),
     invite_token:      inviteToken,
     invite_expires_at: inviteExpiry.toISOString(),
     admin_email:       input.adminEmail.trim().toLowerCase(),

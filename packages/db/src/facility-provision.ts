@@ -559,6 +559,7 @@ async function provisionPharmacyFacility(
           role: "pharmacy_admin",
           is_admin: true,
           must_change_password: true,
+          onboarding_complete: true,
           updated_at: nowIso(),
         })
         .eq("id", existingProfile.id)
@@ -578,7 +579,7 @@ async function provisionPharmacyFacility(
         must_change_password: true,
         verification_status: "verified",
         phone: input.adminPhone || input.contactPhone || null,
-        onboarding_complete: false,
+        onboarding_complete: true,
       })
       if (error) return fail("administrator", "PROFILE_INSERT", error.message)
     }
@@ -677,7 +678,8 @@ async function provisionPharmacyFacility(
         tenant_id: tenantId,
         admin_email: adminEmail,
         admin_name: input.adminName.trim(),
-        current_step: 1,
+        current_step: 5,
+        onboarding_completed_at: nowIso(),
         enrolled_by: input.createdBy,
         account_created_at: nowIso(),
         invite_sent_at: nowIso(),

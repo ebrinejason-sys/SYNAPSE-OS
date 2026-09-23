@@ -184,11 +184,27 @@ export async function setupAccount(
       .eq('id', onboarding.id)
   }
 
-  // 3. Advance onboarding. Tenant lifecycle is owned by provisioning finalize.
+  // 3. Platform already collected pharmacy identity at provision time.
+  // Mark the optional license wizard complete so first login lands in the portal.
   await supabaseAdmin
     .from('pharmacy_onboarding')
-    .update({ current_step: 1, account_created_at: new Date().toISOString() })
+    .update({
+      current_step: 5,
+      account_created_at: new Date().toISOString(),
+      onboarding_completed_at: new Date().toISOString(),
+    })
     .eq('id', onboarding.id)
+
+  await supabaseAdmin
+    .from('tenants')
+    .update({ onboarding_completed: true, onboarding_step: 5 })
+    .eq('id', tenantId)
+
+  await supabaseAdmin
+    .from('profiles')
+    .update({ onboarding_complete: true })
+    .eq('email', adminEmail)
+    .eq('tenant_id', tenantId)
 
   // 4. Issue session
   try {

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-22T18:19:05.999Z",
+  "generated_at": "2026-09-23T16:04:06.257Z",
   "routes": [
     {
       "route": "/",
@@ -1024,6 +1024,11 @@
     {
       "route": "/platform/commercial/pricing",
       "source_file": "apps/web/src/app/platform/commercial/pricing/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/commercial/subscriptions",
+      "source_file": "apps/web/src/app/platform/commercial/subscriptions/page.tsx",
       "classification": "FEATURE_GATED"
     },
     {

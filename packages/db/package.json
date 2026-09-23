@@ -74,6 +74,7 @@
     "./clinical-offline-prescribe": "./src/clinical-offline-prescribe.ts",
     "./ehr-continuity-golden": "./src/ehr-continuity-golden.ts",
     "./pharmacy-purchases": "./src/pharmacy-purchases.ts",
+    "./product-history": "./src/product-history.ts",
     "./commercial-pricing": "./src/commercial-pricing.ts",
     "./commercial-crm": "./src/commercial-crm.ts",
     "./html-escape": "./src/html-escape.ts"

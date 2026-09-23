@@ -116,15 +116,31 @@ export type ActivePlanRow = {
   billing_cycle: string
 }
 
-/** Active pharmacy plans, cheapest first — the only plans self-serve checkout accepts. */
+/** Canonical pharmacy self-serve checkout slug (UGX 240,000 / year). */
+export const PHARMACY_SELF_SERVE_PLAN_SLUG = 'synapse_pharmacy_annual'
+
+/** Active pharmacy plans offered in-app — yearly only (canonical annual preferred). */
 export async function listActivePharmacyPlans(): Promise<ActivePlanRow[]> {
+  const { data: canonical } = await db()
+    .from('subscription_plans')
+    .select('slug, name, price_ugx, billing_cycle')
+    .eq('slug', PHARMACY_SELF_SERVE_PLAN_SLUG)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (canonical) return [canonical as ActivePlanRow]
+
   const { data } = await db()
     .from('subscription_plans')
     .select('slug, name, price_ugx, billing_cycle')
     .eq('facility_type', 'pharmacy')
     .eq('is_active', true)
+    .eq('billing_cycle', 'yearly')
     .order('price_ugx', { ascending: true })
-  return (data ?? []) as ActivePlanRow[]
+
+  const rows = (data ?? []) as ActivePlanRow[]
+  // Prefer a single yearly card — avoid duplicate "Pharm Yearly" + "SYNAPSE Pharmacy" rows.
+  return rows.slice(0, 1)
 }
 
 /**
@@ -228,6 +244,11 @@ export async function initiateSubscriptionPayment(input: InitSubscribeInput): Pr
 
   if (planErr || !plan) throw new Error('Invalid or inactive plan')
   if (!plan.price_ugx || plan.price_ugx <= 0) throw new Error('Plan price not configured')
+  // Pharmacy portal self-serve: yearly only (monthly/quarterly are platform/historical).
+  const cycle = String(plan.billing_cycle ?? '').toLowerCase()
+  if (cycle !== 'yearly' && cycle !== 'annual' && plan.slug !== PHARMACY_SELF_SERVE_PLAN_SLUG) {
+    throw new Error('Only the yearly Pharmacy subscription can be purchased in-app')
+  }
 
   const { data: sub } = await db()
     .from('tenant_subscriptions')

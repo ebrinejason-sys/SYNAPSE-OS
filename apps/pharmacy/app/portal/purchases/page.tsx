@@ -26,6 +26,7 @@ type Match = {
   dosageForm?: string | null
   price?: number | null
   costPrice?: number | null
+  quantity?: number | null
   score: number
 }
 type Line = {
@@ -106,6 +107,7 @@ export default function PurchasesPage() {
     sku: "",
     manufacturer: "",
     category: "General",
+    costPrice: "",
     sellingPrice: "",
     reorderLevel: "10",
   })
@@ -194,8 +196,13 @@ export default function PurchasesPage() {
     if (!picked) return
     const qty = Number(draftQty)
     const cost = Number(draftCost)
+    const sell = Number(draftSell)
     if (!draftBatch.trim() || !(qty > 0) || !draftExpiry.trim() || !draftCost.trim() || !(cost >= 0)) {
-      toast({ variant: "destructive", title: "Batch, quantity, expiry and cost are required" })
+      toast({ variant: "destructive", title: "Batch, quantity, expiry and cost price are required" })
+      return
+    }
+    if (!draftSell.trim() || !(sell >= 0)) {
+      toast({ variant: "destructive", title: "Selling price is required" })
       return
     }
     setLines((prev) => [
@@ -209,7 +216,7 @@ export default function PurchasesPage() {
         batchNumber: draftBatch.trim(),
         expiryDate: draftExpiry,
         sellingPrice: draftSell,
-        updateSellingPrice: false,
+        updateSellingPrice: true,
       },
     ])
     setPicked(null)
@@ -244,10 +251,26 @@ export default function PurchasesPage() {
   }
 
   const submitNewProduct = async (createAnyway = false) => {
+    const cost = Number(newProduct.costPrice)
+    const sell = Number(newProduct.sellingPrice)
+    if (!newProduct.name.trim()) {
+      toast({ variant: "destructive", title: "Product name is required" })
+      return
+    }
+    if (!newProduct.costPrice.trim() || !(cost >= 0) || !newProduct.sellingPrice.trim() || !(sell >= 0)) {
+      toast({ variant: "destructive", title: "Cost price and selling price are required" })
+      return
+    }
     const res = await fetch("/api/admin/purchases/products", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...newProduct, price: Number(newProduct.sellingPrice || 0), createAnyway }),
+      body: JSON.stringify({
+        ...newProduct,
+        price: sell,
+        sellingPrice: sell,
+        costPrice: cost,
+        createAnyway,
+      }),
     })
     const data = await res.json()
     if (res.status === 409) {
@@ -266,8 +289,11 @@ export default function PurchasesPage() {
       barcode: data.product.barcode,
       price: data.product.price,
       costPrice: data.product.costPrice,
+      quantity: 0,
       score: 100,
     })
+    setDraftCost(String(cost))
+    setDraftSell(String(sell))
     if (data.product.barcode) setQuery(data.product.barcode)
     setCreateProduct(false)
     setDupes([])
@@ -304,6 +330,7 @@ export default function PurchasesPage() {
             quantity: Number(line.quantity),
             unitCost: Number(line.unitCost),
             sellingPrice: line.sellingPrice ? Number(line.sellingPrice) : null,
+            updateSellingPrice: line.updateSellingPrice !== false,
           })),
         }),
       })
@@ -463,7 +490,9 @@ export default function PurchasesPage() {
                         <div>
                           <p className="text-sm font-medium">{m.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            Existing product · {m.sku || m.barcode || m.genericName || "catalog match"}
+                            Stock {m.quantity ?? 0} · Cost {m.costPrice != null ? formatCurrency(m.costPrice) : "—"} · Sell{" "}
+                            {m.price != null ? formatCurrency(m.price) : "—"}
+                            {m.sku || m.barcode ? ` · ${m.sku || m.barcode}` : ""}
                           </p>
                         </div>
                         <Button
@@ -489,13 +518,24 @@ export default function PurchasesPage() {
 
                 {picked && (
                   <div className="grid sm:grid-cols-2 gap-2 rounded-md bg-muted/40 p-3">
-                    <p className="sm:col-span-2 text-sm font-medium">{picked.name}</p>
+                    <div className="sm:col-span-2 space-y-1">
+                      <p className="text-sm font-medium">{picked.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Existing stock: <strong>{picked.quantity ?? 0}</strong>
+                        {" · "}
+                        Current cost:{" "}
+                        <strong>{picked.costPrice != null ? formatCurrency(picked.costPrice) : "—"}</strong>
+                        {" · "}
+                        Current sell:{" "}
+                        <strong>{picked.price != null ? formatCurrency(picked.price) : "—"}</strong>
+                      </p>
+                    </div>
                     <div>
                       <Label htmlFor="draft-qty">Quantity (basic units)</Label>
                       <Input id="draft-qty" type="number" min="1" placeholder="e.g. 100" value={draftQty} onChange={(e) => setDraftQty(e.target.value)} />
                     </div>
                     <div>
-                      <Label htmlFor="draft-cost">Unit cost</Label>
+                      <Label htmlFor="draft-cost">Cost price (bought at) *</Label>
                       <Input id="draft-cost" type="number" min="0" step="0.01" placeholder="Cost per unit" value={draftCost} onChange={(e) => setDraftCost(e.target.value)} />
                     </div>
                     <div>
@@ -507,12 +547,12 @@ export default function PurchasesPage() {
                       <Input id="draft-expiry" type="date" value={draftExpiry} onChange={(e) => setDraftExpiry(e.target.value)} />
                     </div>
                     <div className="sm:col-span-2">
-                      <Label htmlFor="draft-sell">Selling price (optional)</Label>
-                      <Input id="draft-sell" type="number" min="0" step="0.01" placeholder="Leave blank to keep current price" value={draftSell} onChange={(e) => setDraftSell(e.target.value)} />
+                      <Label htmlFor="draft-sell">Selling price *</Label>
+                      <Input id="draft-sell" type="number" min="0" step="0.01" placeholder="Retail price per unit" value={draftSell} onChange={(e) => setDraftSell(e.target.value)} />
                     </div>
                     {margin && margin.selling > 0 && (
                       <p className="text-xs text-muted-foreground sm:col-span-2">
-                        Current selling: {formatCurrency(margin.selling)} · Cost {formatCurrency(margin.cost)} ·
+                        After receive: cost {formatCurrency(margin.cost)} · sell {formatCurrency(margin.selling)} ·
                         Margin {margin.marginPct ?? 0}% · Markup {margin.markupPct ?? 0}%
                       </p>
                     )}
@@ -592,7 +632,7 @@ export default function PurchasesPage() {
                   <span>{formatCurrency(totals.grandTotal)}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Receiving adds stock through genuine batches (receive_pharmacy_stock). Selling price stays unchanged unless you set it on a line.
+                  Receiving adds today&apos;s inbound stock through genuine batches. Cost and selling prices on each line update the product catalog.
                 </p>
                 <Button className="w-full" disabled={saving || loading} onClick={() => void receivePurchase()}>
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Receive Purchase & Update Stock"}
@@ -704,7 +744,8 @@ export default function PurchasesPage() {
               <Input placeholder="Barcode / SKU" value={newProduct.barcode} onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })} />
               <Input placeholder="Manufacturer" value={newProduct.manufacturer} onChange={(e) => setNewProduct({ ...newProduct, manufacturer: e.target.value })} />
               <Input placeholder="Category" value={newProduct.category} onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })} />
-              <Input placeholder="Selling price" value={newProduct.sellingPrice} onChange={(e) => setNewProduct({ ...newProduct, sellingPrice: e.target.value })} />
+              <Input placeholder="Cost price (bought at) *" type="number" min="0" step="0.01" value={newProduct.costPrice} onChange={(e) => setNewProduct({ ...newProduct, costPrice: e.target.value })} />
+              <Input placeholder="Selling price *" type="number" min="0" step="0.01" value={newProduct.sellingPrice} onChange={(e) => setNewProduct({ ...newProduct, sellingPrice: e.target.value })} />
               {dupes.length > 0 && (
                 <div className="sm:col-span-2 rounded-md border border-amber-500/40 p-2 text-sm">
                   <p className="font-medium">A similar product already exists.</p>

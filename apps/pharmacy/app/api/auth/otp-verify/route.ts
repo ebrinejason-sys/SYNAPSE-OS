@@ -68,9 +68,9 @@ export async function POST(req: NextRequest) {
     redirect = '/change-password'
   } else if (role === 'cashier') {
     redirect = '/portal/pos'
-  } else if (!profile.onboarding_complete) {
-    redirect = '/onboarding'
   }
+  // Do not force /onboarding here — middleware + tenant/profile flags own that gate.
+  // Platform-provisioned pharmacies are already marked complete before first login.
 
   const response = NextResponse.json({
     ok: true,
