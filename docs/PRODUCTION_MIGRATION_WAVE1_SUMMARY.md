@@ -182,16 +182,9 @@ The 145313 timestamp was likely from a non-production environment. Production ha
 
 ---
 
-### 3. npm Scripts Added
+### 3. Production Migration Commands
 
-```json
-{
-  "db:prod:ledger": "npx supabase migration list --linked",
-  "db:prod:dryrun": "npx supabase db push --linked --dry-run"
-}
-```
-
-**Usage:**
+**Read-only ledger inspection:**
 ```bash
 # Set environment
 export SUPABASE_ACCESS_TOKEN="sbp_..."
@@ -201,10 +194,15 @@ npm run db:link
 
 # List applied migrations (read-only)
 npm run db:prod:ledger
-
-# Dry-run pending migrations (safe, no changes)
-npm run db:prod:dryrun
 ```
+
+**Dry-run pending migrations:**
+```bash
+# Manual dry-run command (operator use only, safe, no changes)
+npx supabase db push --linked --dry-run
+```
+
+Note: Production mutation commands are intentionally not provided as npm scripts to prevent accidental execution.
 
 ---
 
