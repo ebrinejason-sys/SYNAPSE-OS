@@ -92,6 +92,8 @@ console.log("=" .repeat(80))
 console.log("SYNAPSE-OS Production Acceptance Configuration Doctor")
 console.log("=" .repeat(80))
 console.log()
+console.log("Checking environment configuration for isolated acceptance testing...")
+console.log()
 
 let allValid = true
 const results = []
@@ -119,6 +121,8 @@ const maxVarLen = Math.max(...results.map((r) => r.variable.length))
 const maxStatusLen = Math.max(...results.map((r) => r.status.length))
 const maxSourceLen = Math.max(...results.map((r) => r.source.length))
 
+console.log("Configuration Variables:")
+console.log("-".repeat(80))
 for (const result of results) {
   const statusSymbol = result.status === "FOUND" ? "✓" : "✗"
   const statusColor = result.status === "FOUND" ? "" : ""
@@ -136,7 +140,7 @@ console.log()
 console.log("=" .repeat(80))
 
 console.log()
-console.log("Acceptance identity")
+console.log("Deployment Identity & Isolation:")
 const baseUrl = process.env.SYNAPSE_E2E_BASE_URL || ""
 let baseHost = "(missing)"
 try { baseHost = new URL(baseUrl).hostname } catch { /* keep missing */ }
@@ -168,7 +172,10 @@ if (!allValid) {
   console.log("  - SYNAPSE_E2E_ACCEPTANCE_ENV=true")
   console.log("  - SYNAPSE_E2E_FIXED_OTP=(same value as GitHub secret)")
   console.log()
-  console.log("See docs/runbooks/PRODUCTION_ACCEPTANCE_SETUP.md for details")
+  console.log("Setup Instructions:")
+  console.log("  1. See docs/runbooks/PRODUCTION_ACCEPTANCE_SETUP.md for detailed setup")
+  console.log("  2. See docs/evidence/GOLDEN_JOURNEY_WAVE3.md for operator checklist")
+  console.log()
   console.log("=" .repeat(80))
   process.exit(1)
 }
@@ -221,5 +228,12 @@ try {
   process.exit(1)
 }
 
+console.log()
 console.log("✅ PREFLIGHT PASSED: Isolated acceptance configuration and live probes are valid")
+console.log()
+console.log("Next Steps:")
+console.log("  - Run live journey: npm run journey:hospital-golden-live")
+console.log("  - Run browser tests: npm run test:e2e:hospital:smoke")
+console.log("  - See docs/evidence/GOLDEN_JOURNEY_WAVE3.md for full checklist")
+console.log()
 console.log("=" .repeat(80))

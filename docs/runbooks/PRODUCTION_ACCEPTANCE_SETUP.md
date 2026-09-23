@@ -249,7 +249,8 @@ Before running acceptance for the first time, confirm:
 - E2E OTP gates: `packages/auth/src/e2e-otp.ts`
 - Preflight doctor: `scripts/e2e-acceptance-doctor.mjs`
 - Architecture tests: `scripts/e2e-ci-architecture.test.mjs`
+- **Wave 3 Operator Runbook:** `docs/evidence/GOLDEN_JOURNEY_WAVE3.md`
 
 ---
 
-**Last Updated**: 2026-09-18 (PR #83 – minimized secret surface)
+**Last Updated**: 2026-09-23 (Wave 3 – golden journey evidence pack)
