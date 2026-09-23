@@ -1,7 +1,7 @@
 'use client'
 
 import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
 type ThemeChoice = 'light' | 'dark' | 'system'
 
@@ -78,7 +78,7 @@ export function SynapseThemeToggle({
   }
 
   if (variant === 'segmented') {
-    const options: { value: ThemeChoice; label: string; icon: React.ReactNode }[] = [
+    const options: { value: ThemeChoice; label: string; icon: ReactNode }[] = [
       { value: 'light', label: 'Light', icon: <SunIcon /> },
       { value: 'system', label: 'Auto', icon: <MonitorIcon /> },
       { value: 'dark', label: 'Dark', icon: <MoonIcon /> },
