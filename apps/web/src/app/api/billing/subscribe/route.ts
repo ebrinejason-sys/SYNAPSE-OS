@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: NextRequest) {
   try {
     const ctx = await getContext('web')
-    if (!ctx.user.isAdmin && ctx.user.role !== 'hospital_admin' && ctx.user.role !== 'pharmacy_admin') {
+    if (ctx.user.role !== 'hospital_admin' && ctx.user.role !== 'pharmacy_admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
