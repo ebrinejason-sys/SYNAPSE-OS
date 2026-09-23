@@ -149,6 +149,17 @@ export default function PurchasesPage() {
     }
   }, [])
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (query.trim().length >= 2) {
+        void searchProducts(query)
+      } else {
+        setMatches([])
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [query])
+
   const searchProducts = async (q: string) => {
     setQuery(q)
     if (q.trim().length < 2) {
@@ -413,9 +424,9 @@ export default function PurchasesPage() {
                   <Input
                     placeholder="Barcode, SKU, generic, brand, strength…"
                     value={query}
-                    onChange={(e) => void searchProducts(e.target.value)}
+                    onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") void searchProducts(query)
+                      if (e.key === "Enter" && query.trim().length >= 2) void searchProducts(query)
                     }}
                   />
                   <Button type="button" variant="outline" onClick={() => void searchProducts(query)}>
