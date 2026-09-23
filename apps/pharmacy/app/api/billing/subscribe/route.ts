@@ -8,9 +8,6 @@ export async function POST(req: NextRequest) {
   const auth = await requirePharmacyAdmin()
   if (!auth.ok) return auth.response
   const { session, tenantId } = auth
-  if (!session.isAdmin && session.role !== 'pharmacy_admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
 
   try {
     const body = (await req.json()) as { planSlug?: string }
