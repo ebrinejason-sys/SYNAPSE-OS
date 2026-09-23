@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export const dynamic = "force-dynamic"
 
@@ -241,28 +240,26 @@ export default function ImportAssistantPage() {
             </div>
 
             {applyResult.failed > 0 && (
-              <Alert>
-                <AlertDescription>
-                  <div className="space-y-2">
-                    <p className="font-semibold">Failed rows:</p>
-                    <div className="max-h-48 overflow-y-auto space-y-1 text-sm">
-                      {applyResult.rows
-                        .filter((r) => r.status === "failed")
-                        .slice(0, 10)
-                        .map((r) => (
-                          <div key={r.rowIndex} className="text-xs">
-                            Row {r.rowIndex + 1}: {r.productName || "Unknown"} - {r.reason}
-                          </div>
-                        ))}
-                      {applyResult.rows.filter((r) => r.status === "failed").length > 10 && (
-                        <div className="text-xs text-muted-foreground">
-                          ... and {applyResult.rows.filter((r) => r.status === "failed").length - 10} more
+              <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+                <div className="space-y-2">
+                  <p className="font-semibold text-sm">Failed rows:</p>
+                  <div className="max-h-48 overflow-y-auto space-y-1">
+                    {applyResult.rows
+                      .filter((r) => r.status === "failed")
+                      .slice(0, 10)
+                      .map((r) => (
+                        <div key={r.rowIndex} className="text-xs text-muted-foreground">
+                          Row {r.rowIndex + 1}: {r.productName || "Unknown"} - {r.reason}
                         </div>
-                      )}
-                    </div>
+                      ))}
+                    {applyResult.rows.filter((r) => r.status === "failed").length > 10 && (
+                      <div className="text-xs text-muted-foreground">
+                        ... and {applyResult.rows.filter((r) => r.status === "failed").length - 10} more
+                      </div>
+                    )}
                   </div>
-                </AlertDescription>
-              </Alert>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
