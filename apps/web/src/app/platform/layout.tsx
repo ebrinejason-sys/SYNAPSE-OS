@@ -103,9 +103,10 @@ const SIDEBAR_SECTIONS: NavSection[] = [
       { href: "/platform/commercial/leads", label: "Leads", icon: TrendingUp },
       { href: "/platform/commercial/meetings", label: "Meetings", icon: ClipboardList },
       { href: "/platform/commercial/pricing", label: "Pricing", icon: CreditCard },
+      { href: "/platform/commercial/subscriptions", label: "Live subscriptions", icon: Receipt },
       { href: "/platform/sales", label: "Legacy pipeline", icon: Kanban },
       { href: "/platform/billing", label: "Revenue & Billing", icon: CreditCard },
-      { href: "/platform/subscriptions", label: "Subscriptions", icon: Receipt },
+      { href: "/platform/subscriptions", label: "Manual grants", icon: Receipt },
     ],
   },
   {

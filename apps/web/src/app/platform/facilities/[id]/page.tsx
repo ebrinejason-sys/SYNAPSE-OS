@@ -6,6 +6,7 @@ import { requirePlatformAdmin } from "../../../../lib/platform/auth"
 import { formatDate, safeRows } from "../../_lib/platform-data"
 import { FacilityResumeButton } from "./resume-button"
 import { InviteStaffForm } from "./invite-staff-form"
+import { FacilitySubscriptionPanel } from "./subscription-panel"
 
 type TenantRow = {
   id?: string
@@ -114,6 +115,9 @@ export default async function FacilityDetailPage({
 
       {activeTab === "people" ? <FacilityPeople tenantId={id} /> : null}
       {activeTab === "departments" ? <FacilityDepartments tenantId={id} /> : null}
+      {activeTab === "subscription" || activeTab === "billing" ? (
+        <FacilitySubscriptionPanel tenantId={id} />
+      ) : null}
 
       {activeTab === "overview" ? <div className="grid gap-4 sm:grid-cols-2">
         <InfoCard title="Identity">

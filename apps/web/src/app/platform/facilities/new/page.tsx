@@ -54,6 +54,9 @@ function CreateFacilityWizard() {
   const [adminEmail, setAdminEmail] = useState("")
   const [adminPhone, setAdminPhone] = useState("")
   const [tier, setTier] = useState("trial")
+  const [paymentStatus, setPaymentStatus] = useState<
+    "ONLINE_REQUIRED" | "OFFLINE_RECEIVED" | "PENDING" | "COMPLIMENTARY"
+  >("ONLINE_REQUIRED")
   const [modules, setModules] = useState<string[]>(defaultModulesForFacilityType("hospital"))
   const [includeLab, setIncludeLab] = useState(false)
   const [includeDispensing, setIncludeDispensing] = useState(false)
@@ -130,6 +133,7 @@ function CreateFacilityWizard() {
           adminPhone,
           contactName: adminName,
           tier,
+          paymentStatus,
           modules,
           includeLab,
           includeDispensing,
@@ -205,13 +209,29 @@ function CreateFacilityWizard() {
             </>
           ) : null}
         </p>
-        <button
-          type="button"
-          onClick={() => router.push(`/platform/facilities/${result.id}`)}
-          className="rounded-lg bg-[#F97316] px-4 py-2 text-sm font-semibold text-[#07070A]"
-        >
-          Open facility
-        </button>
+        {paymentStatus === "OFFLINE_RECEIVED" || paymentStatus === "COMPLIMENTARY" ? (
+          <div className="rounded-lg border border-[#E8B84B]/30 bg-[#E8B84B]/10 px-3 py-3 text-sm text-amber-100">
+            Next: record {paymentStatus === "COMPLIMENTARY" ? "complimentary activation" : "offline payment"} on the
+            facility Subscription tab to create the canonical ACTIVE subscription.
+          </div>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              router.push(
+                paymentStatus === "OFFLINE_RECEIVED" || paymentStatus === "COMPLIMENTARY"
+                  ? `/platform/facilities/${result.id}?tab=subscription`
+                  : `/platform/facilities/${result.id}`,
+              )
+            }
+            className="rounded-lg bg-[#F97316] px-4 py-2 text-sm font-semibold text-[#07070A]"
+          >
+            {paymentStatus === "OFFLINE_RECEIVED" || paymentStatus === "COMPLIMENTARY"
+              ? "Record payment / activate"
+              : "Open facility"}
+          </button>
+        </div>
       </div>
     )
   }
@@ -386,6 +406,28 @@ function CreateFacilityWizard() {
             <option value="professional">Professional</option>
             <option value="enterprise">Enterprise</option>
           </select>
+        </label>
+
+        <label className="block text-sm">
+          <span className="text-slate-400">Payment status</span>
+          <select
+            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+            value={paymentStatus}
+            onChange={(e) =>
+              setPaymentStatus(
+                e.target.value as "ONLINE_REQUIRED" | "OFFLINE_RECEIVED" | "PENDING" | "COMPLIMENTARY",
+              )
+            }
+          >
+            <option value="ONLINE_REQUIRED">Online payment required</option>
+            <option value="OFFLINE_RECEIVED">Offline payment received</option>
+            <option value="PENDING">Payment pending</option>
+            <option value="COMPLIMENTARY">Complimentary / pilot</option>
+          </select>
+          <p className="mt-1 text-xs text-slate-500">
+            Offline payment received opens the facility Subscription tab after provisioning so you can
+            record cash/bank/MoMo against the canonical plan.
+          </p>
         </label>
       </div>
 
