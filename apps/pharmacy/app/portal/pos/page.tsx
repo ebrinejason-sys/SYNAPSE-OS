@@ -1418,8 +1418,14 @@ export default function POSPage() {
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 pt-1 border-t">
-                        {product.quantity <= 0 ? (
-                          <span>OUT OF STOCK · 0 {product.unitOfMeasure}</span>
+                        {product.quantity < 0 ? (
+                          <span className="text-destructive font-medium">
+                            Negative stock: {product.quantity} {product.unitOfMeasure}
+                          </span>
+                        ) : product.quantity === 0 ? (
+                          <span className="text-amber-700 font-medium">
+                            Zero stock · sales still allowed
+                          </span>
                         ) : (
                           <span>Stock: {product.quantity}</span>
                         )}

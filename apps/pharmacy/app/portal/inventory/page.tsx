@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, Upload, Search, Edit, AlertTriangle, Package, PackagePlus, X, Trash2, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, Upload, Search, Edit, AlertTriangle, Package, PackagePlus, ClipboardList, History, X, Trash2, ChevronDown, ChevronUp } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { resilientFetch } from "@/lib/api"
 
@@ -80,6 +80,8 @@ export default function InventoryPage() {
   const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showUpdateStock, setShowUpdateStock] = useState(false)
+  const [showPhysicalStock, setShowPhysicalStock] = useState(false)
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -251,6 +253,11 @@ export default function InventoryPage() {
               <span className="sm:hidden">Audit</span>
             </a>
           </Button>
+          <Button variant="outline" onClick={() => setShowPhysicalStock(true)} className="flex-1 sm:flex-none text-xs sm:text-sm px-2 sm:px-4">
+            <ClipboardList className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Physical Stock</span>
+            <span className="sm:hidden">Physical</span>
+          </Button>
           <Button variant="outline" onClick={() => setShowUpdateStock(true)} className="flex-1 sm:flex-none text-xs sm:text-sm px-2 sm:px-4">
             <PackagePlus className="h-4 w-4 sm:mr-2" />
             <span className="hidden sm:inline">Update Stock</span>
@@ -412,6 +419,24 @@ export default function InventoryPage() {
         />
       )}
 
+      {showPhysicalStock && (
+        <PhysicalStockDialog
+          products={products}
+          onClose={() => setShowPhysicalStock(false)}
+          onSuccess={() => {
+            setShowPhysicalStock(false)
+            fetchProducts()
+          }}
+        />
+      )}
+
+      {historyProduct && (
+        <ProductHistoryDialog
+          product={historyProduct}
+          onClose={() => setHistoryProduct(null)}
+        />
+      )}
+
       {showCreateDialog && (
         <CreateProductDialog
           onClose={() => setShowCreateDialog(false)}
@@ -567,7 +592,11 @@ export default function InventoryPage() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    {product.quantity === 0 ? (
+                    {product.quantity < 0 ? (
+                      <span className="px-2 py-1 text-xs rounded-full bg-red-500/15 text-destructive">
+                        Negative
+                      </span>
+                    ) : product.quantity === 0 ? (
                       <span className="px-2 py-1 text-xs rounded-full bg-red-500/15 text-destructive">
                         Out of Stock
                       </span>
@@ -582,6 +611,14 @@ export default function InventoryPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setHistoryProduct(product)}
+                      title="Product history"
+                    >
+                      <History className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -1962,6 +1999,272 @@ function UpdateStockDialog({ products, onClose, onSuccess }: UpdateStockDialogPr
               {isLoading ? "Receiving..." : "Receive stock"}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function PhysicalStockDialog({
+  products,
+  onClose,
+  onSuccess,
+}: {
+  products: Product[]
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [physicalQty, setPhysicalQty] = useState("")
+  const [reason, setReason] = useState("Physical stock count")
+  const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast()
+
+  const filteredProducts = products.filter(
+    (p) =>
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.sku.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
+
+  const handleSave = async () => {
+    if (!selectedProduct) return
+    if (physicalQty.trim() === "" || !Number.isFinite(Number(physicalQty))) {
+      toast({ variant: "destructive", title: "Enter the counted quantity (may be negative)" })
+      return
+    }
+    setIsLoading(true)
+    try {
+      const response = await resilientFetch("/api/admin/inventory/physical-stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: selectedProduct.id,
+          physicalQty: Math.trunc(Number(physicalQty)),
+          reason: reason.trim() || "Physical stock count",
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        toast({ variant: "destructive", title: data.error || "Physical stock failed" })
+        return
+      }
+      toast({
+        title: "Physical stock saved",
+        description: `${selectedProduct.name}: ${data.adjustment?.previousQty} → ${data.adjustment?.newQty}`,
+      })
+      onSuccess()
+    } catch {
+      toast({ variant: "destructive", title: "Physical stock failed" })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <ClipboardList className="h-5 w-5 mr-2" />
+            Physical Stock
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Enter the counted quantity on the shelf. Book stock is set to that value (negative allowed).
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!selectedProduct ? (
+            <>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search product…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <div className="max-h-64 overflow-y-auto border rounded-lg">
+                {filteredProducts.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedProduct(product)
+                      setPhysicalQty(String(product.quantity))
+                    }}
+                    className="w-full p-3 text-left hover:bg-muted/20 border-b last:border-b-0"
+                  >
+                    <div className="font-medium">{product.name}</div>
+                    <div className="text-sm text-muted-foreground">
+                      Book stock: {product.quantity} {product.unitOfMeasure} · Cost {formatCurrency(product.costPrice)}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+                <p className="font-semibold">{selectedProduct.name}</p>
+                <p>Book stock: <strong>{selectedProduct.quantity}</strong> {selectedProduct.unitOfMeasure}</p>
+                <p>Cost: {formatCurrency(selectedProduct.costPrice)} · Sell: {formatCurrency(selectedProduct.price)}</p>
+              </div>
+              <div>
+                <Label htmlFor="physical-qty">Physical (counted) quantity</Label>
+                <Input
+                  id="physical-qty"
+                  type="number"
+                  value={physicalQty}
+                  onChange={(e) => setPhysicalQty(e.target.value)}
+                  placeholder="e.g. 42 or -5"
+                />
+              </div>
+              <div>
+                <Label htmlFor="physical-reason">Reason</Label>
+                <Input
+                  id="physical-reason"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Shelf count / stock take"
+                />
+              </div>
+              {physicalQty.trim() !== "" && Number.isFinite(Number(physicalQty)) && (
+                <p className="text-xs text-muted-foreground">
+                  Adjustment: {selectedProduct.quantity} → {Math.trunc(Number(physicalQty))} (
+                  {Math.trunc(Number(physicalQty)) - selectedProduct.quantity >= 0 ? "+" : ""}
+                  {Math.trunc(Number(physicalQty)) - selectedProduct.quantity})
+                </p>
+              )}
+              <Button type="button" variant="outline" className="w-full" onClick={() => setSelectedProduct(null)}>
+                ← Select different product
+              </Button>
+            </>
+          )}
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button onClick={() => void handleSave()} disabled={isLoading || !selectedProduct}>
+              {isLoading ? "Saving…" : "Save physical stock"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function ProductHistoryDialog({
+  product,
+  onClose,
+}: {
+  product: Product
+  onClose: () => void
+}) {
+  const [loading, setLoading] = useState(true)
+  const [events, setEvents] = useState<
+    Array<{
+      id: string
+      kind: string
+      occurredAt: string
+      quantity: number
+      stockDelta: number
+      unitCost: number | null
+      unitPrice: number | null
+      reference: string | null
+      notes: string | null
+      balanceAfter: number | null
+    }>
+  >([])
+  const [meta, setMeta] = useState<{ costPrice?: number; price?: number; quantity?: number }>({})
+  const { toast } = useToast()
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    void resilientFetch(`/api/admin/inventory/product-history?productId=${encodeURIComponent(product.id)}`)
+      .then(async (res) => {
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || "Failed to load history")
+        if (cancelled) return
+        setEvents(Array.isArray(data.events) ? data.events : [])
+        setMeta({
+          costPrice: data.product?.costPrice,
+          price: data.product?.price,
+          quantity: data.product?.quantity,
+        })
+      })
+      .catch((err: Error) => {
+        if (!cancelled) toast({ variant: "destructive", title: err.message || "History failed" })
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [product.id, toast])
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <CardHeader className="flex flex-row items-start justify-between gap-2">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              {product.name}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Stock {meta.quantity ?? product.quantity} · Cost{" "}
+              {formatCurrency(meta.costPrice ?? product.costPrice)} · Sell{" "}
+              {formatCurrency(meta.price ?? product.price)}
+            </p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
+        </CardHeader>
+        <CardContent className="overflow-y-auto flex-1">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading history…</p>
+          ) : events.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No movements yet for this product.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Qty</TableHead>
+                  <TableHead>Cost / Sell</TableHead>
+                  <TableHead>Ref</TableHead>
+                  <TableHead>Balance</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {events.map((ev) => (
+                  <TableRow key={ev.id}>
+                    <TableCell className="text-xs whitespace-nowrap">
+                      {ev.occurredAt ? new Date(ev.occurredAt).toLocaleString() : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs font-medium">{ev.kind}</TableCell>
+                    <TableCell className={ev.stockDelta < 0 ? "text-destructive" : "text-[#22C55E]"}>
+                      {ev.stockDelta > 0 ? "+" : ""}
+                      {ev.stockDelta}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {ev.unitCost != null ? formatCurrency(ev.unitCost) : "—"}
+                      {" / "}
+                      {ev.unitPrice != null ? formatCurrency(ev.unitPrice) : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {ev.reference ?? "—"}
+                      {ev.notes ? <div className="text-muted-foreground">{ev.notes}</div> : null}
+                    </TableCell>
+                    <TableCell>{ev.balanceAfter ?? "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

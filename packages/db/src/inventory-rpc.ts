@@ -152,6 +152,51 @@ export async function receivePharmacyStock(
   };
 }
 
+export interface PhysicalStockInput {
+  tenantId: string;
+  productId: string;
+  /** Absolute counted quantity — may be negative (Tally Allow Negative Stocks). */
+  physicalQty: number;
+  reason: string;
+  actorId: string;
+}
+
+export interface PhysicalStockResult {
+  ok: true;
+  previousQty: number;
+  newQty: number;
+  delta: number;
+  productId: string;
+}
+
+/** Tally-style physical stock voucher: set absolute book quantity. */
+export async function setPharmacyPhysicalStock(
+  client: RpcClient,
+  input: PhysicalStockInput,
+): Promise<{ data: PhysicalStockResult | null; error: PharmacyRpcError | null }> {
+  const { data, error } = await client.rpc("set_pharmacy_physical_stock", {
+    p_tenant_id: input.tenantId,
+    p_product_id: input.productId,
+    p_physical_qty: Math.trunc(input.physicalQty),
+    p_reason: input.reason,
+    p_actor_id: input.actorId,
+  });
+
+  if (error) return { data: null, error: parsePharmacyRpcError(error.message) };
+
+  const row = (data ?? {}) as Record<string, unknown>;
+  return {
+    data: {
+      ok: true,
+      previousQty: Number(row.previous_qty ?? 0),
+      newQty: Number(row.new_qty ?? input.physicalQty),
+      delta: Number(row.delta ?? 0),
+      productId: String(row.product_id ?? input.productId),
+    },
+    error: null,
+  };
+}
+
 export async function adjustPharmacyBatchStock(
   client: RpcClient,
   input: AdjustBatchInput,
