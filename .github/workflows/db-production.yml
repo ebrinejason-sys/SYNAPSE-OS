@@ -238,37 +238,39 @@ jobs:
           PY
 
           if [ -n "${SUPABASE_DB_URL:-}" ]; then
-            psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 <<'SQL' 2>&1 | tee -a artifacts/readiness/post-apply-verification.log
-            DO $$
-            DECLARE
-              missing_table text;
-              unprotected_table text;
-            BEGIN
-              SELECT t.tbl INTO missing_table
-              FROM (VALUES ('platform_memberships'), ('profiles'), ('tenant_subscriptions')) AS t(tbl)
-              WHERE to_regclass('public.' || t.tbl) IS NULL
-              LIMIT 1;
+            # Use -c (not a YAML-indented heredoc) so the closing delimiter cannot
+            # be swallowed by workflow indentation and false-fail after a green probe.
+            psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -c "
+              DO \$\$
+              DECLARE
+                missing_table text;
+                unprotected_table text;
+              BEGIN
+                SELECT t.tbl INTO missing_table
+                FROM (VALUES ('platform_memberships'), ('profiles'), ('tenant_subscriptions')) AS t(tbl)
+                WHERE to_regclass('public.' || t.tbl) IS NULL
+                LIMIT 1;
 
-              IF missing_table IS NOT NULL THEN
-                RAISE EXCEPTION 'post-apply verification failed: required table % is missing', missing_table;
-              END IF;
+                IF missing_table IS NOT NULL THEN
+                  RAISE EXCEPTION 'post-apply verification failed: required table % is missing', missing_table;
+                END IF;
 
-              SELECT c.relname INTO unprotected_table
-              FROM pg_class c
-              JOIN pg_namespace n ON n.oid = c.relnamespace
-              WHERE n.nspname = 'public'
-                AND c.relname IN ('platform_memberships', 'profiles', 'subscription_payments')
-                AND c.relrowsecurity = false
-              LIMIT 1;
+                SELECT c.relname INTO unprotected_table
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public'
+                  AND c.relname IN ('platform_memberships', 'profiles', 'subscription_payments')
+                  AND c.relrowsecurity = false
+                LIMIT 1;
 
-              IF unprotected_table IS NOT NULL THEN
-                RAISE EXCEPTION 'post-apply verification failed: table % has row level security disabled', unprotected_table;
-              END IF;
+                IF unprotected_table IS NOT NULL THEN
+                  RAISE EXCEPTION 'post-apply verification failed: table % has row level security disabled', unprotected_table;
+                END IF;
 
-              RAISE NOTICE 'post-apply psql verification passed';
-            END
-            $$;
-            SQL
+                RAISE NOTICE 'post-apply psql verification passed';
+              END
+              \$\$;
+            " 2>&1 | tee -a artifacts/readiness/post-apply-verification.log
           else
             echo "SUPABASE_DB_URL unset — linked Management API verification used (acceptable)."
           fi
