@@ -187,8 +187,37 @@ CREATE TABLE IF NOT EXISTS public.pathway_overrides (
   may_train_models BOOLEAN NOT NULL DEFAULT false CHECK (may_train_models = false)
 );
 
-CREATE INDEX IF NOT EXISTS idx_pathway_overrides_plan
-  ON public.pathway_overrides (tenant_id, care_plan_id, timestamp DESC);
+-- Compat: older pathway_overrides rows use occurred_at (not timestamp).
+DO $compat$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'pathway_overrides'
+      AND column_name = 'timestamp'
+  ) THEN
+    EXECUTE $sql$
+      CREATE INDEX IF NOT EXISTS idx_pathway_overrides_plan
+        ON public.pathway_overrides (tenant_id, care_plan_id, timestamp DESC)
+    $sql$;
+  ELSIF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'pathway_overrides'
+      AND column_name = 'occurred_at'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'pathway_overrides'
+      AND column_name = 'care_plan_id'
+  ) THEN
+    EXECUTE $sql$
+      CREATE INDEX IF NOT EXISTS idx_pathway_overrides_plan
+        ON public.pathway_overrides (tenant_id, care_plan_id, occurred_at DESC)
+    $sql$;
+  END IF;
+END
+$compat$;
 
 ALTER TABLE public.death_pronouncements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mortuary_bodies ENABLE ROW LEVEL SECURITY;
@@ -282,6 +311,34 @@ VALUES
   ('mortuary', 'property', 'write', 'Record mortuary property'),
   ('mortuary', 'config', 'write', 'Configure mortuary storage')
 ON CONFLICT (module, resource, action) DO NOTHING;
+
+-- Ensure grant helper exists (created in hospital module seed; may be absent on older ledgers).
+CREATE OR REPLACE FUNCTION public._grant_hospital_cap(
+  p_role text,
+  p_facility_type text,
+  p_module text,
+  p_resource text,
+  p_action text
+) RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_cap_id uuid;
+BEGIN
+  SELECT id INTO v_cap_id
+  FROM public.capabilities
+  WHERE module = p_module AND resource = p_resource AND action = p_action
+  LIMIT 1;
+
+  IF v_cap_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  INSERT INTO public.role_capabilities (role, facility_type, capability_id)
+  VALUES (p_role, p_facility_type, v_cap_id)
+  ON CONFLICT (role, facility_type, capability_id) DO NOTHING;
+END;
+$$;
 
 SELECT _grant_hospital_cap('doctor', 'hospital', 'clinical', 'death', 'pronounce');
 SELECT _grant_hospital_cap('doctor', 'hospital', 'clinical', 'death', 'summary');
