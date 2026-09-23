@@ -21,6 +21,8 @@ import { publishTimelineEvent } from "@synapse/db/identity-persist"
 import { attachSaleToTill } from "@/lib/pos/till-service"
 import { httpStatusForPharmacyError } from "@synapse/db/errors"
 import { paymentStateForMethod } from "@synapse/db/cashier-session"
+import { findOrCreateCreditCustomer, postCreditLedgerEntry } from "@/lib/credit-ledger"
+import { encodePaymentRef, settlePayment } from "@/lib/pos/partial-payment"
 
 /**
  * Complete a POS sale via live `complete_pharmacy_sale` RPC.
@@ -62,6 +64,21 @@ export async function POST(request: NextRequest) {
   if (!paymentMethod) {
     return NextResponse.json({ error: "paymentMethod is required" }, { status: 400 })
   }
+
+  const amountPaidRaw = body.amountPaid
+  const amountPaid =
+    amountPaidRaw === undefined || amountPaidRaw === null || amountPaidRaw === ""
+      ? null
+      : Number(amountPaidRaw)
+  if (amountPaid != null && (!Number.isFinite(amountPaid) || amountPaid < 0)) {
+    return NextResponse.json({ error: "amountPaid must be a non-negative number" }, { status: 400 })
+  }
+
+  const clientName = typeof body.clientName === "string" ? body.clientName.trim() : ""
+  const clientPhone = typeof body.clientPhone === "string" ? body.clientPhone.trim() : ""
+  const clientAddress = typeof body.clientAddress === "string" ? body.clientAddress.trim() : ""
+  const creditDueDate = typeof body.creditDueDate === "string" ? body.creditDueDate.trim() : ""
+  const customerIdBody = typeof body.customerId === "string" ? body.customerId.trim() : ""
 
   // Authenticated user is always the cashier. Client-supplied staffId is ignored.
   const cashierId = session.userId
@@ -123,11 +140,32 @@ export async function POST(request: NextRequest) {
       Number(item.discount_amount ?? 0),
     0,
   )
+  const taxAmount = Number(body.taxAmount ?? 0)
+  const grandTotal = saleAmount + (Number.isFinite(taxAmount) ? taxAmount : 0)
+
+  const methodUpper = paymentMethod.toUpperCase()
+  const isCreditSale = methodUpper === "CREDIT"
+  // Cash/mobile/card underpayment → balance due on customer account.
+  const tendered = amountPaid == null ? (isCreditSale ? 0 : grandTotal) : amountPaid
+  const settlement = settlePayment(grandTotal, tendered)
+
+  if (settlement.isPartial && !isCreditSale && !clientName && !customerIdBody) {
+    return NextResponse.json(
+      {
+        error:
+          "Partial payment requires a customer name (or selected credit customer) so the balance can be recorded.",
+        code: "CUSTOMER_REQUIRED_FOR_BALANCE",
+        balanceDue: settlement.balanceDue,
+      },
+      { status: 400 },
+    )
+  }
+
   const till = await attachSaleToTill({
     tenantId,
     cashierId,
     paymentMethod,
-    amount: saleAmount,
+    amount: settlement.isPartial ? settlement.amountPaid : saleAmount,
     kind: "sale",
   })
   if (!till.ok) {
@@ -140,6 +178,13 @@ export async function POST(request: NextRequest) {
   })
   void paymentState
 
+  const paymentRef = encodePaymentRef({
+    amountPaid: settlement.amountPaid,
+    balanceDue: settlement.balanceDue,
+    method: paymentMethod,
+    existingRef: typeof body.paymentRef === "string" ? body.paymentRef : null,
+  })
+
   // Line discounts live on rpc items; p_discount_total must stay 0 or RPC double-counts.
   const { data, error } = await db.rpc("complete_pharmacy_sale", {
     p_tenant_id: tenantId,
@@ -148,9 +193,9 @@ export async function POST(request: NextRequest) {
     p_payment_method: paymentMethod,
     p_session_id: till.sessionId,
     p_cart_id: body.cartId ?? null,
-    p_payment_ref: body.paymentRef ?? null,
+    p_payment_ref: paymentRef,
     p_discount_total: 0,
-    p_tax_amount: Number(body.taxAmount ?? 0),
+    p_tax_amount: taxAmount,
     p_patient_id: body.patientId ?? null,
     p_confirmed_by: session.userId,
     ...(idempotencyKey ? { p_idempotency_key: idempotencyKey } : {}),
@@ -173,29 +218,88 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const responseBody = { ok: true as const, sale: data }
+  const sale = data && typeof data === "object" ? (data as Record<string, unknown>) : {}
+  const saleId = String(sale.sale_id ?? sale.id ?? "") || null
+  const receiptNumber = String(sale.receipt_number ?? "")
+
+  // Persist balance due on credit ledger + audit for monitoring shortfalls.
+  let creditCustomerId: string | null = customerIdBody || null
+  let balanceAfter: number | null = null
+  if (settlement.balanceDue > 0 || isCreditSale) {
+    try {
+      if (!creditCustomerId) {
+        creditCustomerId = await findOrCreateCreditCustomer(tenantId, {
+          name: clientName || "Walk-in (balance due)",
+          phone: clientPhone || null,
+          address: clientAddress || null,
+        })
+      }
+      const creditAmount = isCreditSale && settlement.amountPaid <= 0
+        ? settlement.total
+        : settlement.balanceDue
+      if (creditAmount > 0) {
+        const entry = await postCreditLedgerEntry({
+          tenantId,
+          customerId: creditCustomerId,
+          amount: creditAmount,
+          type: "credit",
+          transactionId: null, // POS sales use pharmacy_pos_sales; FK is pharmacy_transactions
+          dueDate: creditDueDate || null,
+          notes: `POS ${receiptNumber || saleId || "sale"} | paid ${settlement.amountPaid} | balance ${creditAmount}`,
+          createdBy: session.userId,
+        })
+        balanceAfter = Number(entry.balance_after ?? creditAmount)
+      }
+
+      // Explicit underpayment audit for monitoring (negative variance).
+      if (settlement.isPartial) {
+        await db.from("pharmacy_audit_logs").insert({
+          tenant_id: tenantId,
+          profile_id: session.userId,
+          action: "POS_UNDERPAYMENT",
+          entity: "PHARMACY_POS_SALE",
+          entity_id: saleId,
+          details: JSON.stringify({
+            receiptNumber,
+            total: settlement.total,
+            amountPaid: settlement.amountPaid,
+            balanceDue: settlement.balanceDue,
+            variance: -settlement.balanceDue,
+            paymentMethod,
+            customerId: creditCustomerId,
+          }),
+        })
+      }
+    } catch (creditErr) {
+      console.error("[pos] credit ledger / underpayment audit failed:", creditErr)
+      // Sale already completed — surface warning but do not roll back stock.
+    }
+  }
+
+  const responseBody = {
+    ok: true as const,
+    sale: data,
+    settlement: {
+      amountPaid: settlement.amountPaid,
+      change: settlement.change,
+      balanceDue: settlement.balanceDue,
+      isPartial: settlement.isPartial,
+      customerId: creditCustomerId,
+      balanceAfter,
+    },
+  }
   if (idempotencyKey) {
-    const saleId =
-      data && typeof data === "object"
-        ? String(
-            (data as { sale_id?: unknown; id?: unknown }).sale_id ??
-              (data as { id?: unknown }).id ??
-              "",
-          ) || null
-        : null
     await storeSaleIdempotency({
       tenantId,
       key: idempotencyKey,
       userId: session.userId,
       saleId,
-      response: data,
+      response: { ...((data && typeof data === "object" ? data : {}) as object), settlement: responseBody.settlement },
     })
   }
 
   void (async () => {
     try {
-      const sale = data && typeof data === "object" ? (data as Record<string, unknown>) : {}
-      const saleId = String(sale.sale_id ?? sale.id ?? "")
       if (!saleId) return
       const personId = typeof body.personId === "string" ? body.personId : null
       const patientId = typeof body.patientId === "string" ? body.patientId : null
@@ -208,7 +312,7 @@ export async function POST(request: NextRequest) {
           patientId,
           siteId: typeof body.storeId === "string" ? body.storeId : null,
           saleId,
-          receiptNumber: String(sale.receipt_number ?? ""),
+          receiptNumber,
           facilityName: session.tenantName,
           itemSummary: names.join(", "),
           createdBy: session.userId,

@@ -18,6 +18,7 @@ import { getPendingActions, saveMetadata, getMetadata } from "@/lib/offlineStora
 import { LiveRegion } from "@synapse/ui"
 import { TillBanner } from "@/components/till-banner"
 import { usePosKeyboardShortcuts } from "@/lib/pos/keyboard"
+import { settlePayment } from "@/lib/pos/partial-payment"
 import {
   allocateFefoBatches,
   DISCOUNT_REASONS,
@@ -163,7 +164,12 @@ export default function POSPage() {
   const [showPrintPrompt, setShowPrintPrompt] = useState(false)
   const [pendingTransaction, setPendingTransaction] = useState<any>(null)
   const [receiptStaffNamePending, setReceiptStaffNamePending] = useState<string>("")
-  const [pendingReceiptMeta, setPendingReceiptMeta] = useState<{ paymentMethod: string; amountPaid: string; change: number } | null>(null)
+  const [pendingReceiptMeta, setPendingReceiptMeta] = useState<{
+    paymentMethod: string
+    amountPaid: string
+    change: number
+    balanceDue: number
+  } | null>(null)
   const [showClientNameBeforePrintDialog, setShowClientNameBeforePrintDialog] = useState(false)
   const [clientNameBeforePrint, setClientNameBeforePrint] = useState("")
   const [isSavingClientNameBeforePrint, setIsSavingClientNameBeforePrint] = useState(false)
@@ -191,6 +197,7 @@ export default function POSPage() {
   const productSearchRef = useRef<HTMLInputElement>(null)
   const paymentRef = useRef<HTMLSelectElement>(null)
   const patientRef = useRef<HTMLInputElement>(null)
+  const amountPaidRef = useRef<HTMLInputElement>(null)
   const [liveMessage, setLiveMessage] = useState("")
 
   // Debounce search query for better performance
@@ -548,7 +555,13 @@ export default function POSPage() {
   const taxRate = settings?.taxRate || 0
   const taxAmount = total * (taxRate / 100)
   const grandTotal = total + taxAmount
-  const change = amountPaid ? parseFloat(amountPaid) - grandTotal : 0
+  const settlement = settlePayment(
+    grandTotal,
+    paymentMethod === "CREDIT" ? 0 : amountPaid || 0,
+  )
+  const change = settlement.change
+  const balanceDue = settlement.balanceDue
+  const isPartialPayment = settlement.isPartial && paymentMethod !== "CREDIT"
 
   // For SYNAPSE PHARM account, use selected staff name; otherwise use logged-in user
   const staffName = isSynapsePharmAccount && selectedStaff
@@ -576,6 +589,9 @@ export default function POSPage() {
       return
     }
     // Show client details dialog before processing transaction
+    if (isPartialPayment && !creditCustomerId && !clientDetailsBeforeSale.name.trim()) {
+      // Will collect name in the client-details dialog
+    }
     if (paymentMethod === "CREDIT" && !creditCustomerId) {
       toast({
         variant: "destructive",
@@ -654,7 +670,8 @@ export default function POSPage() {
       clientName: client.name,
       clientPhone: client.phone,
       clientAddress: client.address,
-      ...(paymentMethod === "CREDIT"
+      amountPaid: paymentMethod === "CREDIT" ? 0 : settlement.amountPaid,
+      ...(paymentMethod === "CREDIT" || isPartialPayment
         ? {
             customerId: creditCustomerId || undefined,
             creditDueDate: creditDueDate || undefined,
@@ -727,12 +744,18 @@ export default function POSPage() {
 
           setPendingTransaction(printTxn)
           setReceiptStaffNamePending(receiptStaffName)
-          setPendingReceiptMeta({ paymentMethod, amountPaid, change })
+          const receiptMeta = {
+            paymentMethod,
+            amountPaid: String(settlement.amountPaid),
+            change: settlement.change,
+            balanceDue: settlement.balanceDue,
+          }
+          setPendingReceiptMeta(receiptMeta)
           if (settings?.autoPrintReceipt) {
             setPrintReceiptData({
               transaction: printTxn,
               staffName: receiptStaffName,
-              meta: { paymentMethod, amountPaid, change },
+              meta: receiptMeta,
               settings,
             })
             setIsPrintingReceipt(true)
@@ -845,6 +868,14 @@ export default function POSPage() {
       })
       return
     }
+    if (isPartialPayment && !creditCustomerId && !clientDetailsBeforeSale.name.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Customer required for balance",
+        description: "Enter the customer name so the unpaid balance can be recorded on their account.",
+      })
+      return
+    }
 
     setIsSavingClientDetailsBeforeSale(true)
     
@@ -886,6 +917,14 @@ export default function POSPage() {
     onPatientSearch: () => patientRef.current?.focus(),
     onProductSearch: () => productSearchRef.current?.focus(),
     onPayment: () => paymentRef.current?.focus(),
+    onAmountPaid: () => amountPaidRef.current?.focus(),
+    onCustomer: () => {
+      setShowClientDetailsBeforeSaleDialog(true)
+      setTimeout(() => patientRef.current?.focus(), 50)
+    },
+    onCompleteSale: () => {
+      if (!isProcessing && cart.length > 0) handleCompleteSale()
+    },
     onHoldSale: () => {
       if (cart.length === 0) {
         setLiveMessage("Cart is empty — nothing to hold")
@@ -894,7 +933,7 @@ export default function POSPage() {
       localStorage.setItem("pos-cart-held", JSON.stringify(cart))
       setCart([])
       setLiveMessage("Sale held")
-      toast({ title: "Sale held", description: "Press F9 to resume." })
+      toast({ title: "Sale held", description: "Press F9 to resume. Shift+F8 holds." })
     },
     onResumeSale: () => {
       const held = localStorage.getItem("pos-cart-held")
@@ -937,7 +976,7 @@ export default function POSPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Point of Sale</h1>
           <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
-            Process sales and generate receipts. Keyboard: F2 patient, F3 products, F6 payment, F8 hold, F9 resume.
+            Process sales and generate receipts. Shortcuts: F2 patient · F3 products · F5 amount · F6 pay method · F8 / Ctrl+A complete · Shift+F8 hold · F9 resume · Alt+C customer.
             {isSynapsePharmAccount && selectedStaff && (
               <span className="ml-2 text-primary font-medium">
                 {" "}Selling as: {selectedStaff.name}
@@ -1118,7 +1157,9 @@ export default function POSPage() {
               <p className="text-sm text-muted-foreground">
                 {paymentMethod === "CREDIT"
                   ? "Customer name is required for credit sales. Phone helps track repayments."
-                  : "Enter client information for the receipt (optional)"}
+                  : isPartialPayment
+                    ? `Partial payment: ${formatCurrency(balanceDue)} remains as balance due. Customer name is required.`
+                    : "Enter client information for the receipt (optional)"}
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1239,6 +1280,7 @@ export default function POSPage() {
           grandTotal={grandTotal}
           amountPaid={amountPaid}
           change={change}
+          balanceDue={balanceDue}
           paymentMethod={paymentMethod}
           staffName={staffName}
           onClose={() => setShowReceiptPreview(false)}
@@ -1638,15 +1680,16 @@ export default function POSPage() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium flex items-center">
                       <Calculator className="h-4 w-4 mr-1" />
-                      Amount Paid
+                      Amount Paid (F5)
                     </label>
                     <Input
+                      ref={amountPaidRef}
                       type="number"
                       placeholder="Enter amount paid"
                       value={amountPaid}
                       onChange={(e) => setAmountPaid(e.target.value)}
                     />
-                    {amountPaid && parseFloat(amountPaid) >= grandTotal && (
+                    {amountPaid && !isPartialPayment && settlement.amountPaid >= grandTotal && (
                       <div className="bg-green-50 border border-green-200 rounded-lg p-2">
                         <div className="flex justify-between text-green-800 font-semibold">
                           <span>Change</span>
@@ -1654,11 +1697,20 @@ export default function POSPage() {
                         </div>
                       </div>
                     )}
-                    {amountPaid && parseFloat(amountPaid) < grandTotal && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-2">
-                        <div className="text-red-800 text-sm">
-                          Insufficient amount. Need {formatCurrency(grandTotal - parseFloat(amountPaid))} more.
+                    {isPartialPayment && (
+                      <div className="bg-amber-50 border border-amber-300 rounded-lg p-2 space-y-1">
+                        <div className="flex justify-between text-amber-900 text-sm font-semibold">
+                          <span>Paid now</span>
+                          <span>{formatCurrency(settlement.amountPaid)}</span>
                         </div>
+                        <div className="flex justify-between text-amber-900 text-sm font-bold">
+                          <span>BALANCE DUE</span>
+                          <span>{formatCurrency(balanceDue)}</span>
+                        </div>
+                        <p className="text-xs text-amber-800">
+                          Sale will complete. Balance is recorded on the customer account and printed on the receipt.
+                          Customer name is required (Alt+C).
+                        </p>
                       </div>
                     )}
                   </div>
@@ -1990,6 +2042,7 @@ interface ReceiptPreviewDialogProps {
   grandTotal: number
   amountPaid: string
   change: number
+  balanceDue?: number
   paymentMethod: string
   staffName: string
   onClose: () => void
@@ -2004,6 +2057,7 @@ function ReceiptPreviewDialog({
   grandTotal,
   amountPaid,
   change,
+  balanceDue = 0,
   paymentMethod,
   staffName,
   onClose,
@@ -2050,13 +2104,13 @@ function ReceiptPreviewDialog({
           <div className="thermal-receipt">
             {/* Header */}
             {settings?.logo && (
-              <div className="tr-center" style={{ padding: "8px 0" }}>
+              <div className="tr-center" style={{ padding: "2px 0" }}>
                 <img 
                   src={settings.logo} 
                   alt={`${pharmName} logo`} 
                   style={{ 
-                    maxWidth: "150px",
-                    maxHeight: "80px",
+                    maxWidth: "110px",
+                    maxHeight: "48px",
                     objectFit: "contain",
                     margin: "0 auto",
                     display: "block"
@@ -2074,7 +2128,7 @@ function ReceiptPreviewDialog({
               </p>
             )}
             <div className="tr-heavy" />
-            <p className="tr-center tr-bold">*** SALES RECEIPT ***</p>
+            <p className="tr-center tr-bold">SALES RECEIPT</p>
             <div className="tr-dash" />
 
             {/* Meta */}
@@ -2132,18 +2186,21 @@ function ReceiptPreviewDialog({
                 <span>On Account — balance due</span>
               </div>
             )}
-            {paymentMethod === "CASH" && amtPaidNum > 0 && (
+            {(paymentMethod === "CASH" || paymentMethod === "MOBILE_MONEY" || paymentMethod === "CARD") && amtPaidNum >= 0 && (
               <>
-                <div className="tr-row"><span>Cash Received</span><span>{fmt(amtPaidNum)}</span></div>
-                <div className="tr-row tr-bold"><span>Change</span><span>{fmt(Math.max(0, change))}</span></div>
+                <div className="tr-row"><span>Received</span><span>{fmt(amtPaidNum)}</span></div>
+                {balanceDue > 0 ? (
+                  <div className="tr-row tr-bold"><span>BALANCE DUE</span><span>{fmt(balanceDue)}</span></div>
+                ) : (
+                  <div className="tr-row tr-bold"><span>Change</span><span>{fmt(Math.max(0, change))}</span></div>
+                )}
               </>
             )}
 
             {/* Footer */}
             <div className="tr-dash" />
-            <p className="tr-center tr-sm">Served by: <strong>{staffName}</strong></p>
-            <p className="tr-center tr-bold">{footer}</p>
-            <p className="tr-center tr-sm">Keep this receipt for your records.</p>
+            <p className="tr-center tr-sm">By: <strong>{staffName}</strong></p>
+            {footer && <p className="tr-center tr-sm">{footer}</p>}
             <div className="tr-dash" />
           </div>
         </div>
@@ -2161,7 +2218,7 @@ function TransactionReceipt({
   transaction: any
   staffName: string
   settings: Settings | null
-  meta: { paymentMethod: string; amountPaid: string; change: number } | null
+  meta: { paymentMethod: string; amountPaid: string; change: number; balanceDue?: number } | null
 }) {
   const currency   = settings?.currency    || "UGX"
   const pharmName  = settings?.pharmacyName || "SYNAPSE Pharm"
@@ -2181,6 +2238,7 @@ function TransactionReceipt({
   const payment    = meta?.paymentMethod || transaction?.paymentMethod || ""
   const amtPaid    = meta?.amountPaid ? parseFloat(meta.amountPaid) : 0
   const change     = meta?.change ?? 0
+  const balanceDue = meta?.balanceDue ?? Math.max(0, grandTotal - amtPaid)
 
   const fmt = (n: number) => formatCurrency(n, currency)
   const dateStr = receiptDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
@@ -2196,13 +2254,13 @@ function TransactionReceipt({
 
       {/* ── Header ── */}
       {settings?.logo && (
-        <div className="tr-center" style={{ padding: "8px 0" }}>
+        <div className="tr-center" style={{ padding: "2px 0" }}>
           <img 
             src={settings.logo} 
             alt={`${pharmName} logo`} 
             style={{ 
-              maxWidth: paperWidth === "58" ? "120px" : paperWidth === "a4" ? "200px" : "150px",
-              maxHeight: "80px",
+              maxWidth: paperWidth === "58" ? "90px" : paperWidth === "a4" ? "160px" : "110px",
+              maxHeight: "48px",
               objectFit: "contain",
               margin: "0 auto",
               display: "block"
@@ -2220,7 +2278,7 @@ function TransactionReceipt({
         </p>
       )}
       <div className="tr-heavy" />
-      <p className="tr-center tr-bold">*** SALES RECEIPT ***</p>
+      <p className="tr-center tr-bold">SALES RECEIPT</p>
       <div className="tr-dash" />
 
       {/* ── Transaction meta ── */}
@@ -2302,18 +2360,24 @@ function TransactionReceipt({
           <span>On Account — balance due</span>
         </div>
       )}
-      {payment === "CASH" && amtPaid > 0 && (
+      {(payment === "CASH" || payment === "MOBILE_MONEY" || payment === "CARD" || payment.includes("CASH")) && (
         <>
-          <div className="tr-row"><span>Cash Received</span><span>{fmt(amtPaid)}</span></div>
-          <div className="tr-row tr-bold"><span>Change</span><span>{fmt(Math.max(0, change))}</span></div>
+          <div className="tr-row"><span>Received</span><span>{fmt(amtPaid)}</span></div>
+          {balanceDue > 0 ? (
+            <div className="tr-row tr-bold"><span>BALANCE DUE</span><span>{fmt(balanceDue)}</span></div>
+          ) : (
+            <div className="tr-row tr-bold"><span>Change</span><span>{fmt(Math.max(0, change))}</span></div>
+          )}
         </>
+      )}
+      {payment === "CREDIT" && (
+        <div className="tr-row tr-bold"><span>BALANCE DUE</span><span>{fmt(grandTotal)}</span></div>
       )}
 
       {/* ── Footer ── */}
       <div className="tr-dash" />
-      <p className="tr-center tr-sm">Served by: <strong>{staffName}</strong></p>
-      <p className="tr-center tr-bold">{footer}</p>
-      <p className="tr-center tr-sm">Keep this receipt for your records.</p>
+      <p className="tr-center tr-sm">By: <strong>{staffName}</strong></p>
+      {footer && <p className="tr-center tr-sm">{footer}</p>}
       <div className="tr-dash" />
       <p className="tr-center tr-mono tr-sm">{transaction?.transactionNo || ""}</p>
     </div>

@@ -154,41 +154,46 @@
   .btn-danger    { @apply inline-flex items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-red-600 active:scale-[0.98] transition-all; }
 }
 
-/* ── Thermal Receipt (IBM Plex — matches Synapse receipt PDF stack) ─ */
+/* ── Thermal Receipt (IBM Plex — dense, high-contrast for thermal printers) ─ */
 .thermal-receipt {
   font-family: var(--font-mono), "IBM Plex Mono", "Courier New", Courier, monospace;
-  font-size: calc(9.5pt * var(--receipt-font-scale, 1));
-  line-height: 1.45;
+  font-size: calc(10pt * var(--receipt-font-scale, 1));
+  line-height: 1.25;
   width: var(--receipt-width, 72mm);
   color: #000;
   background: #fff;
-  padding: 4mm 3mm;
+  padding: 2mm 1.5mm;
   margin: 0 auto;
   word-break: break-word;
   font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+  text-rendering: geometricPrecision;
 }
 .thermal-receipt.paper-58 { --receipt-width: 52mm; }
 .thermal-receipt.paper-80 { --receipt-width: 72mm; }
 .thermal-receipt.paper-a4 { --receipt-width: 180mm; }
-.thermal-receipt p { margin: 0 0 1.2mm; }
+.thermal-receipt p { margin: 0 0 0.6mm; color: #000; }
 .thermal-receipt .tr-brand {
   font-family: var(--font-sans), "IBM Plex Sans", system-ui, sans-serif;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+  font-weight: 800;
+  color: #000;
 }
-.tr-center  { text-align: center; }
-.tr-right   { text-align: right; }
-.tr-bold    { font-weight: 700; }
-.tr-sm      { font-size: calc(8pt * var(--receipt-font-scale, 1)); }
-.tr-lg      { font-size: calc(11.5pt * var(--receipt-font-scale, 1)); }
-.tr-mono    { letter-spacing: 1px; }
-.tr-muted   { color: #444; font-family: var(--font-sans), "IBM Plex Sans", system-ui, sans-serif; }
-.tr-dash    { border-top: 1px dashed #000; margin: 2.5mm 0; }
-.tr-heavy   { border-top: 2px solid #000; margin: 2.5mm 0; }
-.tr-row     { display: flex; justify-content: space-between; align-items: flex-start; gap: 1.5mm; margin-bottom: 1mm; width: 100%; box-sizing: border-box; }
-.tr-row span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+.tr-center  { text-align: center; color: #000; }
+.tr-right   { text-align: right; color: #000; }
+.tr-bold    { font-weight: 800; color: #000; }
+.tr-sm      { font-size: calc(8.5pt * var(--receipt-font-scale, 1)); color: #000; }
+.tr-lg      { font-size: calc(11pt * var(--receipt-font-scale, 1)); color: #000; font-weight: 800; }
+.tr-mono    { letter-spacing: 0.5px; color: #000; }
+.tr-muted   { color: #111; font-family: var(--font-mono), "IBM Plex Mono", "Courier New", Courier, monospace; }
+.tr-dash    { border-top: 1px dashed #000; margin: 1.2mm 0; }
+.tr-heavy   { border-top: 2px solid #000; margin: 1.2mm 0; }
+.tr-row     { display: flex; justify-content: space-between; align-items: flex-start; gap: 1mm; margin-bottom: 0.5mm; width: 100%; box-sizing: border-box; color: #000; }
+.tr-row span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; color: #000; }
 .tr-row span:first-child { flex: 1 1 auto; }
-.tr-row span:last-child  { flex: 0 1 42%; text-align: right; }
-.tr-item    { margin-bottom: 3mm; }
+.tr-row span:last-child  { flex: 0 1 40%; text-align: right; }
+.tr-item    { margin-bottom: 1.4mm; }
 
 /* ── @media print — thermal / A4 via receipt paper class ─── */
 @media print {
@@ -251,11 +256,13 @@
     width: 100% !important;
     box-sizing: border-box !important;
     max-width: 72mm !important;
-    padding: 2mm 2mm !important;
+    padding: 1mm 1.5mm !important;
     margin: 0 !important;
-    font-size: calc(8.5pt * var(--receipt-font-scale, 1)) !important;
-    line-height: 1.35 !important;
+    font-size: calc(9.5pt * var(--receipt-font-scale, 1)) !important;
+    line-height: 1.2 !important;
     color: #000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
     overflow: visible !important;
     overflow-wrap: anywhere !important;
     word-break: break-word !important;
@@ -263,8 +270,14 @@
   .thermal-receipt.paper-58 { max-width: 52mm !important; }
   .thermal-receipt.paper-a4 { max-width: 180mm !important; }
 
-  .tr-sm { font-size: calc(7.5pt * var(--receipt-font-scale, 1)) !important; }
-  .tr-lg { font-size: calc(10pt * var(--receipt-font-scale, 1)) !important; }
+  .tr-sm { font-size: calc(8pt * var(--receipt-font-scale, 1)) !important; color: #000 !important; }
+  .tr-lg { font-size: calc(10.5pt * var(--receipt-font-scale, 1)) !important; color: #000 !important; font-weight: 800 !important; }
+  .tr-bold, .tr-muted, .tr-row, .tr-row span, .thermal-receipt p {
+    color: #000 !important;
+  }
+  .tr-dash { margin: 0.8mm 0 !important; }
+  .tr-heavy { margin: 0.8mm 0 !important; }
+  .tr-item { margin-bottom: 1mm !important; }
 
   /* Constrain every flex row to available width */
   .tr-row {
