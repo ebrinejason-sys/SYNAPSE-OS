@@ -136,7 +136,10 @@ export async function POST(req: NextRequest) {
 
     if (step === 5) {
       await db.from('tenants').update({ onboarding_completed: true }).eq('id', tenantId)
-      await db.from('pharmacy_onboarding').update({ current_step: 5 }).eq('tenant_id', tenantId)
+      await db.from('pharmacy_onboarding').update({ 
+        current_step: 5,
+        onboarding_completed_at: new Date().toISOString()
+      }).eq('tenant_id', tenantId)
       return NextResponse.json({ nextStep: 'dashboard' })
     }
 

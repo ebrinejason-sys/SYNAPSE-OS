@@ -35,6 +35,7 @@ type TenantRow = {
 
 type OnboardingRow = {
   current_step: number | null
+  onboarding_completed_at: string | null
 }
 
 function stripBom(s: string): string {
@@ -314,10 +315,10 @@ async function runPharmacyAccessChecks(params: {
     const onboarding = await restGet<OnboardingRow>(
       'pharmacy_onboarding',
       { tenant_id: `eq.${profile.tenant_id}` },
-      'current_step'
+      'current_step,onboarding_completed_at'
     )
 
-    if (onboarding && (onboarding.current_step ?? 0) < 5) {
+    if (onboarding && !onboarding.onboarding_completed_at && (onboarding.current_step ?? 0) < 5) {
       return NextResponse.redirect(new URL('/onboarding', request.url))
     }
   }

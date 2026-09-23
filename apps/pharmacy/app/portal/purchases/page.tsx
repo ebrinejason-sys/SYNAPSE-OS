@@ -169,7 +169,9 @@ export default function PurchasesPage() {
 
   const addPickedLine = () => {
     if (!picked) return
-    if (!draftBatch.trim() || !(Number(draftQty) > 0) || !draftExpiry.trim() || !(Number(draftCost) >= 0)) {
+    const qty = Number(draftQty)
+    const cost = Number(draftCost)
+    if (!draftBatch.trim() || !(qty > 0) || !draftExpiry.trim() || !draftCost.trim() || !(cost >= 0)) {
       toast({ variant: "destructive", title: "Batch, quantity, expiry and cost are required" })
       return
     }

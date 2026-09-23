@@ -109,9 +109,14 @@ export async function POST(request: NextRequest) {
 
     if (!tenantId) return NextResponse.json({ error: "Tenant not found" }, { status: 400 })
 
-    const { name, email, username, role, permissions, storeId } = await request.json()
+    const { name, email, username, role, permissions, storeId, password: providedPassword } = await request.json()
     if (!name || !email || !role) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    }
+    
+    // Validate password if provided
+    if (providedPassword && providedPassword.length < 8) {
+      return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 })
     }
 
     const roleMap: Record<string, string> = {
@@ -143,7 +148,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const password = generatePassword()
+    const password = providedPassword || generatePassword()
     const passwordHash = await hashPassword(password)
     const now = new Date().toISOString()
     const newUserId = randomUUID()
@@ -203,12 +208,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to create user settings" }, { status: 500 })
     }
 
-    const emailResult = await sendEmail({
-      to: email,
-      subject: "Welcome to Synapse Pharmacy — Your Account Details",
-      html: generateWelcomeEmail(name, email, password, pharmacyRole),
-    })
-    if (!emailResult.success) console.error("Failed to send welcome email:", emailResult.error)
+    // Only send email if password was auto-generated
+    if (!providedPassword) {
+      const emailResult = await sendEmail({
+        to: email,
+        subject: "Welcome to Synapse Pharmacy — Your Account Details",
+        html: generateWelcomeEmail(name, email, password, pharmacyRole),
+      })
+      if (!emailResult.success) console.error("Failed to send welcome email:", emailResult.error)
+    }
 
     await db.from("pharmacy_audit_logs").insert({
       tenant_id: tenantId,
@@ -216,7 +224,7 @@ export async function POST(request: NextRequest) {
       action: "CREATE_USER",
       entity: "USER",
       entity_id: newUserId,
-      details: `Created user: ${name} (${email})`,
+      details: `Created user: ${name} (${email})${providedPassword ? ' with admin-set password' : ''}`,
     })
 
     return NextResponse.json({ success: true, user: { id: newUserId, name, email, role: pharmacyRole } })
