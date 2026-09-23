@@ -196,6 +196,8 @@ export async function POST(request: NextRequest) {
         pharmacy_role: pharmacyRole,
         permissions: pharmacyRole === "pharmacy_admin" || pharmacyRole === "pharmacy_ceo" ? [] : permissions ?? [],
         must_change_password: mustChangePassword,
+        // Email OTP at login is role-based for pharmacy admins. TOTP remains opt-in.
+        two_factor_enabled: false,
         is_active: true,
         created_by: session.user.id,
         created_at: now,

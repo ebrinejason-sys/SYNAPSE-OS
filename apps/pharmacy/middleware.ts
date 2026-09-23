@@ -13,6 +13,7 @@ type PharmacyProfile = {
   tenant_id: string | null
   role: string | null
   must_change_password: boolean | null
+  onboarding_complete: boolean | null
 }
 
 // True PLATFORM admins (superadmins) are not tenant-scoped and must never be
@@ -31,6 +32,7 @@ type PharmacyUserSettings = {
 type TenantRow = {
   is_active: boolean | null
   facility_type: string | null
+  onboarding_completed: boolean | null
 }
 
 type OnboardingRow = {
@@ -311,15 +313,39 @@ async function runPharmacyAccessChecks(params: {
     return NextResponse.redirect(new URL('/change-password', request.url))
   }
 
-  if (!isPublicPath && profile.tenant_id) {
-    const onboarding = await restGet<OnboardingRow>(
-      'pharmacy_onboarding',
-      { tenant_id: `eq.${profile.tenant_id}` },
-      'current_step,onboarding_completed_at'
+  // Platform-provisioned pharmacies mark tenants.onboarding_completed=true and
+  // profiles.onboarding_complete=true before first login. Do not force the
+  // optional license/store wizard when provisioning already finished.
+  if (!isPublicPath && profile.tenant_id && !profile.onboarding_complete) {
+    const tenantOnboarding = await restGet<TenantRow>(
+      'tenants',
+      { id: `eq.${profile.tenant_id}` },
+      'is_active,facility_type,onboarding_completed',
     )
+    if (!tenantOnboarding?.onboarding_completed) {
+      const onboarding = await restGet<OnboardingRow>(
+        'pharmacy_onboarding',
+        { tenant_id: `eq.${profile.tenant_id}` },
+        'current_step,onboarding_completed_at',
+      )
 
-    if (onboarding && !onboarding.onboarding_completed_at && (onboarding.current_step ?? 0) < 5) {
-      return NextResponse.redirect(new URL('/onboarding', request.url))
+      const wizardIncomplete =
+        !!onboarding &&
+        !onboarding.onboarding_completed_at &&
+        (onboarding.current_step ?? 0) < 5
+
+      if (wizardIncomplete) {
+        // Heal legacy platform-provisioned tenants that already have a store but
+        // were left at current_step < 5 without onboarding_completed_at.
+        const existingStore = await restGet<{ id: string }>(
+          'pharmacy_stores',
+          { tenant_id: `eq.${profile.tenant_id}` },
+          'id',
+        )
+        if (!existingStore) {
+          return NextResponse.redirect(new URL('/onboarding', request.url))
+        }
+      }
     }
   }
 
@@ -408,7 +434,7 @@ export async function middleware(request: NextRequest) {
     const profile = await restGet<PharmacyProfile>(
       'profiles',
       { id: `eq.${synapseUserId}` },
-      'id,is_admin,tenant_id,role,must_change_password'
+      'id,is_admin,tenant_id,role,must_change_password,onboarding_complete'
     )
 
     if (profile) {
