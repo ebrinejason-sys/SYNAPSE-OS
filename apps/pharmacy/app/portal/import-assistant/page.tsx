@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { BrainCircuit, FileSpreadsheet, Wand2 } from "lucide-react"
+import { BrainCircuit, FileSpreadsheet, Wand2, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -30,6 +30,18 @@ type ImportSession = {
   created_at: string | null
 }
 
+type ApplyResult = {
+  success: number
+  failed: number
+  skipped: number
+  rows: Array<{
+    rowIndex: number
+    status: string
+    reason?: string
+    productName?: string
+  }>
+}
+
 export default function ImportAssistantPage() {
   const { toast } = useToast()
   const [sessions, setSessions] = useState<ImportSession[]>([])
@@ -40,6 +52,9 @@ export default function ImportAssistantPage() {
   const [mapping, setMapping] = useState<MappingRow[]>([])
   const [summary, setSummary] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isApplying, setIsApplying] = useState(false)
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+  const [applyResult, setApplyResult] = useState<ApplyResult | null>(null)
 
   async function loadSessions() {
     const response = await fetch("/api/admin/import-sessions")
@@ -54,6 +69,7 @@ export default function ImportAssistantPage() {
   async function analyse(event: React.FormEvent) {
     event.preventDefault()
     setIsLoading(true)
+    setApplyResult(null)
     const headers = headersText.split(",").map((item) => item.trim()).filter(Boolean)
     const sampleRows = sampleText
       .split("\n")
@@ -73,7 +89,49 @@ export default function ImportAssistantPage() {
     }
     setMapping(data.mapping ?? [])
     setSummary(data.summary ?? "")
+    setCurrentSessionId(data.session?.id ?? null)
     toast({ title: "Import mapping ready for review" })
+    loadSessions()
+  }
+
+  async function applyImport() {
+    if (!currentSessionId) {
+      toast({ variant: "destructive", title: "No session to apply" })
+      return
+    }
+
+    const allRows = sampleText
+      .split("\n")
+      .map((line) => line.split(",").map((item) => item.trim()))
+      .filter((row) => row.some(Boolean))
+
+    if (allRows.length === 0) {
+      toast({ variant: "destructive", title: "No rows to import" })
+      return
+    }
+
+    setIsApplying(true)
+    setApplyResult(null)
+
+    const response = await fetch(`/api/admin/import-sessions/${currentSessionId}/apply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ allRows }),
+    })
+
+    const data = await response.json()
+    setIsApplying(false)
+
+    if (!response.ok) {
+      toast({ variant: "destructive", title: data.error ?? "Import failed" })
+      return
+    }
+
+    setApplyResult(data.result)
+    toast({
+      title: "Import complete",
+      description: data.message,
+    })
     loadSessions()
   }
 
@@ -149,6 +207,60 @@ export default function ImportAssistantPage() {
                 ))}
               </TableBody>
             </Table>
+            
+            <div className="flex gap-2 pt-4">
+              <Button onClick={applyImport} disabled={isApplying} className="bg-[#22C55E] hover:bg-[#22C55E]/90">
+                <Upload className="h-4 w-4" />
+                {isApplying ? "Importing..." : "Apply Import"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {applyResult && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Import Results</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="rounded-lg border p-4">
+                <div className="text-2xl font-bold text-[#22C55E]">{applyResult.success}</div>
+                <div className="text-sm text-muted-foreground">Success</div>
+              </div>
+              <div className="rounded-lg border p-4">
+                <div className="text-2xl font-bold text-destructive">{applyResult.failed}</div>
+                <div className="text-sm text-muted-foreground">Failed</div>
+              </div>
+              <div className="rounded-lg border p-4">
+                <div className="text-2xl font-bold text-[#E8B84B]">{applyResult.skipped}</div>
+                <div className="text-sm text-muted-foreground">Skipped</div>
+              </div>
+            </div>
+
+            {applyResult.failed > 0 && (
+              <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+                <div className="space-y-2">
+                  <p className="font-semibold text-sm">Failed rows:</p>
+                  <div className="max-h-48 overflow-y-auto space-y-1">
+                    {applyResult.rows
+                      .filter((r) => r.status === "failed")
+                      .slice(0, 10)
+                      .map((r) => (
+                        <div key={r.rowIndex} className="text-xs text-muted-foreground">
+                          Row {r.rowIndex + 1}: {r.productName || "Unknown"} - {r.reason}
+                        </div>
+                      ))}
+                    {applyResult.rows.filter((r) => r.status === "failed").length > 10 && (
+                      <div className="text-xs text-muted-foreground">
+                        ... and {applyResult.rows.filter((r) => r.status === "failed").length - 10} more
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -176,7 +288,21 @@ export default function ImportAssistantPage() {
                   <TableRow key={session.id}>
                     <TableCell>{session.file_name ?? "Manual mapping"}</TableCell>
                     <TableCell>{session.source_system ?? "Unknown"}</TableCell>
-                    <TableCell>{session.status}</TableCell>
+                    <TableCell>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                          session.status === "complete"
+                            ? "bg-[#22C55E]/10 text-[#22C55E]"
+                            : session.status === "failed"
+                              ? "bg-destructive/10 text-destructive"
+                              : session.status === "importing"
+                                ? "bg-blue-500/10 text-blue-500"
+                                : "bg-[#E8B84B]/10 text-[#E8B84B]"
+                        }`}
+                      >
+                        {session.status}
+                      </span>
+                    </TableCell>
                     <TableCell>{session.matched_rows ?? 0}</TableCell>
                     <TableCell>{session.flagged_rows ?? 0}</TableCell>
                   </TableRow>
