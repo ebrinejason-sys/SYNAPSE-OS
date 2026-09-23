@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 import {
   DUPLICATE_PRODUCT_THRESHOLD,
   allocatePurchaseIdempotencyKey,
+  catalogProductFromRow,
   createPurchaseCatalogProduct,
   derivePaymentStatus,
   findDuplicateProducts,
@@ -11,6 +12,8 @@ import {
   lineTotal,
   mapPoStatusToExisting,
   matchCatalogProducts,
+  resolveImportCatalogMatch,
+  IMPORT_QUANTITY_SEMANTICS,
   poStatusFromReceived,
   purchaseMargin,
   purchaseProductOpeningQuantity,
@@ -533,5 +536,132 @@ describe("pharmacy purchases domain", () => {
     assert.equal(barcode[0]?.id, "code-hit")
     const sku = matchCatalogProducts({ sku: "CET-10" }, catalog)
     assert.equal(sku[0]?.id, "code-hit")
+  })
+
+  it("does not silently merge Amoxicillin 250 mg with Amoxicillin 500 mg by name", () => {
+    assert.equal(IMPORT_QUANTITY_SEMANTICS, "STOCK_RECEIPT_DELTA")
+    const catalog = [
+      catalogProductFromRow({
+        id: "amox-500",
+        name: "Amoxicillin",
+        strength: "500 mg",
+        dosage_form: "Capsule",
+        sku: "AMX-500",
+        barcode: null,
+      }),
+      catalogProductFromRow({
+        id: "amox-250",
+        name: "Amoxicillin",
+        strength: "250 mg",
+        dosage_form: "Capsule",
+        sku: "AMX-250",
+        barcode: null,
+      }),
+    ]
+    const hit = resolveImportCatalogMatch(
+      { name: "Amoxicillin", strength: "250 mg", dosageForm: "Capsule" },
+      catalog,
+    )
+    assert.equal(hit.kind, "match")
+    if (hit.kind === "match") assert.equal(hit.product.id, "amox-250")
+
+    const clash = resolveImportCatalogMatch(
+      { name: "Amoxicillin", strength: "125 mg", dosageForm: "Capsule" },
+      catalog,
+    )
+    assert.equal(clash.kind, "ambiguous_name")
+
+    const bareName = resolveImportCatalogMatch({ name: "Amoxicillin" }, catalog)
+    assert.equal(bareName.kind, "ambiguous_name")
+  })
+
+  it("prefers barcode and SKU and rejects form/strength collisions", () => {
+    const catalog = [
+      catalogProductFromRow({
+        id: "para-tab",
+        name: "Paracetamol",
+        strength: "500 mg",
+        dosage_form: "Tablet",
+        sku: "PARA-TAB",
+        barcode: "1111111111111",
+      }),
+      catalogProductFromRow({
+        id: "para-syr",
+        name: "Paracetamol",
+        strength: "120 mg/5ml",
+        dosage_form: "Syrup",
+        sku: "PARA-SYR",
+        barcode: "2222222222222",
+      }),
+      catalogProductFromRow({
+        id: "ibuprofen-cap",
+        name: "Ibuprofen",
+        strength: "200 mg",
+        dosage_form: "Capsule",
+        sku: "IBU-200-CAP",
+        barcode: "3333333333333",
+      }),
+      catalogProductFromRow({
+        id: "ibuprofen-tab",
+        name: "Ibuprofen",
+        strength: "200 mg",
+        dosage_form: "Tablet",
+        sku: "IBU-200-TAB",
+        barcode: "4444444444444",
+      }),
+    ]
+
+    const byBarcode = resolveImportCatalogMatch(
+      { barcode: "1111111111111", name: "Wrong Name", strength: "999 mg" },
+      catalog,
+    )
+    assert.equal(byBarcode.kind, "match")
+    if (byBarcode.kind === "match") {
+      assert.equal(byBarcode.via, "barcode")
+      assert.equal(byBarcode.product.id, "para-tab")
+    }
+
+    const barcodeOk = resolveImportCatalogMatch(
+      { barcode: "1111111111111", name: "Paracetamol", strength: "500 mg", dosageForm: "Tablet" },
+      catalog,
+    )
+    assert.equal(barcodeOk.kind, "match")
+    if (barcodeOk.kind === "match") {
+      assert.equal(barcodeOk.via, "barcode")
+      assert.equal(barcodeOk.product.id, "para-tab")
+    }
+
+    const bySku = resolveImportCatalogMatch(
+      { sku: "PARA-SYR", name: "Paracetamol", dosageForm: "Syrup" },
+      catalog,
+    )
+    assert.equal(bySku.kind, "match")
+    if (bySku.kind === "match") {
+      assert.equal(bySku.via, "sku")
+      assert.equal(bySku.product.id, "para-syr")
+    }
+
+    const tabletVsSyrup = resolveImportCatalogMatch(
+      { name: "Paracetamol", dosageForm: "Syrup" },
+      catalog,
+    )
+    assert.equal(tabletVsSyrup.kind, "match")
+    if (tabletVsSyrup.kind === "match") assert.equal(tabletVsSyrup.product.id, "para-syr")
+
+    const sameStrengthDiffForm = resolveImportCatalogMatch(
+      { name: "Ibuprofen", strength: "200 mg", dosageForm: "Tablet" },
+      catalog,
+    )
+    assert.equal(sameStrengthDiffForm.kind, "match")
+    if (sameStrengthDiffForm.kind === "match") assert.equal(sameStrengthDiffForm.product.id, "ibuprofen-tab")
+
+    const bareIbuprofen = resolveImportCatalogMatch({ name: "Ibuprofen", strength: "200 mg" }, catalog)
+    assert.equal(bareIbuprofen.kind, "ambiguous_name")
+
+    const brandNew = resolveImportCatalogMatch(
+      { name: "SYNAPSE Acceptance Widget", sku: "ACCEPT-NEW-1" },
+      catalog,
+    )
+    assert.equal(brandNew.kind, "none")
   })
 })

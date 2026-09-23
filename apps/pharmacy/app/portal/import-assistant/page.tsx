@@ -206,6 +206,17 @@ export default function ImportAssistantPage() {
         <p className="text-muted-foreground mt-1 text-sm">
           Migrate stock from Tally (or other exports) into Synapse: map columns, review, then apply into inventory.
         </p>
+        <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
+          <p className="font-medium">Quantity received / stock to add</p>
+          <p className="mt-1 text-sm opacity-90">
+            Import quantity is <strong>added</strong> to existing stock (receipt delta). Example: on-hand 50 +
+            imported 100 = 150 — it does not set stock to 100. Map your export&apos;s quantity column as
+            units to receive, not as a closing/opening balance overwrite. Re-applying a completed session is
+            blocked. Name-only matches with conflicting strength or dosage form are rejected (e.g. Amoxicillin
+            250 mg vs 500 mg).
+          </p>
+          <p className="mt-1 text-xs opacity-70">Internal semantic: STOCK_RECEIPT_DELTA</p>
+        </div>
       </div>
 
       <Card>
@@ -232,7 +243,8 @@ export default function ImportAssistantPage() {
                 ))}
               </select>
               <p className="text-xs text-muted-foreground">
-                Tally exports often use columns like Stock Item, Closing Stock, Group, Rate, MRP.
+                Tally exports often use columns like Stock Item, Qty / Closing Stock, Group, Rate, MRP. When
+                mapped to quantity, those figures are treated as stock to add (receipt delta), not a balance overwrite.
               </p>
             </div>
             <div className="space-y-1.5">

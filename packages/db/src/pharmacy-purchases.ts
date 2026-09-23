@@ -240,6 +240,74 @@ export function matchCatalogProducts(
   }))
 }
 
+/**
+ * Import / migration matching: barcode → SKU → name.
+ * Name matches MUST NOT silently merge clinically distinct products
+ * (e.g. Amoxicillin 250 mg vs 500 mg) when strength or dosage form differ.
+ */
+export type ImportCatalogMatch =
+  | { kind: "match"; product: CatalogProduct; via: "barcode" | "sku" | "name" }
+  | { kind: "ambiguous_name"; candidates: CatalogProduct[] }
+  | { kind: "none" }
+
+function clinicalFieldsCompatible(
+  incoming: { strength?: string | null; dosageForm?: string | null },
+  existing: CatalogProduct,
+): boolean {
+  const inStrength = norm(incoming.strength)
+  const exStrength = norm(existing.strength)
+  if (inStrength && exStrength && inStrength !== exStrength) return false
+
+  const inForm = norm(incoming.dosageForm)
+  const exForm = norm(existing.dosageForm)
+  if (inForm && exForm && inForm !== exForm) return false
+
+  return true
+}
+
+export function resolveImportCatalogMatch(
+  values: {
+    barcode?: string | null
+    sku?: string | null
+    name?: string | null
+    strength?: string | null
+    dosageForm?: string | null
+  },
+  existingProducts: CatalogProduct[],
+): ImportCatalogMatch {
+  const barcode = values.barcode?.trim()
+  if (barcode) {
+    const match = existingProducts.find((p) => norm(p.barcode) === norm(barcode))
+    if (match) return { kind: "match", product: match, via: "barcode" }
+  }
+
+  const sku = values.sku?.trim()
+  if (sku) {
+    const match = existingProducts.find((p) => norm(p.sku) === norm(sku))
+    if (match) return { kind: "match", product: match, via: "sku" }
+  }
+
+  const name = values.name?.trim()
+  if (!name) return { kind: "none" }
+
+  const nameMatches = existingProducts.filter((p) => norm(p.name) === norm(name))
+  if (nameMatches.length === 0) return { kind: "none" }
+
+  const compatible = nameMatches.filter((p) => clinicalFieldsCompatible(values, p))
+  const sole = compatible.length === 1 ? compatible[0] : undefined
+  if (sole) {
+    return { kind: "match", product: sole, via: "name" }
+  }
+  if (compatible.length === 0) {
+    // Name collided with different strength/form — do not merge.
+    return { kind: "ambiguous_name", candidates: nameMatches }
+  }
+  return { kind: "ambiguous_name", candidates: compatible }
+}
+
+/** Import quantity is always a receipt delta via receive_pharmacy_stock — never an absolute stock overwrite. */
+export const IMPORT_QUANTITY_SEMANTICS = "STOCK_RECEIPT_DELTA" as const
+
 export function allocatePurchaseIdempotencyKey(existing: string | null, randomUUID: () => string): string {
   const current = existing?.trim()
   return current ? current : randomUUID()
