@@ -51,7 +51,6 @@ export async function POST(request: NextRequest) {
 
   const elevated =
     roleHasCapability(role, "pos.discount_override") ||
-    profile.is_admin === true ||
     profile.role === "pharmacy_admin"
 
   if (!elevated) {

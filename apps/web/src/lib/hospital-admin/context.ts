@@ -44,7 +44,7 @@ export async function requireHospitalAdminContext(): Promise<
   }
 
   const role = String(profile.role ?? payload.role ?? '')
-  if (!ADMIN_ROLES.has(role) && !profile.is_admin) {
+  if (!ADMIN_ROLES.has(role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
