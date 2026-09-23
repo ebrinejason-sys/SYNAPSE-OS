@@ -238,7 +238,9 @@ export default function PurchasesScreen() {
 
   const addLine = () => {
     if (!picked) return
-    if (!batch.trim() || !(Number(qty) > 0) || !expiry.trim() || !(Number(cost) >= 0) || cost.trim() === '') {
+    const qtyNum = Number(qty)
+    const costNum = Number(cost)
+    if (!batch.trim() || !(qtyNum > 0) || !expiry.trim() || !cost.trim() || !(costNum >= 0)) {
       Alert.alert('Batch required', 'Enter quantity, batch number, expiry and cost.')
       return
     }

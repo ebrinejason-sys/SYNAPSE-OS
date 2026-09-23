@@ -246,6 +246,8 @@ function CreateUserDialog({ onClose, onSuccess }: CreateUserDialogProps) {
   const [name, setName] = useState("")
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [generatePasswordAuto, setGeneratePasswordAuto] = useState(true)
   const [role, setRole] = useState<"CEO" | "ADMIN" | "STAFF">("STAFF")
   const [permissions, setPermissions] = useState<Permission[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -272,6 +274,16 @@ function CreateUserDialog({ onClose, onSuccess }: CreateUserDialogProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (!generatePasswordAuto && (!password || password.length < 8)) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Password must be at least 8 characters",
+      })
+      return
+    }
+    
     setIsLoading(true)
 
     try {
@@ -282,6 +294,7 @@ function CreateUserDialog({ onClose, onSuccess }: CreateUserDialogProps) {
           name, 
           email, 
           username: username.trim() || undefined,
+          password: generatePasswordAuto ? undefined : password,
           role, 
           permissions 
         }),
@@ -292,7 +305,9 @@ function CreateUserDialog({ onClose, onSuccess }: CreateUserDialogProps) {
       if (response.ok) {
         toast({
           title: "Success",
-          description: "User created and credentials sent via email",
+          description: generatePasswordAuto 
+            ? "User created and credentials sent via email" 
+            : "User created with custom password",
         })
         onSuccess()
       } else {
@@ -356,6 +371,47 @@ function CreateUserDialog({ onClose, onSuccess }: CreateUserDialogProps) {
               />
             </div>
 
+            <div className="space-y-3 border border-border rounded-lg p-3 bg-muted/20">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Password Setup</Label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={generatePasswordAuto}
+                    onChange={(e) => setGeneratePasswordAuto(e.target.checked)}
+                    className="rounded"
+                    disabled={isLoading}
+                  />
+                  <span className="text-xs text-muted-foreground">Auto-generate & email</span>
+                </label>
+              </div>
+              
+              {!generatePasswordAuto && (
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-sm">Set Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Minimum 8 characters"
+                    required={!generatePasswordAuto}
+                    disabled={isLoading}
+                    minLength={8}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    User will be required to change this on first login.
+                  </p>
+                </div>
+              )}
+              
+              {generatePasswordAuto && (
+                <p className="text-xs text-muted-foreground">
+                  A secure password will be generated and sent to the user via email.
+                </p>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
               <select
@@ -373,6 +429,11 @@ function CreateUserDialog({ onClose, onSuccess }: CreateUserDialogProps) {
               {role === "CEO" && (
                 <p className="text-xs text-muted-foreground mt-1">
                   CEO role has view access to all areas including dashboard, reports, and activity logs.
+                </p>
+              )}
+              {role === "STAFF" && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  2FA is optional for staff. Users can enable it in their account settings if needed.
                 </p>
               )}
             </div>
@@ -415,10 +476,15 @@ function CreateUserDialog({ onClose, onSuccess }: CreateUserDialogProps) {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Creating...
                   </>
-                ) : (
+                ) : generatePasswordAuto ? (
                   <>
                     <Mail className="mr-2 h-4 w-4" />
                     Create & Send Email
+                  </>
+                ) : (
+                  <>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create User
                   </>
                 )}
               </Button>
