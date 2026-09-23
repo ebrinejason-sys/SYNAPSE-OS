@@ -85,7 +85,9 @@ const evidence = {
 
 function step(name, payload) {
   evidence.steps.push({ name, at: new Date().toISOString(), ...payload })
-  console.error(`[hospital-golden-live] ${name}`, payload.ok === false ? payload.error || payload : "ok")
+  const symbol = payload.ok === false ? "✗" : "✓"
+  const status = payload.ok === false ? "FAIL" : "PASS"
+  console.error(`${symbol} [${status}] ${name}`, payload.ok === false ? payload.error || payload : "")
 }
 
 const ids = {
@@ -114,6 +116,18 @@ async function cleanup(hospitalId, pharmacyId) {
   await db.from("pharmacy_products").delete().eq("id", ids.product)
   await db.from("profiles").delete().in("id", [ids.doctor, ids.pharmacist])
 }
+
+console.error("=" .repeat(80))
+console.error("SYNAPSE-OS Hospital Golden Journey — Live Synthetic Test")
+console.error("=" .repeat(80))
+console.error()
+console.error(`Project:        ${projectRef}`)
+console.error(`Hospital:       ${HOSPITAL_SLUG}`)
+console.error(`Pharmacy:       ${PHARM_SLUG}`)
+console.error(`Run ID:         ${runId}`)
+console.error()
+console.error("Testing: OPD → Prescribe → Pharmacy Dispense → Closeout")
+console.error()
 
 try {
   const { data: hospital, error: hErr } = await db.from("tenants").select("id,slug,name").eq("slug", HOSPITAL_SLUG).maybeSingle()
@@ -486,6 +500,31 @@ try {
   mkdirSync(outDir, { recursive: true })
   const outPath = join(outDir, `hospital-golden-live-${runId}.json`)
   writeFileSync(outPath, `${JSON.stringify(evidence, null, 2)}\n`)
+  
+  console.error()
+  console.error("=" .repeat(80))
+  if (ok) {
+    console.error("✅ HOSPITAL GOLDEN JOURNEY: PASS")
+    console.error()
+    console.error("All checks passed:")
+    for (const [check, value] of Object.entries(checks)) {
+      if (typeof value === "boolean") {
+        console.error(`  ✓ ${check}: ${value}`)
+      }
+    }
+  } else {
+    console.error("❌ HOSPITAL GOLDEN JOURNEY: FAIL")
+    console.error()
+    console.error("Failed checks:")
+    for (const [check, value] of Object.entries(checks)) {
+      if (typeof value === "boolean" && !value) {
+        console.error(`  ✗ ${check}: ${value}`)
+      }
+    }
+  }
+  console.error()
+  console.error(`Evidence written to: ${outPath}`)
+  console.error("=" .repeat(80))
   console.log(outPath)
   process.exit(ok ? 0 : 1)
 } catch (err) {
@@ -504,6 +543,15 @@ try {
   mkdirSync(outDir, { recursive: true })
   const outPath = join(outDir, `hospital-golden-live-${runId}.json`)
   writeFileSync(outPath, `${JSON.stringify(evidence, null, 2)}\n`)
+  
+  console.error()
+  console.error("=" .repeat(80))
+  console.error("❌ HOSPITAL GOLDEN JOURNEY: FAIL")
+  console.error()
+  console.error(`Error: ${evidence.error}`)
+  console.error()
+  console.error(`Evidence written to: ${outPath}`)
+  console.error("=" .repeat(80))
   console.error(outPath)
   process.exit(1)
 }
