@@ -286,7 +286,7 @@ export async function initiateSubscriptionPayment(input: InitSubscribeInput): Pr
 
 // ── Payment confirmation (shared by webhook + redirect-verify) ───────────────
 
-type PaymentRecord = {
+export type PaymentRecord = {
   id: string
   tenant_id: string
   plan_id: string | null
@@ -398,7 +398,7 @@ export async function confirmSubscriptionPayment(input: ConfirmPaymentInput): Pr
  * raw_payload so the number is never lost. Best-effort by design — activation must
  * never fail because invoicing did.
  */
-async function recordSubscriptionInvoice(payment: PaymentRecord): Promise<string | null> {
+export async function recordSubscriptionInvoice(payment: PaymentRecord): Promise<string | null> {
   const ymd = kampalaDateYMD()
 
   // Concurrent confirmations of the same payment must not double-invoice.
