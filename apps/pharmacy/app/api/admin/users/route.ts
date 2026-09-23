@@ -4,7 +4,7 @@ import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail, generateWelcomeEmail } from "@/lib/email"
 import { generatePassword } from "@/lib/utils"
-import { hashPassword } from "@synapse/auth/password"
+import { hashPassword, validatePasswordStrength } from "@synapse/auth/password"
 
 const db = supabaseAdmin
 
@@ -109,14 +109,10 @@ export async function POST(request: NextRequest) {
 
     if (!tenantId) return NextResponse.json({ error: "Tenant not found" }, { status: 400 })
 
-    const { name, email, username, role, permissions, storeId, password: providedPassword } = await request.json()
+    const { name, email, username, role, permissions, storeId, password: providedPassword, sendWelcomeEmail } =
+      await request.json()
     if (!name || !email || !role) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
-    }
-    
-    // Validate password if provided
-    if (providedPassword && providedPassword.length < 8) {
-      return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 })
     }
 
     const roleMap: Record<string, string> = {
@@ -148,8 +144,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const password = providedPassword || generatePassword()
+    const customPassword =
+      typeof providedPassword === "string" && providedPassword.trim().length > 0
+        ? providedPassword.trim()
+        : null
+    if (customPassword) {
+      const strength = validatePasswordStrength(customPassword)
+      if (!strength.valid) {
+        return NextResponse.json(
+          { error: strength.errors[0] ?? "Password is too weak" },
+          { status: 400 },
+        )
+      }
+    }
+
+    const password = customPassword ?? generatePassword()
     const passwordHash = await hashPassword(password)
+    const mustChangePassword = !customPassword
     const now = new Date().toISOString()
     const newUserId = randomUUID()
 
@@ -166,7 +177,7 @@ export async function POST(request: NextRequest) {
         verification_status: "verified",
         email_verified_at: now,
         is_deleted: false,
-        must_change_password: true,
+        must_change_password: mustChangePassword,
         created_at: now,
         updated_at: now,
       })
@@ -184,7 +195,7 @@ export async function POST(request: NextRequest) {
         username: username ? username.toLowerCase() : null,
         pharmacy_role: pharmacyRole,
         permissions: pharmacyRole === "pharmacy_admin" || pharmacyRole === "pharmacy_ceo" ? [] : permissions ?? [],
-        must_change_password: true,
+        must_change_password: mustChangePassword,
         is_active: true,
         created_by: session.user.id,
         created_at: now,
@@ -208,13 +219,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to create user settings" }, { status: 500 })
     }
 
-    // Only send email if password was auto-generated
-    if (!providedPassword) {
+    const shouldEmail = sendWelcomeEmail !== false
+    let emailSent = false
+    if (shouldEmail) {
       const emailResult = await sendEmail({
         to: email,
         subject: "Welcome to Synapse Pharmacy — Your Account Details",
         html: generateWelcomeEmail(name, email, password, pharmacyRole),
       })
+      emailSent = emailResult.success
       if (!emailResult.success) console.error("Failed to send welcome email:", emailResult.error)
     }
 
@@ -224,10 +237,16 @@ export async function POST(request: NextRequest) {
       action: "CREATE_USER",
       entity: "USER",
       entity_id: newUserId,
-      details: `Created user: ${name} (${email})${providedPassword ? ' with admin-set password' : ''}`,
+      details: `Created user: ${name} (${email})${customPassword ? " with admin-set password" : ""}`,
     })
 
-    return NextResponse.json({ success: true, user: { id: newUserId, name, email, role: pharmacyRole } })
+    return NextResponse.json({
+      success: true,
+      user: { id: newUserId, name, email, role: pharmacyRole },
+      emailSent,
+      /** Only returned when admin set the password and chose not to email — for one-time display. */
+      temporaryPassword: !shouldEmail && customPassword ? password : undefined,
+    })
   } catch (error) {
     console.error("Create user error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -297,8 +316,40 @@ export async function PATCH(request: NextRequest) {
 
     if (!tenantId) return NextResponse.json({ error: "Tenant not found" }, { status: 400 })
 
-    const { id, name, username, role, permissions, isActive, resetPassword } = await request.json()
+    const { id, name, username, role, permissions, isActive, resetPassword, password: setPassword } =
+      await request.json()
     if (!id) return NextResponse.json({ error: "User ID required" }, { status: 400 })
+
+    if (typeof setPassword === "string" && setPassword.trim().length > 0) {
+      const strength = validatePasswordStrength(setPassword.trim())
+      if (!strength.valid) {
+        return NextResponse.json({ error: strength.errors[0] ?? "Password is too weak" }, { status: 400 })
+      }
+      const newHash = await hashPassword(setPassword.trim())
+      await db
+        .from("profiles")
+        .update({
+          password_hash: newHash,
+          must_change_password: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+      await db
+        .from("pharmacy_user_settings")
+        .update({ must_change_password: false, updated_at: new Date().toISOString() })
+        .eq("tenant_id", tenantId)
+        .eq("profile_id", id)
+      await db.from("synapse_sessions").delete().eq("user_id", id)
+      await db.from("pharmacy_audit_logs").insert({
+        tenant_id: tenantId,
+        profile_id: session.user.id,
+        action: "SET_PASSWORD",
+        entity: "USER",
+        entity_id: id,
+        details: `Admin set password for user ${id}`,
+      })
+      return NextResponse.json({ success: true, message: "Password updated" })
+    }
 
     if (resetPassword) {
       const { data: targetProfile } = await db.from("profiles").select("email, full_name").eq("id", id).maybeSingle()

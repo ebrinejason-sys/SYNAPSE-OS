@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils"
 import { usePharmacySession } from "@/hooks/use-pharmacy-session"
 import { sessionHasCapability } from "@/lib/capabilities"
 import { SkipLink, SynapseThemeToggle } from "@synapse/ui"
+import PortalProviders from "./providers"
 
 export const dynamic = "force-dynamic"
 
@@ -85,6 +86,14 @@ const BOTTOM_TABS = [
 ]
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <PortalProviders>
+      <PortalShell>{children}</PortalShell>
+    </PortalProviders>
+  )
+}
+
+function PortalShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = usePharmacySession()
   const pathname = usePathname()
   const router = useRouter()

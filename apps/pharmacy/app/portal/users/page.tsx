@@ -247,7 +247,8 @@ function CreateUserDialog({ onClose, onSuccess }: CreateUserDialogProps) {
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [generatePasswordAuto, setGeneratePasswordAuto] = useState(true)
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true)
   const [role, setRole] = useState<"CEO" | "ADMIN" | "STAFF">("STAFF")
   const [permissions, setPermissions] = useState<Permission[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -274,29 +275,36 @@ function CreateUserDialog({ onClose, onSuccess }: CreateUserDialogProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!generatePasswordAuto && (!password || password.length < 8)) {
+    if (password && password !== confirmPassword) {
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Password must be at least 8 characters",
+        title: "Passwords do not match",
+        description: "Re-enter the password confirmation.",
       })
       return
     }
-    
+    if (password && password.length < 8) {
+      toast({
+        variant: "destructive",
+        title: "Password too short",
+        description: "Use at least 8 characters with upper case, a number, and a special character.",
+      })
+      return
+    }
     setIsLoading(true)
 
     try {
       const response = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          name, 
-          email, 
+        body: JSON.stringify({
+          name,
+          email,
           username: username.trim() || undefined,
-          password: generatePasswordAuto ? undefined : password,
-          role, 
-          permissions 
+          role,
+          permissions,
+          password: password.trim() || undefined,
+          sendWelcomeEmail,
         }),
       })
 
@@ -305,9 +313,11 @@ function CreateUserDialog({ onClose, onSuccess }: CreateUserDialogProps) {
       if (response.ok) {
         toast({
           title: "Success",
-          description: generatePasswordAuto 
-            ? "User created and credentials sent via email" 
-            : "User created with custom password",
+          description: password
+            ? sendWelcomeEmail
+              ? "User created. Password emailed (and you set it manually)."
+              : "User created with the password you set."
+            : "User created and temporary credentials emailed.",
         })
         onSuccess()
       } else {
@@ -371,46 +381,51 @@ function CreateUserDialog({ onClose, onSuccess }: CreateUserDialogProps) {
               />
             </div>
 
-            <div className="space-y-3 border border-border rounded-lg p-3 bg-muted/20">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Password Setup</Label>
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={generatePasswordAuto}
-                    onChange={(e) => setGeneratePasswordAuto(e.target.checked)}
-                    className="rounded"
-                    disabled={isLoading}
-                  />
-                  <span className="text-xs text-muted-foreground">Auto-generate & email</span>
-                </label>
-              </div>
-              
-              {!generatePasswordAuto && (
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm">Set Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Minimum 8 characters"
-                    required={!generatePasswordAuto}
-                    disabled={isLoading}
-                    minLength={8}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    User will be required to change this on first login.
-                  </p>
-                </div>
-              )}
-              
-              {generatePasswordAuto && (
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="staff-password">Password (optional)</Label>
+                <Input
+                  id="staff-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Leave blank to auto-generate"
+                  disabled={isLoading}
+                />
                 <p className="text-xs text-muted-foreground">
-                  A secure password will be generated and sent to the user via email.
+                  Min 8 chars, 1 uppercase, 1 number, 1 special character.
                 </p>
-              )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="staff-password-confirm">Confirm password</Label>
+                <Input
+                  id="staff-password-confirm"
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter if setting manually"
+                  disabled={isLoading || !password}
+                />
+              </div>
             </div>
+
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1 rounded"
+                checked={sendWelcomeEmail}
+                onChange={(e) => setSendWelcomeEmail(e.target.checked)}
+                disabled={isLoading}
+              />
+              <span>
+                <span className="font-medium">Email login details to staff</span>
+                <span className="block text-xs text-muted-foreground mt-0.5">
+                  Uncheck if you will share the password yourself (e.g. onboarding in person).
+                </span>
+              </span>
+            </label>
 
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
@@ -476,15 +491,15 @@ function CreateUserDialog({ onClose, onSuccess }: CreateUserDialogProps) {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Creating...
                   </>
-                ) : generatePasswordAuto ? (
+                ) : password ? (
                   <>
-                    <Mail className="mr-2 h-4 w-4" />
-                    Create & Send Email
+                    <KeyRound className="mr-2 h-4 w-4" />
+                    Create with password
                   </>
                 ) : (
                   <>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create User
+                    <Mail className="mr-2 h-4 w-4" />
+                    Create &amp; Send Email
                   </>
                 )}
               </Button>
