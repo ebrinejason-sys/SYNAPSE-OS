@@ -199,56 +199,64 @@ export async function provisionPharmacy(input: PharmacyProvisionInput): Promise<
     is_admin:      true,
   }).catch(() => {})
 
-  // 3b. Default trial subscription (so has_feature/POS is entitled on day one)
-  // and a default store (so POS never 422s with NO_STORE).
-  try {
+  // 3b. Canonical annual pharmacy plan (trial) so POS/features are entitled on day one.
+  // Subscription is required — do not leave an onboarded pharmacy without a subscription row.
+  {
     let { data: planRow } = await db
       .from('subscription_plans')
       .select('id, name, slug')
-      .eq('slug', 'pharmacy_starter')
+      .eq('slug', 'synapse_pharmacy_annual')
       .eq('is_active', true)
       .maybeSingle()
 
     if (!planRow) {
-      const { data: anyPharmacyPlan } = await db
+      // Legacy fallback only if canonical annual catalog row is missing in this environment.
+      const { data: legacy } = await db
         .from('subscription_plans')
         .select('id, name, slug')
-        .eq('facility_type', 'pharmacy')
+        .eq('slug', 'pharmacy_starter')
         .eq('is_active', true)
-        .order('price_ugx', { ascending: true })
-        .limit(1)
         .maybeSingle()
-      planRow = anyPharmacyPlan ?? null
+      planRow = legacy ?? null
     }
 
-    if (planRow?.id) {
-      const now = new Date()
-      const trialEnd = new Date(now)
-      trialEnd.setDate(trialEnd.getDate() + 14)
-      await db.from('tenant_subscriptions').upsert(
-        {
-          tenant_id: tenant.id,
-          plan_id: planRow.id,
-          status: 'trialing',
-          starts_at: now.toISOString(),
-          trial_ends: trialEnd.toISOString(),
-          current_period_start: now.toISOString(),
-          current_period_end: trialEnd.toISOString(),
-        },
-        { onConflict: 'tenant_id' },
-      )
-
-      await recordAndSendTrialReceipt({
-        tenantId: tenant.id,
-        planId: planRow.id,
-        planName: planRow.name ?? planRow.slug ?? 'Pharmacy trial',
-        trialEnds: trialEnd.toISOString(),
-        customerName: input.adminFullName.trim(),
-        customerEmail: input.adminEmail.trim().toLowerCase(),
-        facilityName: input.name.trim(),
-      }).catch((err) => console.error('[provision] trial receipt failed:', err))
+    if (!planRow?.id) {
+      await db.from('profiles').delete().eq('id', profile.id)
+      await db.from('tenants').delete().eq('id', tenant.id)
+      return { ok: false, error: 'Canonical pharmacy annual plan is missing. Provisioning aborted.' }
     }
-  } catch { /* non-fatal */ }
+
+    const now = new Date()
+    const trialEnd = new Date(now)
+    trialEnd.setDate(trialEnd.getDate() + 7)
+    const { error: subErr } = await db.from('tenant_subscriptions').upsert(
+      {
+        tenant_id: tenant.id,
+        plan_id: planRow.id,
+        status: 'trialing',
+        starts_at: now.toISOString(),
+        trial_ends: trialEnd.toISOString(),
+        current_period_start: now.toISOString(),
+        current_period_end: trialEnd.toISOString(),
+      },
+      { onConflict: 'tenant_id' },
+    )
+    if (subErr) {
+      await db.from('profiles').delete().eq('id', profile.id)
+      await db.from('tenants').delete().eq('id', tenant.id)
+      return { ok: false, error: `Subscription error: ${subErr.message}` }
+    }
+
+    await recordAndSendTrialReceipt({
+      tenantId: tenant.id,
+      planId: planRow.id,
+      planName: planRow.name ?? planRow.slug ?? 'SYNAPSE Pharmacy',
+      trialEnds: trialEnd.toISOString(),
+      customerName: input.adminFullName.trim(),
+      customerEmail: input.adminEmail.trim().toLowerCase(),
+      facilityName: input.name.trim(),
+    }).catch((err) => console.error('[provision] trial receipt failed:', err))
+  }
 
   try {
     const { data: existingStore } = await db
@@ -265,7 +273,7 @@ export async function provisionPharmacy(input: PharmacyProvisionInput): Promise<
         is_active: true,
       })
     }
-  } catch { /* non-fatal */ }
+  } catch { /* non-fatal store bootstrap */ }
 
   // 4. Generate invite token and onboarding row
   const inviteToken = crypto.randomUUID()
