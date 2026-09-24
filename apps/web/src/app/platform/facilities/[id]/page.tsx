@@ -7,6 +7,7 @@ import { formatDate, safeRows } from "../../_lib/platform-data"
 import { FacilityResumeButton } from "./resume-button"
 import { InviteStaffForm } from "./invite-staff-form"
 import { FacilitySubscriptionPanel } from "./subscription-panel"
+import { FacilityLifecyclePanel } from "./lifecycle-panel"
 
 type TenantRow = {
   id?: string
@@ -205,6 +206,10 @@ export default async function FacilityDetailPage({
           Open Test Center suites
         </Link>
       </InfoCard> : null}
+
+      {activeTab === "settings" || activeTab === "security" ? (
+        <FacilityLifecyclePanel facilityId={id} facilityName={facility.name ?? facility.slug ?? id} />
+      ) : null}
     </div>
   )
 }

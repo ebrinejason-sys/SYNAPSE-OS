@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     results.push({
       title: (row.name as string) ?? "Facility",
       subtitle: `${(row.facility_type as string) ?? "facility"} · ${(row.slug as string) ?? row.id}`,
-      href: `/platform/hospitals/${row.id}`,
+      href: `/platform/facilities/${row.id}`,
       type: "facility",
     });
   }

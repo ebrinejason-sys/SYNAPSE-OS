@@ -46,16 +46,25 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   const db = supabaseAdmin as any
   const { data: tenant, error } = await db
     .from("tenants")
-    .select("id, status, is_active, lifecycle_status, facility_type, name")
+    .select("id, status, is_active, lifecycle_status, facility_type, name, slug, metadata, is_synthetic")
     .eq("id", id)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!tenant) return NextResponse.json({ error: "Facility not found" }, { status: 404 })
   const counts = await loadImpact(id)
+  const isSynthetic = Boolean(
+    tenant.is_synthetic === true ||
+      tenant.metadata?.synthetic ||
+      tenant.metadata?.is_synthetic ||
+      String(tenant.name ?? "").toLowerCase().includes("synthetic") ||
+      String(tenant.slug ?? "").includes("accept") ||
+      String(tenant.slug ?? "").includes("syn-accept"),
+  )
   return NextResponse.json({
     tenantId: id,
     name: tenant.name,
     currentState: normalizeLifecycleState(tenant.lifecycle_status ?? tenant.status, tenant.is_active !== false),
+    isSynthetic,
     counts,
   })
 }
@@ -74,7 +83,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   const db = supabaseAdmin as any
   const { data: tenant, error } = await db
     .from("tenants")
-    .select("id, status, is_active, lifecycle_status, facility_type, name, metadata")
+    .select("id, status, is_active, lifecycle_status, facility_type, name, slug, metadata, is_synthetic")
     .eq("id", id)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -82,7 +91,14 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
 
   const currentState = normalizeLifecycleState(tenant.lifecycle_status ?? tenant.status, tenant.is_active !== false)
   const counts = await loadImpact(id)
-  const isSynthetic = Boolean(tenant.metadata?.synthetic || tenant.name?.toLowerCase().includes("synthetic"))
+  const isSynthetic = Boolean(
+    tenant.is_synthetic === true ||
+      tenant.metadata?.synthetic ||
+      tenant.metadata?.is_synthetic ||
+      String(tenant.name ?? "").toLowerCase().includes("synthetic") ||
+      String(tenant.slug ?? "").includes("accept") ||
+      String(tenant.slug ?? "").includes("syn-accept"),
+  )
   const preview = previewFacilityLifecycle({
     tenantId: id,
     currentState,
@@ -92,10 +108,8 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     counts,
   })
 
-  if (body?.reason == null && action !== "preview" as never) {
-    if (["suspend", "archive", "request_delete", "purge"].includes(action) && !String(body?.reason ?? "").trim()) {
-      return NextResponse.json({ preview, error: "Reason required" }, { status: 400 })
-    }
+  if (["suspend", "archive", "request_delete", "purge"].includes(action) && !String(body?.reason ?? "").trim()) {
+    return NextResponse.json({ preview, error: "Reason required" }, { status: 400 })
   }
 
   if (!preview.allowed || !preview.nextState) {
@@ -103,11 +117,15 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   }
 
   const next = preview.nextState
+  // tenants.status CHECK allows only provisioning|active|suspended|trial.
+  // lifecycle_status holds ARCHIVE / DELETION_PENDING / DELETED.
+  const operationalStatus =
+    next === "ACTIVE" ? (tenant.status === "trial" ? "trial" : "active") : "suspended"
   const { error: updateError } = await db
     .from("tenants")
     .update({
       lifecycle_status: next,
-      status: next === "ACTIVE" ? "active" : next.toLowerCase(),
+      status: operationalStatus,
       is_active: next === "ACTIVE",
       updated_at: new Date().toISOString(),
     })

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
@@ -41,6 +41,7 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { SkipLink } from "@synapse/ui";
 import { SynapseLogo } from "../../components/SynapseLogo";
 import { ThemeToggle } from "../../components/ThemeToggle";
 import { PlatformBreadcrumb } from "./_components/breadcrumb";
@@ -174,18 +175,40 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [remoteResults, setRemoteResults] = useState<CommandResult[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const paletteTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const paletteInputRef = useRef<HTMLInputElement | null>(null);
+  const paletteListId = useId();
 
   useEffect(() => {
     function onKeydown(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        setPaletteOpen(true);
+        setPaletteOpen((open) => {
+          if (open) return false;
+          paletteTriggerRef.current = document.activeElement as HTMLButtonElement | null;
+          return true;
+        });
       }
-      if (event.key === "Escape") setPaletteOpen(false);
+      if (event.key === "Escape" && paletteOpen) {
+        event.preventDefault();
+        setPaletteOpen(false);
+        queueTriggerRef.current?.focus();
+      }
     }
     window.addEventListener("keydown", onKeydown);
     return () => window.removeEventListener("keydown", onKeydown);
-  }, []);
+  }, [paletteOpen]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query, remoteResults]);
+
+  useEffect(() => {
+    if (paletteOpen) {
+      window.requestAnimationFrame(() => paletteInputRef.current?.focus());
+    }
+  }, [paletteOpen]);
 
   useEffect(() => {
     if (!paletteOpen || query.trim().length < 2) {
@@ -238,6 +261,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
   return (
     <div className="platform-shell flex h-screen overflow-hidden bg-base text-primary-color">
+      <SkipLink href="#platform-main" />
       {sidebarOpen ? (
         <button
           type="button"
@@ -249,9 +273,11 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
       {/* Sidebar — fixed height, scrolls independently */}
       <aside
+        id="platform-sidebar-nav"
         className={`platform-sidebar fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r border-subtle bg-[#0a0a0f] transition-transform print:hidden lg:static lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
+        aria-label="Platform navigation"
       >
         <div className="flex shrink-0 items-center justify-between border-b border-subtle px-4 py-4">
           <Link href="/platform" className="flex min-w-0 items-center gap-2">
@@ -270,13 +296,13 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
           </button>
         </div>
 
-        <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+        <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4" aria-label="Primary">
           {SIDEBAR_SECTIONS.map((section) => (
             <div key={section.caption} className="mb-5 last:mb-0">
-              <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-color">
+              <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-color" id={`nav-${section.caption.replace(/\s+/g, "-").toLowerCase()}`}>
                 {section.caption}
               </p>
-              <div className="space-y-0.5">
+              <div className="space-y-0.5" role="list" aria-labelledby={`nav-${section.caption.replace(/\s+/g, "-").toLowerCase()}`}>
                 {section.items.map((item) => {
                   const Icon = item.icon;
                   const active = isNavActive(pathname, item);
@@ -284,8 +310,10 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
                     <Link
                       key={item.href}
                       href={item.href}
+                      role="listitem"
+                      aria-current={active ? "page" : undefined}
                       onClick={() => setSidebarOpen(false)}
-                      className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                      className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F97316] ${
                         active
                           ? "bg-[#F97316]/10 font-medium text-[#F97316]"
                           : "text-secondary-color hover:bg-surface hover:text-primary-color"
@@ -297,7 +325,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
                           aria-hidden
                         />
                       ) : null}
-                      <Icon className={`h-4 w-4 shrink-0 ${active ? "text-[#F97316]" : "text-[#E8B84B]/80"}`} />
+                      <Icon className={`h-4 w-4 shrink-0 ${active ? "text-[#F97316]" : "text-[#E8B84B]/80"}`} aria-hidden />
                       <span className="truncate">{item.label}</span>
                     </Link>
                   );
@@ -327,10 +355,12 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
             <button
               type="button"
               aria-label="Open navigation"
-              className="rounded-lg p-2 text-secondary-color lg:hidden"
+              aria-expanded={sidebarOpen}
+              aria-controls="platform-sidebar-nav"
+              className="rounded-lg p-2 text-secondary-color focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F97316] lg:hidden"
               onClick={() => setSidebarOpen(true)}
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-5 w-5" aria-hidden />
             </button>
             <div className="min-w-0">
               <h1 className="truncate text-sm font-semibold text-primary-color sm:text-base">
@@ -342,12 +372,16 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
           <div className="flex items-center gap-2">
             <button
+              ref={paletteTriggerRef}
               type="button"
               onClick={() => setPaletteOpen(true)}
-              className="hidden min-w-[240px] items-center justify-between rounded-xl border border-subtle bg-surface px-3 py-2 text-left text-sm text-muted-color transition hover:border-[#F97316]/40 md:flex"
+              aria-haspopup="dialog"
+              aria-expanded={paletteOpen}
+              aria-keyshortcuts="Control+K Meta+K"
+              className="hidden min-w-[240px] items-center justify-between rounded-xl border border-subtle bg-surface px-3 py-2 text-left text-sm text-muted-color transition hover:border-[#F97316]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F97316] md:flex"
             >
               <span className="flex items-center gap-2">
-                <Search className="h-4 w-4" />
+                <Search className="h-4 w-4" aria-hidden />
                 Search facilities, users, tickets
               </span>
               <kbd className="rounded border border-subtle px-1.5 py-0.5 text-[10px] text-muted-color">⌘K</kbd>
@@ -355,58 +389,117 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
             <Link
               href="/platform#attention"
               aria-label="Needs attention"
-              className="relative rounded-xl border border-subtle bg-surface p-2 text-secondary-color transition hover:border-[#F97316]/40"
+              className="relative rounded-xl border border-subtle bg-surface p-2 text-secondary-color transition hover:border-[#F97316]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F97316]"
             >
-              <Bell className="h-4 w-4" />
+              <Bell className="h-4 w-4" aria-hidden />
             </Link>
             <ThemeToggle />
             <button
               type="button"
               onClick={handleSignOut}
-              className="rounded-xl border border-subtle px-3 py-2 text-xs font-medium text-secondary-color transition hover:border-edge hover:text-primary-color"
+              className="rounded-xl border border-subtle px-3 py-2 text-xs font-medium text-secondary-color transition hover:border-edge hover:text-primary-color focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F97316]"
             >
               Sign out
             </button>
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-base p-4 lg:p-6">{children}</main>
+        <main id="platform-main" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-base p-4 outline-none lg:p-6">
+          {children}
+        </main>
       </div>
 
       {paletteOpen ? (
-        <div className="fixed inset-0 z-[70] flex items-start justify-center bg-black/70 px-4 pt-24">
-          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-subtle bg-surface shadow-2xl">
+        <div
+          className="fixed inset-0 z-[70] flex items-start justify-center bg-black/70 px-4 pt-24"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setPaletteOpen(false);
+              paletteTriggerRef.current?.focus();
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Command palette"
+            className="w-full max-w-2xl overflow-hidden rounded-2xl border border-subtle bg-surface shadow-2xl"
+          >
             <div className="flex items-center gap-3 border-b border-subtle px-4 py-3">
-              <Search className="h-5 w-5 text-[#E8B84B]" />
+              <Search className="h-5 w-5 text-[#E8B84B]" aria-hidden />
               <input
-                autoFocus
+                ref={paletteInputRef}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setActiveIndex((i) => Math.min(i + 1, Math.max(commandResults.length - 1, 0)));
+                  } else if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setActiveIndex((i) => Math.max(i - 1, 0));
+                  } else if (event.key === "Home") {
+                    event.preventDefault();
+                    setActiveIndex(0);
+                  } else if (event.key === "End") {
+                    event.preventDefault();
+                    setActiveIndex(Math.max(commandResults.length - 1, 0));
+                  } else if (event.key === "Enter") {
+                    event.preventDefault();
+                    const selected = commandResults[activeIndex];
+                    if (selected) {
+                      setPaletteOpen(false);
+                      setQuery("");
+                      router.push(selected.href);
+                      paletteTriggerRef.current?.focus();
+                    }
+                  } else if (event.key === "Escape") {
+                    event.preventDefault();
+                    setPaletteOpen(false);
+                    paletteTriggerRef.current?.focus();
+                  }
+                }}
                 placeholder="Search facilities, users, support tickets, audit events..."
+                aria-controls={paletteListId}
+                aria-activedescendant={
+                  commandResults[activeIndex] ? `${paletteListId}-option-${activeIndex}` : undefined
+                }
+                aria-autocomplete="list"
+                role="combobox"
+                aria-expanded="true"
                 className="flex-1 bg-transparent text-sm text-primary-color outline-none placeholder:text-muted-color"
               />
               <button
                 type="button"
                 aria-label="Close search"
-                className="rounded-lg p-1 text-muted-color hover:text-primary-color"
-                onClick={() => setPaletteOpen(false)}
+                className="rounded-lg p-1 text-muted-color hover:text-primary-color focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F97316]"
+                onClick={() => {
+                  setPaletteOpen(false);
+                  paletteTriggerRef.current?.focus();
+                }}
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             </div>
-            <div className="max-h-[420px] overflow-y-auto p-2">
+            <div id={paletteListId} role="listbox" className="max-h-[420px] overflow-y-auto p-2">
               {commandResults.length === 0 ? (
                 <p className="px-3 py-8 text-center text-sm text-muted-color">No results found.</p>
               ) : null}
-              {commandResults.map((result) => (
+              {commandResults.map((result, index) => (
                 <Link
                   key={`${result.type}:${result.href}:${result.title}`}
+                  id={`${paletteListId}-option-${index}`}
+                  role="option"
+                  aria-selected={index === activeIndex}
                   href={result.href}
                   onClick={() => {
                     setPaletteOpen(false);
                     setQuery("");
                   }}
-                  className="block rounded-xl px-3 py-3 transition hover:bg-elevated"
+                  className={`block rounded-xl px-3 py-3 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F97316] ${
+                    index === activeIndex ? "bg-elevated" : "hover:bg-elevated"
+                  }`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>

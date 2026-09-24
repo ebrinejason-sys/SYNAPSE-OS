@@ -11,6 +11,7 @@ type TenantRow = {
   slug?: string | null
   facility_type?: string | null
   status?: string | null
+  lifecycle_status?: string | null
   is_active?: boolean | null
   plan?: string | null
   default_subdomain?: string | null
@@ -52,7 +53,7 @@ export default async function PlatformFacilitiesPage({
   const [tenants, runs] = await Promise.all([
     safeRows<TenantRow>(
       "tenants",
-      "id, name, slug, facility_type, status, is_active, plan, default_subdomain, custom_domain, created_at",
+      "id, name, slug, facility_type, status, lifecycle_status, is_active, plan, default_subdomain, custom_domain, created_at",
       { orderBy: "created_at", limit: 400 },
     ),
     safeRows<RunRow>("facility_provisioning_runs", "tenant_id, status, failure_code, created_at", {
@@ -155,8 +156,10 @@ export default async function PlatformFacilitiesPage({
                     </td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full border px-2 py-0.5 text-xs ${statusClass(t.status, t.is_active)}`}>
-                        {t.status ?? "unknown"}
-                        {t.is_active === false ? " · inactive" : ""}
+                        {t.lifecycle_status && t.lifecycle_status !== "ACTIVE"
+                          ? t.lifecycle_status
+                          : t.status ?? "unknown"}
+                        {t.is_active === false && t.lifecycle_status !== "SUSPENDED" ? " · inactive" : ""}
                       </span>
                     </td>
                     <td className="px-4 py-3 capitalize text-slate-300">{t.plan ?? "—"}</td>
