@@ -46,7 +46,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   const db = supabaseAdmin as any
   const { data: tenant, error } = await db
     .from("tenants")
-    .select("id, status, is_active, lifecycle_status, facility_type, name, slug, metadata, is_synthetic")
+    .select("id, status, is_active, lifecycle_status, facility_type, name, slug, is_synthetic")
     .eq("id", id)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -54,8 +54,6 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   const counts = await loadImpact(id)
   const isSynthetic = Boolean(
     tenant.is_synthetic === true ||
-      tenant.metadata?.synthetic ||
-      tenant.metadata?.is_synthetic ||
       String(tenant.name ?? "").toLowerCase().includes("synthetic") ||
       String(tenant.slug ?? "").includes("accept") ||
       String(tenant.slug ?? "").includes("syn-accept"),
@@ -83,7 +81,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   const db = supabaseAdmin as any
   const { data: tenant, error } = await db
     .from("tenants")
-    .select("id, status, is_active, lifecycle_status, facility_type, name, slug, metadata, is_synthetic")
+    .select("id, status, is_active, lifecycle_status, facility_type, name, slug, is_synthetic")
     .eq("id", id)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -93,8 +91,6 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   const counts = await loadImpact(id)
   const isSynthetic = Boolean(
     tenant.is_synthetic === true ||
-      tenant.metadata?.synthetic ||
-      tenant.metadata?.is_synthetic ||
       String(tenant.name ?? "").toLowerCase().includes("synthetic") ||
       String(tenant.slug ?? "").includes("accept") ||
       String(tenant.slug ?? "").includes("syn-accept"),
