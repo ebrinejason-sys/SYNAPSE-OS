@@ -193,7 +193,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
       if (event.key === "Escape" && paletteOpen) {
         event.preventDefault();
         setPaletteOpen(false);
-        queueTriggerRef.current?.focus();
+        paletteTriggerRef.current?.focus();
       }
     }
     window.addEventListener("keydown", onKeydown);
