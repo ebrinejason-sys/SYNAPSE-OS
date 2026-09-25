@@ -28,12 +28,27 @@ function repoMigrationHead() {
   }
 }
 
+/** Synthetic Demo does not use the service-role database. Absence is intentional, not a failed required probe. */
+export function demoDatabaseIntentionallyDisabled(env: NodeJS.ProcessEnv = process.env) {
+  return (env.VERCEL_PROJECT_PRODUCTION_URL ?? "").includes("demo.synapseos.tech")
+}
+
 export async function GET() {
-  const db = await probeDatabase()
+  const isolatedDemo = demoDatabaseIntentionallyDisabled()
+  const db = isolatedDemo
+    ? {
+        ok: false,
+        required: false,
+        configured: false,
+        skipped: true,
+        latencyMs: 0,
+        detail: "intentionally disabled; synthetic demo does not use the service-role database",
+      }
+    : { required: true, ...(await probeDatabase()) }
   const migrationHead = repoMigrationHead()
   const icdConfigured = whoApiConfigured()
   const aiConfigured = isOpenRouterConfigured()
-  const ready = db.ok
+  const ready = isolatedDemo || db.ok
   const commitSha = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? null
   return NextResponse.json(
     {
