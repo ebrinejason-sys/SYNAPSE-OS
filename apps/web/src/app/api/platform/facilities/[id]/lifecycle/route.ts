@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@synapse/db/admin"
 import {
   assertPurgeConfirmation,
+  isMissingRelationError,
   normalizeLifecycleState,
   previewFacilityLifecycle,
   type FacilityLifecycleAction,
@@ -48,8 +49,7 @@ async function countTenantRows(table: string, tenantId: string, activeOnly = fal
   const { count, error } = await query
   if (!error) return { count: count ?? 0, uncertain: false }
   const message = String(error.message ?? "")
-  const missing = error.code === "42P01" || error.code === "PGRST205" || /does not exist|schema cache/i.test(message)
-  if (missing) return { count: 0, uncertain: false }
+  if (isMissingRelationError(error.code, message)) return { count: 0, uncertain: false }
   return { count: 0, uncertain: true, message }
 }
 

@@ -130,6 +130,15 @@ export function previewFacilityLifecycle(params: {
   }
 }
 
+/**
+ * True only when the relation itself is absent.
+ * A missing column still matches "does not exist" and must fail closed.
+ */
+export function isMissingRelationError(code: string | undefined, message: string): boolean {
+  if (code === "42P01" || code === "PGRST205") return true
+  return /could not find the table/i.test(message) && /schema cache/i.test(message)
+}
+
 /** Server-side confirmation. Frontend visibility is not authorization. */
 export function assertPurgeConfirmation(input: {
   facilityName: string

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
-import { assertPurgeConfirmation, nextFacilityLifecycleState, previewFacilityLifecycle } from "./facility-lifecycle.ts"
+import { assertPurgeConfirmation, isMissingRelationError, nextFacilityLifecycleState, previewFacilityLifecycle } from "./facility-lifecycle.ts"
 import { previewIdentityLifecycle } from "./identity-lifecycle.ts"
 
 describe("facility lifecycle", () => {
@@ -50,6 +50,12 @@ describe("facility lifecycle", () => {
     })
     assert.equal(preview.allowed, false)
     assert.equal(preview.retainAuditHistory, true)
+  })
+
+  it("treats a missing column as incomplete analysis, not an empty facility", () => {
+    assert.equal(isMissingRelationError("42P01", "relation does not exist"), true)
+    assert.equal(isMissingRelationError("PGRST205", "Could not find the table 'public.mortuary_records' in the schema cache"), true)
+    assert.equal(isMissingRelationError("42703", "column clinical_documents.tenant_id does not exist"), false)
   })
 
   it("requires typed facility name or id and acknowledgement", () => {
