@@ -44,11 +44,12 @@ function statusClass(status: string | null | undefined, isActive?: boolean | nul
 export default async function PlatformFacilitiesPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ type?: string }>
+  searchParams?: Promise<{ type?: string; q?: string }>
 }) {
   await requirePlatformAdmin()
   const params = (await searchParams) ?? {}
   const typeFilter = (params.type ?? "all").toLowerCase()
+  const q = (params.q ?? "").trim().toLowerCase()
 
   const [tenants, runs] = await Promise.all([
     safeRows<TenantRow>(
@@ -70,10 +71,18 @@ export default async function PlatformFacilitiesPage({
 
   const filtered = tenants.filter((t) => {
     const ft = (t.facility_type ?? "").toLowerCase()
-    if (typeFilter === "all") return true
-    if (typeFilter === "clinic") return ft === "clinic" || ft === "health_centre"
-    if (typeFilter === "hospital") return ft === "hospital" || !ft
-    return ft === typeFilter
+    const typeOk =
+      typeFilter === "all"
+        ? true
+        : typeFilter === "clinic"
+          ? ft === "clinic" || ft === "health_centre"
+          : typeFilter === "hospital"
+            ? ft === "hospital" || !ft
+            : ft === typeFilter
+    if (!typeOk) return false
+    if (!q) return true
+    const hay = `${t.name ?? ""} ${t.slug ?? ""} ${t.id ?? ""} ${t.plan ?? ""}`.toLowerCase()
+    return hay.includes(q)
   })
 
   return (
@@ -95,6 +104,21 @@ export default async function PlatformFacilitiesPage({
         </Link>
       </div>
 
+      <form method="get" role="search" aria-label="Search facilities" className="flex flex-wrap gap-2">
+        {typeFilter !== "all" ? <input type="hidden" name="type" value={typeFilter} /> : null}
+        <label className="sr-only" htmlFor="facility-q">Search facilities</label>
+        <input
+          id="facility-q"
+          name="q"
+          defaultValue={params.q ?? ""}
+          placeholder="Name, slug, or facility ID"
+          className="min-w-[16rem] flex-1 rounded-lg border border-slate-700 bg-[#07070A] px-3 py-2 text-sm text-slate-100"
+        />
+        <button type="submit" className="rounded-lg border border-[#E8B84B]/40 bg-[#E8B84B]/10 px-4 py-2 text-sm text-[#E8B84B]">
+          Search
+        </button>
+      </form>
+
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <Link
@@ -114,6 +138,7 @@ export default async function PlatformFacilitiesPage({
 
       <div className="overflow-x-auto rounded-2xl border border-slate-800">
         <table className="min-w-full text-left text-sm">
+          <caption className="sr-only">Facilities</caption>
           <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-3">Facility</th>

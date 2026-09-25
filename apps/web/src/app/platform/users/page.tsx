@@ -11,6 +11,7 @@ type UserRow = {
   role?: string | null;
   verification_status?: string | null;
   email_verified_at?: string | null;
+  synapse_id?: string | null;
   is_deleted?: boolean | null;
   created_at?: string | null;
   last_sign_in_at?: string | null;
@@ -52,7 +53,7 @@ export default async function PlatformUsersPage({
     safeCount("profiles", [["is_deleted", true]]),
     safeRows<UserRow>(
       "profiles",
-      "id, full_name, email, role, verification_status, email_verified_at, is_deleted, created_at, last_sign_in_at",
+      "id, full_name, email, role, verification_status, email_verified_at, synapse_id, is_deleted, created_at, last_sign_in_at",
       {
       orderBy: "created_at",
       limit: 200,
@@ -71,7 +72,7 @@ export default async function PlatformUsersPage({
     if (statusFilter === "archived" && !user.is_deleted) return false;
     if (statusFilter === "pending" && user.email_verified_at) return false;
     if (!q) return true;
-    const hay = `${user.full_name ?? ""} ${user.email ?? ""} ${user.role ?? ""} ${user.id ?? ""}`.toLowerCase();
+    const hay = `${user.full_name ?? ""} ${user.email ?? ""} ${user.role ?? ""} ${user.synapse_id ?? ""} ${user.id ?? ""}`.toLowerCase();
     return hay.includes(q);
   });
 
@@ -101,7 +102,7 @@ export default async function PlatformUsersPage({
 
       <form className="flex flex-wrap gap-2 rounded-xl border border-slate-800 bg-[#111117] p-4" method="get" role="search" aria-label="Filter users">
         <label className="sr-only" htmlFor="user-q">Search</label>
-        <input id="user-q" name="q" defaultValue={params.q ?? ""} placeholder="Name, email, role, id" className="min-w-[14rem] flex-1 rounded-lg border border-slate-700 bg-[#07070A] px-3 py-2 text-sm" />
+        <input id="user-q" name="q" defaultValue={params.q ?? ""} placeholder="Name, email, Synapse ID, role" className="min-w-[14rem] flex-1 rounded-lg border border-slate-700 bg-[#07070A] px-3 py-2 text-sm" />
         <label className="sr-only" htmlFor="user-role">Role</label>
         <input id="user-role" name="role" defaultValue={params.role ?? ""} placeholder="Role" className="w-40 rounded-lg border border-slate-700 bg-[#07070A] px-3 py-2 text-sm" />
         <label className="sr-only" htmlFor="user-status">Status</label>
@@ -136,7 +137,16 @@ export default async function PlatformUsersPage({
               <tbody className="divide-y divide-slate-800">
                 {filtered.map((user) => (
                   <tr key={user.id ?? user.email ?? crypto.randomUUID()}>
-                    <td className="px-4 py-3 font-medium text-slate-100">{user.full_name ?? "Unnamed user"}</td>
+                    <td className="px-4 py-3 font-medium text-slate-100">
+                      {user.id ? (
+                        <a href={`/platform/users/${user.id}`} className="hover:text-[#E8B84B] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8B84B]">
+                          {user.full_name ?? "Unnamed user"}
+                        </a>
+                      ) : (
+                        user.full_name ?? "Unnamed user"
+                      )}
+                      {user.synapse_id ? <div className="font-mono text-[10px] text-slate-500">{user.synapse_id}</div> : null}
+                    </td>
                     <td className="px-4 py-3 text-slate-400">{user.email ?? "No email"}</td>
                     <td className="px-4 py-3 text-slate-300">{user.role ?? "unknown"}</td>
                     <td className="px-4 py-3">
@@ -153,6 +163,7 @@ export default async function PlatformUsersPage({
                           role={user.role ?? null}
                           emailVerified={Boolean(user.email_verified_at)}
                           isDeleted={Boolean(user.is_deleted)}
+                          verificationStatus={user.verification_status}
                         />
                       ) : null}
                     </td>

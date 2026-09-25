@@ -12,6 +12,7 @@ type Preview = {
   hardPurgeAllowed: boolean
   retainClinicalHistory: boolean
   retainFinancialHistory: boolean
+  retainAuditHistory?: boolean
   blockers: string[]
   counts: {
     staffExclusive: number
@@ -19,6 +20,17 @@ type Preview = {
     patients: number
     encounters: number
     invoices: number
+    prescriptions?: number
+    labOrders?: number
+    payments?: number
+    subscriptions?: number
+    signedDocuments?: number
+    referrals?: number
+    deathRecords?: number
+    mortuaryRecords?: number
+    auditEvents?: number
+    devices?: number
+    memberships?: number
   }
   correlationId?: string
 }
@@ -62,6 +74,7 @@ export function FacilityLifecyclePanel({
   const [confirmName, setConfirmName] = useState("")
   const [preview, setPreview] = useState<Preview | null>(null)
   const [ack, setAck] = useState(false)
+  const [mfaCode, setMfaCode] = useState("")
   const dialogRef = useRef<HTMLDialogElement>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
   const titleId = useId()
@@ -101,6 +114,7 @@ export function FacilityLifecyclePanel({
     setReason("")
     setConfirmName("")
     setAck(false)
+    setMfaCode("")
     setError(null)
     setMessage(null)
     // Impact preview from last GET snapshot (no mutating dry-run).
@@ -131,21 +145,44 @@ export function FacilityLifecyclePanel({
       return
     }
     if (dialog.purge) {
-      if (confirmName.trim() !== facilityName.trim()) {
-        setError("Type the facility name exactly to confirm purge")
+      const typed = confirmName.trim()
+      if (typed !== facilityName.trim() && typed !== facilityId) {
+        setError("Type the facility name or ID exactly to confirm purge")
         return
       }
       if (!ack) {
         setError("Acknowledge the irreversible impact")
         return
       }
+      if (!/^\d{6}$/.test(mfaCode.trim())) {
+        setError("Enter the 6-digit authenticator code from your recent sign-in")
+        return
+      }
     }
     setBusy(true)
     setError(null)
+    if (dialog.purge) {
+      const step = await fetch("/api/platform/mfa/step-up", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: mfaCode.trim() }),
+      })
+      if (!step.ok) {
+        const stepData = await step.json().catch(() => ({}))
+        setBusy(false)
+        setError(stepData.error ?? "Authenticator verification failed")
+        return
+      }
+    }
     const res = await fetch(`/api/platform/facilities/${facilityId}/lifecycle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: dialog.action, reason: reason.trim() || undefined }),
+      body: JSON.stringify({
+        action: dialog.action,
+        reason: reason.trim() || undefined,
+        typedConfirmation: dialog.purge ? confirmName.trim() : undefined,
+        acknowledged: dialog.purge ? ack : undefined,
+      }),
     })
     const data = await res.json().catch(() => ({}))
     setBusy(false)
@@ -184,8 +221,12 @@ export function FacilityLifecyclePanel({
         <ul className="mb-4 grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
           <li>Patients: {snapshot.counts.patients}</li>
           <li>Encounters: {snapshot.counts.encounters}</li>
+          <li>Prescriptions: {snapshot.counts.prescriptions ?? 0}</li>
+          <li>Lab orders: {snapshot.counts.labOrders ?? 0}</li>
           <li>Invoices: {snapshot.counts.invoices}</li>
-          <li>Active staff assignments: {snapshot.counts.staffExclusive}</li>
+          <li>Payments: {snapshot.counts.payments ?? 0}</li>
+          <li>Audit events: {snapshot.counts.auditEvents ?? 0}</li>
+          <li>Active memberships: {snapshot.counts.memberships ?? snapshot.counts.staffExclusive}</li>
         </ul>
       ) : null}
       <div className="flex flex-wrap gap-2" role="group" aria-label="Lifecycle actions">
@@ -236,8 +277,10 @@ export function FacilityLifecyclePanel({
             {preview ? (
               <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-3 text-xs text-slate-300">
                 <p>
-                  Patients {preview.counts.patients} · Encounters {preview.counts.encounters} · Invoices{" "}
-                  {preview.counts.invoices}
+                  Patients {preview.counts.patients} · Encounters {preview.counts.encounters} · Prescriptions{" "}
+                  {preview.counts.prescriptions ?? 0} · Lab {preview.counts.labOrders ?? 0} · Invoices{" "}
+                  {preview.counts.invoices} · Payments {preview.counts.payments ?? 0} · Audit{" "}
+                  {preview.counts.auditEvents ?? 0}
                 </p>
                 {preview.blockers.length > 0 ? (
                   <ul className="mt-2 list-disc pl-4 text-amber-300">
@@ -274,6 +317,16 @@ export function FacilityLifecyclePanel({
                 <label className="flex items-start gap-2 text-sm text-slate-300">
                   <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-1" />
                   <span>I understand this permanently removes a synthetic facility with no protected history.</span>
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block text-slate-400">Authenticator code (required)</span>
+                  <input
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    value={mfaCode}
+                    onChange={(e) => setMfaCode(e.target.value)}
+                  />
                 </label>
               </>
             ) : null}

@@ -5,6 +5,74 @@ import { requirePlatformAdmin } from '@/lib/platform/auth'
 import { sendUserPasswordReset } from '@/lib/auth/password-reset.server'
 import { logPlatformEvent } from '../_lib/platform-data'
 import { supabaseAdmin } from '@synapse/db/admin'
+import { previewIdentityLifecycle, type IdentityLifecycleAction } from '@synapse/db/identity-lifecycle'
+
+async function platformAdminCount() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any
+  const { count } = await db
+    .from('profiles')
+    .select('id', { count: 'exact', head: true })
+    .in('role', ['platform_admin', 'superadmin'])
+    .eq('is_deleted', false)
+  return count ?? 0
+}
+
+async function authoredRecordCount(userId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any
+  const queries = [
+    db.from('clinical_prescriptions').select('id', { count: 'exact', head: true }).eq('prescriber_id', userId),
+    db.from('encounters').select('id', { count: 'exact', head: true }).eq('clinician_id', userId),
+    db.from('audit_log').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+  ]
+  let total = 0
+  for (const query of queries) {
+    const { count, error } = await query
+    if (error) return Number.POSITIVE_INFINITY
+    total += count ?? 0
+  }
+  return total
+}
+
+async function guardIdentity(userId: string, action: IdentityLifecycleAction, typedConfirmation?: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any
+  const { data: profile } = await db
+    .from('profiles')
+    .select('id, email, role, verification_status, is_deleted, tenant_id')
+    .eq('id', userId)
+    .maybeSingle()
+  if (!profile?.id) return { ok: false as const, error: 'User not found.' }
+
+  let soleFacilityOwner = false
+  if (action === 'remove_membership' || action === 'purge') {
+    if (profile.role === 'hospital_admin' && profile.tenant_id) {
+      const { count } = await db
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', profile.tenant_id)
+        .eq('role', 'hospital_admin')
+        .eq('is_deleted', false)
+      soleFacilityOwner = (count ?? 0) <= 1
+    }
+  }
+
+  const preview = previewIdentityLifecycle({
+    userId,
+    action,
+    role: profile.role,
+    isDeleted: Boolean(profile.is_deleted),
+    verificationStatus: profile.verification_status,
+    activePlatformAdminCount: await platformAdminCount(),
+    authoredRecords: action === 'purge' ? await authoredRecordCount(userId) : 0,
+    soleFacilityOwner,
+    email: profile.email,
+    typedConfirmation,
+  })
+  if (!preview.allowed) return { ok: false as const, error: preview.blockers[0] ?? 'Action blocked.', profile }
+  return { ok: true as const, profile }
+}
 
 /**
  * Platform Admin: mark email verified so login/OTP guards pass without bypassing activation checks.
@@ -52,36 +120,22 @@ export async function activateUserAccount(formData: FormData) {
   return { ok: true as const }
 }
 
-export async function deactivateUserAccount(formData: FormData) {
+export async function suspendUserAccount(formData: FormData) {
   const admin = await requirePlatformAdmin()
   const userId = String(formData.get('user_id') ?? '').trim()
   const reason = String(formData.get('reason') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
   if (!reason) return { ok: false as const, error: 'Reason required.' }
 
+  const guard = await guardIdentity(userId, 'suspend')
+  if (!guard.ok) return guard
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
-  const { data: profile } = await db
-    .from('profiles')
-    .select('id, role')
-    .eq('id', userId)
-    .maybeSingle()
-  if (!profile?.id) return { ok: false as const, error: 'User not found.' }
-  if (profile.role === 'platform_admin' || profile.role === 'superadmin') {
-    const { count } = await db
-      .from('profiles')
-      .select('id', { count: 'exact', head: true })
-      .eq('role', 'platform_admin')
-      .eq('is_deleted', false)
-    if ((count ?? 0) <= 1) {
-      return { ok: false as const, error: 'Cannot deactivate the last Platform Admin.' }
-    }
-  }
-
   const { error } = await db
     .from('profiles')
     .update({
-      is_deleted: true,
+      verification_status: 'suspended',
       updated_at: new Date().toISOString(),
     })
     .eq('id', userId)
@@ -91,10 +145,129 @@ export async function deactivateUserAccount(formData: FormData) {
 
   await logPlatformEvent({
     actorId: admin.id,
-    action: 'user.deactivated',
+    action: 'user.suspended',
     entityType: 'profile',
     entityId: userId,
-    metadata: { reason, role: profile.role },
+    metadata: { reason, role: guard.profile.role },
+  })
+  revalidatePath('/platform/users')
+  revalidatePath(`/platform/users/${userId}`)
+  return { ok: true as const }
+}
+
+/** Reversible suspension. Does not archive the identity or erase authorship. */
+export async function deactivateUserAccount(formData: FormData) {
+  return suspendUserAccount(formData)
+}
+
+export async function reactivateUserAccount(formData: FormData) {
+  const admin = await requirePlatformAdmin()
+  const userId = String(formData.get('user_id') ?? '').trim()
+  if (!userId) return { ok: false as const, error: 'User id required.' }
+  const guard = await guardIdentity(userId, 'reactivate')
+  if (!guard.ok) return guard
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any
+  const { error } = await db
+    .from('profiles')
+    .update({
+      verification_status: 'verified',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId)
+  if (error) return { ok: false as const, error: error.message }
+
+  await logPlatformEvent({
+    actorId: admin.id,
+    action: 'user.reactivated',
+    entityType: 'profile',
+    entityId: userId,
+    metadata: { role: guard.profile.role },
+  })
+  revalidatePath('/platform/users')
+  revalidatePath(`/platform/users/${userId}`)
+  return { ok: true as const }
+}
+
+export async function restoreUserAccount(formData: FormData) {
+  const admin = await requirePlatformAdmin()
+  const userId = String(formData.get('user_id') ?? '').trim()
+  if (!userId) return { ok: false as const, error: 'User id required.' }
+  const guard = await guardIdentity(userId, 'restore')
+  if (!guard.ok) return guard
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any
+  const { error } = await db
+    .from('profiles')
+    .update({
+      is_deleted: false,
+      verification_status: 'verified',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId)
+  if (error) return { ok: false as const, error: error.message }
+  await logPlatformEvent({
+    actorId: admin.id,
+    action: 'user.restored',
+    entityType: 'profile',
+    entityId: userId,
+    metadata: { role: guard.profile.role },
+  })
+  revalidatePath('/platform/users')
+  revalidatePath(`/platform/users/${userId}`)
+  return { ok: true as const }
+}
+
+export async function archiveUserAccount(formData: FormData) {
+  const admin = await requirePlatformAdmin()
+  const userId = String(formData.get('user_id') ?? '').trim()
+  const reason = String(formData.get('reason') ?? '').trim()
+  if (!userId) return { ok: false as const, error: 'User id required.' }
+  if (!reason) return { ok: false as const, error: 'Reason required.' }
+  const guard = await guardIdentity(userId, 'archive')
+  if (!guard.ok) return guard
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any
+  const { error } = await db
+    .from('profiles')
+    .update({ is_deleted: true, updated_at: new Date().toISOString() })
+    .eq('id', userId)
+  if (error) return { ok: false as const, error: error.message }
+  await db.from('synapse_sessions').delete().eq('user_id', userId)
+  await logPlatformEvent({
+    actorId: admin.id,
+    action: 'user.archived',
+    entityType: 'profile',
+    entityId: userId,
+    metadata: { reason, role: guard.profile.role, authorship: 'preserved' },
+  })
+  revalidatePath('/platform/users')
+  revalidatePath(`/platform/users/${userId}`)
+  return { ok: true as const }
+}
+
+export async function permanentlyDeleteIdentity(formData: FormData) {
+  const admin = await requirePlatformAdmin()
+  const userId = String(formData.get('user_id') ?? '').trim()
+  const typed = String(formData.get('typed_email') ?? '').trim()
+  if (!userId) return { ok: false as const, error: 'User id required.' }
+  const guard = await guardIdentity(userId, 'purge', typed)
+  if (!guard.ok) return guard
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any
+  await db.from('synapse_sessions').delete().eq('user_id', userId)
+  const { error } = await db.from('profiles').delete().eq('id', userId)
+  if (error) return { ok: false as const, error: error.message }
+  await logPlatformEvent({
+    actorId: admin.id,
+    action: 'user.purged',
+    entityType: 'profile',
+    entityId: userId,
+    metadata: { email: guard.profile.email, role: guard.profile.role },
   })
   revalidatePath('/platform/users')
   return { ok: true as const }
@@ -126,6 +299,8 @@ export async function removeFacilityMembership(formData: FormData) {
   const userId = String(formData.get('user_id') ?? '').trim()
   const tenantId = String(formData.get('tenant_id') ?? '').trim()
   if (!userId || !tenantId) return { ok: false as const, error: 'User and facility required.' }
+  const guard = await guardIdentity(userId, 'remove_membership')
+  if (!guard.ok) return guard
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any

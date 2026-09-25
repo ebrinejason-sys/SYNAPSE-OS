@@ -1,11 +1,16 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import {
   activateUserAccount,
-  deactivateUserAccount,
+  archiveUserAccount,
+  permanentlyDeleteIdentity,
+  reactivateUserAccount,
+  restoreUserAccount,
   revokeUserSessions,
   sendPasswordResetForUser,
+  suspendUserAccount,
 } from './actions'
 
 type Props = {
@@ -14,12 +19,14 @@ type Props = {
   role: string | null
   emailVerified: boolean
   isDeleted: boolean
+  verificationStatus?: string | null
+  allowPurge?: boolean
 }
 
 const PHARMACY_URL =
   process.env.NEXT_PUBLIC_PHARMACY_URL ?? 'https://pharm.synapseos.tech'
 
-export function UserActions({ userId, email, role, emailVerified, isDeleted }: Props) {
+export function UserActions({ userId, email, role, emailVerified, isDeleted, verificationStatus, allowPurge = false }: Props) {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -58,16 +65,55 @@ export function UserActions({ userId, email, role, emailVerified, isDeleted }: P
     }, 'Account activated (email verified). Login guards still apply.')
   }
 
-  function onDeactivate() {
-    const reason = window.prompt('Reason for deactivating this account (required):')
+  function onSuspend() {
+    const reason = window.prompt('Reason for suspending this account (required):')
     if (!reason?.trim()) return
-    if (!confirm(`Deactivate ${email}? Historical records keep attribution.`)) return
+    if (!confirm(`Suspend ${email}? The identity and historical authorship stay. Sessions will be revoked.`)) return
     run(async () => {
       const fd = new FormData()
       fd.set('user_id', userId)
       fd.set('reason', reason.trim())
-      return deactivateUserAccount(fd)
-    }, 'Account deactivated. Sessions revoked.')
+      return suspendUserAccount(fd)
+    }, 'Account suspended. Sessions revoked. Identity preserved.')
+  }
+
+  function onReactivate() {
+    run(async () => {
+      const fd = new FormData()
+      fd.set('user_id', userId)
+      return reactivateUserAccount(fd)
+    }, 'Account reactivated.')
+  }
+
+  function onPurge() {
+    const typed = window.prompt(`Permanent deletion keeps no profile row. Type ${email} to confirm. Historical authorship blocks this action.`)
+    if (!typed) return
+    run(async () => {
+      const fd = new FormData()
+      fd.set('user_id', userId)
+      fd.set('typed_email', typed)
+      return permanentlyDeleteIdentity(fd)
+    }, 'Identity deleted. This is only allowed when no protected authorship exists.')
+  }
+
+  function onRestore() {
+    run(async () => {
+      const fd = new FormData()
+      fd.set('user_id', userId)
+      return restoreUserAccount(fd)
+    }, 'Identity restored.')
+  }
+
+  function onArchive() {
+    const reason = window.prompt('Reason for archiving this identity (required):')
+    if (!reason?.trim()) return
+    if (!confirm(`Archive ${email}? Historical authorship is kept. This is not a permanent delete.`)) return
+    run(async () => {
+      const fd = new FormData()
+      fd.set('user_id', userId)
+      fd.set('reason', reason.trim())
+      return archiveUserAccount(fd)
+    }, 'Identity archived. Authorship preserved.')
   }
 
   function onRevokeSessions() {
@@ -114,6 +160,12 @@ export function UserActions({ userId, email, role, emailVerified, isDeleted }: P
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex flex-wrap items-center justify-end gap-1.5" role="group" aria-label={`Actions for ${email}`}>
+        <Link
+          href={`/platform/users/${userId}`}
+          className="rounded-md border border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-200 hover:border-[#E8B84B]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8B84B]"
+        >
+          View
+        </Link>
         {!emailVerified && !isDeleted ? (
           <button
             type="button"
@@ -151,18 +203,55 @@ export function UserActions({ userId, email, role, emailVerified, isDeleted }: P
           {pending ? 'Working…' : 'Reset password'}
         </button>
         {!isDeleted ? (
+          <>
+            {verificationStatus === "suspended" ? (
+              <button
+                type="button"
+                onClick={onReactivate}
+                disabled={pending}
+                className="rounded-md border border-emerald-500/30 px-2.5 py-1 text-xs font-medium text-emerald-300 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+              >
+                Reactivate
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onSuspend}
+              disabled={pending}
+              className="rounded-md border border-amber-500/30 px-2.5 py-1 text-xs font-medium text-amber-200 hover:bg-amber-500/10 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+            >
+              Suspend
+            </button>
+            <button
+              type="button"
+              onClick={onArchive}
+              disabled={pending}
+              className="rounded-md border border-red-500/30 px-2.5 py-1 text-xs font-medium text-red-300 hover:bg-red-500/10 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400"
+            >
+              Archive
+            </button>
+          </>
+        ) : (
           <button
             type="button"
-            onClick={onDeactivate}
+            onClick={onRestore}
             disabled={pending}
-            className="rounded-md border border-red-500/30 px-2.5 py-1 text-xs font-medium text-red-300 hover:bg-red-500/10 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400"
+            className="rounded-md border border-emerald-500/30 px-2.5 py-1 text-xs font-medium text-emerald-300 disabled:opacity-50"
           >
-            Deactivate
+            Restore
           </button>
-        ) : (
-          <span className="text-[10px] text-slate-500">Archived</span>
         )}
       </div>
+      {allowPurge && !isDeleted ? (
+        <button
+          type="button"
+          onClick={onPurge}
+          disabled={pending}
+          className="rounded-md border border-red-700/50 px-2.5 py-1 text-xs font-medium text-red-400 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400"
+        >
+          Delete identity
+        </button>
+      ) : null}
       {role === 'platform_admin' ? (
         <span className="text-[10px] text-slate-600">Platform admin — impersonation disabled</span>
       ) : null}
