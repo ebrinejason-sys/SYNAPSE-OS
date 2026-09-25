@@ -25,6 +25,27 @@ const TRANSITIONS: Record<FacilityLifecycleState, Partial<Record<FacilityLifecyc
   DELETED: {},
 }
 
+export const EMPTY_LIFECYCLE_COUNTS = {
+  staffExclusive: 0,
+  staffShared: 0,
+  patients: 0,
+  encounters: 0,
+  invoices: 0,
+  prescriptions: 0,
+  labOrders: 0,
+  payments: 0,
+  subscriptions: 0,
+  signedDocuments: 0,
+  referrals: 0,
+  deathRecords: 0,
+  mortuaryRecords: 0,
+  auditEvents: 0,
+  devices: 0,
+  memberships: 0,
+} as const
+
+export type LifecycleCounts = { -readonly [K in keyof typeof EMPTY_LIFECYCLE_COUNTS]: number }
+
 export type LifecycleImpactPreview = {
   tenantId: string
   currentState: FacilityLifecycleState
@@ -34,14 +55,9 @@ export type LifecycleImpactPreview = {
   hardPurgeAllowed: boolean
   retainClinicalHistory: boolean
   retainFinancialHistory: boolean
+  retainAuditHistory: boolean
   blockers: string[]
-  counts: {
-    staffExclusive: number
-    staffShared: number
-    patients: number
-    encounters: number
-    invoices: number
-  }
+  counts: LifecycleCounts
 }
 
 export function normalizeLifecycleState(value: string | null | undefined, isActive = true): FacilityLifecycleState {
@@ -67,23 +83,37 @@ export function previewFacilityLifecycle(params: {
   counts?: Partial<LifecycleImpactPreview["counts"]>
 }): LifecycleImpactPreview {
   const nextState = nextFacilityLifecycleState(params.currentState, params.action)
-  const counts = {
-    staffExclusive: 0,
-    staffShared: 0,
-    patients: 0,
-    encounters: 0,
-    invoices: 0,
-    ...params.counts,
-  }
+  const counts: LifecycleCounts = { ...EMPTY_LIFECYCLE_COUNTS, ...params.counts }
   const blockers: string[] = []
   if (!nextState) blockers.push(`Action ${params.action} is not valid from ${params.currentState}`)
-  const retainClinicalHistory = counts.encounters > 0 || counts.patients > 0
-  const retainFinancialHistory = counts.invoices > 0
+  const retainClinicalHistory =
+    counts.patients > 0 ||
+    counts.encounters > 0 ||
+    counts.prescriptions > 0 ||
+    counts.labOrders > 0 ||
+    counts.signedDocuments > 0 ||
+    counts.referrals > 0 ||
+    counts.deathRecords > 0 ||
+    counts.mortuaryRecords > 0
+  const retainFinancialHistory = counts.invoices > 0 || counts.payments > 0 || counts.subscriptions > 0
+  const retainAuditHistory = counts.auditEvents > 0
   const hardPurgeAllowed = params.action === "purge"
-    ? Boolean(params.allowHardPurge && params.isSynthetic && !retainClinicalHistory && !retainFinancialHistory)
+    ? Boolean(
+        params.allowHardPurge &&
+          params.isSynthetic &&
+          !retainClinicalHistory &&
+          !retainFinancialHistory &&
+          !retainAuditHistory,
+      )
     : false
-  if (params.action === "purge" && !hardPurgeAllowed) {
-    blockers.push("Hard purge is synthetic/test only and blocked when clinical or financial history exists")
+  if (params.action === "purge" && !params.isSynthetic) {
+    blockers.push("Permanent purge is limited to synthetic or disposable test facilities")
+  }
+  if (params.action === "purge" && !params.allowHardPurge) {
+    blockers.push("Hard purge is disabled until SYNAPSE_ALLOW_HARD_PURGE is set on the server")
+  }
+  if (params.action === "purge" && (retainClinicalHistory || retainFinancialHistory || retainAuditHistory)) {
+    blockers.push("Protected clinical, financial, or audit records require retention. Archive or suspend instead of purging.")
   }
   return {
     tenantId: params.tenantId,
@@ -94,7 +124,36 @@ export function previewFacilityLifecycle(params: {
     hardPurgeAllowed,
     retainClinicalHistory,
     retainFinancialHistory,
+    retainAuditHistory,
     blockers,
     counts,
   }
+}
+
+/**
+ * True only when the relation itself is absent.
+ * A missing column still matches "does not exist" and must fail closed.
+ */
+export function isMissingRelationError(code: string | undefined, message: string): boolean {
+  if (code === "42P01" || code === "PGRST205") return true
+  return /could not find the table/i.test(message) && /schema cache/i.test(message)
+}
+
+/** Server-side confirmation. Frontend visibility is not authorization. */
+export function assertPurgeConfirmation(input: {
+  facilityName: string
+  facilityId: string
+  typedConfirmation?: string | null
+  acknowledged?: boolean
+}): { ok: true } | { ok: false; error: string } {
+  if (input.acknowledged !== true) {
+    return { ok: false, error: "Explicit acknowledgement required before purge" }
+  }
+  const typed = String(input.typedConfirmation ?? "").trim()
+  const name = input.facilityName.trim()
+  const id = input.facilityId.trim()
+  if (!typed || (typed !== name && typed !== id)) {
+    return { ok: false, error: "Type the facility name or ID exactly to confirm purge" }
+  }
+  return { ok: true }
 }

@@ -7,6 +7,7 @@ import { formatDate, safeRows } from "../../_lib/platform-data"
 import { FacilityResumeButton } from "./resume-button"
 import { InviteStaffForm } from "./invite-staff-form"
 import { FacilitySubscriptionPanel } from "./subscription-panel"
+import { FacilityLifecyclePanel } from "./lifecycle-panel"
 
 type TenantRow = {
   id?: string
@@ -121,6 +122,7 @@ export default async function FacilityDetailPage({
 
       {activeTab === "overview" ? <div className="grid gap-4 sm:grid-cols-2">
         <InfoCard title="Identity">
+          <Row label="Facility ID" value={facility.id} mono />
           <Row label="Slug" value={facility.slug} mono />
           <Row label="Email" value={facility.email} />
           <Row label="District" value={facility.district} />
@@ -200,11 +202,19 @@ export default async function FacilityDetailPage({
         </InfoCard>
       )}
 
+      {activeTab === "overview" ? (
+        <FacilityLifecyclePanel facilityId={id} facilityName={facility.name ?? facility.slug ?? id} />
+      ) : null}
+
       {activeTab === "overview" ? <InfoCard title="Test Center">
         <Link href="/platform/test-center" className="text-sm text-[#E8B84B] hover:underline">
           Open Test Center suites
         </Link>
       </InfoCard> : null}
+
+      {activeTab === "settings" || activeTab === "security" ? (
+        <FacilityLifecyclePanel facilityId={id} facilityName={facility.name ?? facility.slug ?? id} />
+      ) : null}
     </div>
   )
 }
