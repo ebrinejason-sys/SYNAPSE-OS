@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Beaker, ClipboardList, FlaskConical, Gauge, Link2, Microscope, ShieldCheck, Inbox } from "lucide-react"
+import { SkipLink } from "@synapse/ui"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { SynapseLogo } from "@/components/SynapseLogo"
 import { signOutHospitalClinical } from "@/lib/clinical-offline/sign-out-hospital"
@@ -16,7 +17,6 @@ const links = [
   { href: "/lab/instruments", label: "Instruments", icon: Microscope },
   { href: "/lab/staging", label: "Staging", icon: Inbox },
   { href: "/lab/mappings", label: "Mappings", icon: Link2 },
-  { href: "/lab/qc", label: "Quality control", icon: Gauge },
 ]
 
 type LabIdentity = {
@@ -47,6 +47,7 @@ export default function LabLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="lab-shell min-h-screen bg-base text-primary-color">
+      <SkipLink href="#lab-main" />
       <header className="sticky top-0 z-30 border-b border-subtle bg-[var(--nav-glass)] backdrop-blur">
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-4 py-3 lg:px-8">
           <Link href="/lab/orders" className="flex min-w-0 items-center gap-3">
@@ -76,9 +77,20 @@ export default function LabLayout({ children }: { children: React.ReactNode }) {
               </Link>
             )
           })}
+          <span
+            className="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-color"
+            aria-disabled="true"
+            title="Quality control is not configured in this release"
+          >
+            <Gauge className="h-4 w-4" aria-hidden />
+            Quality control
+            <span className="sr-only">not configured</span>
+          </span>
         </nav>
       </header>
-      {children}
+      <main id="lab-main" tabIndex={-1} className="outline-none">
+        {children}
+      </main>
     </div>
   )
 }
