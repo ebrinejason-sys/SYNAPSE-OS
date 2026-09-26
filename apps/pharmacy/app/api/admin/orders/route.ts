@@ -3,6 +3,7 @@ import { isPharmacyAdmin } from "@/lib/auth"
 import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { mapOrder } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { tenantOwnsRecord } from "@/lib/tenant-ownership"
 import { generateOrderNo, generateTransactionNo } from "@/lib/utils"
 import { adjustPharmacyBatchStock } from "@synapse/db/inventory-rpc"
 import { pharmacyDomainError, httpStatusForPharmacyError } from "@synapse/db/errors"
@@ -113,6 +114,10 @@ export async function POST(request: NextRequest) {
 
     if (!items || items.length === 0) {
       return NextResponse.json({ error: "Items are required" }, { status: 400 })
+    }
+
+    if (customerId && !(await tenantOwnsRecord("pharmacy_customers", tenantId, customerId))) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 })
     }
 
     let finalCustomerId: string | null = customerId ?? null

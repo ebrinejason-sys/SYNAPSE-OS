@@ -21,6 +21,8 @@ function seed() {
       { id: 'platform-2', tenant_id: 'tenant-1', role: 'platform_admin', email: 'root2@platform.test', full_name: 'Root 2' },
       // Hospital clinician that somehow shares tenant A's id + settings row: outside pharmacy staff scope.
       { id: 'doctor-1', tenant_id: 'tenant-1', role: 'doctor', email: 'doc@a.test', full_name: 'Doc' },
+      // Hospital facility admin in another (hospital) tenant.
+      { id: 'hosp-admin-h', tenant_id: 'tenant-h', role: 'hospital_admin', email: 'admin@h.test', full_name: 'Hosp Admin' },
     ],
     pharmacy_user_settings: [
       { tenant_id: 'tenant-1', profile_id: 'admin-1', pharmacy_role: 'pharmacy_admin' },
@@ -161,6 +163,7 @@ const OUT_OF_SCOPE_TARGETS: Array<[string, string]> = [
   ['platform_admin (no tenant)', 'platform-1'],
   ['platform_admin carrying tenant A id + settings', 'platform-2'],
   ['non-pharmacy role in tenant A', 'doctor-1'],
+  ['hospital admin in a hospital tenant', 'hosp-admin-h'],
   ['unknown id', 'does-not-exist'],
 ]
 
@@ -232,3 +235,41 @@ describe('D6 siblings: DELETE and POST /api/admin/users', () => {
     expect(writesTo('profiles')[0].values).toEqual(expect.objectContaining({ tenant_id: 'tenant-1' }))
   })
 })
+
+describe('D6 hardening: direct invocation and tampered tenant identifiers', () => {
+  it('unauthenticated/unauthorised direct invocation is refused by the actor gate before any lookup', async () => {
+    const { requirePharmacyPermission } = await import('@/lib/api-auth')
+    const { NextResponse } = await import('next/server')
+    ;(requirePharmacyPermission as any).mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    })
+    const r = await patch({ id: 'staff-9', password: 'X-Strong-Passw0rd!' })
+    expect(r.status).toBe(401)
+    expect(mocks.writes).toEqual([])
+  })
+
+  it.each([
+    ['tenantId', { tenantId: 'tenant-2' }],
+    ['pharmacyId', { pharmacyId: 'tenant-2' }],
+    ['tenant_id', { tenant_id: 'tenant-2' }],
+    ['storeId', { storeId: 'store-b' }],
+  ])('a tampered %s in the body cannot move the target into scope', async (_l, extra) => {
+    const r = await patch({ id: 'victim-b', password: 'X-Strong-Passw0rd!', ...extra })
+    expect(r.status).toBe(404)
+    expect(mocks.writes).toEqual([])
+  })
+
+  it('a tampered tenantId query parameter on DELETE is ignored', async () => {
+    const r = await call('DELETE', undefined, '?id=victim-b&tenantId=tenant-2')
+    expect(r.status).toBe(404)
+    expect(mocks.writes).toEqual([])
+  })
+
+  it('A-admin -> A-staff is still allowed end to end (tenant from session only)', async () => {
+    const r = await patch({ id: 'staff-9', password: 'X-Strong-Passw0rd!', tenantId: 'tenant-2' })
+    expect(r.status).toBe(200)
+    expect(writesTo('profiles')[0].filters).toEqual({ id: 'staff-9', tenant_id: 'tenant-1' })
+  })
+})
+

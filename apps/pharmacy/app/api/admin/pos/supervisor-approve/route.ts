@@ -3,6 +3,7 @@ import { getPharmacySession } from "@/lib/auth"
 import { roleHasCapability } from "@/lib/capabilities"
 import { verifyPassword } from "@synapse/auth/password"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { signDiscountApproval } from "@/lib/pos/discount-approval"
 
 /**
  * Verify a supervisor password for over-threshold POS discounts.
@@ -66,8 +67,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Incorrect supervisor password" }, { status: 401 })
   }
 
+  let approvalToken: string
+  try {
+    approvalToken = signDiscountApproval({
+      tenantId,
+      cashierId: session.userId,
+      supervisorId: profile.id as string,
+    })
+  } catch {
+    return NextResponse.json({ error: "Discount approval is not configured" }, { status: 503 })
+  }
+
   return NextResponse.json({
     approved: true,
+    approvalToken,
     supervisorId: profile.id,
     supervisorName: profile.full_name ?? profile.email,
   })

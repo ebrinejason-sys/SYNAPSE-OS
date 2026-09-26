@@ -23,6 +23,8 @@ import { httpStatusForPharmacyError } from "@synapse/db/errors"
 import { paymentStateForMethod } from "@synapse/db/cashier-session"
 import { findOrCreateCreditCustomer, postCreditLedgerEntry } from "@/lib/credit-ledger"
 import { encodePaymentRef, settlePayment } from "@/lib/pos/partial-payment"
+import { verifyDiscountApproval } from "@/lib/pos/discount-approval"
+import { tenantOwnsRecord } from "@/lib/tenant-ownership"
 
 /**
  * Complete a POS sale via live `complete_pharmacy_sale` RPC.
@@ -92,10 +94,16 @@ export async function POST(request: NextRequest) {
     .maybeSingle()
 
   const threshold = Number(settings?.discount_approval_threshold_pct ?? 5)
-  const approvedBy =
-    typeof body.discountApprovedBy === "string" && body.discountApprovedBy
-      ? body.discountApprovedBy
-      : null
+  // Approval must be a server-issued token from supervisor-approve, bound to this
+  // tenant and cashier. A raw supervisor id supplied by the client is not proof.
+  const approvedBy = verifyDiscountApproval(body.discountApprovalToken ?? body.discountApprovedBy, {
+    tenantId,
+    cashierId: session.userId,
+  })
+
+  if (customerIdBody && !(await tenantOwnsRecord("pharmacy_customers", tenantId, customerIdBody))) {
+    return NextResponse.json({ error: "Customer not found" }, { status: 404 })
+  }
 
   const rpcItems: Record<string, unknown>[] = []
 
