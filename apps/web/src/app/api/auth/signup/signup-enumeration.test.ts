@@ -126,3 +126,40 @@ describe.each(['patient', 'professional'] as const)('POST /api/auth/signup/%s an
     expect(mocks.inserts).toEqual([])
   })
 })
+
+describe.each(['patient', 'professional'] as const)('POST /api/auth/signup/%s rapid repeated requests', (kind) => {
+  function limiter(allowed: number) {
+    let n = 0
+    mocks.rate.mockImplementation(async () => (++n <= allowed ? { success: true, remaining: allowed - n } : { success: false, remaining: 0 }))
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.inserts = []
+    mocks.hash.mockResolvedValue('hashed')
+    mocks.send.mockResolvedValue({ sent: true })
+  })
+
+  it('burst against an existing account: identical 200s until the limiter trips, then 429 with no further work', async () => {
+    mocks.existing = existingCases[0][1]
+    limiter(3)
+    const results = []
+    for (let i = 0; i < 6; i++) results.push(await signup(kind))
+    expect(results.slice(0, 3).map((r) => r.status)).toEqual([200, 200, 200])
+    expect(new Set(results.slice(0, 3).map((r) => JSON.stringify(r.body))).size).toBe(1)
+    expect(results.slice(3).map((r) => r.status)).toEqual([429, 429, 429])
+    expect(mocks.hash).toHaveBeenCalledTimes(3)
+    expect(mocks.inserts).toEqual([])
+  })
+
+  it('the throttled response does not reveal whether the account exists', async () => {
+    limiter(0)
+    mocks.existing = existingCases[0][1]
+    const existing = await signup(kind)
+    limiter(0)
+    mocks.existing = null
+    const fresh = await signup(kind)
+    expect(existing).toEqual(fresh)
+    expect(existing.status).toBe(429)
+  })
+})
