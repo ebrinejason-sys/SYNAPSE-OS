@@ -40,7 +40,7 @@ export default async function PlatformUsersPage({
 }: {
   searchParams?: Promise<{ q?: string; role?: string; status?: string }>;
 }) {
-  await requirePlatformAdmin();
+  const admin = await requirePlatformAdmin();
   const params = (await searchParams) ?? {};
   const q = (params.q ?? "").trim().toLowerCase();
   const roleFilter = (params.role ?? "").trim().toLowerCase();
@@ -164,6 +164,7 @@ export default async function PlatformUsersPage({
                           emailVerified={Boolean(user.email_verified_at)}
                           isDeleted={Boolean(user.is_deleted)}
                           verificationStatus={user.verification_status}
+                          isSelf={user.id === admin.id}
                         />
                       ) : null}
                     </td>

@@ -21,12 +21,14 @@ type Props = {
   isDeleted: boolean
   verificationStatus?: string | null
   allowPurge?: boolean
+  /** True when this row is the signed-in operator. Self-destructive actions are hidden (server also refuses them). */
+  isSelf?: boolean
 }
 
 const PHARMACY_URL =
   process.env.NEXT_PUBLIC_PHARMACY_URL ?? 'https://pharm.synapseos.tech'
 
-export function UserActions({ userId, email, role, emailVerified, isDeleted, verificationStatus, allowPurge = false }: Props) {
+export function UserActions({ userId, email, role, emailVerified, isDeleted, verificationStatus, allowPurge = false, isSelf = false }: Props) {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -214,6 +216,8 @@ export function UserActions({ userId, email, role, emailVerified, isDeleted, ver
                 Reactivate
               </button>
             ) : null}
+            {isSelf ? null : (
+            <>
             <button
               type="button"
               onClick={onSuspend}
@@ -230,6 +234,8 @@ export function UserActions({ userId, email, role, emailVerified, isDeleted, ver
             >
               Archive
             </button>
+            </>
+            )}
           </>
         ) : (
           <button
@@ -242,7 +248,7 @@ export function UserActions({ userId, email, role, emailVerified, isDeleted, ver
           </button>
         )}
       </div>
-      {allowPurge && !isDeleted ? (
+      {allowPurge && !isDeleted && !isSelf ? (
         <button
           type="button"
           onClick={onPurge}
@@ -251,6 +257,9 @@ export function UserActions({ userId, email, role, emailVerified, isDeleted, ver
         >
           Delete identity
         </button>
+      ) : null}
+      {isSelf ? (
+        <span className="text-[10px] text-slate-500">Your account: suspend, archive and delete are disabled</span>
       ) : null}
       {role === 'platform_admin' ? (
         <span className="text-[10px] text-slate-600">Platform admin — impersonation disabled</span>
