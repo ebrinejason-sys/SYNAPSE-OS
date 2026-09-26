@@ -292,6 +292,21 @@ export async function deletePharmacy(formData: FormData) {
 
   if (!tenant) return;
 
+  // Audit tables reference tenants with ON DELETE CASCADE, so a hard delete would
+  // silently erase the pharmacy's audit history. Only never-used tenants may be
+  // hard-deleted; anything with history must be archived via facility lifecycle.
+  for (const auditTable of ["pharmacy_audit_logs", "audit_log", "audit_events"]) {
+    const { count } = await db
+      .from(auditTable)
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId);
+    if ((count ?? 0) > 0) {
+      throw new Error(
+        "This pharmacy has audit history and cannot be permanently deleted. Archive it from the facility lifecycle page instead.",
+      );
+    }
+  }
+
   // Delete child tables first (not all have ON DELETE CASCADE on tenants)
   await db.from("pharmacy_onboarding").delete().eq("tenant_id", tenantId);
   await db.from("pharmacy_profiles").delete().eq("tenant_id", tenantId);

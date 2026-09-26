@@ -273,3 +273,14 @@ describe('D6 hardening: direct invocation and tampered tenant identifiers', () =
   })
 })
 
+
+describe('Audit preservation: DELETE /api/admin/users', () => {
+  it('never deletes audit history (neither the target\'s actions nor anything else)', async () => {
+    const r = await call('DELETE', undefined, '?id=staff-9')
+    expect(r.status).toBe(200)
+    expect(mocks.writes.filter((w) => w.table === 'pharmacy_audit_logs' && w.op !== 'insert')).toEqual([])
+    expect(mocks.writes).toContainEqual(
+      expect.objectContaining({ table: 'pharmacy_audit_logs', op: 'insert', values: expect.objectContaining({ action: 'DELETE_USER', entity_id: 'staff-9' }) }),
+    )
+  })
+})

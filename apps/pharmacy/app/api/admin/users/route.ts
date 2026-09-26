@@ -357,7 +357,9 @@ export async function DELETE(request: NextRequest) {
     const targetName = target.full_name ?? target.email ?? userId
 
     await db.from("pharmacy_notifications").delete().eq("tenant_id", tenantId).eq("profile_id", userId)
-    await db.from("pharmacy_audit_logs").delete().eq("tenant_id", tenantId).eq("profile_id", userId)
+    // Audit history is never deleted. The profile is soft-deleted (is_deleted), so the
+    // pharmacy_audit_logs.profile_id FK (ON DELETE NO ACTION) stays satisfied and the
+    // user's past actions remain attributable.
     await db.from("pharmacy_orders").update({ processed_by: null }).eq("tenant_id", tenantId).eq("processed_by", userId)
     await db.from("pharmacy_orders").update({ claimed_by: null, claimed_at: null }).eq("tenant_id", tenantId).eq("claimed_by", userId)
     await db.from("pharmacy_user_settings").delete().eq("tenant_id", tenantId).eq("profile_id", userId)
