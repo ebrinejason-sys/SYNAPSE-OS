@@ -35,19 +35,3 @@ export async function trySendActivationEmail({
     return { sent: false, error: message }
   }
 }
-
-export function activationResponse({
-  userId,
-  emailSent,
-}: {
-  userId?: string
-  emailSent: boolean
-}) {
-  return {
-    ok: true,
-    userId,
-    activationRequired: true,
-    activationEmailSent: emailSent,
-    emailDelivery: emailSent ? 'sent' : 'failed',
-  }
-}

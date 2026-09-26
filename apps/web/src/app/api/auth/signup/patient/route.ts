@@ -2,10 +2,18 @@ import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { hashPassword, validatePasswordStrength } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { activationResponse, trySendActivationEmail } from '../../../../../lib/auth/activation-email'
+import { trySendActivationEmail } from '../../../../../lib/auth/activation-email'
+import { handleExistingAccountSignup, signupAccepted } from '../../../../../lib/auth/signup-response'
+import { checkRateLimit, rateLimiters } from '../../../../../lib/rate-limit'
 
 export async function POST(req: NextRequest) {
   let userId: string | null = null
+
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown'
+  const rate = await checkRateLimit(rateLimiters.auth, `signup-patient:ip:${ip}`)
+  if (!rate.success) {
+    return NextResponse.json({ error: 'Too many attempts. Please wait before trying again.' }, { status: 429 })
+  }
 
   try {
     const body = await req.json().catch(() => ({}))
@@ -26,53 +34,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: strength.errors[0] ?? 'Password is not strong enough.' }, { status: 400 })
     }
 
+    // Hash before the lookup so new and existing emails take comparable time.
+    const passwordHash = await hashPassword(password)
+
     const db = supabaseAdmin as any
     const { data: existing, error: existingErr } = await db
       .from('profiles')
-      .select('id, email, full_name, first_name, verification_status, email_verified_at')
+      .select('id, email, full_name, first_name, verification_status, email_verified_at, is_deleted')
       .eq('email', email)
       .maybeSingle()
 
     if (existingErr) {
       console.error('[auth/signup/patient] existing lookup failed', existingErr)
-      return NextResponse.json({ error: 'Could not check account status.' }, { status: 500 })
+      return NextResponse.json({ error: 'Could not create account.' }, { status: 500 })
     }
 
     if (existing) {
-      const existingStatus = String(existing.verification_status ?? '').toLowerCase()
-      const canResendActivation =
-        !existing.email_verified_at &&
-        existing.email &&
-        !['deleted', 'disabled', 'suspended'].includes(existingStatus)
-
-      if (canResendActivation) {
-        const emailResult = await trySendActivationEmail({
-          origin: req.nextUrl.origin,
-          userId: existing.id as string,
-          email: existing.email as string,
-          name: (existing.full_name as string | null) ?? (existing.first_name as string | null) ?? 'there',
-          logContext: 'auth/signup/patient',
-        })
-
-        if (emailResult.sent) {
-          await db
-            .from('profiles')
-            .update({ activation_sent_at: new Date().toISOString() })
-            .eq('id', existing.id as string)
-        }
-
-        return NextResponse.json(
-          activationResponse({ userId: existing.id as string, emailSent: emailResult.sent }),
-          { status: emailResult.sent ? 200 : 202 }
-        )
-      }
-
-      return NextResponse.json({ error: 'An account already exists for this email.' }, { status: 409 })
+      await handleExistingAccountSignup({
+        db,
+        existing,
+        origin: req.nextUrl.origin,
+        logContext: 'auth/signup/patient',
+      })
+      return signupAccepted()
     }
 
     userId = randomUUID()
     const fullName = `${firstName} ${lastName}`.trim()
-    const passwordHash = await hashPassword(password)
     const now = new Date().toISOString()
 
     const { error: profileErr } = await db.from('profiles').insert({
@@ -96,7 +84,7 @@ export async function POST(req: NextRequest) {
 
     if (profileErr) {
       console.error('[auth/signup/patient] profile insert failed', profileErr)
-      return NextResponse.json({ error: profileErr.message ?? 'Could not create account.' }, { status: 500 })
+      return NextResponse.json({ error: 'Could not create account.' }, { status: 500 })
     }
 
     const { error: patientErr } = await db.from('patient_profiles').upsert({
@@ -113,7 +101,7 @@ export async function POST(req: NextRequest) {
       console.error('[auth/signup/patient] patient profile upsert failed', patientErr)
       await db.from('patient_profiles').delete().eq('id', userId)
       await db.from('profiles').delete().eq('id', userId)
-      return NextResponse.json({ error: patientErr.message ?? 'Could not create patient profile.' }, { status: 500 })
+      return NextResponse.json({ error: 'Could not create account.' }, { status: 500 })
     }
 
     const emailResult = await trySendActivationEmail({
@@ -131,10 +119,7 @@ export async function POST(req: NextRequest) {
         .eq('id', userId)
     }
 
-    return NextResponse.json(
-      activationResponse({ userId, emailSent: emailResult.sent }),
-      { status: emailResult.sent ? 200 : 202 }
-    )
+    return signupAccepted()
   } catch (error) {
     console.error('[auth/signup/patient] unexpected failure', error)
 

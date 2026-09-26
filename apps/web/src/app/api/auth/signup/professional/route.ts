@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { hashPassword, validatePasswordStrength } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { activationResponse, trySendActivationEmail } from '../../../../../lib/auth/activation-email'
+import { trySendActivationEmail } from '../../../../../lib/auth/activation-email'
+import { handleExistingAccountSignup, signupAccepted } from '../../../../../lib/auth/signup-response'
+import { checkRateLimit, rateLimiters } from '../../../../../lib/rate-limit'
 
 function roleForSpecialty(specialty: string): 'doctor' | 'nurse' | 'pharmacist' | 'lab_scientist' | 'radiologist' | 'clinical_officer' {
   const normalized = specialty.trim().toLowerCase()
@@ -15,6 +17,12 @@ function roleForSpecialty(specialty: string): 'doctor' | 'nurse' | 'pharmacist' 
 }
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown'
+  const rate = await checkRateLimit(rateLimiters.auth, `signup-professional:ip:${ip}`)
+  if (!rate.success) {
+    return NextResponse.json({ error: 'Too many attempts. Please wait before trying again.' }, { status: 429 })
+  }
+
   const body = await req.json().catch(() => ({}))
   const firstName = typeof body.first_name === 'string' ? body.first_name.trim() : ''
   const lastName = typeof body.last_name === 'string' ? body.last_name.trim() : ''
@@ -37,47 +45,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: strength.errors[0] ?? 'Password is not strong enough.' }, { status: 400 })
   }
 
+  // Hash before the lookup so new and existing emails take comparable time.
+  const passwordHash = await hashPassword(password)
+
   const db = supabaseAdmin as any
-  const { data: existing } = await db
+  const { data: existing, error: existingErr } = await db
     .from('profiles')
-    .select('id, email, full_name, first_name, verification_status, email_verified_at')
+    .select('id, email, full_name, first_name, verification_status, email_verified_at, is_deleted')
     .eq('email', email)
     .maybeSingle()
+
+  if (existingErr) {
+    console.error('[auth/signup/professional] existing lookup failed', existingErr)
+    return NextResponse.json({ error: 'Could not submit application.' }, { status: 500 })
+  }
+
   if (existing) {
-    const existingStatus = String(existing.verification_status ?? '').toLowerCase()
-    const canResendActivation =
-      !existing.email_verified_at &&
-      existing.email &&
-      !['deleted', 'disabled', 'suspended'].includes(existingStatus)
-
-    if (canResendActivation) {
-      const emailResult = await trySendActivationEmail({
-        origin: req.nextUrl.origin,
-        userId: existing.id as string,
-        email: existing.email as string,
-        name: (existing.full_name as string | null) ?? (existing.first_name as string | null) ?? 'there',
-        logContext: 'auth/signup/professional',
-      })
-
-      if (emailResult.sent) {
-        await db
-          .from('profiles')
-          .update({ activation_sent_at: new Date().toISOString() })
-          .eq('id', existing.id as string)
-      }
-
-      return NextResponse.json(
-        activationResponse({ userId: existing.id as string, emailSent: emailResult.sent }),
-        { status: emailResult.sent ? 200 : 202 }
-      )
-    }
-
-    return NextResponse.json({ error: 'An account already exists for this email.' }, { status: 409 })
+    await handleExistingAccountSignup({
+      db,
+      existing,
+      origin: req.nextUrl.origin,
+      logContext: 'auth/signup/professional',
+    })
+    return signupAccepted()
   }
 
   const userId = randomUUID()
   const fullName = `${firstName} ${lastName}`.trim()
-  const passwordHash = await hashPassword(password)
   const now = new Date().toISOString()
 
   const { error: profileErr } = await db.from('profiles').insert({
@@ -102,7 +96,8 @@ export async function POST(req: NextRequest) {
   })
 
   if (profileErr) {
-    return NextResponse.json({ error: profileErr.message ?? 'Could not submit application.' }, { status: 500 })
+    console.error('[auth/signup/professional] profile insert failed', profileErr)
+    return NextResponse.json({ error: 'Could not submit application.' }, { status: 500 })
   }
 
   if (licenseB64) {
@@ -129,8 +124,5 @@ export async function POST(req: NextRequest) {
       .eq('id', userId)
   }
 
-  return NextResponse.json(
-    activationResponse({ userId, emailSent: emailResult.sent }),
-    { status: emailResult.sent ? 200 : 202 }
-  )
+  return signupAccepted()
 }
