@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyTenant } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { tenantOwnsRecord } from "@/lib/tenant-ownership"
 
 // GET packages for a product
 export async function GET(request: NextRequest) {
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
     const { data: packages, error } = await (supabaseAdmin as any)
       .from("pharmacy_product_packages")
       .select("*")
+      .eq("tenant_id", tenantId)
       .eq("product_id", productId)
       .order("units_per_package", { ascending: true })
 
@@ -47,10 +49,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!(await tenantOwnsRecord("pharmacy_products", tenantId, data.productId))) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 })
+    }
+
     // Check if package with same name already exists for this product
     const { data: existing } = await (supabaseAdmin as any)
       .from("pharmacy_product_packages")
       .select("id")
+      .eq("tenant_id", tenantId)
       .eq("product_id", data.productId as string)
       .eq("name", data.name as string)
       .maybeSingle()

@@ -45,6 +45,14 @@ function seed() {
     ],
     pharmacy_products: [
       { id: 'prod-a', tenant_id: 'tenant-a', quantity: 100, name: 'Paracetamol' },
+      { id: 'prod-b', tenant_id: 'tenant-b', quantity: 100, name: 'Secret B' },
+    ],
+    pharmacy_transaction_edits: [
+      { id: 'edit-b', tenant_id: 'tenant-b', transaction_id: 'txn-b', edited_by: 'x', created_at: '2026-09-01' },
+    ],
+    pharmacy_product_packages: [
+      { id: 'pkg-b', tenant_id: 'tenant-b', product_id: 'prod-b', name: 'Box B', units_per_package: 10 },
+      { id: 'pkg-a', tenant_id: 'tenant-a', product_id: 'prod-a', name: 'Box A', units_per_package: 10 },
     ],
   }
 }
@@ -126,3 +134,36 @@ describe('POST /api/admin/orders (customer reference)', () => {
     expect(writesTo('pharmacy_orders')).toEqual([])
   })
 })
+
+describe('/api/admin/inventory/packages (product reference)', () => {
+  it("GET does not return another tenant's packages for a supplied productId", async () => {
+    const { GET } = await import('./inventory/packages/route')
+    const res = await GET(req('/api/admin/inventory/packages?productId=prod-b', 'GET'))
+    const body = await res.json()
+    expect(Array.isArray(body) ? body : []).toEqual([])
+  })
+
+  it("POST refuses to attach a package to another tenant's product", async () => {
+    const { POST } = await import('./inventory/packages/route')
+    const res = await POST(req('/api/admin/inventory/packages', 'POST', { productId: 'prod-b', name: 'Box X', unitsPerPackage: 5, price: 100 }))
+    expect(res.status).toBe(404)
+    expect(writesTo('pharmacy_product_packages')).toEqual([])
+  })
+
+  it('GET returns own-tenant packages', async () => {
+    const { GET } = await import('./inventory/packages/route')
+    const res = await GET(req('/api/admin/inventory/packages?productId=prod-a', 'GET'))
+    expect((await res.json()).map((p: any) => p.id)).toEqual(['pkg-a'])
+  })
+})
+
+describe('GET /api/admin/transactions/[id]/edit (edit history)', () => {
+  it("does not return another tenant's edit history for a supplied transaction id", async () => {
+    const { GET } = await import('./transactions/[id]/edit/route')
+    const res = await GET(req('/api/admin/transactions/txn-b/edit', 'GET'), { params: Promise.resolve({ id: 'txn-b' }) })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.edits).toEqual([])
+  })
+})
+

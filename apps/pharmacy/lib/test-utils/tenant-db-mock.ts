@@ -63,5 +63,12 @@ export function createTenantDbMock() {
     return q
   }
 
-  return { state, client: { from, rpc: async () => ({ data: null, error: null }) } }
+  return {
+    state,
+    client: {
+      from,
+      rpc: async () => ({ data: null, error: null }),
+      auth: { admin: { listUsers: async () => ({ data: { users: [] }, error: null }) } },
+    },
+  }
 }
