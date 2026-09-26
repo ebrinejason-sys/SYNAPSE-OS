@@ -31,7 +31,9 @@ export async function POST(req: NextRequest) {
     })
 
     if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: 500 })
+      // Never surface delivery failures to the caller: a 500 only for existing
+      // accounts is an account-enumeration oracle. Log for operators instead.
+      console.error('[auth/password-reset/request] reset delivery failed', { error: result.error })
     }
   }
 
