@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import {
+  CUSTOMER_SESSION_COOKIE,
+  CUSTOMER_SESSION_TTL_SECONDS,
+  signCustomerSession,
+} from "@/lib/customer-session"
 
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder()
@@ -16,6 +21,12 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
 export async function POST(request: NextRequest) {
   try {
     const { email, password, name, action, tenant_id: tenantId } = await request.json()
+
+    if (action === "logout") {
+      const response = NextResponse.json({ success: true })
+      response.cookies.set(CUSTOMER_SESSION_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 })
+      return response
+    }
 
     if (!tenantId) {
       return NextResponse.json({ error: "Tenant ID is required" }, { status: 400 })
@@ -85,11 +96,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
       }
 
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         customerId: customer.id,
         name: customer.name,
       })
+      response.cookies.set(CUSTOMER_SESSION_COOKIE, signCustomerSession({ customerId: customer.id, tenantId }), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: CUSTOMER_SESSION_TTL_SECONDS,
+      })
+      return response
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 })

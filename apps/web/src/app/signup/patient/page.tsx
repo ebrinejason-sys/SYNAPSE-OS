@@ -10,8 +10,8 @@ export default function PatientSignupPage() {
   const [resending, setResending] = useState(false)
   const [error, setError] = useState('')
   const [submittedEmail, setSubmittedEmail] = useState('')
-  const [activationEmailSent, setActivationEmailSent] = useState(true)
   const [activationNotice, setActivationNotice] = useState('')
+  const [resendFailed, setResendFailed] = useState(false)
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -40,18 +40,14 @@ export default function PatientSignupPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form),
     })
-    const data = await res.json().catch(() => ({})) as {
-      error?: string
-      activationRequired?: boolean
-      activationEmailSent?: boolean
-    }
+    const data = await res.json().catch(() => ({})) as { error?: string }
     if (!res.ok) {
       setError(data.error ?? 'Could not create account.')
       setLoading(false)
       return
     }
 
-    setActivationEmailSent(data.activationEmailSent !== false)
+    // The API answers new and existing emails identically (anti-enumeration).
     setActivationNotice('')
     setSubmittedEmail(form.email)
     setLoading(false)
@@ -66,22 +62,15 @@ export default function PatientSignupPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: submittedEmail }),
     })
-    const data = await res.json().catch(() => ({})) as {
-      activationEmailSent?: boolean
-      error?: string
-    }
+    const data = await res.json().catch(() => ({})) as { error?: string }
     setResending(false)
     if (!res.ok) {
+      setResendFailed(true)
       setActivationNotice(data.error ?? 'Could not resend activation email.')
       return
     }
-    const sent = data.activationEmailSent !== false
-    setActivationEmailSent(sent)
-    setActivationNotice(
-      sent
-        ? 'Activation email sent. Check your inbox and spam folder.'
-        : 'The account is still pending, but email delivery is currently unavailable.'
-    )
+    setResendFailed(false)
+    setActivationNotice('If this account is still pending activation, a new link is on its way. Check your inbox and spam folder.')
   }
 
   const inputCls = 'w-full rounded-xl px-4 py-3 text-sm outline-none transition-all'
@@ -111,30 +100,21 @@ export default function PatientSignupPage() {
             Check your email
           </h1>
           <p className="text-sm leading-6 mb-6" style={{ color: 'var(--text-secondary)' }}>
-            {activationEmailSent ? (
-              <>
-                We sent an activation link to <strong style={{ color: 'var(--text-primary)' }}>{submittedEmail}</strong>.
-                Your account will stay locked until you open that link.
-              </>
-            ) : (
-              <>
-                Your account was created for <strong style={{ color: 'var(--text-primary)' }}>{submittedEmail}</strong>,
-                but the activation email could not be sent. Your account remains locked until email activation succeeds.
-              </>
-            )}
+            If <strong style={{ color: 'var(--text-primary)' }}>{submittedEmail}</strong> can be used for a new account,
+            we&apos;ve sent it an activation link. The account stays locked until you open that link.
+            Already have an account? Sign in or reset your password instead.
           </p>
-          {!activationEmailSent && (
-            <button
-              type="button"
-              onClick={resendActivation}
-              disabled={resending}
-              className="btn-primary mb-3 block w-full disabled:opacity-50"
-            >
-              {resending ? 'Sending...' : 'Resend activation email'}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={resendActivation}
+            disabled={resending}
+            className="mb-3 block w-full py-2 text-sm font-semibold disabled:opacity-50"
+            style={{ color: 'var(--brand-orange)' }}
+          >
+            {resending ? 'Sending...' : "Didn't get it? Resend activation email"}
+          </button>
           {activationNotice && (
-            <p className="mb-4 text-sm" style={{ color: activationEmailSent ? '#22C55E' : '#EF4444' }}>
+            <p className="mb-4 text-sm" style={{ color: resendFailed ? '#EF4444' : '#22C55E' }}>
               {activationNotice}
             </p>
           )}

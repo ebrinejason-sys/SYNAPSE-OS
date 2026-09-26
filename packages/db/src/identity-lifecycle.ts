@@ -17,6 +17,26 @@ export type IdentityLifecycleAction =
 
 const PLATFORM_ROLES = new Set(["platform_admin", "superadmin"])
 
+/** Actions an operator may never run against their own identity. */
+export const SELF_DESTRUCTIVE_ACTIONS: ReadonlySet<IdentityLifecycleAction> = new Set<IdentityLifecycleAction>([
+  "deactivate",
+  "suspend",
+  "archive",
+  "purge",
+  "remove_membership",
+])
+
+export const SELF_LIFECYCLE_BLOCKER =
+  "You cannot perform this action on your own account. Ask another administrator."
+
+export function isSelfDestructiveAction(params: {
+  actorId?: string | null
+  userId: string
+  action: IdentityLifecycleAction
+}): boolean {
+  return Boolean(params.actorId) && params.actorId === params.userId && SELF_DESTRUCTIVE_ACTIONS.has(params.action)
+}
+
 export type IdentityLifecyclePreview = {
   userId: string
   action: IdentityLifecycleAction
@@ -28,6 +48,8 @@ export type IdentityLifecyclePreview = {
 
 export function previewIdentityLifecycle(params: {
   userId: string
+  /** The operator performing the action. Required by server actions for self-protection. */
+  actorId?: string | null
   action: IdentityLifecycleAction
   role?: string | null
   isDeleted?: boolean
@@ -45,6 +67,10 @@ export function previewIdentityLifecycle(params: {
   const authored = params.authoredRecords ?? 0
   const status = String(params.verificationStatus ?? "").toLowerCase()
   const lastPlatformAdmin = isPlatform && platformCount <= 1
+
+  if (isSelfDestructiveAction({ actorId: params.actorId, userId: params.userId, action: params.action })) {
+    blockers.push(SELF_LIFECYCLE_BLOCKER)
+  }
 
   if (lastPlatformAdmin && ["deactivate", "suspend", "archive", "purge"].includes(params.action)) {
     blockers.push("Cannot remove the last Platform Admin until another valid Platform Admin exists")

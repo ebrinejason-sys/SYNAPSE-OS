@@ -12,6 +12,19 @@ export const dynamic = 'force-dynamic'
 
 type RouteParams = { params: Promise<{ id: string }> }
 
+/**
+ * Profile roles a facility administrator may manage. Platform operators,
+ * pharmacy users, patients and any other role are outside facility staff scope
+ * and are answered as not found, even when they share the facility tenant_id.
+ */
+const FACILITY_STAFF_TARGET_ROLES = new Set([
+  'hospital_admin', 'admin', 'doctor', 'nurse', 'midwife', 'clinician', 'clinical_officer',
+  'radiologist', 'radiographer', 'physiotherapist', 'receptionist', 'lab_admin', 'lab_scientist',
+  'lab_technician', 'billing_officer', 'pharmacist', 'records_officer',
+])
+/** Roles that administer the facility; the last active one may not be removed. */
+const FACILITY_ADMIN_ROLES = ['hospital_admin', 'admin']
+
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const ctx = await requireHospitalAdminContext()
   if (isContextError(ctx)) return ctx
@@ -35,7 +48,52 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .eq('tenant_id', ctx.tenantId)
     .maybeSingle()
 
-  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!existing || existing.tenant_id !== ctx.tenantId || !FACILITY_STAFF_TARGET_ROLES.has(String(existing.role ?? ''))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  // Server-side self-protection: an admin may not deactivate their own staff
+  // assignments or change their own role (either can lock the facility out of
+  // administration). Department changes on self remain allowed.
+  const changesOwnRole =
+    parsed.data.role !== undefined && String(parsed.data.role) !== String(existing.role ?? '')
+  if (id === ctx.userId && (parsed.data.is_active === false || changesOwnRole)) {
+    await logHospitalAudit({
+      ctx,
+      action: 'SELF_LIFECYCLE_BLOCKED',
+      tableName: 'profiles',
+      recordId: id,
+      newValue: {
+        attempted: parsed.data.is_active === false ? 'deactivate' : 'role_change',
+        ...(changesOwnRole ? { role: parsed.data.role } : {}),
+      },
+    })
+    return NextResponse.json(
+      { error: 'You cannot deactivate or change the role of your own account. Ask another administrator.' },
+      { status: 403 },
+    )
+  }
+
+  // Last-admin protection: never leave the facility without an active administrator.
+  const targetIsAdmin = FACILITY_ADMIN_ROLES.includes(String(existing.role ?? ''))
+  const removesAdmin =
+    parsed.data.is_active === false ||
+    (parsed.data.role !== undefined && !FACILITY_ADMIN_ROLES.includes(String(parsed.data.role)))
+  if (targetIsAdmin && removesAdmin) {
+    const { data: otherAdmins } = await db
+      .from('profiles')
+      .select('id')
+      .eq('tenant_id', ctx.tenantId)
+      .in('role', FACILITY_ADMIN_ROLES)
+      .eq('is_deleted', false)
+      .neq('id', id)
+    if (!Array.isArray(otherAdmins) || otherAdmins.length === 0) {
+      return NextResponse.json(
+        { error: 'This is the last active facility administrator. Add another administrator first.', code: 'LAST_FACILITY_ADMIN' },
+        { status: 409 },
+      )
+    }
+  }
 
   if (parsed.data.department_id) {
     const { data: department } = await db
@@ -75,6 +133,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .from('profiles')
       .update(patch)
       .eq('id', id)
+      .eq('tenant_id', ctx.tenantId)
       .select('id, email, full_name, role, department_id, is_deleted')
       .single()
     if (updated.error) return NextResponse.json({ error: updated.error.message }, { status: 500 })

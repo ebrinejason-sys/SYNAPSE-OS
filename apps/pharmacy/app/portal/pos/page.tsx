@@ -1160,7 +1160,8 @@ export default function POSPage() {
                         })
                         return
                       }
-                      setDiscountApprovedBy(data.supervisorId)
+                      // Server-issued, cashier-bound approval token (not the raw supervisor id).
+                      setDiscountApprovedBy(data.approvalToken)
                       setShowSupervisorDialog(false)
                       setSupervisorPassword("")
                       const pending = pendingSaleAfterApproval
@@ -1169,7 +1170,7 @@ export default function POSPage() {
                         await processTransaction(
                           pending.staffForReceipt,
                           pending.client,
-                          data.supervisorId as string,
+                          data.approvalToken as string,
                         )
                       }
                     } finally {

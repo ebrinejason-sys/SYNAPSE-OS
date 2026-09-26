@@ -28,7 +28,7 @@ type MembershipRow = {
 }
 
 export default async function PlatformUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requirePlatformAdmin()
+  const admin = await requirePlatformAdmin()
   const { id } = await params
   const profiles = await safeRows<ProfileRow>(
     "profiles",
@@ -92,6 +92,7 @@ export default async function PlatformUserDetailPage({ params }: { params: Promi
         isDeleted={Boolean(profile.is_deleted)}
         verificationStatus={profile.verification_status}
         allowPurge
+        isSelf={profile.id === admin.id}
       />
       <Link href="/platform/users" className="inline-block text-sm text-[#E8B84B] hover:underline">
         Back to users

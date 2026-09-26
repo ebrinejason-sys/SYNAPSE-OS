@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  * Uses live DB platform-admin gate — not JWT-role alone.
  */
 export async function POST(request: Request) {
-  const auth = await requirePlatformAdminApi();
+  const auth = await requirePlatformAdminApi("tenant.manage");
   if (!auth.ok) return auth.response;
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;

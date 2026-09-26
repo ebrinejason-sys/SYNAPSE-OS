@@ -11,7 +11,7 @@ import { createDemoTenant } from "@/lib/platform/simulation-runtime";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  const auth = await requirePlatformAdminApi();
+  const auth = await requirePlatformAdminApi("tenant.manage");
   if (!auth.ok) return auth.response;
 
   try {

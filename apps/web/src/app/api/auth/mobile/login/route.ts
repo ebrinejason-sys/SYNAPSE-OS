@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyPassword, createAndSendOTP } from '@synapse/auth'
+import { accountStateResponse, classifyAccountState, verifyPassword, createAndSendOTP } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { sendOtpEmail } from '@/lib/resend'
 
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   const db = supabaseAdmin as any
   const { data: profile, error: profileErr } = await db
     .from('profiles')
-    .select('id, email, password_hash, login_attempts, locked_until, email_verified_at, is_deleted')
+    .select('id, email, password_hash, login_attempts, locked_until, verification_status, email_verified_at, is_deleted')
     .eq('email', email)
     .single()
 
@@ -49,8 +49,10 @@ export async function POST(req: NextRequest) {
 
   await db.from('profiles').update({ login_attempts: 0, locked_until: null }).eq('id', profile.id)
 
-  if (!isAccountActivated(profile)) {
-    return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
+  // Credential proven above: state-specific responses are safe to return now.
+  const blockedState = accountStateResponse(classifyAccountState({ ...profile, locked_until: null }))
+  if (blockedState) {
+    return NextResponse.json(blockedState.body, { status: blockedState.status })
   }
 
   let otp: string

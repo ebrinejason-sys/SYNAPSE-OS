@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { tenantOwnsRecord } from "@/lib/tenant-ownership"
 
 export async function GET(request: NextRequest) {
   try {
@@ -44,6 +45,9 @@ export async function POST(request: NextRequest) {
 
     if (!drugName || !refillDueDate || !customerId) {
       return NextResponse.json({ error: "Customer, drug, and due date are required" }, { status: 400 })
+    }
+    if (!(await tenantOwnsRecord("pharmacy_customers", tenantId, customerId))) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 })
     }
 
     const { data, error } = await supabaseAdmin

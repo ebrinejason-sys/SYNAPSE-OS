@@ -32,7 +32,7 @@ function fail(id: string, label: string, error: string, evidence: Record<string,
 }
 
 export async function POST() {
-  const auth = await requirePlatformAdminApi()
+  const auth = await requirePlatformAdminApi("tenant.manage")
   if (!auth.ok) return auth.response
 
   const started = Date.now()

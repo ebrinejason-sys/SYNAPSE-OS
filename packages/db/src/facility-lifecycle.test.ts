@@ -90,6 +90,52 @@ describe("facility lifecycle", () => {
 })
 
 describe("identity lifecycle", () => {
+  it("blocks self-archive even when another platform admin exists (2026-09-26 acceptance incident)", () => {
+    const preview = previewIdentityLifecycle({
+      userId: "admin-a",
+      actorId: "admin-a",
+      action: "archive",
+      role: "platform_admin",
+      activePlatformAdminCount: 2,
+    })
+    assert.equal(preview.allowed, false)
+    assert.match(preview.blockers.join(" "), /your own account/)
+  })
+
+  for (const action of ["deactivate", "suspend", "archive", "purge", "remove_membership"] as const) {
+    it(`blocks self-${action} for any role`, () => {
+      const preview = previewIdentityLifecycle({
+        userId: "u1",
+        actorId: "u1",
+        action,
+        role: "hospital_admin",
+        activePlatformAdminCount: 5,
+        email: "u1@example.com",
+        typedConfirmation: "u1@example.com",
+      })
+      assert.equal(preview.allowed, false)
+      assert.match(preview.blockers.join(" "), /your own account/)
+    })
+  }
+
+  it("still allows archiving another platform admin when more than one exists", () => {
+    const preview = previewIdentityLifecycle({
+      userId: "admin-b",
+      actorId: "admin-a",
+      action: "archive",
+      role: "platform_admin",
+      activePlatformAdminCount: 2,
+    })
+    assert.equal(preview.allowed, true)
+  })
+
+  it("does not treat non-destructive self actions (restore, revoke_sessions) as self-destructive", () => {
+    for (const action of ["revoke_sessions", "activate"] as const) {
+      const preview = previewIdentityLifecycle({ userId: "u1", actorId: "u1", action, role: "doctor" })
+      assert.equal(preview.allowed, true, action)
+    }
+  })
+
   it("keeps identity when a facility membership is removed", () => {
     const preview = previewIdentityLifecycle({
       userId: "u1",

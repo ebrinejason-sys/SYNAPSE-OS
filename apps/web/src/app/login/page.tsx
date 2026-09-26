@@ -162,20 +162,16 @@ function LoginContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: emailAddress }),
     })
-    const data = await res.json().catch(() => ({})) as {
-      activationEmailSent?: boolean
-      error?: string
-    }
+    const data = await res.json().catch(() => ({})) as { ok?: boolean; error?: string }
 
     if (!res.ok) {
       setNotice(data.error ?? 'Could not resend activation email.')
       return
     }
 
+    // The endpoint always answers {ok:true} (anti-enumeration), so the notice is neutral.
     setNotice(
-      data.activationEmailSent === false
-        ? 'The account is still pending, but email delivery is currently unavailable.'
-        : 'Activation email sent. Check your inbox and spam folder.'
+      'If this account is still pending activation, a new activation email is on its way. Check your inbox and spam folder.'
     )
   }
 

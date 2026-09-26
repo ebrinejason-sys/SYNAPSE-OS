@@ -1,11 +1,16 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requirePlatformAdmin } from '@/lib/platform/auth'
+import { requirePlatformAccess } from '@/lib/platform/auth'
 import { sendUserPasswordReset } from '@/lib/auth/password-reset.server'
 import { logPlatformEvent } from '../_lib/platform-data'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { previewIdentityLifecycle, type IdentityLifecycleAction } from '@synapse/db/identity-lifecycle'
+import {
+  isSelfDestructiveAction,
+  previewIdentityLifecycle,
+  SELF_LIFECYCLE_BLOCKER,
+  type IdentityLifecycleAction,
+} from '@synapse/db/identity-lifecycle'
 
 async function platformAdminCount() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -35,7 +40,25 @@ async function authoredRecordCount(userId: string) {
   return total
 }
 
-async function guardIdentity(userId: string, action: IdentityLifecycleAction, typedConfirmation?: string) {
+async function guardIdentity(
+  actorId: string,
+  userId: string,
+  action: IdentityLifecycleAction,
+  typedConfirmation?: string,
+) {
+  // Server-side self-protection: an operator can never suspend, archive, purge,
+  // deactivate, or strip the membership of their own identity, regardless of UI.
+  if (isSelfDestructiveAction({ actorId, userId, action })) {
+    await logPlatformEvent({
+      actorId,
+      action: 'user.self_lifecycle_blocked',
+      entityType: 'profile',
+      entityId: userId,
+      metadata: { attempted_action: action },
+    })
+    return { ok: false as const, error: SELF_LIFECYCLE_BLOCKER }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
   const { data: profile } = await db
@@ -60,6 +83,7 @@ async function guardIdentity(userId: string, action: IdentityLifecycleAction, ty
 
   const preview = previewIdentityLifecycle({
     userId,
+    actorId,
     action,
     role: profile.role,
     isDeleted: Boolean(profile.is_deleted),
@@ -79,7 +103,7 @@ async function guardIdentity(userId: string, action: IdentityLifecycleAction, ty
  * Does not delete identity or memberships.
  */
 export async function activateUserAccount(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('user.reactivate')
   const userId = String(formData.get('user_id') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
 
@@ -121,13 +145,13 @@ export async function activateUserAccount(formData: FormData) {
 }
 
 export async function suspendUserAccount(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('user.suspend')
   const userId = String(formData.get('user_id') ?? '').trim()
   const reason = String(formData.get('reason') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
   if (!reason) return { ok: false as const, error: 'Reason required.' }
 
-  const guard = await guardIdentity(userId, 'suspend')
+  const guard = await guardIdentity(admin.id, userId, 'suspend')
   if (!guard.ok) return guard
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -161,10 +185,10 @@ export async function deactivateUserAccount(formData: FormData) {
 }
 
 export async function reactivateUserAccount(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('user.reactivate')
   const userId = String(formData.get('user_id') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
-  const guard = await guardIdentity(userId, 'reactivate')
+  const guard = await guardIdentity(admin.id, userId, 'reactivate')
   if (!guard.ok) return guard
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -191,10 +215,10 @@ export async function reactivateUserAccount(formData: FormData) {
 }
 
 export async function restoreUserAccount(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('user.reactivate')
   const userId = String(formData.get('user_id') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
-  const guard = await guardIdentity(userId, 'restore')
+  const guard = await guardIdentity(admin.id, userId, 'restore')
   if (!guard.ok) return guard
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -221,12 +245,12 @@ export async function restoreUserAccount(formData: FormData) {
 }
 
 export async function archiveUserAccount(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('user.suspend')
   const userId = String(formData.get('user_id') ?? '').trim()
   const reason = String(formData.get('reason') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
   if (!reason) return { ok: false as const, error: 'Reason required.' }
-  const guard = await guardIdentity(userId, 'archive')
+  const guard = await guardIdentity(admin.id, userId, 'archive')
   if (!guard.ok) return guard
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -250,11 +274,11 @@ export async function archiveUserAccount(formData: FormData) {
 }
 
 export async function permanentlyDeleteIdentity(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('tenant.manage')
   const userId = String(formData.get('user_id') ?? '').trim()
   const typed = String(formData.get('typed_email') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
-  const guard = await guardIdentity(userId, 'purge', typed)
+  const guard = await guardIdentity(admin.id, userId, 'purge', typed)
   if (!guard.ok) return guard
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -274,7 +298,7 @@ export async function permanentlyDeleteIdentity(formData: FormData) {
 }
 
 export async function revokeUserSessions(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('user.session.revoke')
   const userId = String(formData.get('user_id') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
 
@@ -295,11 +319,11 @@ export async function revokeUserSessions(formData: FormData) {
 }
 
 export async function removeFacilityMembership(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('tenant.manage')
   const userId = String(formData.get('user_id') ?? '').trim()
   const tenantId = String(formData.get('tenant_id') ?? '').trim()
   if (!userId || !tenantId) return { ok: false as const, error: 'User and facility required.' }
-  const guard = await guardIdentity(userId, 'remove_membership')
+  const guard = await guardIdentity(admin.id, userId, 'remove_membership')
   if (!guard.ok) return guard
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -325,7 +349,7 @@ export async function removeFacilityMembership(formData: FormData) {
 }
 
 export async function sendPasswordResetForUser(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('user.password_reset')
   const userId = String(formData.get('user_id') ?? '').trim()
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
 

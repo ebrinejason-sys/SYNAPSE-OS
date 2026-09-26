@@ -1,13 +1,13 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requirePlatformAdmin } from '../../../../lib/platform/auth'
+import { requirePlatformAccess } from '../../../../lib/platform/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { Resend } from 'resend'
 import { logPlatformEvent, logSubscriptionEvent } from '../../_lib/platform-data'
 
 export async function resendPharmacyInvite(tenantId: string): Promise<{ ok: boolean; error?: string }> {
-  await requirePlatformAdmin()
+  await requirePlatformAccess("tenant.manage")
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
 
@@ -58,7 +58,7 @@ export async function resendPharmacyInvite(tenantId: string): Promise<{ ok: bool
 }
 
 export async function setTenantStatus(tenantId: string, status: 'active' | 'suspended'): Promise<{ ok: boolean; error?: string }> {
-  await requirePlatformAdmin()
+  await requirePlatformAccess("tenant.manage")
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabaseAdmin as any)
     .from('tenants')

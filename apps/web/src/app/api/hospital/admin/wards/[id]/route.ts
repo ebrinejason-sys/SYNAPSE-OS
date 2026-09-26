@@ -41,6 +41,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .from('wards')
     .update(parsed.data)
     .eq('id', id)
+    .eq('hospital_id', ctx.hospitalId)
     .select('*')
     .single()
 
@@ -77,7 +78,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const { error } = await db.from('wards').update({ is_active: false }).eq('id', id)
+  const { error } = await db.from('wards').update({ is_active: false }).eq('id', id).eq('hospital_id', ctx.hospitalId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   await logHospitalAudit({

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePlatformAdmin } from "@/lib/platform/auth"
+import { requirePlatformAdminApi } from "@/lib/platform/auth"
 import { signToken } from "@synapse/auth/tokens"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logPlatformEvent } from "../../../platform/_lib/platform-data"
@@ -9,7 +9,11 @@ const IMPERSONATION_TTL = "2h"
 const IMPERSONATION_TTL_MS = 2 * 60 * 60 * 1000
 
 export async function POST(req: NextRequest) {
-  const admin = await requirePlatformAdmin()
+  // Impersonation mints a tenant session: require an explicit mutate capability,
+  // not merely any platform membership (observers/auditors have memberships).
+  const gate = await requirePlatformAdminApi("tenant.manage")
+  if (!gate.ok) return gate.response
+  const admin = gate.profile
 
   const body = await req.json().catch(() => ({}))
   const targetUserId = String(body.targetUserId ?? "").trim()
@@ -34,6 +38,17 @@ export async function POST(req: NextRequest) {
   // Platform admins cannot impersonate other platform admins
   if (profile.role === "platform_admin" || profile.role === "superadmin") {
     return NextResponse.json({ error: "Cannot impersonate a platform admin" }, { status: 403 })
+  }
+
+  // ...nor any control-plane member, whatever their profile role says.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: membership } = await (supabase as any)
+    .from("platform_memberships")
+    .select("user_id")
+    .eq("user_id", profile.id as string)
+    .maybeSingle()
+  if (membership) {
+    return NextResponse.json({ error: "Cannot impersonate a platform control-plane member" }, { status: 403 })
   }
 
   if (!profile.tenant_id) {
