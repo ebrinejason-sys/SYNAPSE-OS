@@ -27,6 +27,77 @@ type ProfileSummaryRow = {
   email: string | null
 }
 
+/**
+ * Profile roles an administrator of a pharmacy tenant may manage. Anything else
+ * (platform_admin, superadmin, hospital/clinical roles, patients) is outside
+ * pharmacy staff scope and is treated as not found.
+ */
+const PHARMACY_STAFF_PROFILE_ROLES = new Set([
+  "pharmacy_admin",
+  "pharmacy_ceo",
+  "pharmacy_owner",
+  "pharmacy_staff",
+  "pharmacy_cashier",
+  "cashier",
+  "pharmacist",
+  "inventory_officer",
+  "pharmacy_store_manager",
+  "store_manager",
+  "finance",
+])
+
+/** pharmacy_user_settings.pharmacy_role values an admin may assign. */
+const ASSIGNABLE_PHARMACY_ROLES = new Set([
+  "pharmacy_admin",
+  "pharmacy_ceo",
+  "pharmacy_staff",
+  "pharmacy_cashier",
+  "pharmacist",
+  "inventory_officer",
+  "pharmacy_store_manager",
+  "finance",
+])
+
+type TenantStaffTarget = {
+  id: string
+  email: string | null
+  full_name: string | null
+  pharmacy_role: string | null
+}
+
+/**
+ * Resolve a management target strictly inside the caller's tenant. The target must
+ * have a pharmacy_user_settings row in this tenant AND a profile whose own tenant_id
+ * is this tenant and whose role is pharmacy staff. Returns null otherwise, and the
+ * caller must answer 404 so other tenants' accounts cannot be probed.
+ */
+async function resolveTenantStaffTarget(tenantId: string, id: unknown): Promise<TenantStaffTarget | null> {
+  if (typeof id !== "string" || id.trim().length === 0) return null
+  const { data: settings } = await db
+    .from("pharmacy_user_settings")
+    .select("profile_id, pharmacy_role")
+    .eq("tenant_id", tenantId)
+    .eq("profile_id", id)
+    .maybeSingle()
+  if (!settings) return null
+  const { data: profile } = await (db as any)
+    .from("profiles")
+    .select("id, email, full_name, role, tenant_id")
+    .eq("id", id)
+    .eq("tenant_id", tenantId)
+    .maybeSingle()
+  if (!profile || profile.id !== id || profile.tenant_id !== tenantId) return null
+  if (!PHARMACY_STAFF_PROFILE_ROLES.has(String(profile.role ?? ""))) return null
+  return {
+    id,
+    email: profile.email ?? null,
+    full_name: profile.full_name ?? null,
+    pharmacy_role: (settings as { pharmacy_role: string | null }).pharmacy_role ?? null,
+  }
+}
+
+const notFound = () => NextResponse.json({ error: "User not found" }, { status: 404 })
+
 // ── GET — list all users for this tenant ──────────────────────────────────────
 
 export async function GET() {
@@ -120,6 +191,16 @@ export async function POST(request: NextRequest) {
       pharmacy_admin: "pharmacy_admin", pharmacy_ceo: "pharmacy_ceo", pharmacy_staff: "pharmacy_staff",
     }
     const pharmacyRole = roleMap[role] ?? "pharmacy_staff"
+
+    if (storeId) {
+      const { data: store } = await db
+        .from("pharmacy_stores")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("id", storeId)
+        .maybeSingle()
+      if (!store) return NextResponse.json({ error: "Store not found" }, { status: 400 })
+    }
 
     // Check email not already taken
     const { data: existingProfile } = await db
@@ -217,7 +298,7 @@ export async function POST(request: NextRequest) {
 
     if (settingsError) {
       console.error("Error inserting user settings:", settingsError)
-      await db.from("profiles").delete().eq("id", newUserId)
+      await db.from("profiles").delete().eq("id", newUserId).eq("tenant_id", tenantId)
       return NextResponse.json({ error: "Failed to create user settings" }, { status: 500 })
     }
 
@@ -270,19 +351,10 @@ export async function DELETE(request: NextRequest) {
     if (!userId) return NextResponse.json({ error: "User ID required" }, { status: 400 })
     if (userId === session.user.id) return NextResponse.json({ error: "Cannot delete your own account" }, { status: 400 })
 
-    const { data: targetSettings, error: targetError } = await db
-      .from("pharmacy_user_settings")
-      .select("pharmacy_role, profile_id")
-      .eq("tenant_id", tenantId)
-      .eq("profile_id", userId)
-      .single()
-
-    if (targetError || !targetSettings) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    const { data: targetProfile } = await db.from("profiles").select("email, full_name").eq("id", userId).maybeSingle()
-    const targetName = targetProfile?.full_name ?? targetProfile?.email ?? userId
+    // Tenant + staff-scope check before any write.
+    const target = await resolveTenantStaffTarget(tenantId, userId)
+    if (!target) return notFound()
+    const targetName = target.full_name ?? target.email ?? userId
 
     await db.from("pharmacy_notifications").delete().eq("tenant_id", tenantId).eq("profile_id", userId)
     await db.from("pharmacy_audit_logs").delete().eq("tenant_id", tenantId).eq("profile_id", userId)
@@ -290,7 +362,11 @@ export async function DELETE(request: NextRequest) {
     await db.from("pharmacy_orders").update({ claimed_by: null, claimed_at: null }).eq("tenant_id", tenantId).eq("claimed_by", userId)
     await db.from("pharmacy_user_settings").delete().eq("tenant_id", tenantId).eq("profile_id", userId)
     await db.from("synapse_sessions").delete().eq("user_id", userId)
-    await db.from("profiles").update({ is_deleted: true, updated_at: new Date().toISOString() }).eq("id", userId)
+    await db
+      .from("profiles")
+      .update({ is_deleted: true, updated_at: new Date().toISOString() })
+      .eq("id", userId)
+      .eq("tenant_id", tenantId)
 
     await db.from("pharmacy_audit_logs").insert({
       tenant_id: tenantId,
@@ -327,17 +403,19 @@ export async function PATCH(request: NextRequest) {
       pharmacy_admin: "pharmacy_admin", pharmacy_ceo: "pharmacy_ceo", pharmacy_staff: "pharmacy_staff",
     }
     const pharmacyRole = role ? (roleMap[role] ?? role) : undefined
+    if (pharmacyRole && !ASSIGNABLE_PHARMACY_ROLES.has(pharmacyRole)) {
+      return NextResponse.json({ error: "Invalid role" }, { status: 400 })
+    }
+
+    // Tenant + staff-scope check before ANY write (including the self-block audit).
+    // Accounts in other tenants, platform admins and non-pharmacy roles are "not found".
+    const target = await resolveTenantStaffTarget(tenantId, id)
+    if (!target) return notFound()
 
     // Server-side self-protection: an admin may not deactivate their own account
     // or change their own pharmacy role (either can lock the pharmacy out of administration).
     if (id === session.user.id) {
-      const { data: selfSettings } = await db
-        .from("pharmacy_user_settings")
-        .select("pharmacy_role")
-        .eq("tenant_id", tenantId)
-        .eq("profile_id", id)
-        .maybeSingle()
-      const changesOwnRole = Boolean(pharmacyRole) && pharmacyRole !== (selfSettings?.pharmacy_role ?? null)
+      const changesOwnRole = Boolean(pharmacyRole) && pharmacyRole !== target.pharmacy_role
       if (isActive === false || changesOwnRole) {
         await db.from("pharmacy_audit_logs").insert({
           tenant_id: tenantId,
@@ -368,6 +446,7 @@ export async function PATCH(request: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq("id", id)
+        .eq("tenant_id", tenantId)
       await db
         .from("pharmacy_user_settings")
         .update({ must_change_password: false, updated_at: new Date().toISOString() })
@@ -386,13 +465,13 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (resetPassword) {
-      const { data: targetProfile } = await db.from("profiles").select("email, full_name").eq("id", id).maybeSingle()
-      if (!targetProfile) return NextResponse.json({ error: "User not found" }, { status: 404 })
+      const targetProfile = target
+      if (!targetProfile.email) return notFound()
 
       const newPassword = generatePassword()
       const newHash = await hashPassword(newPassword)
 
-      await db.from("profiles").update({ password_hash: newHash, must_change_password: true, updated_at: new Date().toISOString() }).eq("id", id)
+      await db.from("profiles").update({ password_hash: newHash, must_change_password: true, updated_at: new Date().toISOString() }).eq("id", id).eq("tenant_id", tenantId)
       await db.from("pharmacy_user_settings").update({ must_change_password: true, updated_at: new Date().toISOString() }).eq("tenant_id", tenantId).eq("profile_id", id)
       await db.from("synapse_sessions").delete().eq("user_id", id)
 
@@ -454,7 +533,11 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (name) {
-      await db.from("profiles").update({ full_name: name, updated_at: new Date().toISOString() }).eq("id", id)
+      await db
+        .from("profiles")
+        .update({ full_name: name, updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("tenant_id", tenantId)
     }
 
     await db.from("pharmacy_audit_logs").insert({
