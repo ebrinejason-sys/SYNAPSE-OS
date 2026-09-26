@@ -2,14 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "../../../lib/supabase/server";
-import { requirePlatformAdmin } from "../../../lib/platform/auth";
+import { requirePlatformAccess } from "../../../lib/platform/auth";
 import { provisionVercelProjectDomain, verifyVercelProjectDomain } from "../../../lib/vercel-domains";
 import { sendPharmacyCredentialsEmail } from "../../../lib/resend";
 import { hashPassword } from "@synapse/auth";
 import { logPlatformEvent } from "../_lib/platform-data";
 
 export async function updatePharmacyDomain(formData: FormData) {
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("tenant.manage");
   const tenantId = String(formData.get("tenant_id") ?? "");
   const customDomain = String(formData.get("custom_domain") ?? "").trim().toLowerCase();
   if (!tenantId || !customDomain) return;
@@ -44,7 +44,7 @@ export async function updatePharmacyDomain(formData: FormData) {
 }
 
 export async function removePharmacyDomain(formData: FormData) {
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("tenant.manage");
   const tenantId = String(formData.get("tenant_id") ?? "");
   if (!tenantId) return;
 
@@ -72,7 +72,7 @@ export async function removePharmacyDomain(formData: FormData) {
 }
 
 export async function verifyPharmacyDomain(formData: FormData) {
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("tenant.manage");
   const tenantId = String(formData.get("tenant_id") ?? "");
   const customDomain = String(formData.get("custom_domain") ?? "").trim().toLowerCase();
   if (!tenantId || !customDomain) return;
@@ -106,7 +106,7 @@ export async function verifyPharmacyDomain(formData: FormData) {
 }
 
 export async function markMigrationReady(formData: FormData) {
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("tenant.manage");
   const tenantId = String(formData.get("tenant_id") ?? "");
   const source = String(formData.get("migration_source") ?? "csv_excel");
   if (!tenantId) return;
@@ -128,7 +128,7 @@ export async function markMigrationReady(formData: FormData) {
 }
 
 export async function forceInventorySync(formData: FormData) {
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("tenant.manage");
   const tenantId = String(formData.get("tenant_id") ?? "");
   if (!tenantId) return;
 
@@ -147,7 +147,7 @@ export async function forceInventorySync(formData: FormData) {
 }
 
 export async function updatePharmacyDetails(formData: FormData) {
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("tenant.manage");
   const tenantId = String(formData.get("tenant_id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   const district = String(formData.get("district") ?? "").trim();
@@ -187,7 +187,7 @@ export async function updatePharmacyDetails(formData: FormData) {
 }
 
 export async function setPharmacyOperationalStatus(formData: FormData) {
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("tenant.manage");
   const tenantId = String(formData.get("tenant_id") ?? "");
   const nextStatus = String(formData.get("status") ?? "");
   const reason = String(formData.get("reason") ?? "").trim();
@@ -218,7 +218,7 @@ export async function setPharmacyOperationalStatus(formData: FormData) {
 }
 
 export async function resendPharmacySetupInvite(formData: FormData) {
-  const actor = await requirePlatformAdmin();
+  const actor = await requirePlatformAccess("tenant.manage");
   const tenantId = String(formData.get("tenant_id") ?? "");
   if (!tenantId) return;
 
@@ -276,7 +276,7 @@ export async function resendPharmacySetupInvite(formData: FormData) {
 }
 
 export async function deletePharmacy(formData: FormData) {
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("tenant.manage");
   const tenantId = String(formData.get("tenant_id") ?? "");
   if (!tenantId) return;
 

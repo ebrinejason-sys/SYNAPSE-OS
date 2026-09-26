@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "../../../lib/supabase/server";
-import { requirePlatformAdmin } from "../../../lib/platform/auth";
+import { requirePlatformAccess } from "../../../lib/platform/auth";
 
 export async function updateApplicationStatus(formData: FormData) {
-  await requirePlatformAdmin();
+  await requirePlatformAccess("platform.crm.manage");
   const id = String(formData.get("id") ?? "");
   const status = String(formData.get("status") ?? "new");
   if (!id) return;
@@ -17,7 +17,7 @@ export async function updateApplicationStatus(formData: FormData) {
 }
 
 export async function updateLeadStatus(formData: FormData) {
-  await requirePlatformAdmin();
+  await requirePlatformAccess("platform.crm.manage");
   const id = String(formData.get("id") ?? "");
   const status = String(formData.get("status") ?? "new");
   if (!id) return;

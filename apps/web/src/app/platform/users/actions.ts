@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requirePlatformAdmin } from '@/lib/platform/auth'
+import { requirePlatformAccess } from '@/lib/platform/auth'
 import { sendUserPasswordReset } from '@/lib/auth/password-reset.server'
 import { logPlatformEvent } from '../_lib/platform-data'
 import { supabaseAdmin } from '@synapse/db/admin'
@@ -103,7 +103,7 @@ async function guardIdentity(
  * Does not delete identity or memberships.
  */
 export async function activateUserAccount(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('user.reactivate')
   const userId = String(formData.get('user_id') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
 
@@ -145,7 +145,7 @@ export async function activateUserAccount(formData: FormData) {
 }
 
 export async function suspendUserAccount(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('user.suspend')
   const userId = String(formData.get('user_id') ?? '').trim()
   const reason = String(formData.get('reason') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
@@ -185,7 +185,7 @@ export async function deactivateUserAccount(formData: FormData) {
 }
 
 export async function reactivateUserAccount(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('user.reactivate')
   const userId = String(formData.get('user_id') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
   const guard = await guardIdentity(admin.id, userId, 'reactivate')
@@ -215,7 +215,7 @@ export async function reactivateUserAccount(formData: FormData) {
 }
 
 export async function restoreUserAccount(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('user.reactivate')
   const userId = String(formData.get('user_id') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
   const guard = await guardIdentity(admin.id, userId, 'restore')
@@ -245,7 +245,7 @@ export async function restoreUserAccount(formData: FormData) {
 }
 
 export async function archiveUserAccount(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('user.suspend')
   const userId = String(formData.get('user_id') ?? '').trim()
   const reason = String(formData.get('reason') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
@@ -274,7 +274,7 @@ export async function archiveUserAccount(formData: FormData) {
 }
 
 export async function permanentlyDeleteIdentity(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('tenant.manage')
   const userId = String(formData.get('user_id') ?? '').trim()
   const typed = String(formData.get('typed_email') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
@@ -298,7 +298,7 @@ export async function permanentlyDeleteIdentity(formData: FormData) {
 }
 
 export async function revokeUserSessions(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('user.session.revoke')
   const userId = String(formData.get('user_id') ?? '').trim()
   if (!userId) return { ok: false as const, error: 'User id required.' }
 
@@ -319,7 +319,7 @@ export async function revokeUserSessions(formData: FormData) {
 }
 
 export async function removeFacilityMembership(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('tenant.manage')
   const userId = String(formData.get('user_id') ?? '').trim()
   const tenantId = String(formData.get('tenant_id') ?? '').trim()
   if (!userId || !tenantId) return { ok: false as const, error: 'User and facility required.' }
@@ -349,7 +349,7 @@ export async function removeFacilityMembership(formData: FormData) {
 }
 
 export async function sendPasswordResetForUser(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('user.password_reset')
   const userId = String(formData.get('user_id') ?? '').trim()
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
 

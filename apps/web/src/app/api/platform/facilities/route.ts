@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requirePlatformAdminApi()
+  const auth = await requirePlatformAdminApi("tenant.manage")
   if (!auth.ok) return auth.response
   const actor = auth.profile
   const body = await request.json().catch(() => ({}))

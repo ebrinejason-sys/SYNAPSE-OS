@@ -2,7 +2,7 @@
 
 import { supabaseAdmin } from '@synapse/db/admin'
 import { hashPassword, recordAndSendTrialReceipt } from '@synapse/auth'
-import { requirePlatformAdmin } from '../../../../lib/platform/auth'
+import { requirePlatformAccess } from '../../../../lib/platform/auth'
 import { Resend } from 'resend'
 
 export interface ProvisionInput {
@@ -27,7 +27,7 @@ export interface ProvisionResult {
 }
 
 export async function provisionTenant(input: ProvisionInput): Promise<ProvisionResult> {
-  await requirePlatformAdmin()
+  await requirePlatformAccess("tenant.manage")
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
@@ -139,7 +139,7 @@ export interface PharmacyProvisionResult {
 }
 
 export async function provisionPharmacy(input: PharmacyProvisionInput): Promise<PharmacyProvisionResult> {
-  await requirePlatformAdmin()
+  await requirePlatformAccess("tenant.manage")
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
