@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, createAndSendOTP } from '@synapse/auth'
+import { isAccountActivated, createAndSendOTP } from '@synapse/auth'
 import { createServiceClient } from '../../../../../lib/supabase/server'
 
 async function sendSms(to: string, body: string): Promise<void> {
@@ -58,11 +58,11 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // Pre-proof endpoint: never reveal account state before the OTP is proven.
+  // Non-active accounts get the normal success shape and no SMS is sent;
+  // phone/verify returns the state-specific response after proof.
   if (!isAccountActivated(profile)) {
-    return NextResponse.json(
-      { error: ACCOUNT_ACTIVATION_ERROR },
-      { status: 403 }
-    )
+    return NextResponse.json({ ok: true })
   }
 
   let otp: string

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyOTP, signToken, createSession } from '@synapse/auth'
+import { accountStateResponse, classifyAccountState, verifyOTP, signToken, createSession } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
 
@@ -27,14 +27,22 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { data: profile, error: profileErr } = await supabaseAdmin
+  // Generated DB types lag the profiles columns used here; same cast as auth/login/route.ts.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: profile, error: profileErr } = await (supabaseAdmin as any)
     .from('profiles')
-    .select('id, role, tenant_id, synapse_id, must_change_password, onboarding_complete')
+    .select('id, role, tenant_id, synapse_id, must_change_password, onboarding_complete, verification_status, email_verified_at, is_deleted')
     .eq('email', email)
     .single()
 
   if (profileErr || !profile) {
     return NextResponse.json({ error: 'Account not found.' }, { status: 404 })
+  }
+
+  // OTP proven above: block archived/suspended/unactivated identities before a session is issued.
+  const blockedState = accountStateResponse(classifyAccountState(profile))
+  if (blockedState) {
+    return NextResponse.json(blockedState.body, { status: blockedState.status })
   }
 
   const token = await signToken({

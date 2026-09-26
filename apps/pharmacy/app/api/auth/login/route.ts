@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  ACCOUNT_ACTIVATION_ERROR,
-  isAccountActivated,
+  accountStateResponse,
+  classifyAccountState,
   verifyPassword,
   createAndSendOTP,
   signToken,
@@ -180,8 +180,10 @@ export async function POST(req: NextRequest) {
     .update({ login_attempts: 0, locked_until: null as unknown as string })
     .eq('id', profile.id)
 
-  if (!isAccountActivated(profile)) {
-    return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
+  // Credential proven above: state-specific responses are safe to return now.
+  const blockedState = accountStateResponse(classifyAccountState({ ...profile, locked_until: null }))
+  if (blockedState) {
+    return NextResponse.json(blockedState.body, { status: blockedState.status })
   }
 
   const { data: settings } = await db
