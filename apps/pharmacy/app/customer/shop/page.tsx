@@ -320,6 +320,11 @@ export default function CustomerShopPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
+                  void fetch("/api/customer/auth", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "logout" }),
+                  }).catch(() => undefined)
                   localStorage.removeItem("customerId")
                   localStorage.removeItem("customerCart")
                   router.push("/customer/login")
