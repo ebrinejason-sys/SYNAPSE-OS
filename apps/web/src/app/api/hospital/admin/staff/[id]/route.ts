@@ -37,6 +37,28 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  // Server-side self-protection: an admin may not deactivate their own staff
+  // assignments or change their own role (either can lock the facility out of
+  // administration). Department changes on self remain allowed.
+  const changesOwnRole =
+    parsed.data.role !== undefined && String(parsed.data.role) !== String(existing.role ?? '')
+  if (id === ctx.userId && (parsed.data.is_active === false || changesOwnRole)) {
+    await logHospitalAudit({
+      ctx,
+      action: 'SELF_LIFECYCLE_BLOCKED',
+      tableName: 'profiles',
+      recordId: id,
+      newValue: {
+        attempted: parsed.data.is_active === false ? 'deactivate' : 'role_change',
+        ...(changesOwnRole ? { role: parsed.data.role } : {}),
+      },
+    })
+    return NextResponse.json(
+      { error: 'You cannot deactivate or change the role of your own account. Ask another administrator.' },
+      { status: 403 },
+    )
+  }
+
   if (parsed.data.department_id) {
     const { data: department } = await db
       .from('departments')

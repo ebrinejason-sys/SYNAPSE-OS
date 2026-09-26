@@ -322,6 +322,38 @@ export async function PATCH(request: NextRequest) {
       await request.json()
     if (!id) return NextResponse.json({ error: "User ID required" }, { status: 400 })
 
+    const roleMap: Record<string, string> = {
+      ADMIN: "pharmacy_admin", CEO: "pharmacy_ceo", STAFF: "pharmacy_staff",
+      pharmacy_admin: "pharmacy_admin", pharmacy_ceo: "pharmacy_ceo", pharmacy_staff: "pharmacy_staff",
+    }
+    const pharmacyRole = role ? (roleMap[role] ?? role) : undefined
+
+    // Server-side self-protection: an admin may not deactivate their own account
+    // or change their own pharmacy role (either can lock the pharmacy out of administration).
+    if (id === session.user.id) {
+      const { data: selfSettings } = await db
+        .from("pharmacy_user_settings")
+        .select("pharmacy_role")
+        .eq("tenant_id", tenantId)
+        .eq("profile_id", id)
+        .maybeSingle()
+      const changesOwnRole = Boolean(pharmacyRole) && pharmacyRole !== (selfSettings?.pharmacy_role ?? null)
+      if (isActive === false || changesOwnRole) {
+        await db.from("pharmacy_audit_logs").insert({
+          tenant_id: tenantId,
+          profile_id: session.user.id,
+          action: "SELF_LIFECYCLE_BLOCKED",
+          entity: "USER",
+          entity_id: id,
+          details: isActive === false ? "Blocked self-deactivation" : "Blocked self role change",
+        })
+        return NextResponse.json(
+          { error: "You cannot deactivate or change the role of your own account. Ask another administrator." },
+          { status: 403 },
+        )
+      }
+    }
+
     if (typeof setPassword === "string" && setPassword.trim().length > 0) {
       const strength = validatePasswordStrength(setPassword.trim())
       if (!strength.valid) {
@@ -401,12 +433,6 @@ export async function PATCH(request: NextRequest) {
         .maybeSingle()
       if (existingUsername) return NextResponse.json({ error: "Username is already taken" }, { status: 400 })
     }
-
-    const roleMap: Record<string, string> = {
-      ADMIN: "pharmacy_admin", CEO: "pharmacy_ceo", STAFF: "pharmacy_staff",
-      pharmacy_admin: "pharmacy_admin", pharmacy_ceo: "pharmacy_ceo", pharmacy_staff: "pharmacy_staff",
-    }
-    const pharmacyRole = role ? (roleMap[role] ?? role) : undefined
 
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (username !== undefined) updateData.username = username ? username.toLowerCase() : null
