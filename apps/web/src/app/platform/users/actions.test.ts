@@ -24,9 +24,11 @@ vi.mock('@synapse/db/admin', () => ({ supabaseAdmin: { from: (t: string) => mock
 
 function chain(table: string) {
   const q: any = {
-    then: (resolve: any) => Promise.resolve({ data: null, error: null, count: 2 }).then(resolve),
+    // Two platform admins exist; no platform memberships (so nobody is suspended).
+    then: (resolve: any) =>
+      Promise.resolve({ data: table === 'profiles' ? [{ id: 'admin-a' }, { id: 'admin-b' }] : null, error: null, count: 2 }).then(resolve),
   }
-  for (const m of ['select', 'eq', 'in', 'is']) q[m] = vi.fn(() => q)
+  for (const m of ['select', 'eq', 'in', 'is', 'not', 'order', 'limit']) q[m] = vi.fn(() => q)
   q.maybeSingle = vi.fn(async () => ({ data: mocks.targetProfile, error: null }))
   q.update = vi.fn((values: unknown) => {
     mocks.updates.push({ table, values })

@@ -36,6 +36,8 @@ export type AccountStateProfile = {
   is_deleted?: boolean | null
   locked_until?: string | null
   must_change_password?: boolean | null
+  /** Account suspended via a SUSPENDED platform_memberships row (see account-suspension.ts). */
+  membership_suspended?: boolean | null
 }
 
 const ARCHIVED_STATUSES = new Set(['deleted'])
@@ -54,7 +56,7 @@ export function classifyAccountState(
   const status = String(profile.verification_status ?? '').toLowerCase()
 
   if (profile.is_deleted || ARCHIVED_STATUSES.has(status)) return 'archived'
-  if (SUSPENDED_STATUSES.has(status)) return 'suspended'
+  if (profile.membership_suspended || SUSPENDED_STATUSES.has(status)) return 'suspended'
   if (!profile.email_verified_at) return 'unverified'
   if (profile.locked_until && new Date(profile.locked_until) > now) return 'locked'
   if (profile.must_change_password) return 'password_change_required'

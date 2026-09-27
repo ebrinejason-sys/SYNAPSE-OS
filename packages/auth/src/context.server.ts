@@ -79,7 +79,19 @@ export async function getContext(
     .single()
 
   if (profileError || !profile) redirect(redirectTo)
-  if (!isAccountActivated(profile)) redirect(redirectTo)
+
+  // One membership read serves both the account-suspension marker (a SUSPENDED
+  // platform_memberships row, see account-suspension.ts) and the platform scope below.
+  const { data: membershipRows, error: membershipError } = await (supabaseAdmin as any)
+    .from('platform_memberships')
+    .select('platform_role, status, expires_at')
+    .eq('user_id', profile.id as string)
+    .in('status', ['ACTIVE', 'SUSPENDED'])
+  if (membershipError) redirect(redirectTo) // fail closed
+  const memberships = (membershipRows ?? []) as Array<{ platform_role: string; status: string; expires_at: string | null }>
+  const membershipSuspended = memberships.some((m) => m.status === 'SUSPENDED')
+
+  if (!isAccountActivated({ ...profile, membership_suspended: membershipSuspended })) redirect(redirectTo)
 
   await assertSessionMatchesHost({
     role: profile.role as string,
@@ -106,12 +118,7 @@ export async function getContext(
   const impersonatorId = tokenPayload.impersonator_id ?? null
 
   // Platform admins and control-plane members are not scoped to a tenant
-  const { data: platformMembership } = await (supabaseAdmin as any)
-    .from('platform_memberships')
-    .select('platform_role, status, expires_at')
-    .eq('user_id', profile.id as string)
-    .eq('status', 'ACTIVE')
-    .maybeSingle()
+  const platformMembership = memberships.find((m) => m.status === 'ACTIVE') ?? null
 
   const platformMembershipActive =
     platformMembership &&

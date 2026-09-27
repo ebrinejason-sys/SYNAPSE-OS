@@ -1,7 +1,7 @@
 /**
  * Minimal in-memory PostgREST/supabase-js adapter for route and server-action tests.
  * Supports the builder subset used by the platform user lifecycle code:
- * select (count/head), eq, neq, in, is, not(col,'is',null), or(), ilike, order,
+ * select (count/head), eq, neq, in, is, not(col,'is'|'in',v), or(), ilike, order,
  * range, limit, single, maybeSingle, insert, update, delete, upsert.
  * `or()` understands `col.op.value` terms joined by commas with ops eq, ilike,
  * is, in.(a,b) and not.in.(a,b), which is what the user directory emits.
@@ -72,10 +72,19 @@ export function createMemoryDb(seed: Record<string, Row[]> = {}) {
       },
       eq(c: string, v: unknown) { preds.push(r => r[c] === v); return q },
       neq(c: string, v: unknown) { preds.push(r => r[c] !== v); return q },
+      gt(c: string, v: any) { preds.push(r => r[c] != null && r[c] > v); return q },
+      gte(c: string, v: any) { preds.push(r => r[c] != null && r[c] >= v); return q },
+      lt(c: string, v: any) { preds.push(r => r[c] != null && r[c] < v); return q },
+      lte(c: string, v: any) { preds.push(r => r[c] != null && r[c] <= v); return q },
       in(c: string, v: unknown[]) { preds.push(r => v.includes(r[c])); return q },
       is(c: string, v: unknown) { preds.push(r => (r[c] ?? null) === v); return q },
       not(c: string, op: string, v: unknown) {
-        if (op !== 'is') throw new Error('memory-postgrest: only not(col, "is", value)')
+        if (op === 'in') {
+          // PostgREST form: not('col', 'in', '(a,b)'). SQL NOT IN excludes NULLs.
+          const list = String(v).replace(/^\(|\)$/g, '').split(',').filter(Boolean)
+          preds.push(r => r[c] != null && !list.includes(String(r[c]))); return q
+        }
+        if (op !== 'is') throw new Error('memory-postgrest: only not(col, "is"|"in", value)')
         preds.push(r => (r[c] ?? null) !== v); return q
       },
       ilike(c: string, pattern: string) { const re = likeToRegExp(pattern); preds.push(r => r[c] != null && re.test(String(r[c]))); return q },

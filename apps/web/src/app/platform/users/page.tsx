@@ -131,10 +131,10 @@ export default async function PlatformUsersPage({
                     <td className="px-4 py-3 text-slate-400">{user.email ?? "No email"}</td>
                     <td className="px-4 py-3 text-slate-300">{user.role ?? "unknown"}</td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-full border px-2 py-0.5 text-xs ${badgeClass(user.is_deleted ? "suspended" : user.verification_status)}`}>
+                      <span className={`rounded-full border px-2 py-0.5 text-xs ${badgeClass(user.is_deleted || user.account_suspended ? "suspended" : user.verification_status)}`}>
                         {user.is_deleted
                           ? "archived"
-                          : suspendedSet.has((user.verification_status ?? "").toLowerCase())
+                          : user.account_suspended || suspendedSet.has((user.verification_status ?? "").toLowerCase())
                             ? "suspended"
                             : user.email_verified_at
                               ? (user.verification_status ?? "verified")
@@ -150,7 +150,7 @@ export default async function PlatformUsersPage({
                           role={user.role ?? null}
                           emailVerified={Boolean(user.email_verified_at)}
                           isDeleted={Boolean(user.is_deleted)}
-                          verificationStatus={user.verification_status}
+                          verificationStatus={user.account_suspended ? "suspended" : user.verification_status}
                           isSelf={user.id === admin.id}
                         />
                       ) : null}

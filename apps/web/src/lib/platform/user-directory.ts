@@ -9,6 +9,8 @@
  * Callers must enforce RBAC first (`user.read`); this module only builds the query.
  */
 
+import { suspendedUserIds } from "@synapse/auth/account-suspension"
+
 export const USER_DIRECTORY_COLUMNS =
   "id, full_name, email, role, verification_status, email_verified_at, synapse_id, is_deleted, created_at, last_sign_in_at"
 
@@ -36,6 +38,8 @@ export type UserDirectoryRow = {
   is_deleted?: boolean | null
   created_at?: string | null
   last_sign_in_at?: string | null
+  /** True when the account is suspended via a SUSPENDED platform_memberships row. */
+  account_suspended?: boolean
 }
 
 export type UserDirectoryParams = {
@@ -102,7 +106,12 @@ type Query = any
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = { from(table: string): any }
 
-export function applyDirectoryFilters(query: Query, p: NormalizedDirectoryParams): Query {
+/**
+ * `suspendedIds` are users with a SUSPENDED platform membership (the account-suspension
+ * marker; profiles.verification_status cannot hold 'suspended'). Legacy verification
+ * values are still honoured so older rows keep classifying the same way.
+ */
+export function applyDirectoryFilters(query: Query, p: NormalizedDirectoryParams, suspendedIds: readonly string[] = []): Query {
   // is_deleted is nullable in production; "not archived" is therefore `is_deleted IS NOT TRUE`.
   let q = query
   if (p.q) {
@@ -118,7 +127,10 @@ export function applyDirectoryFilters(query: Query, p: NormalizedDirectoryParams
       q = q.or(`is_deleted.eq.true,verification_status.in.${inList(ARCHIVED_VERIFICATION_STATUSES)}`)
       break
     case "suspended":
-      q = q.not("is_deleted", "is", true).in("verification_status", [...SUSPENDED_VERIFICATION_STATUSES])
+      q = q.not("is_deleted", "is", true)
+      q = suspendedIds.length > 0
+        ? q.or(`verification_status.in.${inList(SUSPENDED_VERIFICATION_STATUSES)},id.in.${inList(suspendedIds)}`)
+        : q.in("verification_status", [...SUSPENDED_VERIFICATION_STATUSES])
       break
     case "pending":
       // Invited / not yet activated (email never verified), and not archived.
@@ -134,6 +146,7 @@ export function applyDirectoryFilters(query: Query, p: NormalizedDirectoryParams
             ...ARCHIVED_VERIFICATION_STATUSES,
           ])}`,
         )
+      if (suspendedIds.length > 0) q = q.not("id", "in", inList(suspendedIds))
       break
     default:
       break
@@ -145,18 +158,21 @@ export async function searchPlatformUsers(db: Db, params: UserDirectoryParams = 
   const p = normalizeDirectoryParams(params)
   const from = (p.page - 1) * p.pageSize
   const to = from + p.pageSize - 1
-  let query = db.from("profiles").select(USER_DIRECTORY_COLUMNS, { count: "exact" })
-  query = applyDirectoryFilters(query, p)
-  query = query.order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, to)
-
   try {
+    const suspendedIds = p.status === "suspended" || p.status === "active" ? await suspendedUserIds(db) : []
+    let query = db.from("profiles").select(USER_DIRECTORY_COLUMNS, { count: "exact" })
+    query = applyDirectoryFilters(query, p, suspendedIds)
+    query = query.order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, to)
     const { data, count, error } = await query
     if (error) {
       return { rows: [], total: 0, page: p.page, pageSize: p.pageSize, pageCount: 0, error: String(error.message ?? "Query failed"), params: p }
     }
     const total = typeof count === "number" ? count : (data ?? []).length
+    const pageRows = (data ?? []) as UserDirectoryRow[]
+    const pageIds = pageRows.map((r) => r.id).filter((id): id is string => typeof id === "string")
+    const suspendedOnPage = new Set(await suspendedUserIds(db, pageIds))
     return {
-      rows: (data ?? []) as UserDirectoryRow[],
+      rows: pageRows.map((r) => ({ ...r, account_suspended: Boolean(r.id && suspendedOnPage.has(r.id)) })),
       total,
       page: p.page,
       pageSize: p.pageSize,

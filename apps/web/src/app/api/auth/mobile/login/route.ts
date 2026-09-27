@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { accountStateResponse, classifyAccountState, verifyPassword, createAndSendOTP } from '@synapse/auth'
+import { accountStateResponse, classifyAccountState, verifyPassword, createAndSendOTP, withMembershipSuspension } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { sendOtpEmail } from '@/lib/resend'
 
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   await db.from('profiles').update({ login_attempts: 0, locked_until: null }).eq('id', profile.id)
 
   // Credential proven above: state-specific responses are safe to return now.
-  const blockedState = accountStateResponse(classifyAccountState({ ...profile, locked_until: null }))
+  const blockedState = accountStateResponse(classifyAccountState({ ...(await withMembershipSuspension(profile)), locked_until: null }))
   if (blockedState) {
     return NextResponse.json(blockedState.body, { status: blockedState.status })
   }

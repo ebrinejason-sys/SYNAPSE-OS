@@ -5,6 +5,7 @@
 import { createHash } from 'node:crypto'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_DURATION_DAYS } from '@synapse/config/constants'
+import { AccountSuspendedError, isAccountSuspended } from './account-suspension'
 
 export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
@@ -17,6 +18,10 @@ export async function createSession(params: {
   ip?: string
   userAgent?: string
 }): Promise<void> {
+  // Backstop for every login path (web, pharmacy, mobile, MFA, OTP, impersonation):
+  // a suspended account never gets a new session, even if a route forgot its own gate.
+  if (await isAccountSuspended(params.userId)) throw new AccountSuspendedError()
+
   const tokenHash = hashToken(params.token)
   const expiresAt = new Date()
   expiresAt.setDate(expiresAt.getDate() + SESSION_DURATION_DAYS)

@@ -59,6 +59,7 @@ describe.skipIf(!enabled)('user directory against local PostgREST', () => {
 
   afterAll(async () => {
     if (!enabled) return
+    // platform_memberships rows cascade with the profile (FK ON DELETE CASCADE).
     await db.from('profiles').delete().like('email', `${tag}-%`)
   })
 
@@ -88,6 +89,35 @@ describe.skipIf(!enabled)('user directory against local PostgREST', () => {
     expect(active.rows.some(r => r.id === TARGET)).toBe(false)
     const role = await searchPlatformUsers(db, { role: 'platform_admin', q: tag })
     expect(role.rows.map(r => r.id)).toEqual([TARGET])
+  })
+
+  it('suspension: verification_status cannot hold it (CHECK), a SUSPENDED membership marker can, and the filters follow it', async () => {
+    const victim = idFor(0)
+    // The old Suspend write violates profiles_verification_status_check.
+    const legacy = await db.from('profiles').update({ verification_status: 'suspended' }).eq('id', victim)
+    expect(legacy.error?.message ?? '').toMatch(/verification_status_check/)
+
+    // Exactly the marker row suspendUserAccount inserts for a user with no platform membership.
+    const marker = await db.from('platform_memberships').insert({
+      user_id: victim, platform_role: 'READ_ONLY_OBSERVER', status: 'SUSPENDED', mfa_required: false,
+      notes: 'Account suspension marker. Grants no access; removed on reactivation.',
+      metadata: { account_suspension: { marker: true, previous_status: null, reason: 'local it' } },
+    }).select('id').single()
+    expect(marker.error).toBeNull()
+    try {
+      const suspended = await searchPlatformUsers(db, { status: 'suspended', q: tag })
+      expect(suspended.error).toBeNull()
+      expect(suspended.rows.map(r => r.id)).toEqual([victim])
+      expect(suspended.rows[0].account_suspended).toBe(true)
+      const active = await searchPlatformUsers(db, { status: 'active', q: tag, pageSize: 100 })
+      expect(active.error).toBeNull()
+      expect(active.total).toBe(229)
+      expect(active.rows.some(r => r.id === victim)).toBe(false)
+    } finally {
+      await db.from('platform_memberships').delete().eq('id', marker.data!.id)
+    }
+    expect((await searchPlatformUsers(db, { status: 'suspended', q: tag })).total).toBe(0)
+    expect((await searchPlatformUsers(db, { status: 'active', q: tag, pageSize: 100 })).total).toBe(230)
   })
 
   it('search input cannot inject extra PostgREST filters', async () => {

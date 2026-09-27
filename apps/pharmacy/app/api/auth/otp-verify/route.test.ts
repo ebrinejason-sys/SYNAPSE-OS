@@ -7,6 +7,7 @@ import {
 } from '../../../../../../packages/auth/src/activation'
 
 const mocks = vi.hoisted(() => ({
+  suspendedIds: new Set<string>(),
   profile: null as Record<string, unknown> | null,
   verifyOTP: vi.fn(),
   createSession: vi.fn(),
@@ -17,7 +18,7 @@ vi.mock('@synapse/auth', () => ({
   classifyAccountState,
   verifyOTP: (...a: unknown[]) => mocks.verifyOTP(...a),
   signToken: vi.fn(async () => 'signed'),
-  createSession: (...a: unknown[]) => mocks.createSession(...a),
+  createSession: (...a: unknown[]) => mocks.createSession(...a),  withMembershipSuspension: async (p: { id?: unknown }) => ({ ...p, membership_suspended: mocks.suspendedIds.has(String(p.id)) }),
 }))
 vi.mock('@synapse/config/constants', () => ({ SESSION_COOKIE: 'synapse_session', SESSION_DURATION_DAYS: 1 }))
 vi.mock('@synapse/db/admin', () => ({
@@ -49,6 +50,7 @@ describe('pharmacy POST /api/auth/otp-verify account-state gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.verifyOTP.mockResolvedValue({ valid: true })
+    mocks.suspendedIds = new Set()
   })
 
   it('invalid OTP never reveals account state', async () => {
@@ -68,6 +70,15 @@ describe('pharmacy POST /api/auth/otp-verify account-state gate', () => {
     const r = await verify()
     expect(r.status).toBe(403)
     expect(r.body.error).toBe(message)
+    expect(mocks.createSession).not.toHaveBeenCalled()
+  })
+
+  it('membership-suspended identity (verification_status verified) is refused a session after OTP proof', async () => {
+    mocks.profile = { ...base }
+    mocks.suspendedIds = new Set(['u'])
+    const r = await verify()
+    expect(r.status).toBe(403)
+    expect(r.body.error).toBe(ACCOUNT_UNAVAILABLE_ERROR)
     expect(mocks.createSession).not.toHaveBeenCalled()
   })
 

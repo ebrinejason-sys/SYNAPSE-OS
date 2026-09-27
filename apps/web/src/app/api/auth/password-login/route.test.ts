@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   verifyPassword: vi.fn(),
   createAndSendOTP: vi.fn(),
   sendOtpEmail: vi.fn(),
+  suspendedIds: new Set<string>(),
 }))
 
 vi.mock('@synapse/auth', () => ({
@@ -22,6 +23,8 @@ vi.mock('@synapse/auth', () => ({
   verifyPassword: (...a: unknown[]) => mocks.verifyPassword(...a),
   createAndSendOTP: (...a: unknown[]) => mocks.createAndSendOTP(...a),
   shouldSkipOtpEmailDelivery: () => false,
+  // Account suspension is a SUSPENDED platform_memberships row (see @synapse/auth/account-suspension).
+  withMembershipSuspension: async (p: { id?: unknown }) => ({ ...p, membership_suspended: mocks.suspendedIds.has(String(p.id)) }),
 }))
 vi.mock('@synapse/auth/mfa', () => ({
   signMfaPendingToken: vi.fn(async () => 'pending'),
@@ -74,6 +77,7 @@ describe('POST /api/auth/password-login account-state matrix', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.profiles = [{ ...base }]
+    mocks.suspendedIds = new Set()
     mocks.verifyPassword.mockImplementation(async (pw: string) => pw === 'correct-password')
     mocks.createAndSendOTP.mockResolvedValue('123456')
     mocks.sendOtpEmail.mockResolvedValue(undefined)
@@ -109,6 +113,20 @@ describe('POST /api/auth/password-login account-state matrix', () => {
     expect(r.status).toBe(403)
     expect(r.body.code).toBe('ACCOUNT_UNAVAILABLE')
     expect(r.body.error).not.toBe(ACCOUNT_ACTIVATION_ERROR)
+  })
+
+  it('membership-suspended account (verification_status still verified) gets the unavailable message', async () => {
+    mocks.suspendedIds = new Set(['user-1'])
+    const r = await login()
+    expect(r.status).toBe(403)
+    expect(r.body).toEqual({ error: ACCOUNT_UNAVAILABLE_ERROR, code: 'ACCOUNT_UNAVAILABLE' })
+    expect(mocks.createAndSendOTP).not.toHaveBeenCalled()
+  })
+
+  it('wrong password on a membership-suspended account stays generic', async () => {
+    mocks.suspendedIds = new Set(['user-1'])
+    const r = await login('wrong-password')
+    expect(r).toEqual({ status: 401, body: { error: 'Invalid email or password' } })
   })
 
   it('genuinely unverified account with correct password gets activation message and resend flag', async () => {

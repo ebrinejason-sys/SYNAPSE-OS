@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic"
 
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { requirePlatformAdmin } from "@/lib/platform/auth"
+import { requirePlatformAccess } from "@/lib/platform/auth"
+import { isAccountSuspended } from "@synapse/auth/account-suspension"
 import { formatDate, safeRows } from "../../_lib/platform-data"
 import { UserActions } from "../UserActions"
 
@@ -28,7 +29,8 @@ type MembershipRow = {
 }
 
 export default async function PlatformUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const admin = await requirePlatformAdmin()
+  // Same capability as the /platform/users list (control-plane route policy maps it to user.read).
+  const admin = await requirePlatformAccess("user.read")
   const { id } = await params
   const profiles = await safeRows<ProfileRow>(
     "profiles",
@@ -37,6 +39,9 @@ export default async function PlatformUserDetailPage({ params }: { params: Promi
   )
   const profile = profiles[0]
   if (!profile?.id || !profile.email) notFound()
+  // Suspension is a SUSPENDED platform membership; fail safe to "suspended" display if the lookup errors.
+  const accountSuspended = await isAccountSuspended(profile.id).catch(() => true)
+  const effectiveStatus = accountSuspended ? "suspended" : profile.verification_status
 
   const memberships = await safeRows<MembershipRow>(
     "staff_scope_assignments",
@@ -60,7 +65,7 @@ export default async function PlatformUserDetailPage({ params }: { params: Promi
         <dl className="grid gap-3 sm:grid-cols-2">
           <div><dt className="text-slate-500">Role</dt><dd>{profile.role ?? "—"}</dd></div>
           <div><dt className="text-slate-500">Synapse ID</dt><dd className="font-mono text-xs">{profile.synapse_id ?? "—"}</dd></div>
-          <div><dt className="text-slate-500">Account status</dt><dd>{profile.is_deleted ? "archived" : profile.verification_status ?? "unknown"}</dd></div>
+          <div><dt className="text-slate-500">Account status</dt><dd>{profile.is_deleted ? "archived" : effectiveStatus ?? "unknown"}</dd></div>
           <div><dt className="text-slate-500">Activation</dt><dd>{profile.email_verified_at ? "activated" : "pending activation"}</dd></div>
           <div><dt className="text-slate-500">MFA</dt><dd>{mfa.some((row) => row.verified) ? "enrolled" : "not enrolled"}</dd></div>
           <div><dt className="text-slate-500">Created</dt><dd>{formatDate(profile.created_at)}</dd></div>
@@ -90,7 +95,7 @@ export default async function PlatformUserDetailPage({ params }: { params: Promi
         role={profile.role ?? null}
         emailVerified={Boolean(profile.email_verified_at)}
         isDeleted={Boolean(profile.is_deleted)}
-        verificationStatus={profile.verification_status}
+        verificationStatus={effectiveStatus}
         allowPurge
         isSelf={profile.id === admin.id}
       />

@@ -124,3 +124,15 @@ export type {
   PharmacyCapabilityRole,
   CapabilitySession,
 } from './pharmacy-capabilities'
+
+export {
+  ACCOUNT_SUSPENSION_METADATA_KEY,
+  ACCOUNT_SUSPENSION_MARKER_ROLE,
+  AccountSuspendedError,
+  isAccountSuspended,
+  isAccountSuspensionMarker,
+  suspendedUserIds,
+  suspensionMetadataOf,
+  withMembershipSuspension,
+  type AccountSuspensionMetadata,
+} from './account-suspension'

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyMfaPendingToken, MFA_PENDING_COOKIE } from '@synapse/auth/mfa'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { signToken, createSession, verifyTotp } from '@synapse/auth'
+import { signToken, createSession, verifyTotp, AccountSuspendedError, ACCOUNT_UNAVAILABLE_ERROR } from '@synapse/auth'
 import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
 
 export async function POST(req: NextRequest) {
@@ -73,13 +73,21 @@ export async function POST(req: NextRequest) {
     synapse_id: profile.synapse_id ?? undefined,
   })
 
-  await createSession({
-    userId:    profile.id,
-    token,
-    app:       'web',
-    ip:        req.headers.get('x-forwarded-for') ?? undefined,
-    userAgent: req.headers.get('user-agent') ?? undefined,
-  })
+  try {
+    await createSession({
+      userId:    profile.id,
+      token,
+      app:       'web',
+      ip:        req.headers.get('x-forwarded-for') ?? undefined,
+      userAgent: req.headers.get('user-agent') ?? undefined,
+    })
+  } catch (error) {
+    // Suspended between the password step and this step: same response as the login gate.
+    if (error instanceof AccountSuspendedError) {
+      return NextResponse.json({ error: ACCOUNT_UNAVAILABLE_ERROR, code: 'ACCOUNT_UNAVAILABLE' }, { status: 403 })
+    }
+    throw error
+  }
 
   const expires = new Date()
   expires.setDate(expires.getDate() + SESSION_DURATION_DAYS)

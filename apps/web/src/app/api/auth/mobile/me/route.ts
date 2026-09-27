@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isAccountActivated, verifyToken, validateSession } from '@synapse/auth'
+import { isAccountActivated, verifyToken, validateSession, withMembershipSuspension } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 
 const ROLE_KIND: Record<string, string> = {
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
   }
 
-  if (!isAccountActivated(profile)) {
+  if (!isAccountActivated(await withMembershipSuspension(profile))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

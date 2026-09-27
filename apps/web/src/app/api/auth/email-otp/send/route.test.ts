@@ -5,12 +5,14 @@ const mocks = vi.hoisted(() => ({
   profile: null as Record<string, unknown> | null,
   createAndSendOTP: vi.fn(),
   sendOtpEmail: vi.fn(),
+  suspendedIds: new Set<string>(),
 }))
 
 vi.mock('@synapse/auth', () => ({
   isAccountActivated,
   createAndSendOTP: (...a: unknown[]) => mocks.createAndSendOTP(...a),
   shouldSkipOtpEmailDelivery: () => false,
+  withMembershipSuspension: async (p: { id?: unknown }) => ({ ...p, membership_suspended: mocks.suspendedIds.has(String(p.id)) }),
 }))
 vi.mock('../../../../../lib/resend', () => ({ sendOtpEmail: (...a: unknown[]) => mocks.sendOtpEmail(...a) }))
 vi.mock('../../../../../lib/rate-limit', () => ({
@@ -62,6 +64,14 @@ describe('POST /api/auth/email-otp/send (pre-proof, anti-enumeration)', () => {
     expect(await send()).toEqual({ status: 200, body: { ok: true } })
     expect(mocks.createAndSendOTP).not.toHaveBeenCalled()
     expect(mocks.sendOtpEmail).not.toHaveBeenCalled()
+  })
+
+  it('membership-suspended account (verification_status verified) is indistinguishable and gets no code', async () => {
+    mocks.profile = { id: 'u', tenant_id: null, email_verified_at: verified, verification_status: 'verified' }
+    mocks.suspendedIds = new Set(['u'])
+    expect(await send()).toEqual({ status: 200, body: { ok: true } })
+    expect(mocks.createAndSendOTP).not.toHaveBeenCalled()
+    mocks.suspendedIds = new Set()
   })
 
   it('active account gets a code', async () => {

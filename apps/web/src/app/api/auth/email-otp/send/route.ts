@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isAccountActivated, createAndSendOTP, shouldSkipOtpEmailDelivery } from '@synapse/auth'
+import { isAccountActivated, createAndSendOTP, shouldSkipOtpEmailDelivery, withMembershipSuspension } from '@synapse/auth'
 import { createServiceClient } from '../../../../../lib/supabase/server'
 import { sendOtpEmail } from '../../../../../lib/resend'
 import { checkRateLimit, rateLimiters } from '../../../../../lib/rate-limit'
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   // Pre-proof endpoint: answer non-active accounts exactly like unknown emails
   // (no code is sent). State-specific messages are only returned after a
   // credential is proven (password-login / email-otp verify).
-  if (!isAccountActivated(profile)) {
+  if (!isAccountActivated(await withMembershipSuspension(profile))) {
     return NextResponse.json({ ok: true })
   }
 
