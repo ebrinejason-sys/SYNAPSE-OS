@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       hospital_id: ctx.hospitalId,
       mrn: generateMrn(ctx.hospitalId),
       is_deleted: false,
-      created_by: ctx.userId,
+      // created_by FKs auth.users; staff ids live on profiles. Actor is recorded in audit_log.user_id.
     }
 
     const result = await db

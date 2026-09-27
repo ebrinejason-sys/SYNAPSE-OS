@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     ...parsed.data,
     hospital_id: ctx.hospitalId,
     tenant_id: ctx.tenantId,
-    created_by: ctx.userId,
+    // created_by FKs auth.users; staff ids live on profiles. Actor is recorded in audit_log.user_id.
   }
 
   const { data, error } = await db.from('hospital_beds').insert(row).select('*').single()

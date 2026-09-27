@@ -258,7 +258,7 @@ export async function takeClinicalAction(params: {
           foundation_uri: hyp.icd11_uri ?? null,
           certainty:      'confirmed',
           diagnosis_type: 'primary',
-          created_by:     params.clinicianId,
+          selected_by:    params.clinicianId, // profiles FK (created_by FKs auth.users)
         })
         .select('id')
         .single()

@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       status: 'open',
       visit_date: new Date().toISOString(),
       is_deleted: false,
-      created_by: ctx.userId,
+      // created_by FKs auth.users; staff ids live on profiles. Actor is recorded in audit_log.user_id.
       metadata: {
         department: 'emergency',
         arrival_mode: arrival_mode ?? 'walk_in',

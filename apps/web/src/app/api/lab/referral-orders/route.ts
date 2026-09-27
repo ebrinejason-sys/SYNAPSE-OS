@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     dob: parsed.data.dateOfBirth || null,
     sex: parsed.data.sex,
     phone: parsed.data.phone || null,
-    created_by: ctx.userId,
+    // created_by FKs auth.users; staff ids live on profiles. Actor is recorded in audit_log.user_id.
     is_deleted: false,
     is_synthetic: false,
     data_classification: 'production',
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     hospital_id: ctx.hospitalId,
     patient_id: patient.id,
     clinician_id: ctx.userId,
-    created_by: ctx.userId,
+    // created_by FKs auth.users; staff ids live on profiles. Actor is recorded in audit_log.user_id.
     chief_complaint: `External laboratory referral: ${parsed.data.testName}`,
     metadata: { encounter_type: 'LAB_REFERRAL', referral_source: parsed.data.referralSource || null },
     correlation_id: correlationId,
