@@ -12,6 +12,9 @@ import {
   type IdentityLifecycleAction,
 } from '@synapse/db/identity-lifecycle'
 
+/** verification_status markers that archive/suspend set and restore lifts (auth treats them as unavailable). */
+const RESTORE_LIFTS_STATUSES = new Set(['suspended', 'disabled', 'reset', 'deleted'])
+
 async function platformAdminCount() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
@@ -221,13 +224,22 @@ export async function restoreUserAccount(formData: FormData) {
   const guard = await guardIdentity(admin.id, userId, 'restore')
   if (!guard.ok) return guard
 
+  // Restore lifts the archive (and any suspension marker) only. It must not
+  // grant professional verification the identity never had, so a KYC state such
+  // as 'pending' is preserved. Memberships, roles, MFA enrollment and the
+  // must_change_password flag are untouched. Archive already revoked sessions,
+  // so the restored user signs in again through the normal login + MFA path.
+  const previousStatus = (guard.profile.verification_status ?? null) as string | null
+  const liftStatus = previousStatus !== null && RESTORE_LIFTS_STATUSES.has(previousStatus.toLowerCase())
+  const nextStatus = liftStatus ? 'verified' : previousStatus
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
   const { error } = await db
     .from('profiles')
     .update({
       is_deleted: false,
-      verification_status: 'verified',
+      ...(liftStatus ? { verification_status: nextStatus } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq('id', userId)
@@ -237,7 +249,8 @@ export async function restoreUserAccount(formData: FormData) {
     action: 'user.restored',
     entityType: 'profile',
     entityId: userId,
-    metadata: { role: guard.profile.role },
+    oldValue: { is_deleted: Boolean(guard.profile.is_deleted), verification_status: previousStatus },
+    metadata: { role: guard.profile.role, is_deleted: false, verification_status: nextStatus },
   })
   revalidatePath('/platform/users')
   revalidatePath(`/platform/users/${userId}`)
