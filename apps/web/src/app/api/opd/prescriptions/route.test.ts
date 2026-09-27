@@ -154,6 +154,28 @@ describe("POST /api/opd/prescriptions", () => {
     vi.resetModules()
   })
 
+  it("gates prescribing on the OS Basic clinical module (opd), not hospital dispensing", async () => {
+    const ctx = staffCtx()
+    requireHospitalStaffContext.mockResolvedValue(ctx)
+    const blocked = NextResponse.json({ error: "feature_not_available" }, { status: 402 })
+    gateHospitalModule.mockImplementation(async (_t: string, _h: string, key: string) => (key === "opd" ? null : blocked))
+    dbFrom.mockImplementation(() => { throw new Error("stop after gate") })
+    const { POST } = await import("./route")
+    await POST(postBody(validBody())).catch(() => null)
+    expect(gateHospitalModule).toHaveBeenCalledWith(ctx.tenantId, ctx.hospitalId, "opd")
+    expect(gateHospitalModule).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), "dispensing")
+  })
+
+  it("GET prescription list is gated on opd, not dispensing", async () => {
+    const ctx = staffCtx()
+    requireHospitalStaffContext.mockResolvedValue(ctx)
+    gateHospitalModule.mockResolvedValue(NextResponse.json({ error: "x" }, { status: 402 }))
+    const { GET } = await import("./route")
+    const res = await GET(new NextRequest("http://localhost/api/opd/prescriptions?encounter_id=11111111-1111-4111-8111-111111111111"))
+    expect(res.status).toBe(402)
+    expect(gateHospitalModule).toHaveBeenCalledWith(ctx.tenantId, ctx.hospitalId, "opd")
+  })
+
   it("returns the auth denial response before creating a prescription", async () => {
     const denied = NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     requireHospitalStaffContext.mockResolvedValue(denied)

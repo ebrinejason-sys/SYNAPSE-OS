@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const cap = await requireHospitalCapability(ctx, 'prescription', 'read', 'opd')
   if (cap) return cap
 
-  const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, 'dispensing')
+  const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, 'opd')
   if (moduleBlock) return moduleBlock
 
   const encounterId = req.nextUrl.searchParams.get('encounter_id')
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   const cap = await requireHospitalCapability(ctx, 'prescription', 'create', 'opd')
   if (cap) return cap
 
-  const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, 'dispensing')
+  const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, 'opd')
   if (moduleBlock) return moduleBlock
 
   const body = await req.json().catch(() => null)
