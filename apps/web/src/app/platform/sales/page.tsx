@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { createServiceClient } from "../../../lib/supabase/server";
-import { requirePlatformAdmin } from "../../../lib/platform/auth";
+import { requirePlatformAdmin, requirePlatformAccess } from "../../../lib/platform/auth";
 
 const STAGES = [
   { key: "interest", label: "Interest" },
@@ -12,7 +12,7 @@ const STAGES = [
 
 async function createLead(formData: FormData) {
   "use server";
-  await requirePlatformAdmin();
+  await requirePlatformAccess("platform.crm.manage");
   const supabaseAdmin = createServiceClient();
 
   const hospital_name = String(formData.get("hospital_name") ?? "").trim();
@@ -34,7 +34,7 @@ async function createLead(formData: FormData) {
 
 async function updateStage(formData: FormData) {
   "use server";
-  await requirePlatformAdmin();
+  await requirePlatformAccess("platform.crm.manage");
   const id = String(formData.get("id") ?? "");
   const stage = String(formData.get("stage") ?? "interest");
   if (!id) {

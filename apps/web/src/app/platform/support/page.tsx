@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "../../../lib/supabase/server";
-import { requirePlatformAdmin } from "../../../lib/platform/auth";
+import { requirePlatformAdmin, requirePlatformAccess } from "../../../lib/platform/auth";
 import { formatDateTime, logPlatformEvent, safeRows } from "../_lib/platform-data";
 
 type TicketRow = {
@@ -40,7 +40,7 @@ async function recordTicketEvent(ticketId: string, actorId: string, event: strin
 
 async function assignTicketToMe(formData: FormData) {
   "use server";
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("tenant.manage");
   const ticketId = String(formData.get("ticket_id") ?? "");
   if (!ticketId) return;
 
@@ -57,7 +57,7 @@ async function assignTicketToMe(formData: FormData) {
 
 async function updateTicketStatus(formData: FormData) {
   "use server";
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("tenant.manage");
   const ticketId = String(formData.get("ticket_id") ?? "");
   const status = String(formData.get("status") ?? "");
   const resolutionNotes = String(formData.get("resolution_notes") ?? "").trim();

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "../../../lib/supabase/server";
-import { requirePlatformAdmin } from "../../../lib/platform/auth";
+import { requirePlatformAdmin, requirePlatformAccess } from "../../../lib/platform/auth";
 import { formatDate, formatUGX, logPlatformEvent, safeCount, safeRows, formatDateTime } from "../_lib/platform-data";
 import { listAllPayments } from "@synapse/auth/billing";
 
@@ -58,7 +58,7 @@ function nextMonthIsoDate() {
 
 async function generateInvoice(formData: FormData) {
   "use server";
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("platform.subscriptions.activate");
   const subscriptionId = String(formData.get("subscription_id") ?? "");
   const tenantId = String(formData.get("tenant_id") ?? "");
   const amount = Number(formData.get("amount") ?? 0);
@@ -90,7 +90,7 @@ async function generateInvoice(formData: FormData) {
 
 async function markSubscriptionPaid(formData: FormData) {
   "use server";
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("platform.subscriptions.activate");
   const subscriptionId = String(formData.get("subscription_id") ?? "");
   const tenantId = String(formData.get("tenant_id") ?? "");
   const amount = Number(formData.get("amount") ?? 0);
@@ -132,7 +132,7 @@ async function markSubscriptionPaid(formData: FormData) {
 
 async function changeSubscriptionPlan(formData: FormData) {
   "use server";
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("platform.subscription.manage");
   const subscriptionId = String(formData.get("subscription_id") ?? "");
   const tenantId = String(formData.get("tenant_id") ?? "");
   const plan = String(formData.get("plan") ?? "");

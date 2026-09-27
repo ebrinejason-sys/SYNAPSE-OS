@@ -14,7 +14,7 @@ function providerConfigured(key: string | undefined): "NOT_CONFIGURED" | "CONFIG
 }
 
 export async function GET() {
-  const auth = await requirePlatformAdminApi();
+  const auth = await requirePlatformAdminApi("analytics.read");
   if (!auth.ok) return auth.response;
 
   const truth = await getProductionTruth();
@@ -74,7 +74,7 @@ export async function GET() {
 }
 
 export async function POST() {
-  const auth = await requirePlatformAdminApi();
+  const auth = await requirePlatformAdminApi("analytics.read");
   if (!auth.ok) return auth.response;
 
   const packet: PatientContextPacket = {

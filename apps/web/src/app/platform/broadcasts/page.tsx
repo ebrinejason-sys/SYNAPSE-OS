@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { Megaphone, Radio, Send, Siren } from "lucide-react";
 import { createServiceClient } from "../../../lib/supabase/server";
-import { requirePlatformAdmin } from "../../../lib/platform/auth";
+import { requirePlatformAdmin, requirePlatformAccess } from "../../../lib/platform/auth";
 import { formatDate, safeCount, safeRows } from "../_lib/platform-data";
 import { UserBroadcastClient } from "./UserBroadcastClient";
 import { sendEmailBroadcast, sendSmsBroadcast } from "./actions";
@@ -21,7 +21,7 @@ type BulletinRow = {
 
 async function publishBulletin(formData: FormData) {
   "use server";
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("platform.crm.manage");
 
   const title = String(formData.get("title") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();

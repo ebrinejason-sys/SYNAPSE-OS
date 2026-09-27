@@ -271,7 +271,9 @@ async function runPharmacyAccessChecks(params: {
     return NextResponse.redirect(new URL('/login?error=no_pharmacy_access', request.url))
   }
 
-  if (!profile.is_admin && profile.tenant_id) {
+  // Facility admins (is_admin) of hospital/laboratory tenants are not pharmacy staff;
+  // only control-plane roles skip the pharmacy-tenant check.
+  if (profile.tenant_id && !isPlatformAdmin(profile.role)) {
     const tenant = await restGet<TenantRow>(
       'tenants',
       { id: `eq.${profile.tenant_id}` },

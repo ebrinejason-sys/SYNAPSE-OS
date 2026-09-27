@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { requirePlatformAdmin } from '../../../../../lib/platform/auth'
+import { requirePlatformAccess } from '../../../../../lib/platform/auth'
 import { safeRows } from '../../../../platform/_lib/platform-data'
 import { listAllPayments } from '@synapse/auth/billing'
 
@@ -29,7 +29,7 @@ function kampalaDateStamp() {
 }
 
 export async function GET(req: NextRequest) {
-  await requirePlatformAdmin()
+  await requirePlatformAccess('finance_summary.read')
 
   const type = req.nextUrl.searchParams.get('type') === 'invoices' ? 'invoices' : 'payments'
   const status = req.nextUrl.searchParams.get('status')
