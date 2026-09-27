@@ -57,7 +57,7 @@ export async function fetchHospitalLabWorklist(
   let query = db
     .from('lab_orders')
     .select(
-      'id, tenant_id, encounter_id, patient_id, loinc_code, test_name, urgency, status, workflow_status, accession_number, ordered_at, patients(first_name, last_name, mrn)',
+      'id, tenant_id, encounter_id, patient_id, loinc_code, test_name, urgency, status, workflow_status, accession_number, ordered_at, patients(full_name, mrn)',
     )
     .eq('tenant_id', ctx.tenantId)
     .eq('is_synthetic', false)
@@ -87,10 +87,9 @@ export async function fetchHospitalLabWorklist(
   }
 
   const orders: HospitalLabWorklistOrder[] = (data ?? []).map((row: Record<string, unknown>) => {
-    const patient = row.patients as { first_name?: string; last_name?: string; mrn?: string } | null
-    const patientName = patient
-      ? [patient.first_name, patient.last_name].filter(Boolean).join(' ').trim() || null
-      : null
+    // public.patients stores a single full_name (no first/last columns).
+    const patient = row.patients as { full_name?: string | null; mrn?: string } | null
+    const patientName = patient?.full_name?.trim() || null
     const id = String(row.id)
     const prior = resultByOrder.get(id)
     return {

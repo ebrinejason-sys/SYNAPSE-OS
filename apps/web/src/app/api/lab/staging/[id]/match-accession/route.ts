@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   for (const order of orders ?? []) {
     const { data: encounter } = await db.from("encounters").select("id, hospital_id").eq("id", order.encounter_id).eq("tenant_id", ctx.tenantId).eq("hospital_id", ctx.hospitalId).maybeSingle()
     if (!encounter) continue
-    const { data: patient } = await db.from("patients").select("id, first_name, last_name, mrn, date_of_birth").eq("id", order.patient_id).eq("tenant_id", ctx.tenantId).maybeSingle()
+    const { data: patient } = await db.from("patients").select("id, full_name, mrn, dob").eq("id", order.patient_id).eq("tenant_id", ctx.tenantId).maybeSingle()
     candidates.push({ order, patient, encounter })
   }
   return NextResponse.json({ candidates })

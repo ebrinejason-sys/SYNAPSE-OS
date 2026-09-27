@@ -12,7 +12,7 @@ type SpecimenRow = {
   collected_at: string | null
   received_at: string | null
   lab_order_id: string | null
-  patients?: { first_name?: string; last_name?: string; mrn?: string } | null
+  patients?: { full_name?: string | null; mrn?: string } | null
 }
 
 export default function LabSpecimensPage() {
@@ -76,7 +76,7 @@ export default function LabSpecimensPage() {
         <ul className="mt-8 space-y-3">
           {filtered.map((s) => {
             const name = s.patients
-              ? [s.patients.first_name, s.patients.last_name].filter(Boolean).join(" ")
+              ? (s.patients.full_name ?? "")
               : "—"
             return (
               <li key={s.id} className="rounded-2xl border border-subtle bg-surface p-4">

@@ -40,15 +40,15 @@ export async function GET() {
   if (orderIds.length) {
     const { data: orders } = await db
       .from("lab_orders")
-      .select("id, accession_number, patients(first_name, last_name)")
+      .select("id, accession_number, patients(full_name)")
       .eq("tenant_id", ctx.tenantId)
       .in("id", orderIds)
     for (const o of orders ?? []) {
       accessionByOrder.set(String(o.id), o.accession_number ?? "")
-      const p = o.patients as { first_name?: string; last_name?: string } | null
+      const p = o.patients as { full_name?: string | null } | null
       patientByOrder.set(
         String(o.id),
-        p ? [p.first_name, p.last_name].filter(Boolean).join(" ") : "",
+        p?.full_name ?? "",
       )
     }
   }

@@ -115,7 +115,7 @@ export async function buildPatientContextPacket(params: {
   ] = await Promise.all([
     // Patient demographics
     db.from('patients')
-      .select('date_of_birth, sex')
+      .select('dob, sex')
       .eq('id', patientId)
       .eq('tenant_id', tenantId)
       .maybeSingle(),
@@ -180,8 +180,8 @@ export async function buildPatientContextPacket(params: {
 
   // Calculate age from DOB
   let age: number | null = null
-  if (patientResult.data?.date_of_birth) {
-    const dob = new Date(patientResult.data.date_of_birth as string)
+  if (patientResult.data?.dob) {
+    const dob = new Date(patientResult.data.dob as string)
     age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000))
   }
 
