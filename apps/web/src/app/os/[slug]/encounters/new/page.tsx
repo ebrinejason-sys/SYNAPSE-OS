@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { ClinicalPathwaysPanel } from "../../../../../components/clinical/ClinicalPathwaysPanel";
 import { DeathPronouncementPanel } from "../../../../../components/clinical/DeathPronouncementPanel";
+import { buildTriagePayload, triageErrorMessage, type TriageStage } from "./triage-payload";
 
 type Differential = {
   condition: string;
@@ -49,6 +50,8 @@ function NewEncounterInner() {
   const [selectedDx, setSelectedDx] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [stage, setStage] = useState<TriageStage | "">("");
   const [encounterId, setEncounterId] = useState<string | null>(null);
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
   const [labTestName, setLabTestName] = useState("Complete blood count");
@@ -87,20 +90,19 @@ function NewEncounterInner() {
     if (!patientId) return;
     setSaving(true);
     try {
+      setSaveError(null);
       const res = await fetch("/api/opd/triage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patient_id: patientId,
-          chief_complaint: complaint,
-          clinical_stage: selectedDx ?? undefined,
-          temperature_c: temperature ? Number(temperature) : undefined,
-          heart_rate: heartRate ? Number(heartRate) : undefined,
-          bp_systolic: bpSystolic ? Number(bpSystolic) : undefined,
-          bp_diastolic: bpDiastolic ? Number(bpDiastolic) : undefined,
-          spo2: spo2 ? Number(spo2) : undefined,
-        }),
+        // The AI differential (selectedDx) is not a triage stage; never send it as clinical_stage.
+        body: JSON.stringify(
+          buildTriagePayload({ patientId, complaint, stage, temperature, heartRate, bpSystolic, bpDiastolic, spo2 }),
+        ),
       });
+      if (!res.ok) {
+        setSaveError(triageErrorMessage(res.status, await res.json().catch(() => null)));
+        return;
+      }
       if (res.ok) {
         const data = (await res.json()) as { encounterId?: string };
         if (data.encounterId) setEncounterId(data.encounterId);
@@ -188,6 +190,20 @@ function NewEncounterInner() {
                 />
               </div>
             ))}
+          </div>
+          <div>
+            <label htmlFor="triage-stage" className="block text-xs text-slate-400 mb-1">Triage acuity</label>
+            <select
+              id="triage-stage"
+              value={stage}
+              onChange={(e) => setStage(e.target.value as TriageStage | "")}
+              className="w-full bg-[#0D1B2E] border border-slate-700 rounded px-3 py-2 text-sm"
+            >
+              <option value="">Not set</option>
+              <option value="RED">Red (emergency)</option>
+              <option value="YELLOW">Yellow (urgent)</option>
+              <option value="GREEN">Green (routine)</option>
+            </select>
           </div>
           <button
             onClick={runAI}
@@ -282,6 +298,9 @@ function NewEncounterInner() {
           >
             {saving ? "Saving..." : encounterId ? "Encounter saved" : "Complete Encounter"}
           </button>
+          {saveError ? (
+            <p role="alert" className="text-xs text-red-400">{saveError}</p>
+          ) : null}
           {encounterId ? (
             <div className="space-y-3 pt-2 border-t border-slate-800">
               <p className="text-xs text-emerald-400">Encounter {encounterId.slice(0, 8)}… — place orders below</p>
