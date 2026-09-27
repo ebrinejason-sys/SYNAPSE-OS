@@ -171,8 +171,8 @@ export async function activateUserAccount(formData: FormData) {
     const { error } = await db
       .from('profiles')
       .update({
+        // Email activation only; professional verification (KYC) is reviewed separately.
         email_verified_at: new Date().toISOString(),
-        verification_status: 'verified',
         updated_at: new Date().toISOString(),
       })
       .eq('id', userId)

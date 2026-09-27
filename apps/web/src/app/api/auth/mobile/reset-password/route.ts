@@ -58,8 +58,9 @@ export async function POST(req: NextRequest) {
       login_attempts: 0,
       locked_until: null,
       must_change_password: false,
+      // Completing a reset proves control of the email address. It says nothing about
+      // professional verification (KYC), which must never change here.
       email_verified_at: new Date().toISOString(),
-      verification_status: 'verified',
     })
     .eq('id', payload.sub)
 

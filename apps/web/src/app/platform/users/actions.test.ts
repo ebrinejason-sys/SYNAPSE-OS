@@ -137,3 +137,23 @@ describe('platform user lifecycle server actions: capability enforcement (server
   })
 })
 
+
+describe('activateUserAccount keeps professional verification separate from email activation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.updates = []
+    mocks.deletes = []
+    mocks.from.mockImplementation((t: string) => chain(t))
+    caps.granted = null
+    mocks.targetProfile = { id: 'user-x', email: 'x@example.test', role: 'doctor', verification_status: 'pending', email_verified_at: null, is_deleted: false, tenant_id: 't1' }
+  })
+
+  it('stamps email_verified_at only and never writes verification_status', async () => {
+    const result = await activateUserAccount(form({ user_id: 'user-x' }))
+    expect(result.ok).toBe(true)
+    const profileWrites = mocks.updates.filter((u) => u.table === 'profiles')
+    expect(profileWrites).toHaveLength(1)
+    expect(profileWrites[0]!.values).toEqual(expect.objectContaining({ email_verified_at: expect.any(String) }))
+    expect(profileWrites[0]!.values).not.toHaveProperty('verification_status')
+  })
+})

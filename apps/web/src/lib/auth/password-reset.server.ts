@@ -16,7 +16,11 @@ export async function sendUserPasswordReset(params: {
   email: string
   name: string
   appUrl: string
-  /** When true (admin-initiated), mark email verified so login works after reset */
+  /**
+   * When true (admin-initiated), mark the email verified so login works after reset.
+   * Only email activation: professional verification (verification_status: KYC
+   * pending / under_review / rejected) is a separate review and is never changed here.
+   */
   activateIfPending?: boolean
 }): Promise<SendPasswordResetResult> {
   const db = supabaseAdmin as any
@@ -46,7 +50,6 @@ export async function sendUserPasswordReset(params: {
       .from('profiles')
       .update({
         email_verified_at: new Date().toISOString(),
-        verification_status: 'verified',
         updated_at: new Date().toISOString(),
       })
       .eq('id', params.userId)
