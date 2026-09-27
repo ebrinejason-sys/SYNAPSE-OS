@@ -1,21 +1,9 @@
 export const dynamic = "force-dynamic";
 
-import { requirePlatformAdmin } from "@/lib/platform/auth";
-import { formatDate, safeCount, safeRows } from "../_lib/platform-data";
+import { requirePlatformAccess } from "@/lib/platform/auth";
+import { directoryHref, searchPlatformUsers, SUSPENDED_VERIFICATION_STATUSES } from "@/lib/platform/user-directory";
+import { formatDate, platformAdminClient, safeCount, safeRows } from "../_lib/platform-data";
 import { UserActions } from "./UserActions";
-
-type UserRow = {
-  id?: string;
-  full_name?: string | null;
-  email?: string | null;
-  role?: string | null;
-  verification_status?: string | null;
-  email_verified_at?: string | null;
-  synapse_id?: string | null;
-  is_deleted?: boolean | null;
-  created_at?: string | null;
-  last_sign_in_at?: string | null;
-};
 
 type VerificationRow = {
   id?: string;
@@ -38,27 +26,19 @@ function badgeClass(value: string | null | undefined) {
 export default async function PlatformUsersPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ q?: string; role?: string; status?: string }>;
+  searchParams?: Promise<{ q?: string; role?: string; status?: string; page?: string; pageSize?: string }>;
 }) {
-  const admin = await requirePlatformAdmin();
+  // /platform/users is mapped to user.read in the control-plane route policy; enforce it here too.
+  const admin = await requirePlatformAccess("user.read");
   const params = (await searchParams) ?? {};
-  const q = (params.q ?? "").trim().toLowerCase();
-  const roleFilter = (params.role ?? "").trim().toLowerCase();
-  const statusFilter = (params.status ?? "").trim().toLowerCase();
 
-  const [totalUsers, pendingKyc, verifiedUsers, suspendedUsers, users, kycRows] = await Promise.all([
+  const [totalUsers, pendingKyc, verifiedUsers, archivedUsers, directory, kycRows] = await Promise.all([
     safeCount("profiles"),
     safeCount("verification_documents", [["status", "pending_review"]]),
     safeCount("profiles", [["verification_status", "verified"]]),
     safeCount("profiles", [["is_deleted", true]]),
-    safeRows<UserRow>(
-      "profiles",
-      "id, full_name, email, role, verification_status, email_verified_at, synapse_id, is_deleted, created_at, last_sign_in_at",
-      {
-      orderBy: "created_at",
-      limit: 200,
-    },
-    ),
+    // Search, filters and pagination run in the database query, not over a fixed first page.
+    searchPlatformUsers(platformAdminClient() as never, params),
     safeRows<VerificationRow>(
       "verification_documents",
       "id, full_name, email, role, status, document_type, registration_body, registration_number, created_at",
@@ -66,15 +46,11 @@ export default async function PlatformUsersPage({
     ),
   ]);
 
-  const filtered = users.filter((user) => {
-    if (roleFilter && (user.role ?? "").toLowerCase() !== roleFilter) return false;
-    if (statusFilter === "active" && user.is_deleted) return false;
-    if (statusFilter === "archived" && !user.is_deleted) return false;
-    if (statusFilter === "pending" && user.email_verified_at) return false;
-    if (!q) return true;
-    const hay = `${user.full_name ?? ""} ${user.email ?? ""} ${user.role ?? ""} ${user.synapse_id ?? ""} ${user.id ?? ""}`.toLowerCase();
-    return hay.includes(q);
-  });
+  const users = directory.rows;
+  const { page, pageCount, total, pageSize } = directory;
+  const firstShown = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const lastShown = Math.min(total, (page - 1) * pageSize + users.length);
+  const suspendedSet = new Set<string>(SUSPENDED_VERIFICATION_STATUSES);
 
   return (
     <div className="space-y-6">
@@ -91,7 +67,7 @@ export default async function PlatformUsersPage({
           ["Total users", totalUsers],
           ["Pending KYC", pendingKyc],
           ["Verified professionals", verifiedUsers],
-          ["Archived accounts", suspendedUsers],
+          ["Archived accounts", archivedUsers],
         ].map(([label, value]) => (
           <article key={String(label)} className="rounded-xl border border-slate-800 bg-[#111117] p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
@@ -102,14 +78,15 @@ export default async function PlatformUsersPage({
 
       <form className="flex flex-wrap gap-2 rounded-xl border border-slate-800 bg-[#111117] p-4" method="get" role="search" aria-label="Filter users">
         <label className="sr-only" htmlFor="user-q">Search</label>
-        <input id="user-q" name="q" defaultValue={params.q ?? ""} placeholder="Name, email, Synapse ID, role" className="min-w-[14rem] flex-1 rounded-lg border border-slate-700 bg-[#07070A] px-3 py-2 text-sm" />
+        <input id="user-q" name="q" defaultValue={params.q ?? ""} placeholder="Name, email, Synapse ID or user ID" className="min-w-[14rem] flex-1 rounded-lg border border-slate-700 bg-[#07070A] px-3 py-2 text-sm" />
         <label className="sr-only" htmlFor="user-role">Role</label>
         <input id="user-role" name="role" defaultValue={params.role ?? ""} placeholder="Role" className="w-40 rounded-lg border border-slate-700 bg-[#07070A] px-3 py-2 text-sm" />
         <label className="sr-only" htmlFor="user-status">Status</label>
         <select id="user-status" name="status" defaultValue={params.status ?? ""} className="rounded-lg border border-slate-700 bg-[#07070A] px-3 py-2 text-sm">
           <option value="">All statuses</option>
           <option value="active">Active</option>
-          <option value="pending">Pending activation</option>
+          <option value="suspended">Suspended</option>
+          <option value="pending">Invited / pending activation</option>
           <option value="archived">Archived</option>
         </select>
         <button type="submit" className="rounded-lg border border-[#E8B84B]/40 bg-[#E8B84B]/10 px-4 py-2 text-sm text-[#E8B84B]">Filter</button>
@@ -119,7 +96,11 @@ export default async function PlatformUsersPage({
         <article className="overflow-hidden rounded-xl border border-slate-800 bg-[#111117]">
           <div className="border-b border-slate-800 p-4">
             <h2 className="text-sm font-semibold">All Users</h2>
-            <p className="mt-1 text-xs text-slate-500">Showing {filtered.length} of {users.length} loaded profiles.</p>
+            <p className="mt-1 text-xs text-slate-500" aria-live="polite">
+              {directory.error
+                ? "User search failed. Try again or narrow the filters."
+                : `Showing ${firstShown}–${lastShown} of ${total.toLocaleString()} matching profiles.`}
+            </p>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -135,7 +116,7 @@ export default async function PlatformUsersPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {filtered.map((user) => (
+                {users.map((user) => (
                   <tr key={user.id ?? user.email ?? crypto.randomUUID()}>
                     <td className="px-4 py-3 font-medium text-slate-100">
                       {user.id ? (
@@ -151,7 +132,13 @@ export default async function PlatformUsersPage({
                     <td className="px-4 py-3 text-slate-300">{user.role ?? "unknown"}</td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full border px-2 py-0.5 text-xs ${badgeClass(user.is_deleted ? "suspended" : user.verification_status)}`}>
-                        {user.is_deleted ? "archived" : user.email_verified_at ? (user.verification_status ?? "verified") : "pending activation"}
+                        {user.is_deleted
+                          ? "archived"
+                          : suspendedSet.has((user.verification_status ?? "").toLowerCase())
+                            ? "suspended"
+                            : user.email_verified_at
+                              ? (user.verification_status ?? "verified")
+                              : "pending activation"}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-slate-500">{formatDate(user.created_at)}</td>
@@ -170,12 +157,27 @@ export default async function PlatformUsersPage({
                     </td>
                   </tr>
                 ))}
-                {filtered.length === 0 ? (
+                {users.length === 0 ? (
                   <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No users found.</td></tr>
                 ) : null}
               </tbody>
             </table>
           </div>
+          {pageCount > 1 ? (
+            <nav className="flex items-center justify-between border-t border-slate-800 p-4 text-sm" aria-label="User list pages">
+              {page > 1 ? (
+                <a href={directoryHref(directory.params, { page: page - 1 })} className="text-[#E8B84B] hover:underline">Previous</a>
+              ) : (
+                <span className="text-slate-600">Previous</span>
+              )}
+              <span className="text-xs text-slate-500">Page {page} of {pageCount}</span>
+              {page < pageCount ? (
+                <a href={directoryHref(directory.params, { page: page + 1 })} className="text-[#E8B84B] hover:underline">Next</a>
+              ) : (
+                <span className="text-slate-600">Next</span>
+              )}
+            </nav>
+          ) : null}
         </article>
 
         <aside className="rounded-xl border border-slate-800 bg-[#111117] p-4">
