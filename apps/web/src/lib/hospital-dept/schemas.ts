@@ -7,6 +7,7 @@ export const patientRegisterSchema = z.object({
   phone: z.string().max(30).optional(),
   district: z.string().max(100).optional(),
   nin: z.string().max(30).optional(),
+  duplicate_override_reason: z.string().trim().min(5).max(500).optional(),
 })
 
 export const triageSchema = z.object({

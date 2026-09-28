@@ -58,12 +58,30 @@ export default function EmergencyTriagePage() {
     if (!fullName?.trim()) return
     const sex = window.prompt('Sex (M or F)', 'M')
     if (sex !== 'M' && sex !== 'F') return
-    const res = await fetch('/api/patients/register', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ full_name: fullName.trim(), sex }),
-    })
+    const register = (duplicate_override_reason?: string) =>
+      fetch('/api/patients/register', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ full_name: fullName.trim(), sex, duplicate_override_reason }),
+      })
+    let res = await register()
+    if (res.status === 409) {
+      const dup = await res.json().catch(() => ({}))
+      const existing = Array.isArray(dup.candidates) ? dup.candidates[0] : null
+      if (!existing) {
+        setError('Registration failed')
+        return
+      }
+      if (window.confirm(`Possible existing patient: ${existing.full_name} (MRN ${existing.mrn ?? 'unknown'}). Use this record?`)) {
+        setPatient({ id: existing.id, fullName: existing.full_name, mrn: existing.mrn })
+        setError(null)
+        return
+      }
+      const reason = window.prompt('Reason for creating a new record anyway (min 5 characters)')
+      if (!reason || reason.trim().length < 5) return
+      res = await register(reason.trim())
+    }
     if (!res.ok) {
       setError('Registration failed')
       return
