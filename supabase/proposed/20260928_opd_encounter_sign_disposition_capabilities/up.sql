@@ -15,6 +15,12 @@
 -- capabilities. Outpatient triage/vitals is nursing work; production grants
 -- opd.triage.assign to doctor only.
 --
+-- Clinician read grants (doctor, clinical_officer): opd.queue.read
+-- (GET /api/opd/queue, encounter timeline, task list) and lab.order.read
+-- (GET /api/opd/lab-orders). Production grants opd.queue.read to receptionist
+-- only and lab.order.read to lab roles only, so clinicians cannot see their
+-- queue or their own lab orders.
+--
 -- Idempotent (ON CONFLICT DO NOTHING). Catalogue-only: never touches tenants,
 -- profiles or tenant data.
 BEGIN;
@@ -35,11 +41,15 @@ FROM (VALUES
   ('doctor', 'hospital', 'opd', 'encounter', 'close'),
   ('doctor', 'hospital', 'opd', 'result', 'review'),
   ('doctor', 'hospital', 'opd', 'prescription', 'cancel'),
+  ('doctor', 'hospital', 'opd', 'queue', 'read'),
+  ('doctor', 'hospital', 'lab', 'order', 'read'),
   ('clinical_officer', 'hospital', 'opd', 'encounter', 'sign'),
   ('clinical_officer', 'hospital', 'opd', 'encounter', 'disposition'),
   ('clinical_officer', 'hospital', 'opd', 'encounter', 'close'),
   ('clinical_officer', 'hospital', 'opd', 'result', 'review'),
   ('clinical_officer', 'hospital', 'opd', 'prescription', 'cancel'),
+  ('clinical_officer', 'hospital', 'opd', 'queue', 'read'),
+  ('clinical_officer', 'hospital', 'lab', 'order', 'read'),
   ('nurse', 'hospital', 'opd', 'triage', 'assign'),
   ('nurse', 'hospital', 'opd', 'queue', 'read')
 ) AS g(role, facility_type, module, resource, action)

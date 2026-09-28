@@ -16,6 +16,10 @@ Grants (facility type `hospital`):
 
 - `doctor`, `clinical_officer`: all five capabilities above. Clinical officers are
   authorized clinicians for encounter, diagnosis, prescription, sign and disposition.
+- `doctor`, `clinical_officer`: `opd.queue.read` (`GET /api/opd/queue`, encounter timeline,
+  task list) and `lab.order.read` (`GET /api/opd/lab-orders`). Both capabilities exist, but
+  production grants them only to `receptionist` and lab roles respectively, so clinicians
+  cannot see their queue or their own lab orders.
 - `nurse`: `opd.triage.assign` and `opd.queue.read` (existing capabilities). Outpatient
   triage and vitals are OPD nursing work; production grants `opd.triage.assign` to
   `doctor` only, so nurses cannot record OPD vitals or acuity.

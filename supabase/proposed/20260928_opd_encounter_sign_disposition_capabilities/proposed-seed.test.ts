@@ -17,8 +17,8 @@ const CLINICIAN_CAPS: Array<[string, string, string]> = [
 ]
 
 function grants() {
-  return [...up.matchAll(/\('([a-z_]+)', 'hospital', 'opd', '([a-z]+)', '([a-z]+)'\)/g)].map(
-    (m) => `${m[1]}:${m[2]}.${m[3]}`,
+  return [...up.matchAll(/\('([a-z_]+)', 'hospital', '(opd|lab)', '([a-z]+)', '([a-z]+)'\)/g)].map(
+    (m) => `${m[1]}:${m[2]}.${m[3]}.${m[4]}`,
   )
 }
 
@@ -33,22 +33,24 @@ describe('proposed OPD clinician and nursing capability seed', () => {
     const queue = readFileSync(join(api, 'queue/route.ts'), 'utf8')
     expect(vitals).toContain("requireHospitalCapability(ctx, 'triage', 'assign', 'opd')")
     expect(queue).toContain("requireHospitalCapability(ctx, 'queue', 'read', 'opd')")
+    const labOrders = readFileSync(join(api, 'lab-orders/route.ts'), 'utf8')
+    expect(labOrders).toContain("requireHospitalCapability(ctx, 'order', 'read', 'lab')")
   })
 
   it('grants clinician actions to doctor and clinical_officer, triage to nurse, nothing to reception or cashier', () => {
-    const clinician = CLINICIAN_CAPS.map(([, r, a]) => `${r}.${a}`)
+    const clinician = [...CLINICIAN_CAPS.map(([, r, a]) => `opd.${r}.${a}`), 'opd.queue.read', 'lab.order.read']
     const expected = [
       ...clinician.map((c) => `doctor:${c}`),
       ...clinician.map((c) => `clinical_officer:${c}`),
-      'nurse:triage.assign',
-      'nurse:queue.read',
+      'nurse:opd.triage.assign',
+      'nurse:opd.queue.read',
     ]
     expect(grants().sort()).toEqual(expected.sort())
     for (const role of ['receptionist', 'cashier', 'billing_officer']) expect(up).not.toContain(`'${role}'`)
   })
 
   it('does not grant nurse any sign, disposition, close or prescribing capability', () => {
-    expect(grants().filter((g) => g.startsWith('nurse:')).sort()).toEqual(['nurse:queue.read', 'nurse:triage.assign'])
+    expect(grants().filter((g) => g.startsWith('nurse:')).sort()).toEqual(['nurse:opd.queue.read', 'nurse:opd.triage.assign'])
   })
 
   it('is idempotent, catalogue-only and has a scoped rollback', () => {
