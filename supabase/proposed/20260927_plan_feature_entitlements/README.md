@@ -77,6 +77,12 @@ Slugs still in the catalog, with zero `plan_features` by design:
 | `hospital_professional` | `synapse_os_basic_annual`, or `synapse_os_lab_addon_annual` if that tenant's lab module is contracted | human, per tenant |
 | `hospital_enterprise` | `synapse_enterprise` (still empty until a custom quote) | human |
 
+Production inventory (read-only, 2026-09-28): 10 tenants on `hospital_starter`,
+all `trialing`; none on `hospital_professional`, `hospital_enterprise` or
+`hospital_network`. `synapse_os_basic_annual` (1 active) and `synapse_lab_annual`
+(1 active) have zero `plan_features` until this seed is applied, so their hospital
+modules resolve only through `tenant_feature_overrides`.
+
 `tenant_subscriptions` is unique per tenant. Reassignment is one `plan_id` update per tenant, after this seed exists. `tenant_feature_overrides` win over the plan and must be read first (`SELECT feature_key, enabled FROM tenant_feature_overrides WHERE tenant_id = …`). Do not bulk-update production.
 
 Safe procedure, acceptance database only, after this seed is applied:
