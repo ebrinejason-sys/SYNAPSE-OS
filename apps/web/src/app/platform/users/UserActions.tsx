@@ -248,7 +248,7 @@ export function UserActions({ userId, email, role, emailVerified, isDeleted, ver
             type="button"
             onClick={onRestore}
             disabled={pending}
-            className="rounded-md border border-emerald-500/30 px-2.5 py-1 text-xs font-medium text-emerald-300 disabled:opacity-50"
+            className="rounded-md border border-emerald-500/30 px-2.5 py-1 text-xs font-medium text-emerald-300 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
           >
             Restore
           </button>

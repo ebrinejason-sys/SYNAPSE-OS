@@ -40,7 +40,7 @@ vi.mock('@/lib/auth/password-reset.server', () => ({ sendUserPasswordReset: vi.f
 vi.mock('@/lib/platform/auth', async () => await import('../../../lib/platform/auth'))
 
 import { signToken } from '@synapse/auth/tokens'
-import { hashToken } from '@synapse/auth'
+import { accountStateResponse, classifyAccountState, hashToken, isAccountActivated, ACCOUNT_UNAVAILABLE_ERROR } from '@synapse/auth'
 import { roleHasCapability } from '../../../lib/platform/rbac'
 import { createMemoryDb } from '../../../test-utils/memory-postgrest'
 import { restoreUserAccount } from './actions'
@@ -130,11 +130,19 @@ describe('restoreUserAccount authorization (real auth stack, in-memory DB)', () 
     seed(actor, { platform_role: 'PLATFORM_ADMIN', status: 'ACTIVE' })
     await signIn(actor)
 
+    expect(classifyAccountState(target())).toBe('archived')
+    expect(accountStateResponse('archived')?.body.error).toBe(ACCOUNT_UNAVAILABLE_ERROR)
+
     const result = await restoreUserAccount(form(TARGET))
     expect(result).toEqual({ ok: true })
 
     const t = target()
     expect(t.is_deleted).toBe(false)
+    // Password-change and MFA flags survive, so sign-in continues into that
+    // flow instead of being told the account is archived or needs activation.
+    expect(classifyAccountState(t)).toBe('password_change_required')
+    expect(accountStateResponse('password_change_required')).toBeNull()
+    expect(isAccountActivated(t)).toBe(true)
     expect(t.verification_status).toBe('verified')
     expect(t.role).toBe('platform_admin')
     expect(t.must_change_password).toBe(true)
