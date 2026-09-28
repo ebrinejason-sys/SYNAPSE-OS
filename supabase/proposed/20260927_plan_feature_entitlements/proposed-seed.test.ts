@@ -8,8 +8,8 @@ const down = readFileSync(join(dir, 'down.sql'), 'utf8')
 const upLower = up.toLowerCase()
 
 const EXPECTED: Record<string, string[]> = {
-  synapse_os_basic_annual: ['billing', 'opd', 'registration', 'reports'],
-  synapse_os_lab_addon_annual: ['billing', 'lab', 'opd', 'registration', 'reports'],
+  synapse_os_basic_annual: ['billing', 'dispensing', 'opd', 'registration', 'reports'],
+  synapse_os_lab_addon_annual: ['billing', 'dispensing', 'lab', 'opd', 'registration', 'reports'],
   synapse_lab_annual: ['billing', 'lab', 'registration', 'reports'],
 }
 
@@ -40,6 +40,9 @@ describe('proposed plan feature entitlement seed (not auto-applied)', () => {
   it('OS + Lab is a superset of OS Basic (single-subscription has_feature)', () => {
     for (const f of EXPECTED.synapse_os_basic_annual!) expect(EXPECTED.synapse_os_lab_addon_annual).toContain(f)
     expect(EXPECTED.synapse_os_basic_annual).not.toContain('lab')
+    expect(EXPECTED.synapse_os_basic_annual).toContain('dispensing')
+    expect(EXPECTED.synapse_lab_annual).not.toContain('dispensing')
+    expect(EXPECTED.synapse_os_basic_annual).not.toContain('pos.sell')
   })
 
   it('leaves enterprise, custom, legacy hospital_* and pharmacy plans untouched', () => {

@@ -5,6 +5,12 @@ import { provisionFacility, resumeFacilityProvision } from './facility-provision
 function database() {
   const tables: Record<string, any[]> = {
     subscription_plans: [
+      { id: 'os-basic', slug: 'synapse_os_basic_annual', facility_type: 'hospital', is_active: true },
+      { id: 'os-lab', slug: 'synapse_os_lab_addon_annual', facility_type: 'hospital', is_active: true },
+      { id: 'lab-annual', slug: 'synapse_lab_annual', facility_type: 'laboratory', is_active: true },
+      { id: 'enterprise', slug: 'synapse_enterprise', facility_type: 'hospital', is_active: true },
+      { id: 'pharm-annual', slug: 'synapse_pharmacy_annual', facility_type: 'pharmacy', is_active: true },
+      // Empty legacy shells. Provisioning must not select these.
       { id: 'hospital-plan', slug: 'hospital_starter', facility_type: 'hospital', is_active: true },
       { id: 'pharmacy-plan', slug: 'pharmacy_starter', facility_type: 'pharmacy', is_active: true },
     ],
@@ -64,6 +70,9 @@ describe('facility orchestration with persisted effects', () => {
     expect(db.tables.tenants[0].facility_type).toBe(type)
     expect(db.tables.facility_invitations).toHaveLength(1)
     expect(db.tables.tenant_subscriptions).toHaveLength(1)
+    const expectedPlan = type === 'pharmacy' ? 'pharm-annual' : type === 'laboratory' ? 'lab-annual' : 'os-basic'
+    expect(db.tables.tenant_subscriptions[0].plan_id).toBe(expectedPlan)
+    expect(db.tables.tenant_subscriptions[0].plan_id).not.toBe('hospital-plan')
     expect(db.tables.tenants[0].is_active).toBe(true)
     if (type === 'pharmacy') expect(db.tables.facility_provisioning_runs[0].failure_code).toBeNull()
     const counts = Object.fromEntries(Object.entries(db.tables).map(([k, v]) => [k, v.length]))
@@ -109,6 +118,17 @@ describe('facility orchestration with persisted effects', () => {
       hostname: 'acceptance-clinic-a.synapseos.tech',
       status: 'REQUESTED',
     })
+  })
+  it('subscribes a hospital with the lab add-on to the OS + Lab plan, and enterprise to the custom plan', async () => {
+    const withLab = database()
+    const lab = await provisionFacility(withLab, { ...input('hospital', 'lab'), includeLab: true })
+    expect(lab.ok).toBe(true)
+    expect(withLab.tables.tenant_subscriptions[0].plan_id).toBe('os-lab')
+
+    const custom = database()
+    const enterprise = await provisionFacility(custom, { ...input('hospital', 'ent'), tier: 'enterprise' })
+    expect(enterprise.ok).toBe(true)
+    expect(custom.tables.tenant_subscriptions[0].plan_id).toBe('enterprise')
   })
   it('rejects reserved facility slugs before creating a tenant', async () => {
     const db = database()

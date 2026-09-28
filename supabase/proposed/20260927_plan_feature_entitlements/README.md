@@ -16,7 +16,7 @@ every gated hospital/lab module returned 402 for subscribed tenants.
 ## Approved mapping (2026-09-27)
 | Plan slug | Features |
 |---|---|
-| `synapse_os_basic_annual` (OS Basic) | registration, opd, billing, reports |
+| `synapse_os_basic_annual` (OS Basic) | registration, opd, dispensing, billing, reports |
 | `synapse_os_lab_addon_annual` (OS + Lab) | OS Basic + lab |
 | `synapse_lab_annual` (Standalone Lab) | lab, registration, billing, reports |
 | `synapse_pharmacy_annual` | unchanged (already seeded) |
@@ -42,6 +42,59 @@ select sp.slug, string_agg(pf.feature_key, ',' order by pf.feature_key)
 `up.sql` also inserts the module registry **only if missing** (production
 already has the identical value; schema-only environments do not).
 
+## Provisioning
+New facilities no longer subscribe to empty `hospital_*` shells.
+`commercialPlanSlug()` selects:
+
+- hospital / clinic → `synapse_os_basic_annual`
+- hospital / clinic with `includeLab` → `synapse_os_lab_addon_annual`
+- standalone laboratory → `synapse_lab_annual`
+- pharmacy → `synapse_pharmacy_annual` (features already in the commercial migration)
+- hospital enterprise tier → `synapse_enterprise` (no invented module set)
+
+This code change does not write production rows. Existing tenants keep their
+current `tenant_subscriptions.plan_id` until a human applies this seed and
+decides any reassignment.
+
 ## Not included (production actions, human-approved)
-Tenant plan reassignment is deliberately **not** part of this seed. See the
-release report for the per-tenant list.
+Tenant plan reassignment is deliberately **not** part of this seed.
+`dispensing` on OS Basic is the hospital prescription handoff (receive, dispense,
+stock decrement, charge capture). It does not grant standalone Pharmacy keys
+(`pos.sell`, purchasing, suppliers, Tally, pharmacy network).
+
+Outpatient triage and vitals use the `opd` feature (`POST /api/opd/triage`).
+`POST /api/nurse/vitals` stays on `ipd` because that route is ward observation.
+
+IPD, radiology, maternity, theatre, emergency and claims stay ungranted.
+
+## Legacy hospital plans (plan only — do not run)
+
+Slugs still in the catalog, with zero `plan_features` by design:
+
+| Legacy slug | Commercial equivalent | Action |
+|---|---|---|
+| `hospital_starter` | `synapse_os_basic_annual` | human reassignment |
+| `hospital_professional` | `synapse_os_basic_annual`, or `synapse_os_lab_addon_annual` if that tenant's lab module is contracted | human, per tenant |
+| `hospital_enterprise` | `synapse_enterprise` (still empty until a custom quote) | human |
+
+`tenant_subscriptions` is unique per tenant. Reassignment is one `plan_id` update per tenant, after this seed exists. `tenant_feature_overrides` win over the plan and must be read first (`SELECT feature_key, enabled FROM tenant_feature_overrides WHERE tenant_id = …`). Do not bulk-update production.
+
+Safe procedure, acceptance database only, after this seed is applied:
+
+```sql
+-- inspect
+SELECT t.slug, sp.slug AS plan, ts.status
+FROM tenant_subscriptions ts
+JOIN subscription_plans sp ON sp.id = ts.plan_id
+JOIN tenants t ON t.id = ts.tenant_id
+WHERE sp.slug LIKE 'hospital_%';
+
+-- one tenant
+UPDATE tenant_subscriptions
+SET plan_id = (SELECT id FROM subscription_plans WHERE slug = 'synapse_os_basic_annual'),
+    updated_at = now()
+WHERE tenant_id = '<tenant>'
+  AND plan_id = (SELECT id FROM subscription_plans WHERE slug = 'hospital_starter');
+```
+
+Rollback is the same update pointed back at the previous `plan_id`. Record the old id before changing it. This file does not perform that update.

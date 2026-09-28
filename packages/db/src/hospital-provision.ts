@@ -10,6 +10,7 @@ import {
   LABORATORY_LOCATIONS,
   HOSPITAL_STAFF_ROLES,
 } from "./hospital-seed"
+import { commercialPlanSlug } from "./commercial-entitlements"
 import {
   CANONICAL_HOSPITAL_MODULES,
   FACILITY_LEVELS,
@@ -90,6 +91,11 @@ export type ProvisionHospitalInput = {
   adminPhone?: string
   tier?: "trial" | "starter" | "professional" | "enterprise"
   modules?: string[]
+  /**
+   * Hospital/clinic only. Selects synapse_os_lab_addon_annual instead of
+   * OS Basic. Ignored for laboratory (standalone lab plan) and pharmacy.
+   */
+  includeLabAddon?: boolean
   facilityType?: string
   laboratorySections?: string[]
   mode?: ProvisionMode
@@ -122,12 +128,6 @@ export type ProvisionHospitalResult = {
   error?: string
 }
 
-const PLAN_SLUG_MAP: Record<string, string> = {
-  trial: "hospital_starter",
-  starter: "hospital_starter",
-  professional: "hospital_professional",
-  enterprise: "hospital_enterprise",
-}
 
 function nowIso() {
   return new Date().toISOString()
@@ -357,6 +357,8 @@ export async function provisionHospital(
           country: input.country ?? "UG",
           bed_capacity: input.bedCapacity ?? null,
           tier: input.tier ?? "trial",
+          facility_type: input.facilityType ?? "hospital",
+          include_lab_addon: Boolean(input.includeLabAddon),
         },
         started_at: nowIso(),
       })
@@ -460,13 +462,19 @@ export async function provisionHospital(
       }
       warnings.push("Tenant created with minimal columns")
     }
-    // Mark synthetic protection in tenants metadata if column exists — store in hospitals.settings too
+    // Mark synthetic protection without dropping the metadata written at run creation
+    // (facility type, lab add-on, tier). existingRun is the pre-insert snapshot and is empty here.
+    const { data: storedRun } = await db
+      .from("facility_provisioning_runs")
+      .select("metadata")
+      .eq("id", runId)
+      .maybeSingle()
     await db
       .from("facility_provisioning_runs")
       .update({
         tenant_id: tenantId,
         metadata: {
-          ...(existingRun?.metadata ?? {}),
+          ...(storedRun?.metadata ?? {}),
           is_synthetic: isSynthetic,
           protected_from_billing: isSynthetic,
           protected_from_external_reporting: isSynthetic,
@@ -646,7 +654,13 @@ export async function provisionHospital(
   // ── subscription ──────────────────────────────────────────────────────
   await beginStep(db, runId!, "subscription")
   {
-    const targetPlanSlug = PLAN_SLUG_MAP[input.tier ?? "trial"] ?? "hospital_starter"
+    // Legacy hospital_* plans have zero plan_features (intentional FLAG-OFF).
+    // Subscribing a new facility to them makes every gated module return 402.
+    const targetPlanSlug = commercialPlanSlug({
+      facilityType: input.facilityType,
+      tier: input.tier,
+      includeLabAddon: input.includeLabAddon,
+    })
     const { data: planRow } = await db
       .from("subscription_plans")
       .select("id")
@@ -1043,19 +1057,21 @@ export async function resumeFacilityProvision(
   // Recover admin email if older failRun wiped contact metadata
   let adminEmail = contact.email ? String(contact.email).toLowerCase() : ""
   let adminName = contact.name ? String(contact.name) : ""
+  let facilityType = meta.facility_type ? String(meta.facility_type) : ""
   if (!adminEmail && typeof run.idempotency_key === "string") {
     const parts = String(run.idempotency_key).split(":")
     const maybeEmail = parts[parts.length - 1] ?? ""
     if (maybeEmail.includes("@")) adminEmail = maybeEmail.toLowerCase()
   }
-  if (!adminEmail && run.tenant_id) {
+  if (run.tenant_id && (!adminEmail || !adminName || !facilityType)) {
     const { data: tenant } = await db
       .from("tenants")
-      .select("email, name")
+      .select("email, name, facility_type")
       .eq("id", run.tenant_id)
       .maybeSingle()
-    if (tenant?.email) adminEmail = String(tenant.email).toLowerCase()
+    if (!adminEmail && tenant?.email) adminEmail = String(tenant.email).toLowerCase()
     if (!adminName && tenant?.name) adminName = String(tenant.name)
+    if (!facilityType && tenant?.facility_type) facilityType = String(tenant.facility_type)
   }
   if (!adminName) adminName = "Facility Admin"
 
@@ -1105,6 +1121,8 @@ export async function resumeFacilityProvision(
     adminEmail,
     adminPhone: contact.phone ? String(contact.phone) : undefined,
     tier: (meta.tier as "trial" | "starter" | "professional" | "enterprise") || "trial",
+    facilityType: facilityType || "hospital",
+    includeLabAddon: meta.include_lab_addon === true,
     mode: (String(run.mode) === "SYNTHETIC_ACCEPTANCE" ? "SYNTHETIC_ACCEPTANCE" : "REAL") as ProvisionMode,
     idempotencyKey: String(run.idempotency_key ?? ""),
     createdBy,

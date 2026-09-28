@@ -7,7 +7,8 @@
 --              tenant_feature_overrides or any tenant-owned data.
 -- Plans that do not exist in the target database are silently skipped (JOIN).
 --
--- OS Basic        = registration, opd, billing, reports
+-- OS Basic        = registration, opd, dispensing, billing, reports
+--                  dispensing = hospital prescription handoff, not standalone Pharmacy POS
 -- OS + Lab        = OS Basic + lab   (single-subscription plan: synapse_os_lab_addon_annual)
 -- Standalone Lab  = lab, registration, billing, reports
 -- Pharmacy annual = unchanged (already seeded)
@@ -19,10 +20,12 @@ WITH mapping(plan_slug, feature_key) AS (
   VALUES
     ('synapse_os_basic_annual',     'registration'),
     ('synapse_os_basic_annual',     'opd'),
+    ('synapse_os_basic_annual',     'dispensing'),
     ('synapse_os_basic_annual',     'billing'),
     ('synapse_os_basic_annual',     'reports'),
     ('synapse_os_lab_addon_annual', 'registration'),
     ('synapse_os_lab_addon_annual', 'opd'),
+    ('synapse_os_lab_addon_annual', 'dispensing'),
     ('synapse_os_lab_addon_annual', 'billing'),
     ('synapse_os_lab_addon_annual', 'reports'),
     ('synapse_os_lab_addon_annual', 'lab'),
