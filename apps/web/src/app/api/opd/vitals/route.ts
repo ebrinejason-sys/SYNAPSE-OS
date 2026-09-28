@@ -77,7 +77,9 @@ export async function POST(req: NextRequest) {
       sourceTable: 'vitals',
       sourceId: row.id,
       title: 'Vitals recorded',
+      summary: 'Outpatient triage observations recorded for the encounter.',
       createdBy: ctx.userId,
+      tags: ['opd', 'vitals'],
     }),
   )
 
