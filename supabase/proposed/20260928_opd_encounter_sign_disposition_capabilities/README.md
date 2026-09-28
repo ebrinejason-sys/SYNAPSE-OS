@@ -1,16 +1,38 @@
-# PROPOSED: OPD encounter sign/disposition capabilities (not auto-applied)
+# PROPOSED: OPD clinician and nursing capabilities (not auto-applied)
 
-Root cause: the sign and disposition routes call
-`requireHospitalCapability(ctx, 'encounter', 'sign'|'disposition', 'opd')`, but no
-migration creates those capability rows, so `has_capability` is false for every
-role (production confirmed read-only: neither triple exists).
+Root cause: these routes call `requireHospitalCapability(ctx, resource, action, 'opd')`
+for capability rows that no migration creates, so `has_capability` is false for every
+role (production confirmed read-only: none of the triples exist):
 
-Grants only doctor, matching repo evidence (E2E lattice + route semantics).
+| Route | Capability |
+| --- | --- |
+| `POST /api/opd/encounters/[id]/sign` | `opd.encounter.sign` |
+| `POST /api/opd/encounters/[id]/disposition` | `opd.encounter.disposition` |
+| `POST /api/opd/encounters/[id]/close` | `opd.encounter.close` |
+| `POST /api/opd/results/[resultId]/review` | `opd.result.review` |
+| `POST /api/opd/prescriptions/[id]/cancel` | `opd.prescription.cancel` |
 
-PRODUCT DECISION REQUIRED (not in this seed):
-- clinical_officer sign/disposition
-- receptionist `opd.triage.assign` (reception cannot open an OPD visit via triage)
-- nurse `opd.encounter.create` (nurse cannot open a visit)
-- cashier `billing.payment.record` (only billing_officer can record payments)
+Grants (facility type `hospital`):
 
-Apply: `\i up.sql` (idempotent). Rollback: `\i down.sql`.
+- `doctor`, `clinical_officer`: all five capabilities above. Clinical officers are
+  authorized clinicians for encounter, diagnosis, prescription, sign and disposition.
+- `nurse`: `opd.triage.assign` and `opd.queue.read` (existing capabilities). Outpatient
+  triage and vitals are OPD nursing work; production grants `opd.triage.assign` to
+  `doctor` only, so nurses cannot record OPD vitals or acuity.
+
+Not granted (role separation):
+
+- `receptionist`: opens a visit with `opd.encounter.create` (already granted); since
+  `/api/opd/triage` now requires `opd.triage.assign` only when acuity or vitals are
+  sent, reception can route a patient to the queue without triaging.
+- `cashier` / `billing_officer`: payments use `billing.payment.record`, already held by
+  `billing_officer` (the "Cashier" position maps to that role).
+
+Still ungranted, product decisions (routes stay 403):
+
+- `lab.order.cancel` (`POST /api/lab/orders/[id]/cancel`)
+- `dispensing.inventory.write` (hospital stock purchasing counts as advanced inventory,
+  which OS Basic does not include)
+
+Apply: `\i up.sql` (idempotent). Rollback: `\i down.sql`. If an environment already
+granted the nurse capabilities before `up.sql`, skip the nurse block of `down.sql`.

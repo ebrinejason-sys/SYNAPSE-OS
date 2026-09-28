@@ -13,9 +13,6 @@ export async function POST(req: NextRequest) {
   const ctx = await requireHospitalStaffContext()
   if (isContextError(ctx)) return ctx
 
-  const triageBlock = await requireHospitalCapability(ctx, 'triage', 'assign', 'opd')
-  if (triageBlock) return triageBlock
-
   const createBlock = await requireHospitalCapability(ctx, 'encounter', 'create', 'opd')
   if (createBlock) return createBlock
 
@@ -29,6 +26,13 @@ export async function POST(req: NextRequest) {
   }
 
   const { patient_id, chief_complaint, clinical_stage, ...vitalsFields } = parsed.data
+  const hasVitals = Object.values(vitalsFields).some((v) => v !== undefined)
+
+  // Opening a visit is registration work; acuity and vitals are triage work.
+  if (clinical_stage || hasVitals) {
+    const triageBlock = await requireHospitalCapability(ctx, 'triage', 'assign', 'opd')
+    if (triageBlock) return triageBlock
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
@@ -50,7 +54,6 @@ export async function POST(req: NextRequest) {
 
   if (encounterError) return NextResponse.json({ error: encounterError.message }, { status: 500 })
 
-  const hasVitals = Object.values(vitalsFields).some((v) => v !== undefined)
   let vitalsRecorded = true
   if (hasVitals) {
     const { error: vitalsError } = await db.from('vitals').insert({

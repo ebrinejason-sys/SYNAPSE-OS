@@ -69,6 +69,7 @@ export const vitalsRecordSchema = z.object({
   spo2: z.coerce.number().min(50).max(100).optional(),
   weight_kg: z.coerce.number().min(0.5).max(400).optional(),
   height_cm: z.coerce.number().min(20).max(250).optional(),
+  clinical_stage: z.enum(['RED', 'YELLOW', 'GREEN']).optional(),
 })
 
 export const encounterAmendSchema = z.object({

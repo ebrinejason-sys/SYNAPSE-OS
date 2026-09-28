@@ -4,6 +4,9 @@ import { isContextError, requireHospitalCapability, gateHospitalModule, logHospi
 import { requireHospitalStaffContext, vitalsRecordSchema } from '@/lib/hospital-dept'
 import { clinicalActionTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
+import { recordTriageCompleted } from '@synapse/db/clinical-journey'
+import { WorkQueue } from '@synapse/db/work-queue'
+import { persistWorkQueueArtifactsBestEffort, rowToDepartmentTask } from '@synapse/db/work-queue-persist'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +27,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { encounter_id, patient_id, ...vitals } = parsed.data
+  const { encounter_id, patient_id, clinical_stage, ...vitals } = parsed.data
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
@@ -59,12 +62,29 @@ export async function POST(req: NextRequest) {
 
   if (vitalsError) return NextResponse.json({ error: vitalsError.message }, { status: 500 })
 
+  if (clinical_stage) {
+    const { error: stageError } = await db
+      .from('encounters')
+      .update({ clinical_stage })
+      .eq('id', encounter_id)
+      .eq('tenant_id', ctx.tenantId)
+    if (stageError) return NextResponse.json({ error: stageError.message }, { status: 500 })
+  }
+
   await logHospitalAudit({
     ctx,
     action: 'INSERT',
     tableName: 'vitals',
     recordId: row.id,
-    newValue: { encounter_id, patient_id, ...vitals },
+    newValue: { encounter_id, patient_id, clinical_stage, ...vitals },
+  })
+
+  const journeyWarnings = await completeOpenTriageTask(db, {
+    tenantId: ctx.tenantId,
+    hospitalId: ctx.hospitalId,
+    patientId: patient_id,
+    encounterId: encounter_id,
+    requesterId: ctx.userId,
   })
 
   void publishClinicalTimelineBestEffort(
@@ -83,5 +103,50 @@ export async function POST(req: NextRequest) {
     }),
   )
 
-  return NextResponse.json({ id: row.id }, { status: 201 })
+  return NextResponse.json(
+    journeyWarnings.length ? { id: row.id, journeyWarnings } : { id: row.id },
+    { status: 201 },
+  )
+}
+
+/** Hands a visit opened without vitals (e.g. by reception) from the nurse triage task to doctor review. */
+async function completeOpenTriageTask(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  input: { tenantId: string; hospitalId: string; patientId: string; encounterId: string; requesterId: string },
+): Promise<string[]> {
+  try {
+    const { data: taskRow, error } = await db
+      .from('department_tasks')
+      .select('*')
+      .eq('tenant_id', input.tenantId)
+      .eq('encounter_id', input.encounterId)
+      .eq('task_type', 'triage')
+      .in('status', ['REQUESTED', 'ACCEPTED', 'IN_PROGRESS'])
+      .limit(1)
+      .maybeSingle()
+    if (error) return [error.message]
+    if (!taskRow) return []
+
+    const queue = new WorkQueue()
+    const triageTask = rowToDepartmentTask(taskRow)
+    queue.tasks.set(triageTask.id, triageTask)
+    const handoff = recordTriageCompleted({
+      queue,
+      triageTaskId: triageTask.id,
+      tenantId: input.tenantId,
+      hospitalId: input.hospitalId,
+      patientId: input.patientId,
+      encounterId: input.encounterId,
+      requesterId: input.requesterId,
+    })
+    const persist = await persistWorkQueueArtifactsBestEffort(db, {
+      tasks: [queue.get(triageTask.id)!, handoff.doctorTask],
+      events: queue.outbox.list({ correlationId: input.encounterId }),
+    })
+    return persist.errors
+  } catch (err) {
+    console.warn('[opd/vitals] triage handoff failed (vitals still saved)', err)
+    return [err instanceof Error ? err.message : 'triage handoff failed']
+  }
 }
