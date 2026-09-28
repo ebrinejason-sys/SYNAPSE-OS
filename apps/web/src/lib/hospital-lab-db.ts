@@ -134,7 +134,7 @@ export async function executeHospitalLabAction(params: {
   action: string
   actorId: string
   extra?: Record<string, unknown>
-}): Promise<{ order: LabOrder; result: LabResult | null; warnings: string[] }> {
+}): Promise<{ order: LabOrder; result: LabResult | null; warnings: string[]; idempotent: boolean }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
   const order = await loadLabOrder(supabaseAdmin, params.ctx.tenantId, params.orderId)
@@ -155,7 +155,7 @@ export async function executeHospitalLabAction(params: {
       if (!order.specimenId || !order.accessionNumber || !order.barcode) {
         throw new Error('LAB_COLLECT_RETRY_INCOMPLETE:specimen reconciliation required')
       }
-      return { order, result: priorResults[0] ?? null, warnings }
+      return { order, result: priorResults[0] ?? null, warnings, idempotent: false }
     }
     const accession =
       typeof params.extra?.accessionNumber === 'string' && params.extra.accessionNumber.trim()
@@ -508,5 +508,5 @@ export async function executeHospitalLabAction(params: {
     }
   }
 
-  return { order: updated, result, warnings }
+  return { order: updated, result, warnings, idempotent: params.action === 'release' && repeatRelease }
 }

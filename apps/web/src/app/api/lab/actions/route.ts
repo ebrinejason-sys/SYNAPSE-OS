@@ -110,7 +110,7 @@ export async function POST(request: Request) {
       extra: body,
     })
 
-    if (REQUIRED_AUDIT_ACTIONS.has(action)) {
+    if (REQUIRED_AUDIT_ACTIONS.has(action) && !outcome.idempotent) {
       try {
         await requireHospitalAudit({
           ctx,
