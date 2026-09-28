@@ -14,8 +14,11 @@ function canUseLab(role: string | undefined, email: string | null) {
 
 export async function POST(request: Request) {
   const user = await getCurrentUser()
-  if (!user || !canUseLab(user.role, user.email)) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  if (!canUseLab(user.role, user.email)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
