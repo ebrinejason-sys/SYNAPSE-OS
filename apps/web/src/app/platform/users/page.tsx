@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { requirePlatformAccess } from "@/lib/platform/auth";
+import { PlatformNoticeRegion } from "./PlatformNoticeRegion";
 import { directoryHref, searchPlatformUsers, SUSPENDED_VERIFICATION_STATUSES } from "@/lib/platform/user-directory";
 import { formatDate, platformAdminClient, safeCount, safeRows } from "../_lib/platform-data";
 import { UserActions } from "./UserActions";
@@ -75,6 +76,8 @@ export default async function PlatformUsersPage({
           </article>
         ))}
       </section>
+
+      <PlatformNoticeRegion />
 
       <form className="flex flex-wrap gap-2 rounded-xl border border-slate-800 bg-[#111117] p-4" method="get" role="search" aria-label="Filter users">
         <label className="sr-only" htmlFor="user-q">Search</label>

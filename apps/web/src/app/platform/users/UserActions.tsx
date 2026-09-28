@@ -12,6 +12,7 @@ import {
   sendPasswordResetForUser,
   suspendUserAccount,
 } from './actions'
+import { platformNotices } from './notice-bus'
 
 type Props = {
   userId: string
@@ -44,8 +45,13 @@ export function UserActions({ userId, email, role, emailVerified, isDeleted, ver
     setError(null)
     startTransition(async () => {
       const result = await action()
-      if (result.ok) setMessage(success)
-      else setError(result.error ?? 'Action failed.')
+      if (result.ok) {
+        setMessage(success)
+        platformNotices.publish(`${success} (${email})`)
+      } else {
+        setError(result.error ?? 'Action failed.')
+        platformNotices.publish(`${result.error ?? 'Action failed.'} (${email})`, 'error')
+      }
     })
   }
 
