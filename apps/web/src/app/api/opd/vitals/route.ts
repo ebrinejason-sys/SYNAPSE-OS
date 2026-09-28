@@ -1,22 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
-import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../lib/hospital-shared'
-import { requireHospitalStaffContext, vitalsRecordSchema } from '../../../../lib/hospital-dept'
+import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '@/lib/hospital-shared'
+import { requireHospitalStaffContext, vitalsRecordSchema } from '@/lib/hospital-dept'
 import { clinicalActionTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
 
 export const dynamic = 'force-dynamic'
 
+/** Outpatient vitals. Capability triage.assign on module opd. Does not require inpatient. */
 export async function POST(req: NextRequest) {
   const ctx = await requireHospitalStaffContext()
   if (isContextError(ctx)) return ctx
 
-  const cap = await requireHospitalCapability(ctx, 'round', 'write', 'ward')
+  const cap = await requireHospitalCapability(ctx, 'triage', 'assign', 'opd')
   if (cap) return cap
 
-  // Ward observation charts stay on the inpatient module. Outpatient vitals
-  // are recorded by POST /api/opd/vitals (triage.assign + opd), not this route.
-  const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, 'ipd')
+  const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, 'opd')
   if (moduleBlock) return moduleBlock
 
   const body = await req.json().catch(() => null)
@@ -78,11 +77,9 @@ export async function POST(req: NextRequest) {
       sourceTable: 'vitals',
       sourceId: row.id,
       title: 'Vitals recorded',
-      summary: 'Nursing observations recorded for the encounter.',
       createdBy: ctx.userId,
-      tags: ['nursing', 'vitals'],
     }),
   )
 
-  return NextResponse.json({ vitalsId: row.id }, { status: 201 })
+  return NextResponse.json({ id: row.id }, { status: 201 })
 }
