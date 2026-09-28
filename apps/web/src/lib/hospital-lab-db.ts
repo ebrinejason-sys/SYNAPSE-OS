@@ -4,6 +4,7 @@
  */
 
 import { supabaseAdmin } from '@synapse/db/admin'
+import { isRepeatLabRelease } from './lab-release-idempotency'
 import {
   LabWorkflow,
   SPECIMEN_REJECTION_REASONS,
@@ -138,6 +139,7 @@ export async function executeHospitalLabAction(params: {
   const db = supabaseAdmin as any
   const order = await loadLabOrder(supabaseAdmin, params.ctx.tenantId, params.orderId)
   if (!order) throw new Error('LAB_ORDER_NOT_FOUND')
+  const repeatRelease = isRepeatLabRelease(order.status)
 
   const priorResults = await loadLabResultsForOrder(db, params.ctx.tenantId, params.orderId)
   const lab = new LabWorkflow([order], priorResults)
@@ -430,7 +432,7 @@ export async function executeHospitalLabAction(params: {
       .eq('task_type', 'lab_order')
     if (error) warnings.push(error.message)
 
-    if (result) {
+    if (result && !repeatRelease) {
       void publishClinicalTimelineBestEffort(
         publishTimelineEvent,
         labResultReleasedTimelineEvent({
