@@ -4,6 +4,6 @@ BEGIN;
 DELETE FROM public.role_capabilities rc
 USING public.capabilities c
 WHERE rc.capability_id = c.id
-  AND rc.role = 'doctor' AND rc.facility_type = 'hospital'
+  AND rc.role IN ('doctor', 'clinical_officer') AND rc.facility_type = 'hospital'
   AND c.module = 'opd' AND c.resource = 'encounter' AND c.action IN ('sign', 'disposition');
 COMMIT;

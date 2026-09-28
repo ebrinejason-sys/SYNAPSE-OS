@@ -5,11 +5,11 @@
 -- No migration ever created these capabilities, so has_capability() is false
 -- for every role and both routes return 403 in production.
 --
--- Grants are limited to what the repo already defines:
---   * opd.encounter.sign        -> doctor  (scripts/e2e-os-capability-lattice.ts,
---                                           "documented OPD sign grant")
---   * opd.encounter.disposition -> doctor  (the route records "Doctor disposition recorded")
--- clinical_officer is NOT granted here: product decision required.
+-- Grants:
+--   * opd.encounter.sign        -> doctor, clinical_officer
+--   * opd.encounter.disposition -> doctor, clinical_officer
+-- clinical_officer is an authorized clinician for encounter, diagnosis,
+-- prescription, sign and disposition. Reception and nursing are not granted.
 --
 -- Idempotent (ON CONFLICT DO NOTHING). Catalogue-only: never touches tenants,
 -- profiles or tenant data.
@@ -24,7 +24,9 @@ INSERT INTO public.role_capabilities (role, facility_type, capability_id)
 SELECT g.role, g.facility_type, c.id
 FROM (VALUES
   ('doctor', 'hospital', 'opd', 'encounter', 'sign'),
-  ('doctor', 'hospital', 'opd', 'encounter', 'disposition')
+  ('doctor', 'hospital', 'opd', 'encounter', 'disposition'),
+  ('clinical_officer', 'hospital', 'opd', 'encounter', 'sign'),
+  ('clinical_officer', 'hospital', 'opd', 'encounter', 'disposition')
 ) AS g(role, facility_type, module, resource, action)
 JOIN public.capabilities c
   ON c.module = g.module AND c.resource = g.resource AND c.action = g.action

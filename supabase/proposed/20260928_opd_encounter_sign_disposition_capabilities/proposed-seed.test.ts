@@ -17,16 +17,21 @@ describe('proposed OPD sign/disposition capability seed', () => {
     expect(up).toContain("('opd', 'encounter', 'disposition'")
   })
 
-  it('grants doctor only (other roles are product decisions)', () => {
+  it('grants doctor and clinical_officer, not reception or nursing', () => {
     const grants = [...up.matchAll(/\('([a-z_]+)', 'hospital', 'opd', 'encounter', '([a-z]+)'\)/g)].map((m) => `${m[1]}:${m[2]}`)
-    expect(grants.sort()).toEqual(['doctor:disposition', 'doctor:sign'])
-    for (const role of ['receptionist', 'nurse', 'cashier', 'clinical_officer']) expect(up).not.toContain(`'${role}'`)
+    expect(grants.sort()).toEqual([
+      'clinical_officer:disposition',
+      'clinical_officer:sign',
+      'doctor:disposition',
+      'doctor:sign',
+    ])
+    for (const role of ['receptionist', 'nurse', 'cashier']) expect(up).not.toContain(`'${role}'`)
   })
 
   it('is idempotent, catalogue-only and has a scoped rollback', () => {
     expect(up.match(/on conflict/g)?.length).toBe(2)
     for (const bad of [/\bupdate\s/, /\bdelete\s/, /\bdrop\b/, /\balter\b/, /\btenants\b/, /\bprofiles\b/]) expect(up).not.toMatch(bad)
-    expect(down).toMatch(/rc\.role = 'doctor'/)
+    expect(down).toMatch(/rc\.role in \('doctor', 'clinical_officer'\)/)
     expect(down).not.toMatch(/delete from public\.capabilities/)
     expect(dir.replace(/\\/g, '/')).toContain('supabase/proposed/')
   })

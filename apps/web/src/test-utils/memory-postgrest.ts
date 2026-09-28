@@ -108,6 +108,12 @@ export function createMemoryDb(seed: Record<string, Row[]> = {}) {
         const list = (Array.isArray(payload) ? payload : [payload]).map((v: Row) => ({ id: crypto.randomUUID(), created_at: new Date().toISOString(), ...v }))
         rows.push(...list)
         log.push({ table, op: mode, payload })
+        if (single === 'single') {
+          return list[0]
+            ? { data: { ...list[0] }, error: null, count: null }
+            : { data: null, error: { code: 'PGRST116', message: 'no rows' }, count: null }
+        }
+        if (single === 'maybe') return { data: list[0] ? { ...list[0] } : null, error: null, count: null }
         return { data: list, error: null, count: null }
       }
       let matched = rows.filter(r => preds.every(p => p(r)))
