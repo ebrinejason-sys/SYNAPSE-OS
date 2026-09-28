@@ -5,6 +5,7 @@ import {
   verifyPharmMfaSatisfiedToken,
 } from '@synapse/auth/mfa'
 import { SESSION_COOKIE } from '@synapse/config/constants'
+import { decideMutationOrigin } from '@synapse/auth/mutation-origin'
 import { evaluateEntitlement } from '@synapse/auth/billing/entitlement'
 
 type PharmacyProfile = {
@@ -356,6 +357,17 @@ async function runPharmacyAccessChecks(params: {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const originDecision = decideMutationOrigin({
+    method: request.method,
+    host: request.headers.get('host'),
+    origin: request.headers.get('origin'),
+    referer: request.headers.get('referer'),
+    secFetchSite: request.headers.get('sec-fetch-site'),
+    hasSessionCookie: Boolean(request.cookies.get(SESSION_COOKIE)?.value),
+  })
+  if (!originDecision.allow) {
+    return NextResponse.json({ error: 'cross_origin_mutation_blocked' }, { status: 403 })
+  }
 
   // ── Feature 2: resolve a custom domain → tenant and forward it as headers.
   // Base/managed hosts are skipped (default behavior unchanged). We always strip
