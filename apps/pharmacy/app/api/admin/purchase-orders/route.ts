@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to create purchase order items" }, { status: 500 })
     }
 
-    let emailStatus: "not_requested" | "sent" | "failed" | "no_address" =
+    let emailStatus: "not_requested" | "sent" | "failed" | "no_address" | "status_not_saved" =
       sendEmailToSupplier ? (supplier.email ? "failed" : "no_address") : "not_requested"
     if (sendEmailToSupplier && supplier.email) {
       const itemsTable = poItems
@@ -232,12 +232,19 @@ export async function POST(request: NextRequest) {
       if (sent.success) {
         emailStatus = "sent"
         const sentAt = new Date().toISOString()
-        await supabaseAdmin
+        const { data: sentOrder, error: sentError } = await supabaseAdmin
           .from("pharmacy_purchase_orders")
           .update({ status: "SENT", email_sent: true, email_sent_at: sentAt })
           .eq("id", purchaseOrder.id)
           .eq("tenant_id", tenantId)
-        Object.assign(purchaseOrder, { status: "SENT" })
+          .select("id, order_no, status, total_amount")
+          .single()
+        if (sentError || !sentOrder) {
+          console.error("Error saving purchase order email status:", sentError)
+          emailStatus = "status_not_saved"
+        } else {
+          Object.assign(purchaseOrder, sentOrder)
+        }
       } else {
         emailStatus = "failed"
       }
@@ -250,11 +257,12 @@ export async function POST(request: NextRequest) {
       action: "CREATE_PURCHASE_ORDER",
       entity: "PURCHASE_ORDER",
       entity_id: purchaseOrder.id,
-      details: `Created PO ${orderNo} for ${supplier.name}${emailStatus === "sent" ? " (email sent)" : emailStatus === "failed" ? " (email failed)" : ""}`,
+      details: `Created PO ${orderNo} for ${supplier.name}${emailStatus === "sent" ? " (email sent)" : emailStatus === "failed" ? " (email failed)" : emailStatus === "status_not_saved" ? " (email accepted; delivery status could not be saved)" : ""}`,
     })
 
     return NextResponse.json({
       success: true,
+      ...(emailStatus === "status_not_saved" ? { warning: "Order saved and the email was accepted, but its delivery status could not be saved. Refresh the order and confirm with the supplier before resending." } : {}),
       ...(emailStatus === "failed" ? { warning: "Order saved, but the email to the supplier could not be delivered. Use Send/Resend Email to retry." } : {}),
       ...(emailStatus === "no_address" ? { warning: "Order saved. The supplier has no email address, so nothing was sent." } : {}),
       purchaseOrder: mapPurchaseOrder(
