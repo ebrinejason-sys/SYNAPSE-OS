@@ -236,7 +236,7 @@ async function collectLinks(page) {
     const href = a.getAttribute("href") || ""
     const text = (a.getAttribute("aria-label") || a.textContent || "").trim().slice(0, 60)
     const bad = href === "#" || href === "" ? "placeholder link"
-      : href.startsWith("javascript:") ? "javascript link"
+      : /^\s*(javascript|data|vbscript):/i.test(href) ? "script-scheme link"
       : /\.vercel\.app/.test(href) ? "vercel.app link"
       : /\/os\/(?!synapse-e2e-hospital)[a-z0-9-]+\//.test(href) && !/\$\{/.test(href) ? "foreign facility slug"
       : null
