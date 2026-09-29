@@ -62,4 +62,13 @@ describe('pharmacy POST /api/auth/otp-send (pre-proof)', () => {
     expect(await send()).toEqual({ status: 200, body: { ok: true } })
     expect(mocks.createAndSendOTP).toHaveBeenCalledTimes(1)
   })
+
+  it.each([
+    ['delivery failure', () => mocks.sendOTP.mockRejectedValueOnce(new Error('provider down'))],
+    ['per-target rate limit', () => mocks.createAndSendOTP.mockRejectedValueOnce(new Error('TOO_MANY_REQUESTS'))],
+  ])('active account %s is indistinguishable from unknown', async (_l, arrange) => {
+    mocks.profile = { full_name: 'A', email_verified_at: verified, verification_status: 'verified' }
+    arrange()
+    expect(await send()).toEqual({ status: 200, body: { ok: true } })
+  })
 })

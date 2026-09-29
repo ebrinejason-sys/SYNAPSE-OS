@@ -51,11 +51,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Could not check account status.' }, { status: 500 })
   }
 
+  // Pre-proof endpoint: unknown, rate-limited and undeliverable numbers all answer { ok: true }.
   if (!profile) {
-    return NextResponse.json(
-      { error: 'No Synapse OS account is linked to this phone number.' },
-      { status: 404 }
-    )
+    return NextResponse.json({ ok: true })
   }
 
   // Pre-proof endpoint: never reveal account state before the OTP is proven.
@@ -69,14 +67,8 @@ export async function POST(req: NextRequest) {
   try {
     otp = await createAndSendOTP({ channel: 'sms', target: phone })
   } catch (error) {
-    const msg = error instanceof Error ? error.message : ''
-    if (msg === 'TOO_MANY_REQUESTS') {
-      return NextResponse.json(
-        { error: 'Too many attempts. Please wait before requesting another code.' },
-        { status: 429 }
-      )
-    }
-    return NextResponse.json({ error: 'Failed to create verification' }, { status: 500 })
+    console.error('SMS OTP create error:', error instanceof Error ? error.message : error)
+    return NextResponse.json({ ok: true })
   }
 
   try {
@@ -86,7 +78,6 @@ export async function POST(req: NextRequest) {
     )
   } catch (err) {
     console.error('SMS send error:', err)
-    return NextResponse.json({ error: 'Failed to send SMS. Check the number and try again.' }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true })

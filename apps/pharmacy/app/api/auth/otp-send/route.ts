@@ -34,14 +34,9 @@ export async function POST(req: NextRequest) {
       purpose: 'login',
     })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : ''
-    if (msg === 'TOO_MANY_REQUESTS') {
-      return NextResponse.json(
-        { error: 'Too many requests. Please wait before requesting a new code.' },
-        { status: 429 }
-      )
-    }
-    return NextResponse.json({ error: 'Failed to send verification code.' }, { status: 500 })
+    // Rate limits and delivery failures only happen for real accounts; answering them
+    // differently would reveal which emails exist.
+    console.error('[pharmacy/otp-send] code not delivered:', err instanceof Error ? err.message : err)
   }
 
   return NextResponse.json({ ok: true })
