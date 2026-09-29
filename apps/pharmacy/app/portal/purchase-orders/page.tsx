@@ -174,6 +174,7 @@ export default function PurchaseOrdersPage() {
           title: "Success",
           description: "Email sent to supplier",
         })
+        fetchOrders()
       } else {
         const data = await response.json()
         toast({

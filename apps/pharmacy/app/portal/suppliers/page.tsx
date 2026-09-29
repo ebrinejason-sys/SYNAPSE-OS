@@ -707,6 +707,7 @@ function CreatePurchaseOrderDialog({
       const data = await response.json()
 
       if (response.ok) {
+        if (data.warning) toast({ variant: "destructive", title: "Email not sent", description: data.warning })
         onSuccess()
       } else {
         toast({
