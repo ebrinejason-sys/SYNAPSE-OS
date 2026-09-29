@@ -6,7 +6,7 @@ import { edTriageTimelineEvent, publishClinicalTimelineBestEffort } from '@synap
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
 import { appendClinicalChargeBestEffort, recordInvoiceCreatedEvent, resolveServicePrice } from '@synapse/db/clinical-charge'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../lib/hospital-shared'
-import { requireHospitalStaffContext, edTriageSchema } from '../../../../lib/hospital-dept'
+import { requireHospitalStaffContext, requireTenantPatient, edTriageSchema } from '../../../../lib/hospital-dept'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +36,9 @@ export async function POST(req: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
+  const patientBlock = await requireTenantPatient(db, ctx.tenantId, patient_id)
+  if (patientBlock) return patientBlock
+
   const { data: encounter, error: encounterError } = await db
     .from('encounters')
     .insert({

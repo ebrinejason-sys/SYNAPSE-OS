@@ -31,6 +31,11 @@ export async function POST(req: NextRequest) {
 
   const { prescription_id, product_id, pharmacy_tenant_id, payment_method } = parsed.data
 
+  // Hospital dispensing draws on the facility's own stock; cross-tenant network dispensing is not enabled.
+  if (pharmacy_tenant_id !== ctx.tenantId) {
+    return NextResponse.json({ error: 'Pharmacy not available to this facility' }, { status: 403 })
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
   const { data: row, error: loadError } = await db

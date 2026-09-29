@@ -8,8 +8,10 @@ const {
   logHospitalAudit,
   persistWorkQueueArtifactsBestEffort,
   publishClinicalTimelineBestEffort,
+  requireTenantPatient,
   dbFrom,
 } = vi.hoisted(() => ({
+  requireTenantPatient: vi.fn(),
   requireHospitalStaffContext: vi.fn(),
   requireHospitalCapability: vi.fn(),
   gateHospitalModule: vi.fn(),
@@ -23,6 +25,7 @@ vi.mock("@/lib/hospital-dept", async () => {
   const { z } = await import("zod")
   return {
     requireHospitalStaffContext: (...args: unknown[]) => requireHospitalStaffContext(...args),
+    requireTenantPatient: (...args: unknown[]) => requireTenantPatient(...args),
     triageSchema: z.object({
       patient_id: z.string().uuid(),
       chief_complaint: z.string().min(1),
@@ -107,6 +110,7 @@ function deny(resource: string, action: string) {
 
 describe("POST /api/opd/triage authorization", () => {
   beforeEach(() => {
+    requireTenantPatient.mockResolvedValue(null)
     gateHospitalModule.mockResolvedValue(null)
     logHospitalAudit.mockResolvedValue(undefined)
     persistWorkQueueArtifactsBestEffort.mockResolvedValue({ errors: [] })
@@ -200,5 +204,16 @@ describe("POST /api/opd/triage authorization", () => {
     expect(requireHospitalCapability.mock.calls).toHaveLength(1)
     expect(gateHospitalModule).not.toHaveBeenCalled()
     expect(dbFrom).not.toHaveBeenCalled()
+  })
+
+  it("refuses a patient outside the caller's tenant without opening a visit", async () => {
+    requireHospitalStaffContext.mockResolvedValue(staffCtx("receptionist"))
+    requireHospitalCapability.mockResolvedValue(null)
+    requireTenantPatient.mockResolvedValue(NextResponse.json({ error: "Patient not found" }, { status: 404 }))
+    const { POST } = await import("./route")
+    const res = await POST(postBody({}))
+    expect(res.status).toBe(404)
+    expect(requireTenantPatient).toHaveBeenCalledWith(expect.anything(), TENANT, PATIENT)
+    expect(dbFrom).not.toHaveBeenCalledWith("encounters")
   })
 })

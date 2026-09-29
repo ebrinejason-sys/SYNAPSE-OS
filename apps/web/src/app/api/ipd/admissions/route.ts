@@ -5,7 +5,12 @@ import { persistWorkQueueArtifactsBestEffort } from '@synapse/db/work-queue-pers
 import { admissionTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../lib/hospital-shared'
-import { requireHospitalStaffContext, admissionCreateSchema } from '../../../../lib/hospital-dept'
+import {
+  requireHospitalStaffContext,
+  requireTenantPatient,
+  requireHospitalEncounter,
+  admissionCreateSchema,
+} from '../../../../lib/hospital-dept'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,6 +73,13 @@ export async function POST(req: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
+  const patientBlock = await requireTenantPatient(db, ctx.tenantId, patient_id)
+  if (patientBlock) return patientBlock
+  if (encounter_id) {
+    const encounterBlock = await requireHospitalEncounter(db, ctx.hospitalId, encounter_id, patient_id)
+    if (encounterBlock) return encounterBlock
+  }
+
   const { data: bed, error: bedError } = await db
     .from('hospital_beds')
     .select('id, ward, status, current_patient_id, hospital_id, tenant_id')
