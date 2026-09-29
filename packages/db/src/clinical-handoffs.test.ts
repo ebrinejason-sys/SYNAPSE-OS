@@ -39,4 +39,27 @@ describe("clinical handoffs", () => {
     }), /INVALID_TRANSITION/)
     assert.equal(retryQueue.list({ tenantId: "tenant-1" }).filter((task) => task.ownerRole === "doctor").length, 1)
   })
+
+  it("hands off a triage task that a nurse already started", () => {
+    const opened = recordEncounterOpened({
+      tenantId: "tenant-1",
+      hospitalId: "hospital-1",
+      patientId: "patient-2",
+      encounterId: "encounter-2",
+      requesterId: "nurse-1",
+      chiefComplaint: "cough",
+    })
+    assert.ok(opened.queue.start(opened.triageTask.id, "nurse-1").ok)
+    const handoff = recordTriageCompleted({
+      queue: opened.queue,
+      triageTaskId: opened.triageTask.id,
+      tenantId: "tenant-1",
+      hospitalId: "hospital-1",
+      patientId: "patient-2",
+      encounterId: "encounter-2",
+      requesterId: "nurse-1",
+    })
+    assert.equal(opened.queue.get(opened.triageTask.id)?.status, "COMPLETED")
+    assert.equal(handoff.doctorTask.ownerRole, "doctor")
+  })
 })

@@ -105,8 +105,10 @@ export type TriageCompletedResult = {
 
 /** Complete persisted triage work and hand the same encounter to the doctor queue. */
 export function recordTriageCompleted(input: TriageCompletedInput): TriageCompletedResult {
-  const started = input.queue.start(input.triageTaskId, input.requesterId)
-  if (!started.ok) throw new Error(started.error)
+  if (input.queue.get(input.triageTaskId)?.status !== "IN_PROGRESS") {
+    const started = input.queue.start(input.triageTaskId, input.requesterId)
+    if (!started.ok) throw new Error(started.error)
+  }
   const completed = input.queue.complete(input.triageTaskId, "Triage completed", input.requesterId)
   if (!completed.ok) throw new Error(completed.error)
 
