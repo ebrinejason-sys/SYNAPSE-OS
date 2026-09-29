@@ -4,9 +4,9 @@ import { randomBytes } from 'crypto'
 // Lazy instance --- avoids throwing at module load time when key is absent
 let _resend: Resend | null = null
 function getResend(): Resend {
-  if (!_resend) {
-    _resend = new Resend(process.env.RESEND_API_KEY || 'placeholder')
-  }
+  const key = process.env.RESEND_API_KEY
+  if (!key) throw new Error('RESEND_API_KEY is not set')
+  _resend ??= new Resend(key)
   return _resend
 }
 
@@ -19,12 +19,17 @@ interface SendEmailParams {
 export async function sendEmail({ to, subject, html }: SendEmailParams) {
   try {
     const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@synapseos.tech'
-    const data = await getResend().emails.send({
+    const { data, error } = await getResend().emails.send({
       from: `SYNAPSE Pharm <${fromEmail}>`,
       to,
       subject,
       html,
     })
+    // Resend reports rejected sends in the result instead of throwing.
+    if (error) {
+      console.error(`Email rejected by Resend: ${error.name}: ${error.message} (to domain ${to.split('@')[1] ?? '?'})`)
+      return { success: false, error }
+    }
     return { success: true, data }
   } catch (error) {
     console.error('Failed to send email:', error)
