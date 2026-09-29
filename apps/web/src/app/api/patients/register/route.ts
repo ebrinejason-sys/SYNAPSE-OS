@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '../../../../lib/hospital-shared'
 import { requireHospitalStaffContext, patientRegisterSchema } from '../../../../lib/hospital-dept'
+import { findDuplicatePatients, type DuplicateCandidate } from '../../../../lib/hospital-dept/patient-duplicates'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,8 +32,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
+  const { duplicate_override_reason, ...patientFields } = parsed.data
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
+
+  let duplicates: DuplicateCandidate[]
+  try {
+    duplicates = await findDuplicatePatients(db, ctx.tenantId, patientFields)
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Duplicate check failed' }, { status: 500 })
+  }
+  if (duplicates.length && !duplicate_override_reason) {
+    return NextResponse.json(
+      {
+        error: 'POSSIBLE_DUPLICATE',
+        candidates: duplicates.map(({ id, mrn, full_name, dob, sex }) => ({ id, mrn, full_name, dob, sex })),
+      },
+      { status: 409 },
+    )
+  }
 
   let data: { id: string; mrn: string; full_name: string; dob: string; sex: string } | null = null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -40,12 +59,12 @@ export async function POST(req: NextRequest) {
 
   for (let attempt = 1; attempt <= MAX_MRN_ATTEMPTS; attempt++) {
     const row = {
-      ...parsed.data,
+      ...patientFields,
       tenant_id: ctx.tenantId,
       hospital_id: ctx.hospitalId,
       mrn: generateMrn(ctx.hospitalId),
       is_deleted: false,
-      created_by: ctx.userId,
+      // created_by FKs auth.users; staff ids live on profiles. Actor is recorded in audit_log.user_id.
     }
 
     const result = await db
@@ -93,7 +112,15 @@ export async function POST(req: NextRequest) {
     action: 'INSERT',
     tableName: 'patients',
     recordId: data.id,
-    newValue: data,
+    newValue: duplicates.length
+      ? {
+          ...data,
+          duplicate_override: {
+            reason: duplicate_override_reason,
+            candidate_patient_ids: duplicates.map((d) => d.id),
+          },
+        }
+      : data,
   })
 
   return NextResponse.json({ patient: { ...data, person_id: person?.id ?? null, synapse_id: person?.synapseId ?? null } }, { status: 201 })

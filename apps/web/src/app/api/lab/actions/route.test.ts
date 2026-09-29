@@ -108,6 +108,19 @@ describe("POST /api/lab/actions", () => {
     expect(executeHospitalLabAction).not.toHaveBeenCalled()
   })
 
+  it("returns 403 (not 401) for authenticated non-lab roles such as reception", async () => {
+    getCurrentUser.mockResolvedValue({ id: USER, role: "receptionist", email: "r@example.test" })
+    const { POST } = await import("./route")
+    const res = await POST(
+      new Request("https://synapseos.tech/api/lab/actions", {
+        method: "POST",
+        body: JSON.stringify({ orderId: ORDER, action: "verify" }),
+      }),
+    )
+    expect(res.status).toBe(403)
+    expect(executeHospitalLabAction).not.toHaveBeenCalled()
+  })
+
   it("blocks lab_tech from verify/release/amend", async () => {
     getCurrentUser.mockResolvedValue({ id: USER, role: "lab_tech", email: "t@example.test" })
     requireHospitalStaffContext.mockResolvedValue(staff("lab_tech"))

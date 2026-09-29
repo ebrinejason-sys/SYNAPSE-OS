@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { ClinicalPathwaysPanel } from "../../../../../components/clinical/ClinicalPathwaysPanel";
 import { DeathPronouncementPanel } from "../../../../../components/clinical/DeathPronouncementPanel";
+import { buildTriagePayload, triageErrorMessage, type TriageStage } from "./triage-payload";
 
 type Differential = {
   condition: string;
@@ -49,6 +50,8 @@ function NewEncounterInner() {
   const [selectedDx, setSelectedDx] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [stage, setStage] = useState<TriageStage | "">("");
   const [encounterId, setEncounterId] = useState<string | null>(null);
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
   const [labTestName, setLabTestName] = useState("Complete blood count");
@@ -87,20 +90,19 @@ function NewEncounterInner() {
     if (!patientId) return;
     setSaving(true);
     try {
+      setSaveError(null);
       const res = await fetch("/api/opd/triage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patient_id: patientId,
-          chief_complaint: complaint,
-          clinical_stage: selectedDx ?? undefined,
-          temperature_c: temperature ? Number(temperature) : undefined,
-          heart_rate: heartRate ? Number(heartRate) : undefined,
-          bp_systolic: bpSystolic ? Number(bpSystolic) : undefined,
-          bp_diastolic: bpDiastolic ? Number(bpDiastolic) : undefined,
-          spo2: spo2 ? Number(spo2) : undefined,
-        }),
+        // The AI differential (selectedDx) is not a triage stage; never send it as clinical_stage.
+        body: JSON.stringify(
+          buildTriagePayload({ patientId, complaint, stage, temperature, heartRate, bpSystolic, bpDiastolic, spo2 }),
+        ),
       });
+      if (!res.ok) {
+        setSaveError(triageErrorMessage(res.status, await res.json().catch(() => null)));
+        return;
+      }
       if (res.ok) {
         const data = (await res.json()) as { encounterId?: string };
         if (data.encounterId) setEncounterId(data.encounterId);
@@ -161,8 +163,9 @@ function NewEncounterInner() {
         {/* Col 1: Vitals + Complaint */}
         <div className="space-y-5">
           <div>
-            <label className="block text-xs text-slate-400 mb-1.5">Chief Complaint *</label>
+            <label htmlFor="chief-complaint" className="block text-xs text-slate-600 dark:text-slate-400 mb-1.5">Chief Complaint *</label>
             <textarea
+              id="chief-complaint"
               value={complaint}
               onChange={(e) => setComplaint(e.target.value)}
               rows={4}
@@ -172,15 +175,16 @@ function NewEncounterInner() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: "Temp (°C)", val: temperature, set: setTemperature },
-              { label: "HR (bpm)", val: heartRate, set: setHeartRate },
-              { label: "BP Sys", val: bpSystolic, set: setBpSystolic },
-              { label: "BP Dia", val: bpDiastolic, set: setBpDiastolic },
-              { label: "SpO2 (%)", val: spo2, set: setSpo2 },
-            ].map(({ label, val, set }) => (
-              <div key={label}>
-                <label className="block text-xs text-slate-400 mb-1">{label}</label>
+              { id: "vital-temp", label: "Temp (°C)", val: temperature, set: setTemperature },
+              { id: "vital-hr", label: "HR (bpm)", val: heartRate, set: setHeartRate },
+              { id: "vital-bp-sys", label: "BP Sys", val: bpSystolic, set: setBpSystolic },
+              { id: "vital-bp-dia", label: "BP Dia", val: bpDiastolic, set: setBpDiastolic },
+              { id: "vital-spo2", label: "SpO2 (%)", val: spo2, set: setSpo2 },
+            ].map(({ id, label, val, set }) => (
+              <div key={id}>
+                <label htmlFor={id} className="block text-xs text-slate-600 dark:text-slate-400 mb-1">{label}</label>
                 <input
+                  id={id}
                   type="number"
                   value={val}
                   onChange={(e) => set(e.target.value)}
@@ -188,6 +192,20 @@ function NewEncounterInner() {
                 />
               </div>
             ))}
+          </div>
+          <div>
+            <label htmlFor="triage-stage" className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Triage acuity</label>
+            <select
+              id="triage-stage"
+              value={stage}
+              onChange={(e) => setStage(e.target.value as TriageStage | "")}
+              className="w-full bg-[#0D1B2E] border border-slate-700 rounded px-3 py-2 text-sm"
+            >
+              <option value="">Not set</option>
+              <option value="RED">Red (emergency)</option>
+              <option value="YELLOW">Yellow (urgent)</option>
+              <option value="GREEN">Green (routine)</option>
+            </select>
           </div>
           <button
             onClick={runAI}
@@ -202,7 +220,7 @@ function NewEncounterInner() {
         <div className="bg-[#0D1B2E] border border-slate-800 rounded-xl p-5">
           <h2 className="text-sm font-semibold text-slate-300 mb-3">AI Differential</h2>
           {!aiResult && !aiLoading && (
-            <p className="text-slate-500 text-sm">Run AI to see differentials</p>
+            <p className="text-slate-400 text-sm">Run AI to see differentials</p>
           )}
           {aiLoading && (
             <div className="flex items-center gap-2 text-slate-400 text-sm">
@@ -282,6 +300,9 @@ function NewEncounterInner() {
           >
             {saving ? "Saving..." : encounterId ? "Encounter saved" : "Complete Encounter"}
           </button>
+          {saveError ? (
+            <p role="alert" className="text-xs text-red-400">{saveError}</p>
+          ) : null}
           {encounterId ? (
             <div className="space-y-3 pt-2 border-t border-slate-800">
               <p className="text-xs text-emerald-400">Encounter {encounterId.slice(0, 8)}… — place orders below</p>
@@ -290,14 +311,17 @@ function NewEncounterInner() {
                 onChange={(e) => setLabTestName(e.target.value)}
                 className="w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-xs text-primary-color"
                 placeholder="Lab test name"
+                aria-label="Lab test name"
               />
               <input
+                aria-label="LOINC code"
                 value={labLoinc}
                 onChange={(e) => setLabLoinc(e.target.value)}
                 className="w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-xs text-primary-color"
                 placeholder="LOINC code"
               />
               <select
+                aria-label="Lab urgency"
                 value={labUrgency}
                 onChange={(e) => setLabUrgency(e.target.value)}
                 className="w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-xs text-primary-color"
@@ -319,14 +343,17 @@ function NewEncounterInner() {
                 onChange={(e) => setRxMedication(e.target.value)}
                 className="w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-xs text-primary-color"
                 placeholder="Medication"
+                aria-label="Medication"
               />
               <input
+                aria-label="Dose"
                 value={rxDose}
                 onChange={(e) => setRxDose(e.target.value)}
                 className="w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-xs text-primary-color"
                 placeholder="Dose"
               />
               <input
+                aria-label="Quantity"
                 value={rxQty}
                 onChange={(e) => setRxQty(e.target.value)}
                 className="w-full rounded-lg border border-subtle bg-surface px-3 py-2 text-xs text-primary-color"

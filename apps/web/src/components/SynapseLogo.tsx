@@ -1,4 +1,5 @@
 import React from 'react'
+import Image from 'next/image'
 
 interface Props {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
@@ -13,9 +14,11 @@ export function SynapseLogo({ size = 'md', variant = 'full', className = '' }: P
   const px = ICON_PX[size]
 
   const logoImg = (
-    <img
+    <Image
       src="/synapse-logo.png"
       alt="Synapse OS"
+      width={px}
+      height={px}
       style={{
         width: px,
         height: px,
@@ -31,7 +34,7 @@ export function SynapseLogo({ size = 'md', variant = 'full', className = '' }: P
 
   if (variant === 'wordmark') {
     return (
-      <span className={`font-display font-bold tracking-tight ${TEXT_CLS[size]} ${className}`}>
+      <span data-logotype className={`font-display font-bold tracking-tight ${TEXT_CLS[size]} ${className}`}>
         <span style={{ color: '#F97316' }}>Synapse</span>
         <span style={{ color: '#E8B84B' }}>OS</span>
       </span>
@@ -41,7 +44,7 @@ export function SynapseLogo({ size = 'md', variant = 'full', className = '' }: P
   return (
     <div className={`flex items-center gap-2.5 ${className}`}>
       {logoImg}
-      <span className={`font-display font-bold tracking-tight ${TEXT_CLS[size]}`}>
+      <span data-logotype className={`font-display font-bold tracking-tight ${TEXT_CLS[size]}`}>
         <span style={{ color: '#F97316' }}>Synapse</span>
         <span style={{ color: '#E8B84B' }}>OS</span>
       </span>

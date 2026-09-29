@@ -7,6 +7,7 @@ export const patientRegisterSchema = z.object({
   phone: z.string().max(30).optional(),
   district: z.string().max(100).optional(),
   nin: z.string().max(30).optional(),
+  duplicate_override_reason: z.string().trim().min(5).max(500).optional(),
 })
 
 export const triageSchema = z.object({
@@ -67,6 +68,9 @@ export const vitalsRecordSchema = z.object({
   respiratory_rate: z.coerce.number().min(5).max(60).optional(),
   temperature_c: z.coerce.number().min(30).max(43).optional(),
   spo2: z.coerce.number().min(50).max(100).optional(),
+  weight_kg: z.coerce.number().min(0.5).max(400).optional(),
+  height_cm: z.coerce.number().min(20).max(250).optional(),
+  clinical_stage: z.enum(['RED', 'YELLOW', 'GREEN']).optional(),
 })
 
 export const encounterAmendSchema = z.object({

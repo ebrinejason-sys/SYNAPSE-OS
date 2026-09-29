@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePharmacyTenant } from "@/lib/api-auth"
+import { requirePharmacyPermission, requirePharmacyTenant } from "@/lib/api-auth"
 import { mapCustomer } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { registerPersonForFacility } from "@synapse/db/identity-persist"
@@ -246,7 +246,7 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await requirePharmacyTenant()
+    const auth = await requirePharmacyPermission("customers.credit")
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 
@@ -257,13 +257,31 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Customer ID required" }, { status: 400 })
     }
 
-    const { error } = await supabaseAdmin
+    const { count: ledgerEntries, error: ledgerError } = await supabaseAdmin
+      .from("pharmacy_credit_ledger")
+      .select("id", { count: "exact", head: true })
+      .eq("customer_id", customerId)
+      .eq("tenant_id", tenantId)
+
+    if (ledgerError) throw ledgerError
+    if ((ledgerEntries ?? 0) > 0) {
+      return NextResponse.json(
+        { error: "Customer has credit history and cannot be deleted" },
+        { status: 409 },
+      )
+    }
+
+    const { data: deleted, error } = await supabaseAdmin
       .from("pharmacy_customers")
       .delete()
       .eq("id", customerId)
       .eq("tenant_id", tenantId)
+      .select("id")
 
     if (error) throw error
+    if (!deleted?.length) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 })
+    }
 
     await supabaseAdmin.from("pharmacy_audit_logs").insert({
       tenant_id: tenantId,

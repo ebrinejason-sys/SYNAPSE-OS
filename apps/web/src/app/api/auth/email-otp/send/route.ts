@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isAccountActivated, createAndSendOTP, shouldSkipOtpEmailDelivery } from '@synapse/auth'
+import { isAccountActivated, createAndSendOTP, shouldSkipOtpEmailDelivery, withMembershipSuspension } from '@synapse/auth'
 import { createServiceClient } from '../../../../../lib/supabase/server'
 import { sendOtpEmail } from '../../../../../lib/resend'
 import { checkRateLimit, rateLimiters } from '../../../../../lib/rate-limit'
@@ -22,17 +22,20 @@ export async function POST(req: NextRequest) {
 
   const db = createServiceClient() as any
 
-  const { data: profile, error: profileErr } = await db
+  // Pre-proof endpoint: every outcome below the input check answers { ok: true }, so the
+  // response never distinguishes unknown, duplicated, rate-limited or undeliverable accounts.
+  const { data: profiles, error: profileErr } = await db
     .from('profiles')
     .select('id, tenant_id, verification_status, email_verified_at, is_deleted')
     .eq('email', email)
-    .maybeSingle()
+    .limit(2)
 
   if (profileErr) {
     console.error('email otp profile lookup error:', profileErr.message)
     return NextResponse.json({ error: 'Could not check account status.' }, { status: 500 })
   }
 
+  const profile = profiles?.length === 1 ? profiles[0] : null
   if (!profile) {
     return NextResponse.json({ ok: true })
   }
@@ -40,7 +43,7 @@ export async function POST(req: NextRequest) {
   // Pre-proof endpoint: answer non-active accounts exactly like unknown emails
   // (no code is sent). State-specific messages are only returned after a
   // credential is proven (password-login / email-otp verify).
-  if (!isAccountActivated(profile)) {
+  if (!isAccountActivated(await withMembershipSuspension(profile))) {
     return NextResponse.json({ ok: true })
   }
 
@@ -60,14 +63,8 @@ export async function POST(req: NextRequest) {
   try {
     otp = await createAndSendOTP({ channel: 'email', target: email, e2e })
   } catch (error) {
-    const msg = error instanceof Error ? error.message : ''
-    if (msg === 'TOO_MANY_REQUESTS') {
-      return NextResponse.json(
-        { error: 'Too many attempts. Please wait before requesting another code.' },
-        { status: 429 }
-      )
-    }
-    return NextResponse.json({ error: 'Failed to create verification' }, { status: 500 })
+    console.error('Email OTP create error:', error instanceof Error ? error.message : error)
+    return NextResponse.json({ ok: true })
   }
 
   if (!shouldSkipOtpEmailDelivery(e2e)) {
@@ -75,7 +72,6 @@ export async function POST(req: NextRequest) {
       await sendOtpEmail(email, otp)
     } catch (err) {
       console.error('Email OTP send error:', err)
-      return NextResponse.json({ error: 'Failed to send email. Please try again.' }, { status: 500 })
     }
   }
 

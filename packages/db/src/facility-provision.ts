@@ -127,6 +127,7 @@ export async function provisionFacility(
       adminPhone: input.adminPhone,
       tier: input.tier,
       modules,
+      includeLabAddon: Boolean(input.includeLab),
       facilityType: input.facilityType,
       mode: input.mode,
       idempotencyKey:

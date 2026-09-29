@@ -1,5 +1,6 @@
 "use server";
 
+import { isAccountSuspensionMarker } from "@synapse/auth/account-suspension";
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { hashPassword, revokeAllUserSessions, validatePasswordStrength } from "@synapse/auth";
@@ -61,10 +62,13 @@ export async function invitePlatformMember(formData: FormData) {
     userId = existingProfile.id as string;
     const { data: existingMembership } = await db
       .from("platform_memberships")
-      .select("id, status")
+      .select("id, status, metadata")
       .eq("user_id", userId)
       .in("status", ["INVITED", "ACTIVE", "SUSPENDED"])
       .maybeSingle();
+    if (isAccountSuspensionMarker(existingMembership)) {
+      return { ok: false as const, error: "This account is suspended. Reactivate it in Users before granting platform access." };
+    }
     if (existingMembership) {
       return { ok: false as const, error: "This user already has platform access." };
     }

@@ -12,7 +12,7 @@ type SpecimenRow = {
   collected_at: string | null
   received_at: string | null
   lab_order_id: string | null
-  patients?: { first_name?: string; last_name?: string; mrn?: string } | null
+  patients?: { full_name?: string | null; mrn?: string } | null
 }
 
 export default function LabSpecimensPage() {
@@ -76,13 +76,13 @@ export default function LabSpecimensPage() {
         <ul className="mt-8 space-y-3">
           {filtered.map((s) => {
             const name = s.patients
-              ? [s.patients.first_name, s.patients.last_name].filter(Boolean).join(" ")
+              ? (s.patients.full_name ?? "")
               : "—"
             return (
               <li key={s.id} className="rounded-2xl border border-subtle bg-surface p-4">
                 <div className="flex flex-wrap justify-between gap-2">
                   <div>
-                    <p className="font-mono text-sm text-amber-200">{s.accession_number}</p>
+                    <p className="font-mono text-sm text-amber-700 dark:text-amber-200">{s.accession_number}</p>
                     <p className="mt-1 text-sm">
                       {name} · {s.specimen_type ?? "specimen"} · {s.status}
                     </p>

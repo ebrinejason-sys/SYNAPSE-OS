@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { recordEncounterSigned } from '@synapse/db/clinical-journey'
 import { scheduleDhis2RollupAfterEncounterSign } from '@synapse/db/dhis2-export'
-import { persistWorkQueueArtifactsBestEffort, persistDomainEventsBestEffort } from '@synapse/db/work-queue-persist'
+import { persistWorkQueueArtifactsBestEffort, persistDomainEventsBestEffort, rowToDepartmentTask } from '@synapse/db/work-queue-persist'
+import { WorkQueue, type DepartmentTask } from '@synapse/db/work-queue'
 import { encounterSignedTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
 import { appendClinicalChargeBestEffort, recordInvoiceCreatedEvent, resolveServicePrice } from '@synapse/db/clinical-charge'
@@ -65,8 +66,24 @@ export async function POST(
       encounterId,
       signerId: ctx.userId,
     })
+    const { data: consultRows } = await db
+      .from('department_tasks')
+      .select('*')
+      .eq('tenant_id', ctx.tenantId)
+      .eq('encounter_id', encounterId)
+      .eq('task_type', 'consultation')
+      .in('status', ['REQUESTED', 'ACCEPTED', 'IN_PROGRESS'])
+    const consultQueue = new WorkQueue()
+    const completedConsults: DepartmentTask[] = []
+    for (const row of consultRows ?? []) {
+      const task = rowToDepartmentTask(row)
+      consultQueue.tasks.set(task.id, task)
+      consultQueue.start(task.id, ctx.userId)
+      const done = consultQueue.complete(task.id, 'Encounter signed', ctx.userId)
+      if (done.ok) completedConsults.push(done.task)
+    }
     await persistWorkQueueArtifactsBestEffort(db, {
-      tasks: [],
+      tasks: completedConsults,
       events: journey.queue.outbox.list({ correlationId: encounterId }),
     })
     void publishClinicalTimelineBestEffort(

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyOTP, signToken, createSession } from '@synapse/auth'
+import { verifyOTP, signToken, createSession, AccountSuspendedError, ACCOUNT_UNAVAILABLE_ERROR } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_DURATION_DAYS } from '@synapse/config/constants'
 
@@ -64,13 +64,21 @@ export async function POST(req: NextRequest) {
   const expiresAt = new Date()
   expiresAt.setDate(expiresAt.getDate() + MOBILE_SESSION_DAYS)
 
-  await createSession({
-    userId: profile.id,
-    token,
-    app: 'mobile',
-    ip: req.headers.get('x-forwarded-for') ?? undefined,
-    userAgent: req.headers.get('user-agent') ?? undefined,
-  })
+  try {
+    await createSession({
+      userId: profile.id,
+      token,
+      app: 'mobile',
+      ip: req.headers.get('x-forwarded-for') ?? undefined,
+      userAgent: req.headers.get('user-agent') ?? undefined,
+    })
+  } catch (error) {
+    // Suspended between the password step and this step: same response as the login gate.
+    if (error instanceof AccountSuspendedError) {
+      return NextResponse.json({ error: ACCOUNT_UNAVAILABLE_ERROR, code: 'ACCOUNT_UNAVAILABLE' }, { status: 403 })
+    }
+    throw error
+  }
 
   await db.from('profiles').update({ login_attempts: 0 }).eq('id', profile.id)
 

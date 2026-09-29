@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@synapse/auth/tokens'
-import { isAccountActivated, validateSession } from '@synapse/auth'
+import { isAccountActivated, validateSession, withMembershipSuspension } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE } from '@synapse/config/constants'
 
@@ -34,7 +34,7 @@ export async function GET() {
     ])
 
     if (!profile) return NextResponse.json({ user: null }, { status: 401 })
-    if (!isAccountActivated(profile)) return NextResponse.json({ user: null }, { status: 401 })
+    if (!isAccountActivated(await withMembershipSuspension(profile))) return NextResponse.json({ user: null }, { status: 401 })
 
     let tenantSlug: string | null = null
     if (profile.tenant_id) {

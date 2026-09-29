@@ -8,8 +8,10 @@ const {
   logHospitalAudit,
   persistWorkQueueArtifactsBestEffort,
   publishClinicalTimelineBestEffort,
+  requireTenantPatient,
   dbFrom,
 } = vi.hoisted(() => ({
+  requireTenantPatient: vi.fn(),
   requireHospitalStaffContext: vi.fn(),
   requireHospitalCapability: vi.fn(),
   gateHospitalModule: vi.fn(),
@@ -23,10 +25,12 @@ vi.mock("@/lib/hospital-dept", async () => {
   const { z } = await import("zod")
   return {
     requireHospitalStaffContext: (...args: unknown[]) => requireHospitalStaffContext(...args),
+    requireTenantPatient: (...args: unknown[]) => requireTenantPatient(...args),
     triageSchema: z.object({
       patient_id: z.string().uuid(),
       chief_complaint: z.string().min(1),
       clinical_stage: z.enum(["RED", "YELLOW", "GREEN"]).optional(),
+      heart_rate: z.number().optional(),
     }),
   }
 })
@@ -88,14 +92,14 @@ function staffCtx(role: string) {
   }
 }
 
-function postBody() {
+function postBody(extra: Record<string, unknown> = { clinical_stage: "YELLOW" }) {
   return new NextRequest("https://synapseos.tech/api/opd/triage", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       patient_id: PATIENT,
       chief_complaint: "Fever",
-      clinical_stage: "YELLOW",
+      ...extra,
     }),
   })
 }
@@ -106,6 +110,7 @@ function deny(resource: string, action: string) {
 
 describe("POST /api/opd/triage authorization", () => {
   beforeEach(() => {
+    requireTenantPatient.mockResolvedValue(null)
     gateHospitalModule.mockResolvedValue(null)
     logHospitalAudit.mockResolvedValue(undefined)
     persistWorkQueueArtifactsBestEffort.mockResolvedValue({ errors: [] })
@@ -139,18 +144,32 @@ describe("POST /api/opd/triage authorization", () => {
     expect(dbFrom).not.toHaveBeenCalled()
   })
 
-  it("allows a nurse when both triage.assign and encounter.create are granted", async () => {
+  it("allows a nurse to open a visit with acuity when encounter.create and triage.assign are granted", async () => {
     requireHospitalStaffContext.mockResolvedValue(staffCtx("nurse"))
     requireHospitalCapability.mockResolvedValue(null)
     const { POST } = await import("./route")
     const res = await POST(postBody())
     expect(res.status).toBe(201)
-    expect(requireHospitalCapability).toHaveBeenNthCalledWith(1, expect.objectContaining({ role: "nurse" }), "triage", "assign", "opd")
-    expect(requireHospitalCapability).toHaveBeenNthCalledWith(2, expect.objectContaining({ role: "nurse" }), "encounter", "create", "opd")
+    expect(requireHospitalCapability).toHaveBeenNthCalledWith(1, expect.objectContaining({ role: "nurse" }), "encounter", "create", "opd")
+    expect(requireHospitalCapability).toHaveBeenNthCalledWith(2, expect.objectContaining({ role: "nurse" }), "triage", "assign", "opd")
     expect(dbFrom).toHaveBeenCalledWith("encounters")
   })
 
-  it("denies reception that can create encounters but cannot assign triage acuity", async () => {
+  it("lets reception open a visit with a chief complaint only, without triage.assign", async () => {
+    requireHospitalStaffContext.mockResolvedValue(staffCtx("receptionist"))
+    requireHospitalCapability.mockImplementation(async (_ctx, resource, action) => {
+      if (resource === "triage" && action === "assign") return deny("triage", "assign")
+      return null
+    })
+    const { POST } = await import("./route")
+    const res = await POST(postBody({}))
+    expect(res.status).toBe(201)
+    expect(requireHospitalCapability.mock.calls).toHaveLength(1)
+    expect(requireHospitalCapability).toHaveBeenCalledWith(expect.anything(), "encounter", "create", "opd")
+    expect(dbFrom).toHaveBeenCalledWith("encounters")
+  })
+
+  it("denies reception that sends acuity without triage.assign and writes nothing", async () => {
     requireHospitalStaffContext.mockResolvedValue(staffCtx("receptionist"))
     requireHospitalCapability.mockImplementation(async (_ctx, resource, action) => {
       if (resource === "triage" && action === "assign") return deny("triage", "assign")
@@ -160,30 +179,41 @@ describe("POST /api/opd/triage authorization", () => {
     const res = await POST(postBody())
     expect(res.status).toBe(403)
     expect(requireHospitalCapability).toHaveBeenCalledWith(expect.anything(), "triage", "assign", "opd")
-    expect(requireHospitalCapability).not.toHaveBeenCalledWith(expect.anything(), "encounter", "create", "opd")
     expect(dbFrom).not.toHaveBeenCalled()
+    expect(logHospitalAudit).not.toHaveBeenCalled()
   })
 
-  it("denies a clinical officer who lacks triage.assign", async () => {
-    requireHospitalStaffContext.mockResolvedValue(staffCtx("clinical_officer"))
-    requireHospitalCapability.mockImplementation(async (_ctx, resource, action) => {
-      if (resource === "triage" && action === "assign") return deny("triage", "assign")
-      return null
-    })
-    const { POST } = await import("./route")
-    const res = await POST(postBody())
-    expect(res.status).toBe(403)
-    expect(dbFrom).not.toHaveBeenCalled()
-  })
-
-  it("does not allow encounter.create as a fallback when triage.assign is missing", async () => {
+  it("denies reception that sends vitals without triage.assign", async () => {
     requireHospitalStaffContext.mockResolvedValue(staffCtx("receptionist"))
     requireHospitalCapability.mockImplementation(async (_ctx, resource, action) => {
       if (resource === "triage" && action === "assign") return deny("triage", "assign")
       return null
     })
     const { POST } = await import("./route")
-    await POST(postBody())
+    const res = await POST(postBody({ heart_rate: 88 }))
+    expect(res.status).toBe(403)
+    expect(dbFrom).not.toHaveBeenCalled()
+  })
+
+  it("denies a role without encounter.create before parsing the body", async () => {
+    requireHospitalStaffContext.mockResolvedValue(staffCtx("cashier"))
+    requireHospitalCapability.mockResolvedValue(deny("encounter", "create"))
+    const { POST } = await import("./route")
+    const res = await POST(postBody({}))
+    expect(res.status).toBe(403)
     expect(requireHospitalCapability.mock.calls).toHaveLength(1)
+    expect(gateHospitalModule).not.toHaveBeenCalled()
+    expect(dbFrom).not.toHaveBeenCalled()
+  })
+
+  it("refuses a patient outside the caller's tenant without opening a visit", async () => {
+    requireHospitalStaffContext.mockResolvedValue(staffCtx("receptionist"))
+    requireHospitalCapability.mockResolvedValue(null)
+    requireTenantPatient.mockResolvedValue(NextResponse.json({ error: "Patient not found" }, { status: 404 }))
+    const { POST } = await import("./route")
+    const res = await POST(postBody({}))
+    expect(res.status).toBe(404)
+    expect(requireTenantPatient).toHaveBeenCalledWith(expect.anything(), TENANT, PATIENT)
+    expect(dbFrom).not.toHaveBeenCalledWith("encounters")
   })
 })

@@ -7,7 +7,7 @@
 // the brief's admin_audit_log) with before/after JSON.
 
 import { revalidatePath } from 'next/cache'
-import { requirePlatformAdmin } from '../../../lib/platform/auth'
+import { requirePlatformAccess } from '../../../lib/platform/auth'
 import { createServiceClient } from '../../../lib/supabase/server'
 import { logPlatformEvent, logSubscriptionEvent } from './platform-data'
 
@@ -44,7 +44,7 @@ async function setSubscriptionStatus(
   status: 'active' | 'suspended',
   action: string,
 ) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('platform.subscription.manage')
   if (!tenantId) return
 
   const before = await loadSubscription(tenantId)
@@ -90,7 +90,7 @@ export async function reactivateSubscription(formData: FormData) {
 }
 
 export async function extendSubscriptionPeriod(formData: FormData) {
-  const admin = await requirePlatformAdmin()
+  const admin = await requirePlatformAccess('platform.subscription.manage')
   const tenantId = String(formData.get('tenantId') ?? '')
   const days = Math.min(Math.max(Number(formData.get('days') ?? 30), 1), 366)
   if (!tenantId) return

@@ -55,6 +55,11 @@ export async function requirePharmacyTenant(): Promise<
   if (!tenantId) {
     return { ok: false, response: forbiddenResponse("No tenant") }
   }
+  // Tenant-scoped pharmacy APIs act only on pharmacy tenants (never a hospital or
+  // laboratory tenant, and never on behalf of a control-plane account).
+  if (auth.session.facilityType !== "pharmacy") {
+    return { ok: false, response: forbiddenResponse("Pharmacy access only") }
+  }
   return { ok: true, session: auth.session, tenantId }
 }
 
@@ -102,7 +107,8 @@ export async function requirePlatformAdmin(): Promise<
 > {
   const auth = await requirePharmacyApiSession()
   if (!auth.ok) return auth
-  if (!PLATFORM_ROLES.has(auth.session.role)) {
+  // Check the profile role, not the pharmacy role (which pharmacy settings control).
+  if (!PLATFORM_ROLES.has(auth.session.profileRole) || auth.session.facilityType !== "platform") {
     return {
       ok: false,
       response: forbiddenResponse("Forbidden — platform admin only"),

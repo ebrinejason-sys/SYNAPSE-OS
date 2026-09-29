@@ -143,7 +143,7 @@ export function EncounterOrdersPanel({ slug, encounterId, patientId }: Encounter
       <div>
         <h1 className="font-display text-2xl">Clinical orders</h1>
         <p className="mt-2 text-muted-color">Select a patient from the OPD queue to view orders and timeline.</p>
-        <Link href={`/os/${slug}/clinical/queue`} className="mt-4 inline-block text-sm text-emerald-300">
+        <Link href={`/os/${slug}/clinical/queue`} className="mt-4 inline-block text-sm text-emerald-700 dark:text-emerald-300">
           ← OPD queue
         </Link>
       </div>
@@ -157,23 +157,23 @@ export function EncounterOrdersPanel({ slug, encounterId, patientId }: Encounter
       </Link>
       <h1 className="mt-2 font-display text-2xl">Clinical orders & billing</h1>
       <p className="mt-2 text-sm text-muted-color">Encounter {encounterId.slice(0, 8)}…</p>
-      {error ? <p className="mt-4 text-sm text-amber-300">{error}</p> : null}
+      {error ? <p className="mt-4 text-sm text-amber-700 dark:text-amber-300">{error}</p> : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
         {patientId ? (
           <Link
             href={`/os/${slug}/encounters/new?patientId=${patientId}`}
-            className="rounded-lg border border-emerald-500/40 px-3 py-1 text-xs text-emerald-300"
+            className="rounded-lg border border-emerald-500/40 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-300"
           >
             Add orders
           </Link>
         ) : null}
-        <Link href="/lab/orders" className="rounded-lg border border-indigo-500/40 px-3 py-1 text-xs text-indigo-300">
+        <Link href="/lab/orders" className="rounded-lg border border-indigo-500/40 px-3 py-1 text-xs text-indigo-700 dark:text-indigo-300">
           Lab worklist
         </Link>
         <Link
           href={`/os/${slug}/clinical/dispense`}
-          className="rounded-lg border border-amber-500/40 px-3 py-1 text-xs text-amber-300"
+          className="rounded-lg border border-amber-500/40 px-3 py-1 text-xs text-amber-700 dark:text-amber-300"
         >
           Pharmacy dispense
         </Link>
@@ -235,7 +235,7 @@ export function EncounterOrdersPanel({ slug, encounterId, patientId }: Encounter
                 </button>
               </form>
             ) : null}
-            {payStatus ? <p className="mt-2 text-xs text-emerald-300">{payStatus}</p> : null}
+            {payStatus ? <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">{payStatus}</p> : null}
             {payments.length > 0 ? (
               <ul className="mt-4 space-y-1 border-t border-subtle pt-3 text-xs">
                 {payments.map((p) => (
@@ -258,7 +258,7 @@ export function EncounterOrdersPanel({ slug, encounterId, patientId }: Encounter
               {o.test_name} · {o.loinc_code} · {o.workflow_status ?? o.status}
             </li>
           ))}
-          {labOrders.length === 0 ? <p className="text-xs text-muted-color">No lab orders.</p> : null}
+          {labOrders.length === 0 ? <li className="text-xs text-muted-color">No lab orders.</li> : null}
         </ul>
       </section>
 
@@ -271,7 +271,7 @@ export function EncounterOrdersPanel({ slug, encounterId, patientId }: Encounter
               {rx.dose ? <span className="block text-xs text-muted-color">{rx.dose}</span> : null}
             </li>
           ))}
-          {prescriptions.length === 0 ? <p className="text-xs text-muted-color">No prescriptions.</p> : null}
+          {prescriptions.length === 0 ? <li className="text-xs text-muted-color">No prescriptions.</li> : null}
         </ul>
       </section>
 
@@ -287,7 +287,7 @@ export function EncounterOrdersPanel({ slug, encounterId, patientId }: Encounter
               </p>
             </li>
           ))}
-          {timeline.length === 0 ? <p className="text-xs text-muted-color">No timeline events yet.</p> : null}
+          {timeline.length === 0 ? <li className="text-xs text-muted-color">No timeline events yet.</li> : null}
         </ul>
       </section>
     </div>

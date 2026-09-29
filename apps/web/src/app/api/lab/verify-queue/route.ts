@@ -29,7 +29,7 @@ export async function GET() {
   const { data: orders, error } = await db
     .from("lab_orders")
     .select(
-      "id, test_name, loinc_code, accession_number, workflow_status, patients(first_name, last_name)",
+      "id, test_name, loinc_code, accession_number, workflow_status, patients(full_name)",
     )
     .eq("tenant_id", ctx.tenantId)
     .eq("is_synthetic", false)
@@ -55,14 +55,14 @@ export async function GET() {
   }
 
   const items = (orders ?? []).map((o: Record<string, unknown>) => {
-    const patient = o.patients as { first_name?: string; last_name?: string } | null
+    const patient = o.patients as { full_name?: string | null } | null
     const r = resultByOrder.get(String(o.id))
     return {
       orderId: String(o.id),
       testName: String(o.test_name),
       loincCode: String(o.loinc_code ?? ""),
       accessionNumber: (o.accession_number as string | null) ?? null,
-      patientName: patient ? [patient.first_name, patient.last_name].filter(Boolean).join(" ") : null,
+      patientName: patient?.full_name ?? null,
       status: String(o.workflow_status),
       result: r
         ? {

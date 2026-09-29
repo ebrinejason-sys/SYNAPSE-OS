@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { facilitySlugFromHost, lookupActiveTenant, sanitizedTenantHeaders } from "./lib/tenant-routing";
 import { verifyToken } from '@synapse/auth/tokens'
 import { SESSION_COOKIE } from '@synapse/config/constants'
+import { decideMutationOrigin, hasAuthCookie } from '@synapse/auth/mutation-origin'
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
   .split(",")
@@ -209,6 +210,18 @@ export async function middleware(request: NextRequest) {
   // Liveness/readiness must work on every host (www, admin, demo, facility, preview)
   // without tenant lookup, auth, or UI rewrites into /os|/platform|/demo|/pharmacy.
   if (isProcessHealthPath(pathname)) return next();
+
+  const originDecision = decideMutationOrigin({
+    method: request.method,
+    host: request.headers.get('host'),
+    origin: request.headers.get('origin'),
+    referer: request.headers.get('referer'),
+    secFetchSite: request.headers.get('sec-fetch-site'),
+    hasSessionCookie: hasAuthCookie(request.cookies.getAll().filter((c) => c.value).map((c) => c.name)),
+  })
+  if (!originDecision.allow) {
+    return NextResponse.json({ error: 'cross_origin_mutation_blocked' }, { status: 403 })
+  }
 
   const hostSlug = facilitySlugFromHost(hostname);
   // Root /os/:slug routes are also tenant-scoped. A tenant host may never select another path tenant.

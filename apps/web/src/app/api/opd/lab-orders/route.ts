@@ -164,10 +164,11 @@ export async function POST(req: NextRequest) {
       }),
     )
 
-    const unitPrice = await resolveServicePrice(db, ctx.tenantId, 'lab', test_name)
-    if (unitPrice == null) {
+    // A recollection is never charged again: the rejected original already carries the charge.
+    const unitPrice = replaces_lab_order_id ? null : await resolveServicePrice(db, ctx.tenantId, 'lab', test_name)
+    if (unitPrice == null && !replaces_lab_order_id) {
       journeyWarnings.push(`SERVICE_PRICE_NOT_CONFIGURED:lab:${test_name}`)
-    } else {
+    } else if (unitPrice != null) {
       const charge = await appendClinicalChargeBestEffort(db, {
         tenantId: ctx.tenantId,
         patientId: patient_id,

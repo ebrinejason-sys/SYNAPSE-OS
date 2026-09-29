@@ -1,6 +1,6 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
-import { appendClinicalCharge, materializeEncounterCharges, resolveServicePrice } from "./clinical-charge.ts"
+import { appendClinicalCharge, materializeEncounterCharges, resolveServicePrice, voidClinicalCharge } from "./clinical-charge.ts"
 
 function catalogDb(rows: Array<{ tenant_id: string; service_type: string; name: string; price: number; is_active: boolean }>) {
   return {
@@ -272,5 +272,48 @@ describe("clinical charge capture", () => {
     assert.equal(db.lines.length, 1)
     assert.equal(Number(db.lines[0]!.unit_price), 0)
     assert.equal(result.warnings.length, 0)
+  })
+
+  it("does not charge cancelled Lab orders or replacement recollections", async () => {
+    const rejectedId = "0b0c2f4e-3a53-4d38-9a52-0b1f7f2d9d11"
+    const db = chargeMemoryDb({
+      encounter: { id: encounterId, patient_id: patientId, tenant_id: tenantId, is_signed: false, status: "in_progress" },
+      labOrders: [
+        { id: labId, test_name: "FBC", workflow_status: "CANCELLED", tenant_id: tenantId, encounter_id: encounterId },
+        { id: "5c1d5a6c-8f0e-4a7e-9d51-2f0f4b1e2a33", test_name: "FBC", status: "cancelled", workflow_status: null, tenant_id: tenantId, encounter_id: encounterId },
+        { id: rejectedId, test_name: "Malaria RDT", workflow_status: "REJECTED", tenant_id: tenantId, encounter_id: encounterId },
+        { id: "6d2e6b7d-9f1f-4b8f-8e62-3a1f5c2f3b44", test_name: "Malaria RDT", workflow_status: "RELEASED", replaces_lab_order_id: rejectedId, tenant_id: tenantId, encounter_id: encounterId },
+      ],
+      catalog: [
+        { tenant_id: tenantId, service_type: "lab", name: "FBC", price: 15000, is_active: true },
+        { tenant_id: tenantId, service_type: "lab", name: "Malaria RDT", price: 8000, is_active: true },
+      ],
+    })
+    await materializeEncounterCharges(db, { tenantId, encounterId })
+    assert.deepEqual(db.lines.map((row) => row.item_name), ["Lab · Malaria RDT"])
+    assert.equal(Number(db.invoices[0]!.total_amount), 8000)
+  })
+
+  it("voids an unpaid charge once and never rewrites a settled invoice", async () => {
+    const charge = { tenantId, patientId, encounterId, itemName: "Lab · FBC", unitPrice: 15000, sourceTable: "lab_orders", sourceId: labId }
+    const unpaid = chargeMemoryDb()
+    await appendClinicalCharge(unpaid, { ...charge, sourceId: "7e3f7c8e-0a2a-4c9a-9f73-4b2a6d3a4c55", itemName: "Lab · RDT", unitPrice: 8000 })
+    await appendClinicalCharge(unpaid, charge)
+    const ref = { tenantId, encounterId, sourceTable: "lab_orders", sourceId: labId }
+    assert.deepEqual(await voidClinicalCharge(unpaid, ref), { voided: true })
+    assert.equal(Number(unpaid.invoices[0]!.total_amount), 8000)
+    assert.deepEqual(await voidClinicalCharge(unpaid, ref), { voided: false, reason: "NO_CHARGE" })
+
+    const partlyPaid = chargeMemoryDb()
+    await appendClinicalCharge(partlyPaid, charge)
+    partlyPaid.invoices[0]!.paid_amount = 5000
+    assert.deepEqual(await voidClinicalCharge(partlyPaid, ref), { voided: false, reason: "INVOICE_LOCKED" })
+
+    const paid = chargeMemoryDb()
+    await appendClinicalCharge(paid, charge)
+    Object.assign(paid.invoices[0]!, { status: "paid", paid_amount: 15000 })
+    assert.deepEqual(await voidClinicalCharge(paid, ref), { voided: false, reason: "INVOICE_LOCKED" })
+    assert.equal(paid.lines[0]!.is_deleted, false)
+    assert.equal(Number(paid.invoices[0]!.total_amount), 15000)
   })
 })

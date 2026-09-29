@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     must_change_password: true,
     onboarding_complete: false,
     verification_status: 'verified',
-    created_by: ctx.userId,
+    // created_by FKs auth.users; staff ids live on profiles. Actor is recorded in audit_log.user_id.
   }
 
   const { data: profile, error } = await db.from('profiles').insert(profileRow).select('id,email,full_name,role').single()

@@ -147,7 +147,8 @@ export async function POST(req: NextRequest) {
     p_tax_amount: Number(body.taxAmount ?? 0),
     p_patient_id: body.patientId ?? null,
     p_confirmed_by: auth.userId,
-    ...(idempotencyKey ? { p_idempotency_key: idempotencyKey } : {}),
+    // Always named: an older 11-argument overload still exists, so omitting it is ambiguous.
+    p_idempotency_key: idempotencyKey ?? null,
   })
 
   if (error) {

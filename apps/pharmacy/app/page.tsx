@@ -119,12 +119,12 @@ export default async function Page() {
           </span>
         </Link>
         <nav className="flex items-center gap-3 sm:gap-4">
-          <a
+          <Link
             href="/download/android"
             className="hidden font-mono text-xs uppercase tracking-wider text-zinc-400 hover:text-white sm:inline"
           >
             Android APK
-          </a>
+          </Link>
           <Link
             href="/login"
             className="font-mono text-xs uppercase tracking-wider text-zinc-400 hover:text-white"
@@ -161,12 +161,12 @@ export default async function Page() {
             >
               Start free trial
             </Link>
-            <a
+            <Link
               href="/download/android"
               className="rounded-lg border border-[#1FA6A6]/50 bg-[#1FA6A6]/10 px-5 py-3 text-sm font-semibold text-[#1FA6A6] hover:border-[#1FA6A6]"
             >
               Download Android APK
-            </a>
+            </Link>
             <Link
               href="/login"
               className="rounded-lg border border-[#2A2A36] px-5 py-3 text-sm font-semibold text-zinc-200 hover:border-[#E8B84B]/50"

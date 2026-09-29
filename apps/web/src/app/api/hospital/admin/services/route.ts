@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   const row = {
     ...parsed.data,
     tenant_id: ctx.tenantId,
-    created_by: ctx.userId,
+    // created_by FKs auth.users; staff ids live on profiles. Actor is recorded in audit_log.user_id.
     currency: parsed.data.currency ?? 'UGX',
   }
 

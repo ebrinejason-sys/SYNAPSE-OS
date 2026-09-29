@@ -10,6 +10,15 @@ import {
   type ReceiptHtmlParams,
 } from './templates'
 
+type EmailPayload = Parameters<ReturnType<typeof getResend>['emails']['send']>[0]
+
+// Resend reports rejected sends (bad key, unverified sender domain, invalid recipient)
+// in the resolved value rather than by throwing.
+async function deliver(payload: EmailPayload): Promise<void> {
+  const { error } = await getResend().emails.send(payload)
+  if (error) throw new Error(`[SYNAPSE] email not accepted by Resend: ${error.name ?? 'error'}: ${error.message}`)
+}
+
 export async function sendOTP(params: {
   to: string
   name: string
@@ -21,7 +30,7 @@ export async function sendOTP(params: {
     verify: 'Verify your Synapse account',
     reset: 'Reset your Synapse password',
   }
-  await getResend().emails.send({
+  await deliver({
     from: FROM_ADDRESS,
     to: params.to,
     subject: subjects[params.purpose],
@@ -37,7 +46,7 @@ export async function sendInvite(params: {
   inviteUrl: string
   tempPassword?: string
 }): Promise<void> {
-  await getResend().emails.send({
+  await deliver({
     from: FROM_ADDRESS,
     to: params.to,
     subject: `You've been enrolled on Synapse — ${params.facilityName}`,
@@ -50,7 +59,7 @@ export async function sendPasswordReset(params: {
   name: string
   resetUrl: string
 }): Promise<void> {
-  await getResend().emails.send({
+  await deliver({
     from: FROM_ADDRESS,
     to: params.to,
     subject: 'Reset your Synapse password',
@@ -66,7 +75,7 @@ export async function sendWelcome(params: {
   ctaLabel?: string
 }): Promise<void> {
   const product = params.product ?? 'Synapse OS'
-  await getResend().emails.send({
+  await deliver({
     from: FROM_ADDRESS,
     to: params.to,
     subject: `Welcome to ${product}, ${params.name.split(' ')[0]}`,
@@ -102,7 +111,7 @@ export async function sendRenewalReminder(params: {
 }): Promise<void> {
   const isTrial = params.kind === 'trial'
   const when = kampalaDate(params.periodEnd)
-  await getResend().emails.send({
+  await deliver({
     from: FROM_ADDRESS,
     to: params.to,
     subject: isTrial
@@ -137,7 +146,7 @@ export async function sendPastDueNotice(params: {
     ? `You have a grace period until <strong style="color:#F5F5F7;">${kampalaDate(params.graceUntil)}</strong> —
        after that, POS and inventory are paused until payment.`
     : 'Pay now to avoid your POS and inventory being paused.'
-  await getResend().emails.send({
+  await deliver({
     from: FROM_ADDRESS,
     to: params.to,
     subject: `Payment overdue — ${params.pharmacyName} on Synapse Pharm`,
@@ -160,7 +169,7 @@ export async function sendSuspensionNotice(params: {
   pharmacyName: string
   payUrl: string
 }): Promise<void> {
-  await getResend().emails.send({
+  await deliver({
     from: FROM_ADDRESS,
     to: params.to,
     subject: `Account suspended — ${params.pharmacyName} on Synapse Pharm`,
@@ -184,7 +193,7 @@ export async function sendSuspensionNotice(params: {
 export async function sendPaymentReceipt(
   params: Omit<ReceiptHtmlParams, 'kind'> & { to: string },
 ): Promise<void> {
-  await getResend().emails.send({
+  await deliver({
     from: FROM_ADDRESS,
     to: params.to,
     subject: `Receipt ${params.receiptNo} — ${params.facilityName}`,
@@ -198,7 +207,7 @@ export async function sendTrialReceipt(
     amountLabel?: string
   },
 ): Promise<void> {
-  await getResend().emails.send({
+  await deliver({
     from: FROM_ADDRESS,
     to: params.to,
     subject: `Trial confirmation ${params.receiptNo} — ${params.facilityName}`,

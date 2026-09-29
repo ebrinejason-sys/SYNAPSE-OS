@@ -107,7 +107,7 @@ export default function LabResultsPage() {
               <tr key={r.id} className="border-b border-subtle/50">
                 <td className="px-2 py-3">
                   <p>{r.patient_name ?? "—"}</p>
-                  <p className="font-mono text-xs text-amber-200">{r.accession_number ?? "—"}</p>
+                  <p className="font-mono text-xs text-amber-700 dark:text-amber-200">{r.accession_number ?? "—"}</p>
                 </td>
                 <td className="px-2 py-3">
                   {r.test_name}

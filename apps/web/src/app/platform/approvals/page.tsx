@@ -1,11 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import { createServiceClient } from "../../../lib/supabase/server";
-import { requirePlatformAdmin } from "../../../lib/platform/auth";
+import { requirePlatformAdmin, requirePlatformAccess } from "../../../lib/platform/auth";
 
 async function updatePilotStatus(formData: FormData) {
   "use server";
-  await requirePlatformAdmin();
+  await requirePlatformAccess("tenant.manage");
   const id = String(formData.get("id") ?? "");
   const status = String(formData.get("status") ?? "pending");
   if (!id) {
@@ -18,7 +18,7 @@ async function updatePilotStatus(formData: FormData) {
 
 async function updateVerificationStatus(formData: FormData) {
   "use server";
-  await requirePlatformAdmin();
+  await requirePlatformAccess("tenant.manage");
   const profileId = String(formData.get("profile_id") ?? "");
   const status = String(formData.get("status") ?? "pending_review");
   if (!profileId) {

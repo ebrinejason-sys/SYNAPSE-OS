@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { Flag, History, Save } from "lucide-react";
 import { createServiceClient } from "../../../lib/supabase/server";
-import { requirePlatformAdmin } from "../../../lib/platform/auth";
+import { requirePlatformAdmin, requirePlatformAccess } from "../../../lib/platform/auth";
 import { FEATURE_KEYS, formatDateTime, logPlatformEvent, safeRows } from "../_lib/platform-data";
 
 type TenantRow = {
@@ -36,7 +36,7 @@ const FEATURE_LABELS: Record<(typeof FEATURE_KEYS)[number], string> = {
 
 async function saveFeatureFlag(formData: FormData) {
   "use server";
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("feature_flag.manage");
 
   const tenantId = String(formData.get("tenant_id") ?? "");
   const featureKey = String(formData.get("feature_key") ?? "");

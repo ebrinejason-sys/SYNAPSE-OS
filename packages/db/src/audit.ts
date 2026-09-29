@@ -1,27 +1,12 @@
 // packages/db/src/audit.ts
 import { supabaseAdmin } from './admin'
+import { auditLogInsertPayload, phiAccessFkFallback, phiAccessInsertPayload, type AuditEntry, type PhiAccessEntry } from './audit-payload'
 
-export interface AuditEntry {
-  actor_id?: string
-  actor_email?: string
-  action: string
-  resource_type: string
-  resource_id?: string
-  resource_name?: string
-  tenant_id?: string
-  before_state?: Record<string, unknown>
-  after_state?: Record<string, unknown>
-  ip_address?: string
-  user_agent?: string
-  app_surface?: 'web' | 'pharmacy' | 'mobile' | 'api'
-}
+export type { AuditEntry, PhiAccessEntry } from './audit-payload'
 
 export async function logAudit(entry: AuditEntry): Promise<void> {
   try {
-    const { error } = await (supabaseAdmin as any).from('audit_log').insert({
-      ...entry,
-      created_at: new Date().toISOString(),
-    })
+    const { error } = await (supabaseAdmin as any).from('audit_log').insert(auditLogInsertPayload(entry))
     if (error) console.error('[AUDIT FAILED]', entry.action, error)
   } catch (error) {
     // Audit failure must never break the calling operation
@@ -29,19 +14,14 @@ export async function logAudit(entry: AuditEntry): Promise<void> {
   }
 }
 
-export async function logPHIAccess(params: {
-  accessor_id: string
-  accessor_role: string
-  patient_id: string
-  record_type: string
-  access_reason?: string
-  tenant_id: string
-}): Promise<void> {
+export async function logPHIAccess(params: PhiAccessEntry): Promise<void> {
   try {
-    const { error } = await (supabaseAdmin as any).from('phi_access_log').insert({
-      ...params,
-      accessed_at: new Date().toISOString(),
-    })
+    const db = supabaseAdmin as any
+    const row = phiAccessInsertPayload(params)
+    let { error } = await db.from('phi_access_log').insert(row)
+    if (error?.code === '23503') {
+      ;({ error } = await db.from('phi_access_log').insert(phiAccessFkFallback(row)))
+    }
     if (error) console.error('[PHI AUDIT FAILED]', params.record_type, error)
   } catch (error) {
     console.error('[PHI AUDIT FAILED]', params.record_type, error)

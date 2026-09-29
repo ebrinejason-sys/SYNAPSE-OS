@@ -76,7 +76,7 @@ async function findEncounterInvoice(
 ): Promise<Record<string, unknown> | null> {
   const { data, error } = await db
     .from("billing_invoices")
-    .select("id, total_amount, status, currency")
+    .select("id, total_amount, paid_amount, status, currency")
     .eq("tenant_id", tenantId)
     .eq("encounter_id", encounterId)
     .eq("is_deleted", false)
@@ -214,6 +214,43 @@ export async function appendClinicalCharge(
   }
 }
 
+/**
+ * Withdraws the charge for a cancelled source (for example a cancelled Lab order).
+ * Paid or void invoices are never rewritten; the caller reports INVOICE_LOCKED instead.
+ */
+export async function voidClinicalCharge(
+  db: DbClient,
+  input: { tenantId: string; encounterId: string; sourceTable: string; sourceId: string },
+): Promise<{ voided: boolean; reason?: "NO_CHARGE" | "INVOICE_LOCKED" }> {
+  const tenantId = requireUuid(input.tenantId, "tenant_id")
+  const encounterId = requireUuid(input.encounterId, "encounter_id")
+  const invoice = await findEncounterInvoice(db, tenantId, encounterId)
+  if (!invoice) return { voided: false, reason: "NO_CHARGE" }
+  const invoiceId = String(invoice.id)
+  const line = await findExistingLineItem(db, tenantId, invoiceId, input.sourceTable, input.sourceId)
+  if (!line) return { voided: false, reason: "NO_CHARGE" }
+  const newTotal = money(Math.max(0, Number(invoice.total_amount ?? 0) - Number(line.total_price ?? 0)))
+  if (String(invoice.status ?? "draft") === "paid" || Number(invoice.paid_amount ?? 0) > newTotal) {
+    return { voided: false, reason: "INVOICE_LOCKED" }
+  }
+
+  const { error: lineError } = await db
+    .from("billing_line_items")
+    .update({ is_deleted: true })
+    .eq("id", line.id)
+    .eq("tenant_id", tenantId)
+    .eq("is_deleted", false)
+  if (lineError) throw new Error(lineError.message)
+
+  const { error: updateError } = await db
+    .from("billing_invoices")
+    .update({ total_amount: newTotal, updated_at: new Date().toISOString() })
+    .eq("id", invoiceId)
+    .eq("tenant_id", tenantId)
+  if (updateError) throw new Error(updateError.message)
+  return { voided: true }
+}
+
 export function recordInvoiceCreatedEvent(params: {
   tenantId: string
   hospitalId: string
@@ -293,6 +330,21 @@ async function chargeIfPriced(
   return result.result.invoiceId
 }
 
+/**
+ * Cancelled orders are not charged. A replacement recollection after a rejected specimen
+ * is not charged again: the rejected original already carries the test charge.
+ */
+export function isBillableLabOrder(order: {
+  status?: unknown
+  workflow_status?: unknown
+  replaces_lab_order_id?: unknown
+}): boolean {
+  if (order.replaces_lab_order_id) return false
+  const workflow = order.workflow_status == null ? null : String(order.workflow_status)
+  if (workflow) return workflow !== "CANCELLED"
+  return String(order.status ?? "") !== "cancelled"
+}
+
 export async function materializeEncounterCharges(
   db: DbClient,
   input: MaterializeEncounterChargesInput,
@@ -333,18 +385,19 @@ export async function materializeEncounterCharges(
 
   const { data: labOrders, error: labError } = await db
     .from("lab_orders")
-    .select("id, test_name")
+    .select("id, test_name, status, workflow_status, replaces_lab_order_id")
     .eq("tenant_id", tenantId)
     .eq("encounter_id", encounterId)
   if (labError) throw new Error(labError.message)
-  for (const order of (labOrders as Array<{ id: string; test_name: string }> | null) ?? []) {
+  for (const order of (labOrders as Array<Record<string, unknown>> | null) ?? []) {
+    if (!isBillableLabOrder(order)) continue
     const price = await resolveServicePrice(db, tenantId, "lab", String(order.test_name))
     invoiceId =
       (await chargeIfPriced(db, {
         tenantId,
         patientId,
         encounterId,
-        itemName: `Lab · ${order.test_name}`,
+        itemName: `Lab · ${String(order.test_name)}`,
         unitPrice: price,
         sourceTable: "lab_orders",
         sourceId: String(order.id),

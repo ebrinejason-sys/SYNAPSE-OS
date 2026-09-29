@@ -27,6 +27,10 @@ const matrix: Array<[string, AccountStateProfile, AccountState]> = [
   ['locked', { email_verified_at: verified, locked_until: future }, 'locked'],
   ['expired lock', { email_verified_at: verified, locked_until: past }, 'active'],
   ['password change required', { email_verified_at: verified, must_change_password: true }, 'password_change_required'],
+  // Account suspension via a SUSPENDED platform membership (verification_status stays verified).
+  ['membership suspended', { email_verified_at: verified, verification_status: 'verified', membership_suspended: true }, 'suspended'],
+  ['membership suspended beats unverified', { email_verified_at: null, membership_suspended: true }, 'suspended'],
+  ['archived beats membership suspended', { email_verified_at: verified, is_deleted: true, membership_suspended: true }, 'archived'],
 ]
 
 describe('classifyAccountState', () => {
@@ -60,6 +64,10 @@ describe('accountStateResponse', () => {
 })
 
 describe('isAccountActivated (session guards)', () => {
+  it('rejects a membership-suspended identity whose verification_status is verified', () => {
+    expect(isAccountActivated({ email_verified_at: verified, verification_status: 'verified', membership_suspended: true })).toBe(false)
+  })
+
   it('rejects archived, suspended and unverified identities', () => {
     expect(isAccountActivated({ email_verified_at: verified, is_deleted: true })).toBe(false)
     expect(isAccountActivated({ email_verified_at: verified, verification_status: 'suspended' })).toBe(false)

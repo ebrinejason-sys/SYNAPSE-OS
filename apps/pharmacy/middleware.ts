@@ -5,6 +5,7 @@ import {
   verifyPharmMfaSatisfiedToken,
 } from '@synapse/auth/mfa'
 import { SESSION_COOKIE } from '@synapse/config/constants'
+import { decideMutationOrigin, hasAuthCookie } from '@synapse/auth/mutation-origin'
 import { evaluateEntitlement } from '@synapse/auth/billing/entitlement'
 
 type PharmacyProfile = {
@@ -271,7 +272,9 @@ async function runPharmacyAccessChecks(params: {
     return NextResponse.redirect(new URL('/login?error=no_pharmacy_access', request.url))
   }
 
-  if (!profile.is_admin && profile.tenant_id) {
+  // Facility admins (is_admin) of hospital/laboratory tenants are not pharmacy staff;
+  // only control-plane roles skip the pharmacy-tenant check.
+  if (profile.tenant_id && !isPlatformAdmin(profile.role)) {
     const tenant = await restGet<TenantRow>(
       'tenants',
       { id: `eq.${profile.tenant_id}` },
@@ -354,6 +357,17 @@ async function runPharmacyAccessChecks(params: {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const originDecision = decideMutationOrigin({
+    method: request.method,
+    host: request.headers.get('host'),
+    origin: request.headers.get('origin'),
+    referer: request.headers.get('referer'),
+    secFetchSite: request.headers.get('sec-fetch-site'),
+    hasSessionCookie: hasAuthCookie(request.cookies.getAll().filter((c) => c.value).map((c) => c.name)),
+  })
+  if (!originDecision.allow) {
+    return NextResponse.json({ error: 'cross_origin_mutation_blocked' }, { status: 403 })
+  }
 
   // ── Feature 2: resolve a custom domain → tenant and forward it as headers.
   // Base/managed hosts are skipped (default behavior unchanged). We always strip

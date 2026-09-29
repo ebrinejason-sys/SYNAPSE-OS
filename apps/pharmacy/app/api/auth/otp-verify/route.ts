@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { accountStateResponse, classifyAccountState, verifyOTP, signToken, createSession } from '@synapse/auth'
+import { accountStateResponse, classifyAccountState, verifyOTP, signToken, createSession, withMembershipSuspension } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
 
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   }
 
   // OTP proven above: block archived/suspended/unactivated identities before a session is issued.
-  const blockedState = accountStateResponse(classifyAccountState(profile))
+  const blockedState = accountStateResponse(classifyAccountState(await withMembershipSuspension(profile)))
   if (blockedState) {
     return NextResponse.json(blockedState.body, { status: blockedState.status })
   }

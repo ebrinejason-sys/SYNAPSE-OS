@@ -129,9 +129,9 @@ export async function POST(request: NextRequest) {
         notes: notes ?? null,
         expected_date: expectedDate ? new Date(expectedDate).toISOString() : null,
         created_by: session.user.id,
-        status: sendEmailToSupplier ? "SENT" : "DRAFT",
-        email_sent: sendEmailToSupplier ?? false,
-        email_sent_at: sendEmailToSupplier ? new Date().toISOString() : null,
+        status: "DRAFT",
+        email_sent: false,
+        email_sent_at: null,
       })
       .select("id, order_no, status, total_amount")
       .single()
@@ -165,7 +165,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to create purchase order items" }, { status: 500 })
     }
 
-    // Send email to supplier if requested
+    let emailStatus: "not_requested" | "sent" | "failed" | "no_address" | "status_not_saved" =
+      sendEmailToSupplier ? (supplier.email ? "failed" : "no_address") : "not_requested"
     if (sendEmailToSupplier && supplier.email) {
       const itemsTable = poItems
         .map(
@@ -223,11 +224,30 @@ export async function POST(request: NextRequest) {
         </div>
       `
 
-      await sendEmail({
+      const sent = await sendEmail({
         to: supplier.email,
         subject: `Purchase Order ${orderNo} - SYNAPSE Pharm`,
         html: emailHtml,
       })
+      if (sent.success) {
+        emailStatus = "sent"
+        const sentAt = new Date().toISOString()
+        const { data: sentOrder, error: sentError } = await supabaseAdmin
+          .from("pharmacy_purchase_orders")
+          .update({ status: "SENT", email_sent: true, email_sent_at: sentAt })
+          .eq("id", purchaseOrder.id)
+          .eq("tenant_id", tenantId)
+          .select("id, order_no, status, total_amount")
+          .single()
+        if (sentError || !sentOrder) {
+          console.error("Error saving purchase order email status:", sentError)
+          emailStatus = "status_not_saved"
+        } else {
+          Object.assign(purchaseOrder, sentOrder)
+        }
+      } else {
+        emailStatus = "failed"
+      }
     }
 
     // Audit log
@@ -237,11 +257,14 @@ export async function POST(request: NextRequest) {
       action: "CREATE_PURCHASE_ORDER",
       entity: "PURCHASE_ORDER",
       entity_id: purchaseOrder.id,
-      details: `Created PO ${orderNo} for ${supplier.name}${sendEmailToSupplier ? " (email sent)" : ""}`,
+      details: `Created PO ${orderNo} for ${supplier.name}${emailStatus === "sent" ? " (email sent)" : emailStatus === "failed" ? " (email failed)" : emailStatus === "status_not_saved" ? " (email accepted; delivery status could not be saved)" : ""}`,
     })
 
     return NextResponse.json({
       success: true,
+      ...(emailStatus === "status_not_saved" ? { warning: "Order saved and the email was accepted, but its delivery status could not be saved. Refresh the order and confirm with the supplier before resending." } : {}),
+      ...(emailStatus === "failed" ? { warning: "Order saved, but the email to the supplier could not be delivered. Use Send/Resend Email to retry." } : {}),
+      ...(emailStatus === "no_address" ? { warning: "Order saved. The supplier has no email address, so nothing was sent." } : {}),
       purchaseOrder: mapPurchaseOrder(
         {
           ...(purchaseOrder as Record<string, unknown>),
@@ -278,12 +301,14 @@ export async function PATCH(request: NextRequest) {
     const {
       id,
       status,
-      sendEmail: shouldSendEmail,
+      sendEmail: sendFirstEmail,
+      resendEmail,
       receiptItems,
     } = body as {
       id?: string
       status?: string
       sendEmail?: boolean
+      resendEmail?: boolean
       receiptItems?: Array<{
         productId: string
         batchNumber: string
@@ -414,8 +439,12 @@ export async function PATCH(request: NextRequest) {
       delete updateData.status
     }
 
-    // Send email to supplier if requested and not already sent
-    if (shouldSendEmail && !purchaseOrder.email_sent && supplier?.email) {
+    const shouldSendEmail = resendEmail === true || (sendFirstEmail === true && !purchaseOrder.email_sent)
+    if (shouldSendEmail && !supplier?.email) {
+      return NextResponse.json({ error: "This supplier has no email address. Add one on the supplier record first." }, { status: 400 })
+    }
+
+    if (shouldSendEmail && supplier?.email) {
       const poItems = purchaseOrder.items as Array<{
         product_name: string
         quantity: number
@@ -466,15 +495,18 @@ export async function PATCH(request: NextRequest) {
         </div>
       `
 
-      await sendEmail({
+      const sent = await sendEmail({
         to: supplier.email,
         subject: `Purchase Order ${purchaseOrder.order_no} - SYNAPSE Pharm`,
         html: emailHtml,
       })
+      if (!sent.success) {
+        return NextResponse.json({ error: "The email could not be delivered. Please try again shortly." }, { status: 502 })
+      }
 
       updateData.email_sent = true
       updateData.email_sent_at = new Date().toISOString()
-      updateData.status = "SENT"
+      if (!status && purchaseOrder.status === "DRAFT") updateData.status = "SENT"
     }
 
     const { data: updated, error: updateError } = await supabaseAdmin

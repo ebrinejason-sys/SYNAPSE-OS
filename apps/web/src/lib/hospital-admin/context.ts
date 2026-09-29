@@ -3,14 +3,16 @@ import 'server-only'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { verifyToken } from '@synapse/auth/tokens'
-import { validateSession } from '@synapse/auth'
+import { isAccountActivated, validateSession, withMembershipSuspension } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { SESSION_COOKIE } from '@synapse/config/constants'
 import type { HospitalContext } from '../hospital-shared'
 
 export type HospitalAdminContext = HospitalContext
 
-const ADMIN_ROLES = new Set(['hospital_admin', 'platform_admin', 'admin'])
+// Facility administrators only. Control-plane operators act on a facility through
+// the platform console or audited impersonation, never via a profile tenant_id.
+const ADMIN_ROLES = new Set(['hospital_admin', 'admin'])
 
 export async function requireHospitalAdminContext(): Promise<
   HospitalAdminContext | NextResponse
@@ -35,9 +37,18 @@ export async function requireHospitalAdminContext(): Promise<
   const db = supabaseAdmin as any
   const { data: profile } = await db
     .from('profiles')
-    .select('id, email, role, full_name, tenant_id, hospital_id, is_admin')
+    .select('id, email, role, full_name, tenant_id, hospital_id, is_admin, verification_status, email_verified_at, is_deleted')
     .eq('id', payload.sub)
     .maybeSingle()
+
+  // Same account-state rule as getContext: archived, suspended (incl. a SUSPENDED
+  // platform membership) or unverified identities cannot use a still-valid session.
+  const activated = profile
+    ? await withMembershipSuspension(profile).then(isAccountActivated).catch(() => false)
+    : false
+  if (!activated) {
+    return NextResponse.json({ error: 'Account unavailable' }, { status: 403 })
+  }
 
   if (!profile?.tenant_id) {
     return NextResponse.json({ error: 'No tenant context' }, { status: 403 })
@@ -54,8 +65,8 @@ export async function requireHospitalAdminContext(): Promise<
     .eq('id', profile.tenant_id)
     .maybeSingle()
 
-  const facilityType = String(tenant?.facility_type ?? 'hospital')
-  if (!['hospital', 'laboratory'].includes(facilityType) && role !== 'platform_admin') {
+  const facilityType = String(tenant?.facility_type ?? '')
+  if (!['hospital', 'laboratory'].includes(facilityType)) {
     return NextResponse.json({ error: 'Hospital or laboratory facility required' }, { status: 403 })
   }
 

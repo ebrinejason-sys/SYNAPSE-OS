@@ -32,13 +32,13 @@ export async function GET() {
 
   const patientIds = [...new Set((beds ?? []).map((b: { current_patient_id: string | null }) => b.current_patient_id).filter(Boolean))]
   const { data: patients } = patientIds.length
-    ? await db.from('patients').select('id, first_name, last_name, mrn, sex').eq('tenant_id', ctx.tenantId).in('id', patientIds)
+    ? await db.from('patients').select('id, full_name, mrn, sex').eq('tenant_id', ctx.tenantId).in('id', patientIds)
     : { data: [] }
 
   const patientMap = new Map(
-    (patients ?? []).map((p: { id: string; first_name: string; last_name: string; mrn: string; sex: string }) => [
+    (patients ?? []).map((p: { id: string; full_name: string | null; mrn: string; sex: string }) => [
       p.id,
-      { ...p, fullName: `${p.first_name} ${p.last_name}`.trim() },
+      { ...p, fullName: (p.full_name ?? '').trim() },
     ]),
   )
 

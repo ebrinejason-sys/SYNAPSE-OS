@@ -1,4 +1,5 @@
 import { hashToken } from "@synapse/auth";
+import { isAccountSuspensionMarker } from "@synapse/auth/account-suspension";
 import { supabaseAdmin } from "@synapse/db/admin";
 import {
   canManageTargetRole,
@@ -181,13 +182,16 @@ export async function touchPlatformAccess(userId: string): Promise<void> {
 export async function listPlatformMembers(): Promise<PlatformMemberRow[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any;
-  const { data: memberships } = await db
+  const { data: allMemberships } = await db
     .from("platform_memberships")
     .select("*")
     .order("created_at", { ascending: false })
     .limit(200);
 
-  if (!memberships?.length) return [];
+  // Account-suspension marker rows (written by /platform/users Suspend for users with no
+  // control-plane role) grant nothing and are not platform members.
+  const memberships = (allMemberships ?? []).filter((m: MembershipRow) => !isAccountSuspensionMarker(m));
+  if (!memberships.length) return [];
 
   const userIds = memberships.map((m: MembershipRow) => m.user_id);
   const [{ data: profiles }, { data: sessions }, { data: mfaRows }] = await Promise.all([

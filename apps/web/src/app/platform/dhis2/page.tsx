@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { revalidatePath } from "next/cache";
 import { DatabaseZap, Play, RefreshCcw } from "lucide-react";
-import { requirePlatformAdmin } from "../../../lib/platform/auth";
+import { requirePlatformAdmin, requirePlatformAccess } from "../../../lib/platform/auth";
 import { formatDateTime } from "../_lib/platform-data";
 import {
   loadDhis2MonitorState,
@@ -22,7 +22,7 @@ function statusClass(status: string | null | undefined) {
 
 async function triggerExportAll() {
   "use server";
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("integration.manage");
   await triggerAggregateExport({
     actorId: profile.id,
     actorRole: profile.role ?? "platform_admin",
@@ -32,7 +32,7 @@ async function triggerExportAll() {
 
 async function retryExport(formData: FormData) {
   "use server";
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("integration.manage");
   const jobId = String(formData.get("job_id") ?? "");
   if (!jobId) return;
   await retryExportJob({
@@ -45,7 +45,7 @@ async function retryExport(formData: FormData) {
 
 async function drainPending() {
   "use server";
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("integration.manage");
   await processPendingExports({
     actorId: profile.id,
     actorRole: profile.role ?? "platform_admin",

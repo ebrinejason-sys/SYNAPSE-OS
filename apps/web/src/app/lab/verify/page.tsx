@@ -96,7 +96,7 @@ export default function LabVerifyPage() {
                     {item.patientName ?? "Patient"} · {item.status}
                   </p>
                   {item.accessionNumber ? (
-                    <p className="mt-1 font-mono text-xs text-amber-200">{item.accessionNumber}</p>
+                    <p className="mt-1 font-mono text-xs text-amber-700 dark:text-amber-200">{item.accessionNumber}</p>
                   ) : null}
                 </div>
                 <div className="flex gap-2">

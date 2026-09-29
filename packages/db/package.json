@@ -78,7 +78,8 @@
     "./product-history": "./src/product-history.ts",
     "./commercial-pricing": "./src/commercial-pricing.ts",
     "./commercial-crm": "./src/commercial-crm.ts",
-    "./html-escape": "./src/html-escape.ts"
+    "./html-escape": "./src/html-escape.ts",
+    "./encounter-diagnosis": "./src/encounter-diagnosis.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",

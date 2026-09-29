@@ -28,6 +28,8 @@ function session(partial: Partial<PharmacySession> & Pick<PharmacySession, "role
   return {
     userId: "user-1",
     email: "a@b.c",
+    profileRole: partial.role,
+    facilityType: partial.role === "platform_admin" || partial.role === "superadmin" ? "platform" : "pharmacy",
     fullName: "A",
     firstName: "A",
     lastName: null,

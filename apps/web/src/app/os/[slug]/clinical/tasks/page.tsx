@@ -1,5 +1,3 @@
-'use client'
-
 import { WorkQueuePanel } from '../../../../../components/clinical/WorkQueuePanel'
 
 export default async function ClinicalTasksPage({ params }: { params: Promise<{ slug: string }> }) {

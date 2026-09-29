@@ -6,7 +6,7 @@ import { searchIcd11, searchWhoIcd11, ICD11_RELEASE, whoApiConfigured } from "@s
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const auth = await requirePlatformAdminApi();
+  const auth = await requirePlatformAdminApi("product.read");
   if (!auth.ok) return auth.response;
 
   const truth = await getProductionTruth();
@@ -26,7 +26,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await requirePlatformAdminApi();
+  const auth = await requirePlatformAdminApi("product.read");
   if (!auth.ok) return auth.response;
 
   const body = (await request.json().catch(() => ({}))) as { query?: string };

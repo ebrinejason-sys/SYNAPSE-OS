@@ -96,7 +96,8 @@ const PHARMACIST = "77777777-7777-4777-8777-777777777777"
 const PRESCRIBER = "55555555-5555-4555-8555-555555555555"
 const RX = "88888888-8888-4888-8888-888888888888"
 const PRODUCT = "99999999-9999-4999-8999-999999999999"
-const PHARM_TENANT = "66666666-6666-4666-8666-666666666666"
+const PHARM_TENANT = TENANT
+const FOREIGN_PHARM_TENANT = "66666666-6666-4666-8666-666666666666"
 
 function staffCtx(overrides: Record<string, unknown> = {}) {
   return {
@@ -227,6 +228,14 @@ describe("POST /api/hospital/pharmacy/dispense", () => {
     const { POST } = await import("./route")
     const res = await POST(postBody({ prescription_id: "bad" }))
     expect(res.status).toBe(400)
+  })
+
+  it("refuses to draw on another tenant's pharmacy stock", async () => {
+    requireHospitalStaffContext.mockResolvedValue(staffCtx())
+    const { POST } = await import("./route")
+    const res = await POST(postBody(validBody({ pharmacy_tenant_id: FOREIGN_PHARM_TENANT })))
+    expect(res.status).toBe(403)
+    expect(dbFrom).not.toHaveBeenCalled()
   })
 
   it("returns 404 when prescription is missing for this tenant", async () => {

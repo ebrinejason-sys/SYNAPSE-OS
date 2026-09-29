@@ -25,7 +25,7 @@ export async function GET() {
   const { data, error } = await db
     .from("lab_specimens")
     .select(
-      "id, accession_number, barcode, specimen_type, status, collected_at, received_at, lab_order_id, patients(first_name, last_name, mrn)",
+      "id, accession_number, barcode, specimen_type, status, collected_at, received_at, lab_order_id, patients(full_name, mrn)",
     )
     .eq("tenant_id", ctx.tenantId)
     .order("collected_at", { ascending: false })

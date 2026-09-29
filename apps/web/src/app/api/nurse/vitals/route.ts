@@ -14,6 +14,8 @@ export async function POST(req: NextRequest) {
   const cap = await requireHospitalCapability(ctx, 'round', 'write', 'ward')
   if (cap) return cap
 
+  // Ward observation charts stay on the inpatient module. Outpatient vitals
+  // are recorded by POST /api/opd/vitals (triage.assign + opd), not this route.
   const moduleBlock = await gateHospitalModule(ctx.tenantId, ctx.hospitalId, 'ipd')
   if (moduleBlock) return moduleBlock
 

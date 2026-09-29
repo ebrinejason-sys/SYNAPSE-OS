@@ -6,6 +6,7 @@ import {
   createAndSendOTP,
   signToken,
   createSession,
+  withMembershipSuspension,
 } from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { sendOTP } from '@synapse/email'
@@ -181,7 +182,7 @@ export async function POST(req: NextRequest) {
     .eq('id', profile.id)
 
   // Credential proven above: state-specific responses are safe to return now.
-  const blockedState = accountStateResponse(classifyAccountState({ ...profile, locked_until: null }))
+  const blockedState = accountStateResponse(classifyAccountState({ ...(await withMembershipSuspension(profile)), locked_until: null }))
   if (blockedState) {
     return NextResponse.json(blockedState.body, { status: blockedState.status })
   }

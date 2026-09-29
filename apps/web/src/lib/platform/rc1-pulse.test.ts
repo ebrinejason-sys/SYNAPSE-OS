@@ -32,7 +32,7 @@ result: PASS
 environment: pilot-supabase
 sha: 090ae645d57c
 scope: mfa-step-up-live
-recordedAt: 2026-09-13T08:00:00.000Z
+recordedAt: ${new Date().toISOString()}
 ---
 ok`
     const pulse = getHospitalPilotRc1Pulse((path) => path.endsWith("mfa-step-up-live-2026-09-12.md"), {

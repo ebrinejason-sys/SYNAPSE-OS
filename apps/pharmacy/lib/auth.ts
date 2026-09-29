@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { getContext, getContextSafe, type SynapseContext } from '@synapse/auth/context'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { sessionHasCapability } from '@/lib/capabilities'
@@ -6,7 +7,11 @@ export type PharmacySession = {
   userId: string
   email: string
   role: string
+  /** profiles.role (role above is the pharmacy role when pharmacy_user_settings sets one). */
+  profileRole: string
   tenantId: string
+  /** tenants.facility_type of the session tenant ('platform' for control-plane users). */
+  facilityType: string
   fullName: string | null
   firstName: string | null
   lastName: string | null
@@ -62,7 +67,9 @@ async function toPharmacySession(ctx: SynapseContext): Promise<PharmacySession> 
     userId: ctx.user.id,
     email: ctx.user.email,
     role: pharmacyRole,
+    profileRole: ctx.user.role,
     tenantId: ctx.user.tenantId,
+    facilityType: ctx.tenant.facilityType,
     fullName: ctx.user.fullName,
     firstName: ctx.user.firstName,
     lastName: ctx.user.lastName,
@@ -88,13 +95,26 @@ async function toPharmacySession(ctx: SynapseContext): Promise<PharmacySession> 
   }
 }
 
+/**
+ * The pharmacy app serves pharmacy tenants (and control-plane users, who have no
+ * tenant). A hospital or laboratory account is not pharmacy staff even when its
+ * profile role collides with a pharmacy role (e.g. a hospital 'pharmacist') or it
+ * is its own facility's admin (is_admin): without this it would get pharmacy
+ * capabilities over its own non-pharmacy tenant.
+ */
+export function isPharmacyAppContext(facilityType: string | null | undefined): boolean {
+  return facilityType === 'pharmacy' || facilityType === 'platform'
+}
+
 export async function getPharmacySession(): Promise<PharmacySession | null> {
   const ctx = await getContextSafe('pharmacy')
-  return ctx ? toPharmacySession(ctx) : null
+  if (!ctx || !isPharmacyAppContext(ctx.tenant.facilityType)) return null
+  return toPharmacySession(ctx)
 }
 
 export async function requirePharmacySession(): Promise<PharmacySession> {
   const ctx: SynapseContext = await getContext('pharmacy', '/login')
+  if (!isPharmacyAppContext(ctx.tenant.facilityType)) redirect('/login?error=no_pharmacy_access')
   return toPharmacySession(ctx)
 }
 

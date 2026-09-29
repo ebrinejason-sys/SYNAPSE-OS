@@ -4,6 +4,7 @@
  */
 
 import { supabaseAdmin } from '@synapse/db/admin'
+import { isRepeatLabRelease } from './lab-release-idempotency'
 import {
   LabWorkflow,
   SPECIMEN_REJECTION_REASONS,
@@ -57,7 +58,7 @@ export async function fetchHospitalLabWorklist(
   let query = db
     .from('lab_orders')
     .select(
-      'id, tenant_id, encounter_id, patient_id, loinc_code, test_name, urgency, status, workflow_status, accession_number, ordered_at, patients(first_name, last_name, mrn)',
+      'id, tenant_id, encounter_id, patient_id, loinc_code, test_name, urgency, status, workflow_status, accession_number, ordered_at, patients(full_name, mrn)',
     )
     .eq('tenant_id', ctx.tenantId)
     .eq('is_synthetic', false)
@@ -87,10 +88,9 @@ export async function fetchHospitalLabWorklist(
   }
 
   const orders: HospitalLabWorklistOrder[] = (data ?? []).map((row: Record<string, unknown>) => {
-    const patient = row.patients as { first_name?: string; last_name?: string; mrn?: string } | null
-    const patientName = patient
-      ? [patient.first_name, patient.last_name].filter(Boolean).join(' ').trim() || null
-      : null
+    // public.patients stores a single full_name (no first/last columns).
+    const patient = row.patients as { full_name?: string | null; mrn?: string } | null
+    const patientName = patient?.full_name?.trim() || null
     const id = String(row.id)
     const prior = resultByOrder.get(id)
     return {
@@ -134,11 +134,12 @@ export async function executeHospitalLabAction(params: {
   action: string
   actorId: string
   extra?: Record<string, unknown>
-}): Promise<{ order: LabOrder; result: LabResult | null; warnings: string[] }> {
+}): Promise<{ order: LabOrder; result: LabResult | null; warnings: string[]; idempotent: boolean }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
   const order = await loadLabOrder(supabaseAdmin, params.ctx.tenantId, params.orderId)
   if (!order) throw new Error('LAB_ORDER_NOT_FOUND')
+  const repeatRelease = isRepeatLabRelease(order.status)
 
   const priorResults = await loadLabResultsForOrder(db, params.ctx.tenantId, params.orderId)
   const lab = new LabWorkflow([order], priorResults)
@@ -154,7 +155,7 @@ export async function executeHospitalLabAction(params: {
       if (!order.specimenId || !order.accessionNumber || !order.barcode) {
         throw new Error('LAB_COLLECT_RETRY_INCOMPLETE:specimen reconciliation required')
       }
-      return { order, result: priorResults[0] ?? null, warnings }
+      return { order, result: priorResults[0] ?? null, warnings, idempotent: false }
     }
     const accession =
       typeof params.extra?.accessionNumber === 'string' && params.extra.accessionNumber.trim()
@@ -192,17 +193,37 @@ export async function executeHospitalLabAction(params: {
       : ('other' as SpecimenRejectionReason)
     const note = String(params.extra?.note ?? params.extra?.rejectionNote ?? rawReason)
     lab.reject(params.orderId, reason, note)
+    const { data: openTaskRows } = await db
+      .from('department_tasks')
+      .select('*')
+      .eq('tenant_id', params.ctx.tenantId)
+      .eq('source_resource', 'lab_orders')
+      .eq('source_id', params.orderId)
+      .eq('task_type', 'lab_order')
+      .in('status', ['REQUESTED', 'ACCEPTED', 'IN_PROGRESS', 'ON_HOLD'])
+    const taskQueue = new WorkQueue()
+    const closedTasks = []
+    for (const row of openTaskRows ?? []) {
+      const task = rowToDepartmentTask(row)
+      taskQueue.tasks.set(task.id, task)
+      const cancelled = taskQueue.cancel(task.id, `Specimen rejected (${reason}); replacement order required`)
+      if (cancelled.ok) closedTasks.push(cancelled.task)
+    }
+    if (closedTasks.length) {
+      const taskPersist = await persistWorkQueueArtifactsBestEffort(db, { tasks: closedTasks, events: [] })
+      if (taskPersist.errors.length) warnings.push(...taskPersist.errors)
+    }
     if (order.specimenId) {
-      await db
+      const { error: specimenError } = await db
         .from('lab_specimens')
         .update({
           status: 'rejected',
-          rejection_reason: reason,
-          rejection_note: note,
+          condition: reason,
           updated_at: new Date().toISOString(),
         })
         .eq('id', order.specimenId)
         .eq('tenant_id', params.ctx.tenantId)
+      if (specimenError) warnings.push(`LAB_SPECIMEN_REJECT_FAILED:${specimenError.message}`)
     }
   } else if (params.action === 'amend') {
     result = lab.amend({
@@ -431,7 +452,7 @@ export async function executeHospitalLabAction(params: {
       .eq('task_type', 'lab_order')
     if (error) warnings.push(error.message)
 
-    if (result) {
+    if (result && !repeatRelease) {
       void publishClinicalTimelineBestEffort(
         publishTimelineEvent,
         labResultReleasedTimelineEvent({
@@ -507,5 +528,5 @@ export async function executeHospitalLabAction(params: {
     }
   }
 
-  return { order: updated, result, warnings }
+  return { order: updated, result, warnings, idempotent: params.action === 'release' && repeatRelease }
 }

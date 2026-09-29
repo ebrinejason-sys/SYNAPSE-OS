@@ -8,6 +8,7 @@ import { isContextError, requireHospitalCapability, gateHospitalModule, logHospi
 import { requireHospitalStaffContext } from '@/lib/hospital-dept'
 import { clinicalActionTimelineEvent, publishClinicalTimelineBestEffort } from '@synapse/db/clinical-timeline'
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
+import { voidClinicalCharge } from '@synapse/db/clinical-charge'
 
 export const dynamic = 'force-dynamic'
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -21,7 +22,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!row) return NextResponse.json({ error: 'Lab order not found' }, { status: 404 })
   const order = rowToLabOrder(row)
-  if (order.status === 'CANCELLED') return NextResponse.json({ orderId: id, cancelled: true, alreadyCancelled: true })
+  const warnings: string[] = []
+  const voidCharge = async () => {
+    if (!order.encounterId) return false
+    try {
+      const charge = await voidClinicalCharge(db, { tenantId: ctx.tenantId, encounterId: order.encounterId, sourceTable: 'lab_orders', sourceId: id })
+      if (charge.reason === 'INVOICE_LOCKED') warnings.push('LAB_CHARGE_ON_SETTLED_INVOICE:refund_or_credit_required')
+      return charge.voided
+    } catch (voidError) {
+      warnings.push(`LAB_CHARGE_VOID_FAILED:${voidError instanceof Error ? voidError.message : 'unknown'}`)
+      return false
+    }
+  }
+  if (order.status === 'CANCELLED') {
+    // Retrying a cancel re-attempts the void so a failed first attempt cannot leave the charge billed.
+    const chargeVoided = await voidCharge()
+    return NextResponse.json({ orderId: id, cancelled: true, alreadyCancelled: true, chargeVoided, ...(warnings.length ? { warnings } : {}) })
+  }
   const lab = new LabWorkflow([order])
   let cancelledOrder
   try {
@@ -37,7 +54,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const queue = new WorkQueue(); const tasks = []
   for (const taskRow of taskRows ?? []) { const task = rowToDepartmentTask(taskRow); queue.tasks.set(task.id, task); const cancelled = queue.cancel(task.id, `Lab order cancelled: ${body.reason.trim()}`); if (cancelled.ok) tasks.push(cancelled.task) }
   if (tasks.length) await persistWorkQueueArtifactsBestEffort(db, { tasks, events: [] })
-  await logHospitalAudit({ ctx, action: 'LAB_ORDER_CANCELLED', tableName: 'lab_orders', recordId: id, newValue: { status: 'CANCELLED', reason: body.reason.trim() } })
+  const chargeVoided = await voidCharge()
+  await logHospitalAudit({ ctx, action: 'LAB_ORDER_CANCELLED', tableName: 'lab_orders', recordId: id, newValue: { status: 'CANCELLED', reason: body.reason.trim(), chargeVoided } })
   void publishClinicalTimelineBestEffort(publishTimelineEvent, clinicalActionTimelineEvent({ tenantId: ctx.tenantId, hospitalId: ctx.hospitalId, patientId: order.patientId, encounterId: order.encounterId, sourceTable: 'lab_orders', sourceId: id, title: 'Lab order cancelled', summary: body.reason.trim(), createdBy: ctx.userId, tags: ['laboratory', 'cancelled'] }))
-  return NextResponse.json({ orderId: id, cancelled: true, cancelledAt: at })
+  return NextResponse.json({ orderId: id, cancelled: true, cancelledAt: at, chargeVoided, ...(warnings.length ? { warnings } : {}) })
 }
