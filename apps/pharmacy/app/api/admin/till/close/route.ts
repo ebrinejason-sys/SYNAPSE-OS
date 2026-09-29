@@ -14,9 +14,14 @@ export async function POST(request: NextRequest) {
 
   const countedCash = Number(body?.countedCash)
   const varianceReason = typeof body?.varianceReason === "string" ? body.varianceReason : null
+  // Closing another cashier's till is a supervisor action.
+  const requestedCashier = typeof body?.cashierId === "string" ? body.cashierId : auth.session.userId
+  if (requestedCashier !== auth.session.userId && !sessionHasCapability(auth.session, "shift.approve_variance")) {
+    return NextResponse.json({ error: "Only a supervisor can close another cashier's till." }, { status: 403 })
+  }
   const result = await closeTill({
     tenantId: auth.tenantId,
-    cashierId: typeof body?.cashierId === "string" ? body.cashierId : auth.session.userId,
+    cashierId: requestedCashier,
     sessionId,
     countedCash,
     varianceReason,
