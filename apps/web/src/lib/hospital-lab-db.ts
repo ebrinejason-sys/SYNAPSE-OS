@@ -193,17 +193,37 @@ export async function executeHospitalLabAction(params: {
       : ('other' as SpecimenRejectionReason)
     const note = String(params.extra?.note ?? params.extra?.rejectionNote ?? rawReason)
     lab.reject(params.orderId, reason, note)
+    const { data: openTaskRows } = await db
+      .from('department_tasks')
+      .select('*')
+      .eq('tenant_id', params.ctx.tenantId)
+      .eq('source_resource', 'lab_orders')
+      .eq('source_id', params.orderId)
+      .eq('task_type', 'lab_order')
+      .in('status', ['REQUESTED', 'ACCEPTED', 'IN_PROGRESS', 'ON_HOLD'])
+    const taskQueue = new WorkQueue()
+    const closedTasks = []
+    for (const row of openTaskRows ?? []) {
+      const task = rowToDepartmentTask(row)
+      taskQueue.tasks.set(task.id, task)
+      const cancelled = taskQueue.cancel(task.id, `Specimen rejected (${reason}); replacement order required`)
+      if (cancelled.ok) closedTasks.push(cancelled.task)
+    }
+    if (closedTasks.length) {
+      const taskPersist = await persistWorkQueueArtifactsBestEffort(db, { tasks: closedTasks, events: [] })
+      if (taskPersist.errors.length) warnings.push(...taskPersist.errors)
+    }
     if (order.specimenId) {
-      await db
+      const { error: specimenError } = await db
         .from('lab_specimens')
         .update({
           status: 'rejected',
-          rejection_reason: reason,
-          rejection_note: note,
+          condition: reason,
           updated_at: new Date().toISOString(),
         })
         .eq('id', order.specimenId)
         .eq('tenant_id', params.ctx.tenantId)
+      if (specimenError) warnings.push(`LAB_SPECIMEN_REJECT_FAILED:${specimenError.message}`)
     }
   } else if (params.action === 'amend') {
     result = lab.amend({
