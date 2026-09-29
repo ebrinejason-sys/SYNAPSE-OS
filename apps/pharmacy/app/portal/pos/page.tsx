@@ -1034,7 +1034,7 @@ export default function POSPage() {
             </Button>
           )}
 
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${isOnline ? 'bg-green-50 border-green-200 text-[#22C55E]' : 'bg-orange-50 border-orange-200 text-orange-700'
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${isOnline ? 'bg-green-50 border-green-200 text-green-700 dark:text-[#22C55E]' : 'bg-orange-50 border-orange-200 text-orange-700'
             }`}>
             {isOnline ? (
               <><Wifi className="h-3 w-3" /> Online</>
@@ -1414,7 +1414,7 @@ export default function POSPage() {
                           <span className="text-xs text-muted-foreground font-medium">{formatCurrency(product.costPrice)}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-xs text-[#22C55E]">Sell:</span>
+                          <span className="text-xs text-green-700 dark:text-[#22C55E]">Sell:</span>
                           <span className="text-primary font-bold">{formatCurrency(product.price)}</span>
                         </div>
                       </div>
@@ -1898,7 +1898,7 @@ export default function POSPage() {
                         <p className="text-xs text-muted-foreground">
                           @ {formatCurrency(item.sellingPrice)}
                         </p>
-                        <p className="font-bold text-[#22C55E]">
+                        <p className="font-bold text-green-700 dark:text-[#22C55E]">
                           {formatCurrency(item.subtotal)}
                         </p>
                       </div>
@@ -1913,7 +1913,7 @@ export default function POSPage() {
               <div className="border-t p-4 bg-card space-y-3">
                 <div className="flex justify-between items-center text-lg font-bold">
                   <span>Total:</span>
-                  <span className="text-[#22C55E]">
+                  <span className="text-green-700 dark:text-[#22C55E]">
                     {formatCurrency(cart.reduce((sum, item) => sum + item.subtotal, 0))}
                   </span>
                 </div>

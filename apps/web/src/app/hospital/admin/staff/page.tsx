@@ -46,12 +46,10 @@ export default function HospitalAdminStaffPage() {
                 <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{member.email}</p>
               </div>
               <span
-                className="text-xs rounded-full px-2 py-0.5 font-semibold"
-                style={
-                  member.two_factor_enabled
-                    ? { background: 'rgba(34,197,94,0.1)', color: '#22C55E' }
-                    : { background: 'rgba(107,114,128,0.1)', color: '#6B7280' }
-                }
+                className={`text-xs rounded-full px-2 py-0.5 font-semibold ${
+                  member.two_factor_enabled ? 'text-green-700 dark:text-green-400' : 'text-slate-600 dark:text-slate-400'
+                }`}
+                style={{ background: member.two_factor_enabled ? 'rgba(34,197,94,0.1)' : 'rgba(107,114,128,0.1)' }}
               >
                 {member.two_factor_enabled ? 'MFA on' : 'MFA off'}
               </span>

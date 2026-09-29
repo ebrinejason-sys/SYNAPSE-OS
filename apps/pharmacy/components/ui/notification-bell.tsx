@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Bell, Check, Trash2, X, ShoppingBag, UserCheck, AlertCircle, Edit } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -22,6 +22,18 @@ export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const bellRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      setIsOpen(false)
+      bellRef.current?.focus()
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [isOpen])
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -115,9 +127,12 @@ export function NotificationBell() {
   return (
     <div className="relative">
       <Button
+        ref={bellRef}
         variant="ghost"
         size="icon"
         className="relative"
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+        aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
       >
         <Bell className="h-5 w-5" />
@@ -153,6 +168,7 @@ export function NotificationBell() {
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6"
+                  aria-label="Close notifications"
                   onClick={() => setIsOpen(false)}
                 >
                   <X className="h-4 w-4" />
@@ -187,7 +203,8 @@ export function NotificationBell() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6 -mt-1 -mr-2 opacity-0 group-hover:opacity-100"
+                              className="h-6 w-6 -mt-1 -mr-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                              aria-label={`Delete notification: ${notification.title}`}
                               onClick={(e) => {
                                 e.stopPropagation()
                                 deleteNotification(notification.id)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 
 type DuplicateCandidate = { id: string; mrn: string | null; full_name: string; dob: string | null; sex: string | null }
@@ -44,6 +44,7 @@ export function RegisterPatientForm() {
   const [error, setError] = useState<string | null>(null)
   const [candidates, setCandidates] = useState<DuplicateCandidate[] | null>(null)
   const [overrideReason, setOverrideReason] = useState('')
+  const restoreFocus = useRef(false)
 
   const reset = useCallback(() => {
     setFullName('')
@@ -52,6 +53,7 @@ export function RegisterPatientForm() {
     setCandidates(null)
     setOverrideReason('')
     setError(null)
+    restoreFocus.current = true
     setOpen(false)
   }, [])
 
@@ -91,6 +93,12 @@ export function RegisterPatientForm() {
   if (!open) {
     return (
       <button
+        ref={(el) => {
+          if (el && restoreFocus.current) {
+            restoreFocus.current = false
+            el.focus()
+          }
+        }}
         type="button"
         onClick={() => setOpen(true)}
         className="rounded bg-[#F97316] px-4 py-2 text-sm font-medium text-black"
@@ -101,14 +109,25 @@ export function RegisterPatientForm() {
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded border border-[var(--synapse-border)] p-4">
+    <form
+      aria-label="Register patient"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!submitting && candidates === null) submit()
+      }}
+      className="flex flex-col gap-2 rounded border border-[var(--synapse-border)] p-4"
+    >
       <input
+        autoFocus
+        aria-label="Full name"
+        aria-required="true"
         value={fullName}
         onChange={(e) => { setFullName(e.target.value); setCandidates(null) }}
         placeholder="Full name"
         className="rounded border border-[var(--synapse-border)] bg-transparent px-3 py-2 text-sm"
       />
       <select
+        aria-label="Sex"
         value={sex}
         onChange={(e) => { setSex(e.target.value as 'M' | 'F'); setCandidates(null) }}
         className="rounded border border-[var(--synapse-border)] bg-transparent px-3 py-2 text-sm"
@@ -118,17 +137,19 @@ export function RegisterPatientForm() {
       </select>
       <input
         type="date"
+        aria-label="Date of birth"
         value={dob}
         onChange={(e) => { setDob(e.target.value); setCandidates(null) }}
         className="rounded border border-[var(--synapse-border)] bg-transparent px-3 py-2 text-sm"
       />
       <input
+        aria-label="Phone (optional)"
         value={phone}
         onChange={(e) => { setPhone(e.target.value); setCandidates(null) }}
         placeholder="Phone (optional)"
         className="rounded border border-[var(--synapse-border)] bg-transparent px-3 py-2 text-sm"
       />
-      {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
+      {error && <p role="alert" className="text-xs text-red-700 dark:text-red-400">{error}</p>}
       {candidates && (
         <div role="alert" className="flex flex-col gap-2 rounded border border-amber-500/60 p-3 text-sm">
           <p className="font-medium">This patient may already be registered.</p>
@@ -169,9 +190,8 @@ export function RegisterPatientForm() {
       )}
       <div className="flex gap-2">
         <button
-          type="button"
+          type="submit"
           disabled={submitting || !fullName.trim() || candidates !== null}
-          onClick={() => submit()}
           className="rounded bg-[#F97316] px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
         >
           {submitting ? 'Saving…' : 'Save'}
@@ -180,6 +200,6 @@ export function RegisterPatientForm() {
           Cancel
         </button>
       </div>
-    </div>
+    </form>
   )
 }

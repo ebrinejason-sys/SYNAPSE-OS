@@ -221,7 +221,7 @@ export default function LabInstrumentsPage() {
                   </p>
                 </button>
                 <div className="text-right text-xs">
-                  <p className={d.operational_health === "Active" || d.operational_health === "Online" ? "text-emerald-300" : "text-amber-200"}>
+                  <p className={d.operational_health === "Active" || d.operational_health === "Online" ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-200"}>
                     {d.validation_status} · {d.operational_health ?? "Disconnected"}
                   </p>
                   <p className="text-muted-color">
@@ -291,7 +291,7 @@ function DeviceDetail({ detail, deviceId, tab }: { detail: Record<string, unknow
       {errors.length ? (
         <div className="mt-4">
           <h3 className="text-xs uppercase text-muted-color">Recent parser errors</h3>
-          <ul className="mt-2 space-y-1 text-xs text-amber-200">
+          <ul className="mt-2 space-y-1 text-xs text-amber-700 dark:text-amber-200">
             {errors.map((row) => <li key={row.id}>{row.received_at} · {row.parse_error}</li>)}
           </ul>
         </div>

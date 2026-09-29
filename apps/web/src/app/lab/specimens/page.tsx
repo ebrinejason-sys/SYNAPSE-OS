@@ -82,7 +82,7 @@ export default function LabSpecimensPage() {
               <li key={s.id} className="rounded-2xl border border-subtle bg-surface p-4">
                 <div className="flex flex-wrap justify-between gap-2">
                   <div>
-                    <p className="font-mono text-sm text-amber-200">{s.accession_number}</p>
+                    <p className="font-mono text-sm text-amber-700 dark:text-amber-200">{s.accession_number}</p>
                     <p className="mt-1 text-sm">
                       {name} · {s.specimen_type ?? "specimen"} · {s.status}
                     </p>

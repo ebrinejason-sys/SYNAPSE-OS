@@ -111,7 +111,7 @@ export default function LabOrdersPage() {
                     {order.patientName ?? "Synthetic patient"} · {order.synapseId ?? ""} · {order.status} · {order.urgency}
                   </p>
                   {order.accessionNumber ? (
-                    <p className="mt-1 font-mono text-xs text-amber-200">{order.accessionNumber}</p>
+                    <p className="mt-1 font-mono text-xs text-amber-700 dark:text-amber-200">{order.accessionNumber}</p>
                   ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -123,7 +123,7 @@ export default function LabOrdersPage() {
                   </button>
                   <button
                     type="button"
-                    className="rounded-lg border border-rose-500/40 px-3 py-1 text-xs text-rose-300"
+                    className="rounded-lg border border-rose-500/40 px-3 py-1 text-xs text-rose-700 dark:text-rose-300"
                     onClick={() => act(order.id, "reject", { reason: "hemolyzed", note: "Rejected from worklist" })}
                   >
                     Reject
