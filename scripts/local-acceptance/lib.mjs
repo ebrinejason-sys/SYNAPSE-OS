@@ -171,6 +171,19 @@ delete from synapse_sessions where user_id='${id}';`)
 }
 
 /**
+ * Signs in the allowlisted Hospital B fixture under another staff role (local DB only).
+ * Call `restoreHospitalB()` when done so later runs see the doctor fixture again.
+ */
+export async function loginHospitalBAs(role) {
+  sql(`update profiles set role='${role}' where lower(email)='${EMAILS.doctor_b}'`)
+  return new Session(`hospital_b_${role}`).login(EMAILS.doctor_b)
+}
+
+export function restoreHospitalB() {
+  sql(`update profiles set role='doctor' where lower(email)='${EMAILS.doctor_b}'`)
+}
+
+/**
  * Pharmacy sign-in for synthetic local users. Staff that need a login OTP get a code whose
  * hash is written to the local auth_otps row, so the real otp-verify route still decides.
  */
@@ -216,7 +229,7 @@ export class Report {
 
   expectStatus(id, res, expected) {
     const list = Array.isArray(expected) ? expected : [expected]
-    return this.check(id, list.includes(res.status), `HTTP ${res.status} ${JSON.stringify(res.json).slice(0, 300)}`)
+    return this.check(id, list.includes(res.status), `HTTP ${res.status} ${String(JSON.stringify(res.json ?? null)).slice(0, 300)}`)
   }
 
   summary() {
