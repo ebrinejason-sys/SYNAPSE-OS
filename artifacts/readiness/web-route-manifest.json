@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-23T16:04:06.257Z",
+  "generated_at": "2026-09-29T08:47:10.579Z",
   "routes": [
     {
       "route": "/",
@@ -1269,6 +1269,11 @@
     {
       "route": "/platform/users",
       "source_file": "apps/web/src/app/platform/users/page.tsx",
+      "classification": "FEATURE_GATED"
+    },
+    {
+      "route": "/platform/users/[id]",
+      "source_file": "apps/web/src/app/platform/users/[id]/page.tsx",
       "classification": "FEATURE_GATED"
     },
     {

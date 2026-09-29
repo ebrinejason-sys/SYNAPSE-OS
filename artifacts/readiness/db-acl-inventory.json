@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-21T06:19:06.099Z",
-  "security_definer_count": 39,
+  "generated_at": "2026-09-29T08:47:10.795Z",
+  "security_definer_count": 41,
   "public_or_anon_execute_grants": [],
   "unexpected_public_execute": [],
   "status": "PASS",
@@ -161,6 +161,14 @@
     {
       "file": "20260920190000_facility_invitation_new_account_canonical_profile.sql",
       "fn": "public.accept_facility_invitation_new_account"
+    },
+    {
+      "file": "20260924120000_pharmacy_physical_stock_negative.sql",
+      "fn": "public.set_pharmacy_physical_stock"
+    },
+    {
+      "file": "20260924120000_pharmacy_physical_stock_negative.sql",
+      "fn": "public.complete_pharmacy_sale"
     }
   ]
 }
