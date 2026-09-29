@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decideMutationOrigin } from './mutation-origin'
+import { decideMutationOrigin, hasAuthCookie } from './mutation-origin'
 
 const cookie = { hasSessionCookie: true }
 
@@ -32,5 +32,26 @@ describe('mutation origin', () => {
   it('does not block public pre-auth posts or non-browser clients', () => {
     expect(decideMutationOrigin({ method: 'POST', host: 'admin.synapseos.tech', origin: 'https://evil.test', referer: null, secFetchSite: 'cross-site', hasSessionCookie: false }).allow).toBe(true)
     expect(decideMutationOrigin({ method: 'POST', host: 'admin.synapseos.tech', origin: null, referer: null, secFetchSite: null, ...cookie })).toMatchObject({ allow: true, reason: 'no_browser_metadata' })
+  })
+
+  it('treats staff, customer, MFA and Supabase cookies as authenticating', () => {
+    expect(hasAuthCookie(['synapse_session'])).toBe(true)
+    expect(hasAuthCookie(['theme', 'synapse_customer_session'])).toBe(true)
+    expect(hasAuthCookie(['synapse_mfa_pending'])).toBe(true)
+    expect(hasAuthCookie(['sb-127-auth-token'])).toBe(true)
+    expect(hasAuthCookie(['theme', '_ga'])).toBe(false)
+    expect(hasAuthCookie([])).toBe(false)
+  })
+
+  it('rejects a sibling synapseos.tech host carrying a customer cookie', () => {
+    const decision = decideMutationOrigin({
+      method: 'POST',
+      host: 'pharm.synapseos.tech',
+      origin: 'https://evil.synapseos.tech',
+      referer: null,
+      secFetchSite: 'same-site',
+      hasSessionCookie: hasAuthCookie(['synapse_customer_session']),
+    })
+    expect(decision).toMatchObject({ allow: false, reason: 'cross_origin' })
   })
 })

@@ -1,18 +1,25 @@
 /**
  * Cookie-authenticated mutation origin check.
  *
- * Session cookies are host-only and SameSite=Lax, so a cross-site form POST
- * does not attach them. Sibling hosts (admin.synapseos.tech and
- * pharm.synapseos.tech) are same-site, so Lax would attach a cookie that had
- * Domain=.synapseos.tech. Cookies here do not set Domain. This check still
- * rejects a present Origin or Referer whose host is not the request host,
- * so a sibling or cross-site browser call cannot ride a future Domain change.
+ * Session cookies are SameSite=Lax, so a cross-site form POST does not attach
+ * them. Sibling hosts (admin.synapseos.tech, pharm.synapseos.tech) are
+ * same-site, and Lax attaches even host-only cookies to same-site requests,
+ * so SameSite alone does not stop a sibling host. This check rejects a present
+ * Origin or Referer whose host is not the request host.
  *
- * Requests with no session cookie are left alone (public pre-auth endpoints).
+ * Requests carrying no auth cookie are left alone (public pre-auth endpoints).
  * Non-browser clients that send neither Origin nor Referer are allowed.
  */
 
 const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+/** Staff, customer, MFA and Supabase auth cookies all authenticate a mutation. */
+export function hasAuthCookie(names: Iterable<string>): boolean {
+  for (const name of names) {
+    if (name.startsWith('synapse_') || name.startsWith('sb-')) return true
+  }
+  return false
+}
 
 export type MutationOriginInput = {
   method: string

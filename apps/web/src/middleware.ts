@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { facilitySlugFromHost, lookupActiveTenant, sanitizedTenantHeaders } from "./lib/tenant-routing";
 import { verifyToken } from '@synapse/auth/tokens'
 import { SESSION_COOKIE } from '@synapse/config/constants'
-import { decideMutationOrigin } from '@synapse/auth/mutation-origin'
+import { decideMutationOrigin, hasAuthCookie } from '@synapse/auth/mutation-origin'
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
   .split(",")
@@ -217,7 +217,7 @@ export async function middleware(request: NextRequest) {
     origin: request.headers.get('origin'),
     referer: request.headers.get('referer'),
     secFetchSite: request.headers.get('sec-fetch-site'),
-    hasSessionCookie: Boolean(request.cookies.get(SESSION_COOKIE)?.value),
+    hasSessionCookie: hasAuthCookie(request.cookies.getAll().filter((c) => c.value).map((c) => c.name)),
   })
   if (!originDecision.allow) {
     return NextResponse.json({ error: 'cross_origin_mutation_blocked' }, { status: 403 })

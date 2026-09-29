@@ -17,9 +17,14 @@ function stock() {
 // Reception: register, duplicate warning, open visit without triage.
 const reception = await loginAs("receptionist")
 const patientName = `Golden Rtwo ${stamp}`
+const preSearch = await reception.call("GET", `/api/patients/search?q=${encodeURIComponent(patientName)}`)
+r.check("reception.search.before_register", preSearch.status === 200 && (preSearch.json?.patients ?? []).length === 0, preSearch)
 const reg = await reception.call("POST", "/api/patients/register", { full_name: patientName, sex: "F", dob: "1991-04-12", phone: `0700${stamp.slice(-6)}` })
 r.expectStatus("reception.register", reg, 201)
 const patientId = reg.json?.patient?.id
+r.check("reception.synapse_id", /^SYN-/.test(reg.json?.patient?.synapse_id ?? ""), reg.json?.patient)
+const postSearch = await reception.call("GET", `/api/patients/search?q=${encodeURIComponent(patientName)}`)
+r.check("reception.search.finds_patient", (postSearch.json?.patients ?? []).some((p) => p.id === patientId), postSearch)
 
 const dup = await reception.call("POST", "/api/patients/register", { full_name: patientName.toUpperCase(), sex: "F", dob: "1991-04-12" })
 r.expectStatus("reception.duplicate.warns", dup, 409)
@@ -72,6 +77,8 @@ r.expectStatus("doctor.icd11.create", dx, 201)
 const dxRetry = await doctor.call("POST", `/api/opd/encounters/${encounterId}/diagnoses`, { stem_code: "1F40" })
 r.check("doctor.icd11.retry_idempotent", dxRetry.status === 200 && dxRetry.json?.idempotent === true, dxRetry)
 r.expectStatus("doctor.icd11.unknown_rejected", await doctor.call("POST", `/api/opd/encounters/${encounterId}/diagnoses`, { stem_code: "ZZ99" }), 422)
+const dxReload = await doctor.call("GET", `/api/opd/encounters/${encounterId}/diagnoses`)
+r.check("doctor.icd11.reload", (dxReload.json?.diagnoses ?? []).some((d) => d.stem_code === "1F40"), dxReload)
 const dxRows = sqlJson(`select stem_code, icd_release, selected_by from encounter_diagnoses where encounter_id='${encounterId}' and not is_deleted`)
 r.check("doctor.icd11.persisted_once", dxRows.length === 1 && dxRows[0].stem_code === "1F40" && dxRows[0].icd_release, dxRows)
 
@@ -176,6 +183,11 @@ r.expectStatus("billing.after_paid.rejected", afterPaid, 409)
 r.expectStatus("billing.cashier.sign.denied", await cashier.call("POST", `/api/opd/encounters/${encounterId}/sign`), 403)
 r.expectStatus("billing.cashier.diagnose.denied", await cashier.call("POST", `/api/opd/encounters/${encounterId}/diagnoses`, { stem_code: "1F40" }), 403)
 
+const encState = sqlJson(`select status, is_signed, disposition from encounters where id='${encounterId}'`)[0]
+r.check("encounter.final_state", encState?.status === "completed" && encState?.is_signed && encState?.disposition, encState)
+const openTasks = sqlJson(`select task_type, status from department_tasks where encounter_id='${encounterId}' and status in ('REQUESTED','ACCEPTED','IN_PROGRESS','ON_HOLD')`)
+r.check("encounter.no_open_tasks", openTasks.length === 0, openTasks)
+
 // Data integrity graph.
 const inv2 = sqlJson(`select id, total_amount, paid_amount, status from billing_invoices where encounter_id='${encounterId}'`)
 r.check("integrity.single_invoice", inv2.length === 1, inv2)
@@ -190,6 +202,26 @@ const graph = sqlJson(`select
   (select count(*) from clinical_prescriptions where id='${prescriptionId}' and encounter_id='${encounterId}' and status='dispensed') as rx_dispensed,
   (select count(*) from encounters where id='${encounterId}' and is_signed) as signed`)
 r.check("integrity.graph", JSON.stringify(graph[0]) === JSON.stringify({ enc: 1, vitals: 1, orders: 2, results: 2, rx_dispensed: 1, signed: 1 }), graph[0])
+
+const dupes = sqlJson(`select
+  (select count(*) from (select item_name from billing_line_items where invoice_id='${inv2[0]?.id}' and not coalesce(is_deleted,false) group by item_name having count(*) > 1) d) as dup_lines,
+  (select count(*) - count(distinct receipt_number) from billing_payments where invoice_id='${inv2[0]?.id}') as dup_receipts,
+  (select count(*) from lab_specimens where lab_order_id in ('${orderIds.join("','")}')) as specimens,
+  (select count(*) from lab_specimens where lab_order_id in ('${orderIds.join("','")}') and (tenant_id <> '${TENANT_A}' or patient_id <> '${patientId}' or encounter_id <> '${encounterId}')) as specimen_cross,
+  (select count(*) from lab_results where lab_order_id in ('${orderIds.join("','")}') and (tenant_id <> '${TENANT_A}' or patient_id <> '${patientId}')) as result_cross,
+  (select count(*) from billing_payments where invoice_id='${inv2[0]?.id}' and (tenant_id <> '${TENANT_A}' or encounter_id <> '${encounterId}' or patient_id <> '${patientId}' or received_by is null)) as payment_cross,
+  (select count(*) from encounters where patient_id='${patientId}') as encounters_for_patient,
+  (select count(*) from encounters e where e.id='${encounterId}' and e.clinician_id is not null and e.signed_by is not null) as actors_set,
+  (select count(*) from pharmacy_product_batches where product_id='${PARA_PRODUCT}' and quantity < 0) as negative_batches`)[0]
+r.check("integrity.no_duplicate_charge", Number(dupes.dup_lines) === 0, dupes)
+r.check("integrity.no_duplicate_receipt", Number(dupes.dup_receipts) === 0, dupes)
+r.check("integrity.specimens", Number(dupes.specimens) === 2 && Number(dupes.specimen_cross) === 0, dupes)
+r.check("integrity.no_cross_tenant_refs", Number(dupes.result_cross) === 0 && Number(dupes.payment_cross) === 0, dupes)
+r.check("integrity.single_encounter", Number(dupes.encounters_for_patient) === 1, dupes)
+r.check("integrity.actors_recorded", Number(dupes.actors_set) === 1, dupes)
+r.check("integrity.no_negative_stock", Number(dupes.negative_batches) === 0, dupes)
+const fkViolations = sql(`select count(*) from pg_constraint c where c.contype='f' and not c.convalidated and connamespace='public'::regnamespace`)
+r.check("integrity.fk_constraints_validated", fkViolations === "0", fkViolations)
 
 // Audit integrity: every journey audit row carries tenant and actor.
 const audit = sqlJson(`select table_name, count(*) as n, count(*) filter (where tenant_id is null or user_id is null) as missing

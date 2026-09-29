@@ -84,6 +84,9 @@ export class Session {
 
   async login(email) {
     this.jar.clear()
+    if (!email.endsWith(".e2e@synapseos.invalid")) throw new Error(`refusing non-synthetic account ${email}`)
+    // OTP issuance is limited to 3/hour per target; the runner logs each synthetic role in repeatedly.
+    sql(`delete from public.auth_otps where target = '${email}'`)
     const first = await this.call("POST", "/api/auth/password-login", { email, password: process.env.SYNAPSE_E2E_PASSWORD })
     if (first.status >= 300) throw new Error(`${this.label} password-login HTTP ${first.status} ${JSON.stringify(first.json)}`)
     const verify = await this.call("POST", "/api/auth/email-otp/verify", { email, otp: process.env.SYNAPSE_E2E_FIXED_OTP })

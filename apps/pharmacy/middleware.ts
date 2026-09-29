@@ -5,7 +5,7 @@ import {
   verifyPharmMfaSatisfiedToken,
 } from '@synapse/auth/mfa'
 import { SESSION_COOKIE } from '@synapse/config/constants'
-import { decideMutationOrigin } from '@synapse/auth/mutation-origin'
+import { decideMutationOrigin, hasAuthCookie } from '@synapse/auth/mutation-origin'
 import { evaluateEntitlement } from '@synapse/auth/billing/entitlement'
 
 type PharmacyProfile = {
@@ -363,7 +363,7 @@ export async function middleware(request: NextRequest) {
     origin: request.headers.get('origin'),
     referer: request.headers.get('referer'),
     secFetchSite: request.headers.get('sec-fetch-site'),
-    hasSessionCookie: Boolean(request.cookies.get(SESSION_COOKIE)?.value),
+    hasSessionCookie: hasAuthCookie(request.cookies.getAll().filter((c) => c.value).map((c) => c.name)),
   })
   if (!originDecision.allow) {
     return NextResponse.json({ error: 'cross_origin_mutation_blocked' }, { status: 403 })
