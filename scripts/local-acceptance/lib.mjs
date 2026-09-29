@@ -1,13 +1,16 @@
 // Local-only acceptance helpers. Refuses any non-loopback app or database target.
 import { execFileSync } from "node:child_process"
-import { createHmac, randomBytes } from "node:crypto"
+import { createHash, createHmac, randomBytes, randomInt } from "node:crypto"
 
 export const BASE = process.env.LOCAL_ACCEPTANCE_BASE_URL || "http://localhost:3100"
+export const PHARM_BASE = process.env.LOCAL_ACCEPTANCE_PHARM_URL || "http://localhost:3102"
 const DB_CONTAINER = process.env.LOCAL_ACCEPTANCE_DB_CONTAINER || "supabase_db_synapse-os"
 
 export function assertLocalTargets() {
-  const app = new URL(BASE)
-  if (!["localhost", "127.0.0.1"].includes(app.hostname)) throw new Error(`refusing non-local app target ${app.hostname}`)
+  for (const target of [BASE, PHARM_BASE]) {
+    const app = new URL(target)
+    if (!["localhost", "127.0.0.1"].includes(app.hostname)) throw new Error(`refusing non-local app target ${app.hostname}`)
+  }
   const supabase = new URL(process.env.SUPABASE_URL || "http://127.0.0.1:54321")
   if (!["localhost", "127.0.0.1"].includes(supabase.hostname)) throw new Error(`refusing non-local Supabase ${supabase.hostname}`)
   if (!process.env.SYNAPSE_E2E_PASSWORD || !/^\d{6}$/.test(process.env.SYNAPSE_E2E_FIXED_OTP || "")) {
@@ -51,8 +54,9 @@ function cookiesFrom(res, jar) {
 }
 
 export class Session {
-  constructor(label) {
+  constructor(label, base = BASE) {
     this.label = label
+    this.base = base
     this.jar = new Map()
   }
 
@@ -66,12 +70,12 @@ export class Session {
       redirect: "manual",
       headers: {
         cookie: this.cookie(),
-        ...(method === "GET" ? {} : { origin: BASE, "content-type": "application/json" }),
+        ...(method === "GET" ? {} : { origin: this.base, "content-type": "application/json" }),
         ...headers,
       },
     }
     if (body !== undefined) init.body = typeof body === "string" ? body : JSON.stringify(body)
-    const res = await fetch(BASE + path, init)
+    const res = await fetch(this.base + path, init)
     cookiesFrom(res, this.jar)
     const text = await res.text()
     let json = null
@@ -164,6 +168,28 @@ delete from mfa_enrollments where user_id='${id}';
 insert into mfa_enrollments (user_id, secret, verified) values ('${id}', '${secret}', true);
 delete from synapse_sessions where user_id='${id}';`)
   return { id, email, secret }
+}
+
+/**
+ * Pharmacy sign-in for synthetic local users. Staff that need a login OTP get a code whose
+ * hash is written to the local auth_otps row, so the real otp-verify route still decides.
+ */
+export async function pharmacyLogin(email, label = email) {
+  if (!email.endsWith(".e2e@synapseos.invalid")) throw new Error(`refusing non-synthetic account ${email}`)
+  sql(`update profiles set password_hash=(select password_hash from profiles where lower(email)='${EMAILS.hospital_admin}'),
+  login_attempts=0, locked_until=null, must_change_password=false where lower(email)='${email}';
+delete from auth_otps where target='${email}';`)
+  const s = new Session(label, PHARM_BASE)
+  const first = await s.call("POST", "/api/auth/login", { email, password: process.env.SYNAPSE_E2E_PASSWORD })
+  if (s.jar.has("synapse_session")) return s
+  const pending = Number(sql(`select count(*) from auth_otps where target='${email}' and used=false`))
+  if (!pending) throw new Error(`${label} pharmacy login HTTP ${first.status} ${JSON.stringify(first.json)}`)
+  const code = String(randomInt(1_000_000)).padStart(6, "0")
+  const hash = createHash("sha256").update(code).digest("hex")
+  sql(`update auth_otps set otp_hash='${hash}' where target='${email}' and used=false`)
+  const verify = await s.call("POST", "/api/auth/otp-verify", { email, otp: code })
+  if (!s.jar.has("synapse_session")) throw new Error(`${label} pharmacy otp-verify HTTP ${verify.status} ${JSON.stringify(verify.json)}`)
+  return s
 }
 
 export async function platformLogin(user, label = user.email) {
