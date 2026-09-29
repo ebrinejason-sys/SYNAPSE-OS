@@ -55,11 +55,21 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ re
     .eq('source_id', resultId).eq('task_type', 'doctor_result_review').limit(1).maybeSingle()
   if (taskError) return NextResponse.json({ error: taskError.message }, { status: 500 })
 
-  if (reviewTask) {
-    const task = rowToDepartmentTask(reviewTask)
-    if (task.status === 'COMPLETED') {
-      return NextResponse.json({ resultId, reviewed: true, alreadyReviewed: true })
-    }
+  const hasReviewAudit = async () => {
+    const { data } = await db
+      .from('audit_log').select('id').eq('tenant_id', ctx.tenantId)
+      .eq('table_name', 'lab_results').eq('record_id', resultId).eq('action', 'RESULT_REVIEWED')
+      .limit(1).maybeSingle()
+    return Boolean(data)
+  }
+
+  const task = reviewTask ? rowToDepartmentTask(reviewTask) : null
+  // A completed task without its audit row means an earlier attempt failed at the audit
+  // step; fall through so the retry writes it (handoffs below are idempotent).
+  if ((!task || task.status === 'COMPLETED') && await hasReviewAudit()) {
+    return NextResponse.json({ resultId, reviewed: true, alreadyReviewed: true })
+  }
+  if (task && task.status !== 'COMPLETED') {
     const queue = new WorkQueue()
     queue.tasks.set(task.id, task)
     if (task.status === 'REQUESTED' || task.status === 'ACCEPTED') queue.start(task.id, ctx.userId)
@@ -72,12 +82,6 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ re
     if (persisted.errors.length) {
       return NextResponse.json({ error: 'Review could not be recorded', detail: persisted.errors[0] }, { status: 500 })
     }
-  } else {
-    const { data: priorReview } = await db
-      .from('audit_log').select('id').eq('tenant_id', ctx.tenantId)
-      .eq('table_name', 'lab_results').eq('record_id', resultId).eq('action', 'RESULT_REVIEWED')
-      .limit(1).maybeSingle()
-    if (priorReview) return NextResponse.json({ resultId, reviewed: true, alreadyReviewed: true })
   }
   const reviewedAt = new Date().toISOString()
   const { data: prescriptions } = await db.from('clinical_prescriptions').select('id, status, pharmacy_tenant_id').eq('tenant_id', ctx.tenantId).eq('encounter_id', order.encounter_id).in('status', ['active', 'verified'])

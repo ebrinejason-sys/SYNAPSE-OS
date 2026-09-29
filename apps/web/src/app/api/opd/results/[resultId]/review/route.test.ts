@@ -125,17 +125,50 @@ describe("POST /api/opd/results/[resultId]/review", () => {
     expect(requireHospitalAudit).toHaveBeenCalledWith(expect.objectContaining({ action: "RESULT_REVIEWED", recordId: RESULT }))
   })
 
-  it("is idempotent once the review task is completed", async () => {
+  it("is idempotent once the review task is completed and audited", async () => {
     tables.current = {
       lab_results: released(),
       encounters: { id: ENCOUNTER, hospital_id: HOSPITAL },
       department_tasks: [{ id: "task-1", status: "COMPLETED" }],
+      audit_log: { id: "audit-1" },
     }
     const res = await post()
     expect(res.status).toBe(200)
     expect((await res.json()).alreadyReviewed).toBe(true)
     expect(persist).not.toHaveBeenCalled()
     expect(requireHospitalAudit).not.toHaveBeenCalled()
+  })
+
+  it("writes the missing audit row when a retry finds the task completed but unaudited", async () => {
+    tables.current = {
+      lab_results: released(),
+      encounters: { id: ENCOUNTER, hospital_id: HOSPITAL },
+      department_tasks: [{ id: "task-1", status: "COMPLETED" }],
+      audit_log: null,
+      clinical_prescriptions: [],
+      billing_invoices: null,
+    }
+    const res = await post()
+    expect(res.status).toBe(200)
+    expect((await res.json()).alreadyReviewed).toBeUndefined()
+    expect(persist).not.toHaveBeenCalled()
+    expect(requireHospitalAudit).toHaveBeenCalledWith(expect.objectContaining({ action: "RESULT_REVIEWED", recordId: RESULT }))
+  })
+
+  it("asks for a retry when the required audit fails after completing the task", async () => {
+    const { HospitalAuditRequiredError } = await import("@/lib/hospital-shared")
+    requireHospitalAudit.mockRejectedValue(new HospitalAuditRequiredError("AUDIT_REQUIRED_FAILED"))
+    tables.current = {
+      lab_results: released(),
+      encounters: { id: ENCOUNTER, hospital_id: HOSPITAL },
+      department_tasks: [{ id: "task-1", status: "REQUESTED" }],
+      audit_log: null,
+      clinical_prescriptions: [],
+      billing_invoices: null,
+    }
+    const res = await post()
+    expect(res.status).toBe(503)
+    expect((await res.json()).outcome).toBe("retry")
   })
 
   it("rejects review before release", async () => {
