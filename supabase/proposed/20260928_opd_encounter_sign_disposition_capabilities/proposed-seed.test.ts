@@ -35,13 +35,17 @@ describe('proposed OPD clinician and nursing capability seed', () => {
     expect(queue).toContain("requireHospitalCapability(ctx, 'queue', 'read', 'opd')")
     const labOrders = readFileSync(join(api, 'lab-orders/route.ts'), 'utf8')
     expect(labOrders).toContain("requireHospitalCapability(ctx, 'order', 'read', 'lab')")
+    const labCancel = readFileSync(join(repo, 'apps/web/src/app/api/lab/orders/[id]/cancel/route.ts'), 'utf8')
+    expect(labCancel).toContain("requireHospitalCapability(ctx, 'order', 'cancel', 'lab')")
+    expect(up).toMatch(/\('lab', 'order',\s+'cancel'/)
   })
 
   it('grants clinician actions to doctor and clinical_officer, triage to nurse, nothing to reception or cashier', () => {
-    const clinician = [...CLINICIAN_CAPS.map(([, r, a]) => `opd.${r}.${a}`), 'opd.queue.read', 'lab.order.read']
+    const clinician = [...CLINICIAN_CAPS.map(([, r, a]) => `opd.${r}.${a}`), 'opd.queue.read', 'lab.order.read', 'lab.order.cancel']
     const expected = [
       ...clinician.map((c) => `doctor:${c}`),
       ...clinician.map((c) => `clinical_officer:${c}`),
+      'lab_scientist:lab.order.cancel',
       'nurse:opd.triage.assign',
       'nurse:opd.queue.read',
     ]
@@ -58,6 +62,7 @@ describe('proposed OPD clinician and nursing capability seed', () => {
     for (const bad of [/\bupdate\s/, /\bdelete\s/, /\bdrop\b/, /\balter\b/, /\btenants\b/, /\bprofiles\b/]) expect(up).not.toMatch(bad)
     expect(down).toMatch(/rc\.role in \('doctor', 'clinical_officer'\)/)
     expect(down).toMatch(/rc\.role = 'nurse'/)
+    expect(down).toMatch(/rc\.role = 'lab_scientist'/)
     expect(down).not.toMatch(/delete from public\.capabilities/)
     expect(dir.replace(/\\/g, '/')).toContain('supabase/proposed/')
   })

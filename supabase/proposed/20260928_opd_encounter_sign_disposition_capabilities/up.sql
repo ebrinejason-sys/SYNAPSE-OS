@@ -7,9 +7,11 @@
 --   POST /api/opd/encounters/[id]/close        opd.encounter.close
 --   POST /api/opd/results/[resultId]/review    opd.result.review
 --   POST /api/opd/prescriptions/[id]/cancel    opd.prescription.cancel
+--   POST /api/lab/orders/[id]/cancel           lab.order.cancel
 --
 -- Clinician grants (doctor, clinical_officer): sign, disposition, close,
--- result review, prescription cancel. Reception and nursing are not granted.
+-- result review, prescription cancel, Lab order cancel. Reception and nursing
+-- are not granted. lab_scientist may also cancel Lab orders.
 --
 -- Nursing grants (nurse): opd.triage.assign and opd.queue.read, both existing
 -- capabilities. Outpatient triage/vitals is nursing work; production grants
@@ -30,7 +32,8 @@ INSERT INTO public.capabilities (module, resource, action, description) VALUES
   ('opd', 'encounter',    'disposition', 'Record OPD encounter disposition'),
   ('opd', 'encounter',    'close',       'Close OPD encounter'),
   ('opd', 'result',       'review',      'Review OPD lab result'),
-  ('opd', 'prescription', 'cancel',      'Cancel OPD prescription')
+  ('opd', 'prescription', 'cancel',      'Cancel OPD prescription'),
+  ('lab', 'order',        'cancel',      'Cancel a cancellable Lab order')
 ON CONFLICT (module, resource, action) DO NOTHING;
 
 INSERT INTO public.role_capabilities (role, facility_type, capability_id)
@@ -43,6 +46,7 @@ FROM (VALUES
   ('doctor', 'hospital', 'opd', 'prescription', 'cancel'),
   ('doctor', 'hospital', 'opd', 'queue', 'read'),
   ('doctor', 'hospital', 'lab', 'order', 'read'),
+  ('doctor', 'hospital', 'lab', 'order', 'cancel'),
   ('clinical_officer', 'hospital', 'opd', 'encounter', 'sign'),
   ('clinical_officer', 'hospital', 'opd', 'encounter', 'disposition'),
   ('clinical_officer', 'hospital', 'opd', 'encounter', 'close'),
@@ -50,6 +54,8 @@ FROM (VALUES
   ('clinical_officer', 'hospital', 'opd', 'prescription', 'cancel'),
   ('clinical_officer', 'hospital', 'opd', 'queue', 'read'),
   ('clinical_officer', 'hospital', 'lab', 'order', 'read'),
+  ('clinical_officer', 'hospital', 'lab', 'order', 'cancel'),
+  ('lab_scientist', 'hospital', 'lab', 'order', 'cancel'),
   ('nurse', 'hospital', 'opd', 'triage', 'assign'),
   ('nurse', 'hospital', 'opd', 'queue', 'read')
 ) AS g(role, facility_type, module, resource, action)

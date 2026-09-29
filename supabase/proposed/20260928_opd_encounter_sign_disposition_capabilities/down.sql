@@ -10,8 +10,14 @@ WHERE rc.capability_id = c.id
   AND (c.module, c.resource, c.action) IN (
     ('opd', 'encounter', 'sign'), ('opd', 'encounter', 'disposition'), ('opd', 'encounter', 'close'),
     ('opd', 'result', 'review'), ('opd', 'prescription', 'cancel'),
-    ('opd', 'queue', 'read'), ('lab', 'order', 'read')
+    ('opd', 'queue', 'read'), ('lab', 'order', 'read'), ('lab', 'order', 'cancel')
   );
+
+DELETE FROM public.role_capabilities rc
+USING public.capabilities c
+WHERE rc.capability_id = c.id
+  AND rc.role = 'lab_scientist' AND rc.facility_type = 'hospital'
+  AND (c.module, c.resource, c.action) = ('lab', 'order', 'cancel');
 
 DELETE FROM public.role_capabilities rc
 USING public.capabilities c

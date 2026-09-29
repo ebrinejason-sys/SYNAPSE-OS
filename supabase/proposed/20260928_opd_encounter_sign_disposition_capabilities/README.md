@@ -11,11 +11,15 @@ role (production confirmed read-only: none of the triples exist):
 | `POST /api/opd/encounters/[id]/close` | `opd.encounter.close` |
 | `POST /api/opd/results/[resultId]/review` | `opd.result.review` |
 | `POST /api/opd/prescriptions/[id]/cancel` | `opd.prescription.cancel` |
+| `POST /api/lab/orders/[id]/cancel` | `lab.order.cancel` |
 
 Grants (facility type `hospital`):
 
-- `doctor`, `clinical_officer`: all five capabilities above. Clinical officers are
+- `doctor`, `clinical_officer`: all six capabilities above. Clinical officers are
   authorized clinicians for encounter, diagnosis, prescription, sign and disposition.
+- `lab_scientist`: `lab.order.cancel`. Without any cancel grant a duplicate or mistaken
+  Lab order can never be withdrawn, so its task stays open and its charge stays on the
+  invoice. Cancelling voids the unpaid charge.
 - `doctor`, `clinical_officer`: `opd.queue.read` (`GET /api/opd/queue`, encounter timeline,
   task list) and `lab.order.read` (`GET /api/opd/lab-orders`). Both capabilities exist, but
   production grants them only to `receptionist` and lab roles respectively, so clinicians
@@ -34,7 +38,6 @@ Not granted (role separation):
 
 Still ungranted, product decisions (routes stay 403):
 
-- `lab.order.cancel` (`POST /api/lab/orders/[id]/cancel`)
 - `dispensing.inventory.write` (hospital stock purchasing counts as advanced inventory,
   which OS Basic does not include)
 
