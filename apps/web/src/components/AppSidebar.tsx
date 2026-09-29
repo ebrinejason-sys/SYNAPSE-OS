@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   LayoutDashboard, Stethoscope, UserRound, FlaskConical, Pill,
   Users, ClipboardList, Settings, Menu, X,
@@ -82,11 +82,37 @@ const BOTTOM_TABS = (tenantSlug?: string) => {
 ]
 }
 
-export function AppSidebar({ children, tenantSlug, role }: { children: React.ReactNode; tenantSlug?: string; role?: string }) {
+function slugFromPath(pathname: string): string | undefined {
+  const segment = pathname.match(/^\/os\/([^/]+)/)?.[1]
+  return segment ? decodeURIComponent(segment) : undefined
+}
+
+export function AppSidebar({ children, tenantSlug: slugProp, role }: { children: React.ReactNode; tenantSlug?: string; role?: string }) {
   const pathname = usePathname()
+  // The /os layout sits above [slug] and never receives it, so derive it from the URL.
+  const tenantSlug = slugProp ?? slugFromPath(pathname)
   const [open, setOpen] = useState(false)
+  const openerRef = useRef<HTMLElement | null>(null)
+  const closeRef = useRef<HTMLButtonElement | null>(null)
   const navGroups = NAV_GROUPS(tenantSlug, role)
   const bottomTabs = BOTTOM_TABS(tenantSlug)
+
+  useEffect(() => {
+    if (!open) return
+    closeRef.current?.focus()
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setOpen(false)
+      openerRef.current?.focus()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [open])
+
+  const openDrawer = (event: React.MouseEvent<HTMLElement>) => {
+    openerRef.current = event.currentTarget
+    setOpen(true)
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -115,7 +141,7 @@ export function AppSidebar({ children, tenantSlug, role }: { children: React.Rea
               <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Clinical</span>
             </div>
           </Link>
-          <button type="button" className="lg:hidden text-muted-foreground hover:text-foreground p-1" onClick={() => setOpen(false)}>
+          <button ref={closeRef} type="button" aria-label="Close navigation" className="lg:hidden text-muted-foreground hover:text-foreground p-1" onClick={() => setOpen(false)}>
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -156,7 +182,7 @@ export function AppSidebar({ children, tenantSlug, role }: { children: React.Rea
       {/* Main area */}
       <div className="lg:pl-64 flex flex-col min-h-screen">
         <header className="sticky top-0 z-30 flex items-center h-14 px-4 lg:px-6 bg-card/80 backdrop-blur-md border-b border-border shrink-0">
-          <button type="button" aria-label="Open navigation" className="lg:hidden text-muted-foreground hover:text-foreground p-1 mr-2" onClick={() => setOpen(true)}>
+          <button type="button" aria-label="Open navigation" className="lg:hidden text-muted-foreground hover:text-foreground p-1 mr-2" onClick={openDrawer}>
             <Menu className="h-5 w-5" />
           </button>
           <span className="text-sm font-semibold text-foreground truncate flex-1">
@@ -189,7 +215,7 @@ export function AppSidebar({ children, tenantSlug, role }: { children: React.Rea
                 </Link>
               )
             })}
-            <button type="button" aria-label="Open more navigation" onClick={() => setOpen(true)} className="flex flex-col items-center gap-0.5 px-3 py-2 text-muted-foreground">
+            <button type="button" aria-label="Open more navigation" onClick={openDrawer} className="flex flex-col items-center gap-0.5 px-3 py-2 text-muted-foreground">
               <Menu className="h-5 w-5" />
               <span className="text-[9px] font-medium">More</span>
             </button>
