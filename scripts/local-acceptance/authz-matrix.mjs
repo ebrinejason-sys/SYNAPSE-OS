@@ -143,7 +143,7 @@ const setCookie = await (async () => {
     method: "POST", headers: { "content-type": "application/json", cookie: s.cookie(), origin: BASE },
     body: JSON.stringify({ email: EMAILS.receptionist, otp: process.env.SYNAPSE_E2E_FIXED_OTP }),
   })
-  return (res.headers.getSetCookie?.() ?? []).find((c) => c.startsWith("synapse_session=")) ?? ""
+  return (res.headers.getSetCookie?.() ?? []).find((c) => c.startsWith("synapse_session=")) ?? `<no session cookie: verify HTTP ${res.status}>`
 })()
 r.check("csrf.cookie.httponly", /;\s*httponly/i.test(setCookie), setCookie.replace(/=[^;]+/, "=<redacted>"))
 r.check("csrf.cookie.samesite_lax_or_strict", /;\s*samesite=(lax|strict)/i.test(setCookie), setCookie.replace(/=[^;]+/, "=<redacted>"))
