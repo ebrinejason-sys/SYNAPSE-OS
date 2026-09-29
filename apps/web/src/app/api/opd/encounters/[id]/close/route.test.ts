@@ -124,6 +124,48 @@ describe("POST /api/opd/encounters/[id]/close", () => {
     expect(json.blocking).toBe("BILLING")
   })
 
+  it("blocks close while a released result has an open doctor review task", async () => {
+    requireHospitalStaffContext.mockResolvedValue(staffCtx())
+    dbFrom.mockImplementation(
+      tableMock({
+        encounters: {
+          data: { id: ENCOUNTER, hospital_id: HOSPITAL, patient_id: "p1", status: "open", disposition: "CLINICAL_COMPLETE" },
+        },
+        lab_orders: { data: [] },
+        clinical_prescriptions: { data: [] },
+        billing_invoices: { data: { id: "inv-1", status: "paid", total_amount: 100, paid_amount: 100 } },
+        department_tasks: { data: [{ id: "task-1", source_id: "result-1", task_type: "doctor_result_review" }] },
+      }),
+    )
+    const { POST } = await import("./route")
+    const res = await POST(new NextRequest("https://synapseos.tech/api/opd/encounters/x/close", { method: "POST" }), {
+      params: Promise.resolve({ id: ENCOUNTER }),
+    })
+    expect(res.status).toBe(409)
+    const json = await res.json()
+    expect(json.blocking).toBe("DOCTOR_REVIEW")
+    expect(json.sourceId).toBe("result-1")
+  })
+
+  it("fails closed when the review lookup errors instead of skipping the gate", async () => {
+    requireHospitalStaffContext.mockResolvedValue(staffCtx())
+    dbFrom.mockImplementation(
+      tableMock({
+        encounters: {
+          data: { id: ENCOUNTER, hospital_id: HOSPITAL, patient_id: "p1", status: "open", disposition: "CLINICAL_COMPLETE" },
+        },
+        lab_orders: { data: [] },
+        department_tasks: { data: null, error: { message: "boom" } },
+      }),
+    )
+    const { POST } = await import("./route")
+    const res = await POST(new NextRequest("https://synapseos.tech/api/opd/encounters/x/close", { method: "POST" }), {
+      params: Promise.resolve({ id: ENCOUNTER }),
+    })
+    expect(res.status).toBe(500)
+    expect(logHospitalAudit).not.toHaveBeenCalled()
+  })
+
   it("closes when all gates are clear", async () => {
     requireHospitalStaffContext.mockResolvedValue(staffCtx())
     dbFrom.mockImplementation(

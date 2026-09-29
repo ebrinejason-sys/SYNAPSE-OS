@@ -37,21 +37,14 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     .eq('encounter_id', encounterId)
     .not('workflow_status', 'in', '(RELEASED,CANCELLED,REJECTED)')
 
-  const { data: orderRows } = await db
-    .from('lab_orders')
-    .select('id')
+  const { data: unreviewed, error: reviewError } = await db
+    .from('department_tasks')
+    .select('source_id')
     .eq('tenant_id', ctx.tenantId)
     .eq('encounter_id', encounterId)
-  const orderIds = (orderRows ?? []).map((r: { id: string }) => r.id)
-  const { data: results } = orderIds.length
-    ? await db
-        .from('lab_results')
-        .select('id')
-        .eq('tenant_id', ctx.tenantId)
-        .eq('reviewed_at', null)
-        .eq('status', 'final')
-        .in('lab_order_id', orderIds)
-    : { data: [] }
+    .eq('task_type', 'doctor_result_review')
+    .in('status', ['REQUESTED', 'ACCEPTED', 'IN_PROGRESS', 'ON_HOLD'])
+  if (reviewError) return NextResponse.json({ error: reviewError.message }, { status: 500 })
 
   const { data: prescriptions } = await db
     .from('clinical_prescriptions')
@@ -82,7 +75,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     hospitalMatches: Boolean(encounter && encounter.hospital_id === ctx.hospitalId),
     status: encounter?.status ?? null,
     openLabOrderIds: (labs ?? []).map((row: { id: string }) => row.id),
-    unreviewedFinalResultIds: (results ?? []).map((row: { id: string }) => row.id),
+    unreviewedFinalResultIds: (unreviewed ?? []).map((row: { source_id: string }) => row.source_id),
     blockingActivePrescriptionIds: blockingLocalPharmacyPrescriptions(prescriptions ?? []),
     invoice: invoice
       ? {
