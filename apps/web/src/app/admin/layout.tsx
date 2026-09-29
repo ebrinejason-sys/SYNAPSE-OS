@@ -6,6 +6,7 @@ import {
   FileText, LayoutDashboard, Package, Settings, ShieldCheck,
   UserRound, Users, Wallet,
 } from 'lucide-react'
+import { SkipLink } from '@synapse/ui'
 import { SynapseLogo } from '../../components/SynapseLogo'
 import { ThemeToggle } from '../../components/ThemeToggle'
 
@@ -37,6 +38,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+      <SkipLink href="#admin-main" />
       <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[260px_1fr]">
 
         {/* Sidebar — desktop only */}
@@ -99,7 +101,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </header>
 
-          <main className="flex-1 p-4 pb-24 lg:pb-6 lg:p-6" style={{ background: 'var(--bg-base)' }}>
+          <main id="admin-main" tabIndex={-1} className="flex-1 p-4 pb-24 outline-none lg:pb-6 lg:p-6" style={{ background: 'var(--bg-base)' }}>
             {children}
           </main>
         </section>

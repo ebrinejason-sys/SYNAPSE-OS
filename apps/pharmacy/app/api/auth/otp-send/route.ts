@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAndSendOTP } from '@synapse/auth'
+import { createAndSendOTP, isAccountActivated } from '@synapse/auth'
 import { sendOTP } from '@synapse/email'
 import { supabaseAdmin } from '@synapse/db/admin'
 
@@ -11,14 +11,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Valid email required' }, { status: 400 })
   }
 
-  const { data: profile } = await supabaseAdmin
+  // Generated DB types lag the profiles columns used here; same cast as auth/login/route.ts.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: profile } = await (supabaseAdmin as any)
     .from('profiles')
-    .select('full_name')
+    .select('full_name, verification_status, email_verified_at, is_deleted')
     .eq('email', email)
     .single()
 
-  if (!profile) {
-    // Don't reveal whether the account exists
+  // Don't reveal whether the account exists, and never issue a sign-in code to an
+  // archived, suspended, or unactivated identity (same response either way).
+  if (!profile || !isAccountActivated(profile)) {
     return NextResponse.json({ ok: true })
   }
 

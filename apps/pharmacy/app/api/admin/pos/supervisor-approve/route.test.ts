@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { POST } from "./route"
 import { NextRequest } from "next/server"
 import type { PharmacySession } from "@/lib/auth"
+import { verifyDiscountApproval } from "@/lib/pos/discount-approval"
+
+process.env.SYNAPSE_JWT_SECRET = process.env.SYNAPSE_JWT_SECRET || "test-only-secret-not-real-000000000000"
 
 vi.mock("@/lib/auth", () => ({
   getPharmacySession: vi.fn(),
@@ -261,3 +264,17 @@ describe("POST /api/admin/pos/supervisor-approve", () => {
     expect(json.approved).toBe(true)
   })
 })
+
+describe("POST /api/admin/pos/supervisor-approve approval token", () => {
+  it("token only verifies for the requesting cashier in the same tenant", async () => {
+    const { signDiscountApproval } = await import("@/lib/pos/discount-approval")
+    const t = signDiscountApproval({ tenantId: "tenant-1", cashierId: "user-1", supervisorId: "sup-1" })
+    expect(verifyDiscountApproval(t, { tenantId: "tenant-1", cashierId: "user-1" })).toBe("sup-1")
+    expect(verifyDiscountApproval(t, { tenantId: "tenant-1", cashierId: "user-2" })).toBeNull()
+    expect(verifyDiscountApproval(t, { tenantId: "tenant-2", cashierId: "user-1" })).toBeNull()
+    expect(verifyDiscountApproval(t.replace(/.$/, (c) => (c === "A" ? "B" : "A")), { tenantId: "tenant-1", cashierId: "user-1" })).toBeNull()
+    expect(verifyDiscountApproval("sup-1", { tenantId: "tenant-1", cashierId: "user-1" })).toBeNull()
+    expect(verifyDiscountApproval(t, { tenantId: "tenant-1", cashierId: "user-1", now: Date.now() + 9 * 3600_000 })).toBeNull()
+  })
+})
+

@@ -56,6 +56,7 @@
     "./hospital-provision": "./src/hospital-provision.ts",
     "./hospital-provision-catalog": "./src/hospital-provision-catalog.ts",
     "./facility-lifecycle": "./src/facility-lifecycle.ts",
+    "./identity-lifecycle": "./src/identity-lifecycle.ts",
     "./facility-provision": "./src/facility-provision.ts",
     "./facility-provision-catalog": "./src/facility-provision-catalog.ts",
     "./encounter-close-gate": "./src/encounter-close-gate.ts",
@@ -74,6 +75,7 @@
     "./clinical-offline-prescribe": "./src/clinical-offline-prescribe.ts",
     "./ehr-continuity-golden": "./src/ehr-continuity-golden.ts",
     "./pharmacy-purchases": "./src/pharmacy-purchases.ts",
+    "./product-history": "./src/product-history.ts",
     "./commercial-pricing": "./src/commercial-pricing.ts",
     "./commercial-crm": "./src/commercial-crm.ts",
     "./html-escape": "./src/html-escape.ts"

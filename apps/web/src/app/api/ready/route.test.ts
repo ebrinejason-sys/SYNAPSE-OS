@@ -49,5 +49,23 @@ describe("ready probe", () => {
     expect(res.status).toBe(503)
     const body = await res.json()
     expect(body.status).toBe("not_ready")
+    expect(body.checks.database.required).toBe(true)
+  })
+
+  it("reports an isolated demo as ready without claiming the database probe succeeded", async () => {
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = "demo.synapseos.tech"
+    try {
+      const { GET } = await import("./route")
+      const res = await GET()
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.status).toBe("ready")
+      expect(body.checks.database.ok).toBe(false)
+      expect(body.checks.database.required).toBe(false)
+      expect(body.checks.database.skipped).toBe(true)
+      expect(selectLimit).not.toHaveBeenCalled()
+    } finally {
+      delete process.env.VERCEL_PROJECT_PRODUCTION_URL
+    }
   })
 })

@@ -4,7 +4,7 @@ import { requirePlatformAdminApi } from "../../../../../lib/platform/auth";
 import { logPlatformEvent } from "../../../../platform/_lib/platform-data";
 
 export async function POST(request: NextRequest) {
-  const auth = await requirePlatformAdminApi();
+  const auth = await requirePlatformAdminApi("user.reactivate");
   if (!auth.ok) return auth.response;
   const actor = auth.profile;
 

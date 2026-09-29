@@ -30,4 +30,13 @@ describe("platform RBAC", () => {
     assert.equal(isObserverRole("INVESTOR_OBSERVER"), true);
     assert.equal(isObserverRole("PLATFORM_ADMIN"), false);
   });
+
+  it("manual subscription activation is platform/finance only; facility roles are not platform roles", () => {
+    assert.equal(roleHasCapability("PLATFORM_ADMIN", "platform.subscriptions.activate"), true);
+    assert.equal(roleHasCapability("PLATFORM_ADMIN", "platform.subscriptions.override_price"), true);
+    assert.equal(roleHasCapability("FINANCE_ADMIN", "platform.subscriptions.activate"), true);
+    assert.equal(roleHasCapability("FINANCE_ADMIN", "platform.subscriptions.override_price"), false);
+    assert.equal(roleHasCapability("SUPPORT_ADMIN", "platform.subscriptions.activate"), false);
+    assert.equal(roleHasCapability("BOARD_OBSERVER", "platform.subscriptions.activate"), false);
+  });
 });

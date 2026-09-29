@@ -12,6 +12,7 @@
     "./billing":    "./src/billing/subscription.ts",
     "./billing/entitlement": "./src/billing/entitlement.ts",
     "./billing/flutterwave": "./src/billing/flutterwave.ts",
+    "./billing/manual-activation": "./src/billing/manual-activation.ts",
     "./mfa":        "./src/mfa.ts",
     "./password":   "./src/password.ts",
     "./redirects":  "./src/redirects.ts",

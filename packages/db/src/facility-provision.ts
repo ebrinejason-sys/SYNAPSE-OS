@@ -471,13 +471,14 @@ async function provisionPharmacyFacility(
 
   // subscription
   {
+    // Prefer canonical annual pharmacy catalog; keep legacy slugs as fallback only.
     const planSlugMap: Record<string, string> = {
-      trial: "pharmacy_starter",
-      starter: "pharmacy_starter",
-      professional: "pharmacy_growth",
-      enterprise: "pharmacy_multi_branch",
+      trial: "synapse_pharmacy_annual",
+      starter: "synapse_pharmacy_annual",
+      professional: "synapse_pharmacy_annual",
+      enterprise: "synapse_pharmacy_annual",
     }
-    const target = planSlugMap[input.tier ?? "starter"] ?? "pharmacy_starter"
+    const target = planSlugMap[input.tier ?? "starter"] ?? "synapse_pharmacy_annual"
     let { data: planRow } = await db
       .from("subscription_plans")
       .select("id")
@@ -485,38 +486,38 @@ async function provisionPharmacyFacility(
       .eq("is_active", true)
       .maybeSingle()
     if (!planRow) {
-      const { data: anyPlan } = await db
+      const { data: legacy } = await db
         .from("subscription_plans")
         .select("id")
-        .eq("facility_type", "pharmacy")
+        .eq("slug", "pharmacy_starter")
         .eq("is_active", true)
-        .limit(1)
         .maybeSingle()
-      planRow = anyPlan
+      planRow = legacy
     }
-    if (planRow?.id) {
-      const trialEnd = new Date(Date.now() + 14 * 86400000).toISOString()
-      const { error } = await db.from("tenant_subscriptions").upsert(
-        {
-          tenant_id: tenantId,
-          plan_id: planRow.id,
-          status: "trialing",
-          starts_at: nowIso(),
-          trial_ends: trialEnd,
-          current_period_start: nowIso(),
-          current_period_end: trialEnd,
-        },
-        { onConflict: "tenant_id" },
+    if (!planRow?.id) {
+      return fail(
+        "subscription",
+        "PHARMACY_PLAN_MISSING",
+        "Canonical pharmacy annual plan is missing. Provisioning aborted.",
       )
-      if (error) {
-        return fail("subscription", "SUBSCRIPTION_UPSERT", error.message)
-      } else {
-        await complete("subscription", { planId: planRow.id })
-      }
-    } else {
-      warnings.push("No pharmacy subscription plan found")
-      await complete("subscription", { skipped: true })
     }
+    const trialEnd = new Date(Date.now() + 7 * 86400000).toISOString()
+    const { error } = await db.from("tenant_subscriptions").upsert(
+      {
+        tenant_id: tenantId,
+        plan_id: planRow.id,
+        status: "trialing",
+        starts_at: nowIso(),
+        trial_ends: trialEnd,
+        current_period_start: nowIso(),
+        current_period_end: trialEnd,
+      },
+      { onConflict: "tenant_id" },
+    )
+    if (error) {
+      return fail("subscription", "SUBSCRIPTION_UPSERT", error.message)
+    }
+    await complete("subscription", { planId: planRow.id, planSlug: target })
   }
 
   // store
@@ -558,6 +559,7 @@ async function provisionPharmacyFacility(
           role: "pharmacy_admin",
           is_admin: true,
           must_change_password: true,
+          onboarding_complete: true,
           updated_at: nowIso(),
         })
         .eq("id", existingProfile.id)
@@ -577,7 +579,7 @@ async function provisionPharmacyFacility(
         must_change_password: true,
         verification_status: "verified",
         phone: input.adminPhone || input.contactPhone || null,
-        onboarding_complete: false,
+        onboarding_complete: true,
       })
       if (error) return fail("administrator", "PROFILE_INSERT", error.message)
     }
@@ -676,7 +678,8 @@ async function provisionPharmacyFacility(
         tenant_id: tenantId,
         admin_email: adminEmail,
         admin_name: input.adminName.trim(),
-        current_step: 1,
+        current_step: 5,
+        onboarding_completed_at: nowIso(),
         enrolled_by: input.createdBy,
         account_created_at: nowIso(),
         invite_sent_at: nowIso(),

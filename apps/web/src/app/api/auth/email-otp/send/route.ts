@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, createAndSendOTP, shouldSkipOtpEmailDelivery } from '@synapse/auth'
+import { isAccountActivated, createAndSendOTP, shouldSkipOtpEmailDelivery } from '@synapse/auth'
 import { createServiceClient } from '../../../../../lib/supabase/server'
 import { sendOtpEmail } from '../../../../../lib/resend'
 import { checkRateLimit, rateLimiters } from '../../../../../lib/rate-limit'
@@ -37,8 +37,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  // Pre-proof endpoint: answer non-active accounts exactly like unknown emails
+  // (no code is sent). State-specific messages are only returned after a
+  // credential is proven (password-login / email-otp verify).
   if (!isAccountActivated(profile)) {
-    return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
+    return NextResponse.json({ ok: true })
   }
 
   const { data: tenantRow } = await db

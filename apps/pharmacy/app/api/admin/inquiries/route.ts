@@ -154,14 +154,25 @@ export async function PATCH(request: NextRequest) {
     if (adminResponse !== undefined) updateData.admin_response = adminResponse
     if (status === "RESOLVED") updateData.responded_at = new Date().toISOString()
 
+    // Tenant scope: an admin may only act on inquiries raised in their own pharmacy.
+    const { data: owned } = await (supabaseAdmin as any)
+      .from("pharmacy_inquiries")
+      .select("id")
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .maybeSingle()
+    if (!owned) return NextResponse.json({ error: "Inquiry not found" }, { status: 404 })
+
     const { data: inquiry, error } = await supabaseAdmin
       .from("pharmacy_inquiries")
       .update(updateData)
       .eq("id", id)
+      .eq("tenant_id", tenantId)
       .select()
       .single()
 
     if (error) throw error
+    if (!inquiry) return NextResponse.json({ error: "Inquiry not found" }, { status: 404 })
 
     // If resolved, send email to user
     if (status === "RESOLVED" && adminResponse) {

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
+import { usePharmacySession } from "@/hooks/use-pharmacy-session"
 import { Plus, Mail, Loader2, Edit, Trash2, KeyRound, RotateCcw } from "lucide-react"
 
 // Define Permission type locally to avoid importing from @prisma/client in client component
@@ -42,6 +43,7 @@ export default function UsersPage() {
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const { toast } = useToast()
+  const { user: sessionUser } = usePharmacySession()
 
   useEffect(() => {
     fetchUsers()
@@ -171,6 +173,7 @@ export default function UsersPage() {
             setSelectedUser(null)
             fetchUsers()
           }}
+          isSelf={selectedUser.id === sessionUser?.id}
         />
       )}
 
@@ -222,9 +225,11 @@ export default function UsersPage() {
                       <Button variant="ghost" size="sm" onClick={() => handleResetPassword(user.id, user.name)} title="Reset Password">
                         <RotateCcw className="h-4 w-4 text-blue-500" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(user.id)} title="Delete User">
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {user.id === sessionUser?.id ? null : (
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(user.id)} title="Delete User">
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -515,9 +520,11 @@ interface EditUserDialogProps {
   user: User
   onClose: () => void
   onSuccess: () => void
+  /** Editing your own account: role and active status are locked (the API refuses them too). */
+  isSelf?: boolean
 }
 
-function EditUserDialog({ user, onClose, onSuccess }: EditUserDialogProps) {
+function EditUserDialog({ user, onClose, onSuccess, isSelf = false }: EditUserDialogProps) {
   const [name, setName] = useState(user.name)
   const [username, setUsername] = useState(user.username || "")
   const [role, setRole] = useState<"CEO" | "ADMIN" | "STAFF">(user.role as "CEO" | "ADMIN" | "STAFF")
@@ -638,7 +645,7 @@ function EditUserDialog({ user, onClose, onSuccess }: EditUserDialogProps) {
                 value={role}
                 onChange={(e) => setRole(e.target.value as "CEO" | "ADMIN" | "STAFF")}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                disabled={isLoading}
+                disabled={isLoading || isSelf}
                 title="Select Role"
               >
                 <option value="STAFF">Staff</option>
@@ -659,7 +666,7 @@ function EditUserDialog({ user, onClose, onSuccess }: EditUserDialogProps) {
                   checked={isActive}
                   onChange={(e) => setIsActive(e.target.checked)}
                   className="mr-2"
-                  disabled={isLoading}
+                  disabled={isLoading || isSelf}
                   title="Active Account Status"
                 />
                 Active Account

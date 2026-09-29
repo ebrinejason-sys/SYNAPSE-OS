@@ -309,7 +309,7 @@ function PortalShell({ children }: { children: React.ReactNode }) {
               {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
               <span>{isOnline ? "Online" : "Offline"}</span>
             </div>
-            <SynapseThemeToggle size="sm" />
+            <SynapseThemeToggle variant="segmented" size="sm" />
             <NotificationBell />
             <div className="hidden md:flex flex-col items-end">
               <span className="text-sm font-medium text-foreground">{displayName}</span>

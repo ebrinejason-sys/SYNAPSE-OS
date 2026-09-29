@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyOTP, signToken, createSession } from '@synapse/auth'
+import { accountStateResponse, classifyAccountState, verifyOTP, signToken, createSession } from '@synapse/auth'
 import { signMfaPendingToken, mfaCookieOptions, MFA_PENDING_COOKIE } from '@synapse/auth/mfa'
 import { getPostLoginPath } from '@synapse/auth/redirects'
 import { supabaseAdmin } from '@synapse/db/admin'
@@ -51,8 +51,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Account not found.' }, { status: 404 })
   }
 
-  if (!isAccountActivated(profile)) {
-    return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
+  // Credential proven above: state-specific responses are safe to return now.
+  const blockedState = accountStateResponse(classifyAccountState({ ...profile, locked_until: null }))
+  if (blockedState) {
+    return NextResponse.json(blockedState.body, { status: blockedState.status })
   }
 
   // platform_admin requires TOTP as third factor

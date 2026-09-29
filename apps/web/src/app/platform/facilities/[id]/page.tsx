@@ -3,9 +3,12 @@ export const dynamic = "force-dynamic"
 import Link from "next/link"
 import type { ReactNode } from "react"
 import { requirePlatformAdmin } from "../../../../lib/platform/auth"
-import { formatDate, safeRows } from "../../_lib/platform-data"
+import { formatDate, platformAdminClient, safeRows } from "../../_lib/platform-data"
+import { withMfaStatus } from "../../../../lib/auth/mfa-status"
 import { FacilityResumeButton } from "./resume-button"
 import { InviteStaffForm } from "./invite-staff-form"
+import { FacilitySubscriptionPanel } from "./subscription-panel"
+import { FacilityLifecyclePanel } from "./lifecycle-panel"
 
 type TenantRow = {
   id?: string
@@ -114,9 +117,13 @@ export default async function FacilityDetailPage({
 
       {activeTab === "people" ? <FacilityPeople tenantId={id} /> : null}
       {activeTab === "departments" ? <FacilityDepartments tenantId={id} /> : null}
+      {activeTab === "subscription" || activeTab === "billing" ? (
+        <FacilitySubscriptionPanel tenantId={id} />
+      ) : null}
 
       {activeTab === "overview" ? <div className="grid gap-4 sm:grid-cols-2">
         <InfoCard title="Identity">
+          <Row label="Facility ID" value={facility.id} mono />
           <Row label="Slug" value={facility.slug} mono />
           <Row label="Email" value={facility.email} />
           <Row label="District" value={facility.district} />
@@ -196,17 +203,27 @@ export default async function FacilityDetailPage({
         </InfoCard>
       )}
 
+      {activeTab === "overview" ? (
+        <FacilityLifecyclePanel facilityId={id} facilityName={facility.name ?? facility.slug ?? id} />
+      ) : null}
+
       {activeTab === "overview" ? <InfoCard title="Test Center">
         <Link href="/platform/test-center" className="text-sm text-[#E8B84B] hover:underline">
           Open Test Center suites
         </Link>
       </InfoCard> : null}
+
+      {activeTab === "settings" || activeTab === "security" ? (
+        <FacilityLifecyclePanel facilityId={id} facilityName={facility.name ?? facility.slug ?? id} />
+      ) : null}
     </div>
   )
 }
 
 async function FacilityPeople({ tenantId }: { tenantId: string }) {
-  const staff = await safeRows<{ id?: string; full_name?: string | null; email?: string | null; role?: string | null; department_id?: string | null; is_deleted?: boolean | null; two_factor_enabled?: boolean | null; last_sign_in_at?: string | null }>("profiles", "id, full_name, email, role, department_id, is_deleted, two_factor_enabled, last_sign_in_at", { filters: [["tenant_id", tenantId], ["is_deleted", false]], limit: 200 })
+  const staffRows = await safeRows<{ id?: string; full_name?: string | null; email?: string | null; role?: string | null; department_id?: string | null; is_deleted?: boolean | null; two_factor_enabled?: boolean | null; last_sign_in_at?: string | null }>("profiles", "id, full_name, email, role, department_id, is_deleted, last_sign_in_at", { filters: [["tenant_id", tenantId], ["is_deleted", false]], limit: 200 })
+  // MFA status comes from mfa_enrollments; profiles has no two_factor_enabled column.
+  const staff = await withMfaStatus(platformAdminClient(), staffRows)
   const departments = await safeRows<{ id?: string; name?: string | null }>("departments", "id, name", { filters: [["tenant_id", tenantId]], limit: 100 })
   const departmentById = new Map(departments.map((department) => [department.id, department.name]))
   return <InfoCard title={`People (${staff.length})`}><div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="sr-only">Facility staff</caption><thead className="border-b border-slate-800 text-xs text-slate-500"><tr><th className="px-3 py-2">Name</th><th className="px-3 py-2">Email</th><th className="px-3 py-2">Role</th><th className="px-3 py-2">Section</th><th className="px-3 py-2">MFA</th><th className="px-3 py-2">Last login</th></tr></thead><tbody>{staff.map((person) => <tr key={person.id} className="border-b border-slate-800/70"><td className="px-3 py-3">{person.full_name ?? "—"}</td><td className="px-3 py-3">{person.email ?? "—"}</td><td className="px-3 py-3">{person.role ?? "—"}</td><td className="px-3 py-3">{departmentById.get(person.department_id ?? "") ?? "Unassigned"}</td><td className="px-3 py-3">{person.two_factor_enabled ? "Enabled" : "Not enabled"}</td><td className="px-3 py-3">{person.last_sign_in_at ? formatDate(person.last_sign_in_at) : "Never"}</td></tr>)}</tbody></table></div>{staff.length === 0 ? <p className="text-sm text-slate-500">No facility staff found.</p> : null}<InviteStaffForm tenantId={tenantId} departments={departments} /></InfoCard>

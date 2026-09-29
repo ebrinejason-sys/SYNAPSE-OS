@@ -239,6 +239,7 @@ export async function GET(
     const { data: edits, error } = await (supabaseAdmin as any)
       .from("pharmacy_transaction_edits")
       .select("*")
+      .eq("tenant_id", tenantId)
       .eq("transaction_id", id)
       .order("created_at", { ascending: false })
 

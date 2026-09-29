@@ -5,6 +5,7 @@ import { readdirSync } from "node:fs"
 import { join } from "node:path"
 import { whoApiConfigured } from "@synapse/interop"
 import { isOpenRouterConfigured } from "@/lib/ai/openrouter"
+import { demoDatabaseIntentionallyDisabled } from "../../../lib/platform/demo-readiness"
 
 export const dynamic = "force-dynamic"
 
@@ -29,11 +30,21 @@ function repoMigrationHead() {
 }
 
 export async function GET() {
-  const db = await probeDatabase()
+  const isolatedDemo = demoDatabaseIntentionallyDisabled()
+  const db = isolatedDemo
+    ? {
+        ok: false,
+        required: false,
+        configured: false,
+        skipped: true,
+        latencyMs: 0,
+        detail: "intentionally disabled; synthetic demo does not use the service-role database",
+      }
+    : { required: true, ...(await probeDatabase()) }
   const migrationHead = repoMigrationHead()
   const icdConfigured = whoApiConfigured()
   const aiConfigured = isOpenRouterConfigured()
-  const ready = db.ok
+  const ready = isolatedDemo || db.ok
   const commitSha = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? null
   return NextResponse.json(
     {

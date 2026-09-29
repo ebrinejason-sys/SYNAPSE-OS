@@ -52,6 +52,18 @@ vi.mock("@/lib/supabase/admin", () => ({
           }),
         }
       }
+      if (table === "pharmacy_customers") {
+        const filters: Record<string, unknown> = {}
+        const q: any = {
+          select: () => q,
+          eq: (k: string, v: unknown) => ((filters[k] = v), q),
+          maybeSingle: async () => ({
+            data: filters.id === "cust-own" && filters.tenant_id === "tenant-1" ? { id: "cust-own" } : null,
+            error: null,
+          }),
+        }
+        return q
+      }
       if (table === "pharmacy_products") {
         return {
           select: () => ({
@@ -80,6 +92,9 @@ vi.mock("@/lib/supabase/admin", () => ({
 }))
 
 import { POST } from "./route"
+import { signDiscountApproval } from "@/lib/pos/discount-approval"
+
+process.env.SYNAPSE_JWT_SECRET = process.env.SYNAPSE_JWT_SECRET || "test-only-secret-not-real-000000000000"
 
 function sessionAuth() {
   return {
@@ -239,5 +254,45 @@ describe("POST /api/admin/pos/complete-sale", () => {
       }),
     )
     expect(res.status).toBe(403)
+  })
+
+  describe("server-side discount approval (vertical escalation)", () => {
+    const discounted = { productId: "p1", quantity: 1, unitPrice: 1000, discountAmount: 300, discountReason: "loyal" }
+
+    it("rejects a cashier-supplied raw supervisor id (forged approval)", async () => {
+      const res = await POST(makeRequest({ items: [discounted], paymentMethod: "cash", discountApprovedBy: "supervisor-1" }))
+      expect(res.status).toBe(403)
+      expect((await res.json()).code).toBe("DISCOUNT_APPROVAL_REQUIRED")
+      expect(rpc).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ["another cashier", { tenantId: "tenant-1", cashierId: "cashier-2" }],
+      ["another tenant", { tenantId: "tenant-2", cashierId: "cashier-1" }],
+    ])("rejects an approval token minted for %s", async (_l, scope) => {
+      const token = signDiscountApproval({ ...scope, supervisorId: "supervisor-1" })
+      const res = await POST(makeRequest({ items: [discounted], paymentMethod: "cash", discountApprovedBy: token }))
+      expect(res.status).toBe(403)
+      expect(rpc).not.toHaveBeenCalled()
+    })
+
+    it("accepts a valid token and records the verified supervisor as approver", async () => {
+      rpc.mockResolvedValue({ data: { id: "sale-2", receipt_number: "R-2" }, error: null })
+      const token = signDiscountApproval({ tenantId: "tenant-1", cashierId: "cashier-1", supervisorId: "supervisor-1" })
+      const res = await POST(makeRequest({ items: [discounted], paymentMethod: "cash", discountApprovedBy: token }))
+      expect(res.status).toBe(200)
+      const args = rpc.mock.calls[0][1]
+      expect(JSON.stringify(args)).toContain("supervisor-1")
+    })
+  })
+
+  describe("credit customer reference (cross-tenant)", () => {
+    it("rejects a customerId outside the caller tenant before the sale", async () => {
+      const res = await POST(makeRequest({
+        items: [{ productId: "p1", quantity: 1, unitPrice: 1000 }], paymentMethod: "credit", customerId: "cust-other-tenant",
+      }))
+      expect(res.status).toBe(404)
+      expect(rpc).not.toHaveBeenCalled()
+    })
   })
 })

@@ -57,6 +57,8 @@ export const PLATFORM_CAPABILITIES = [
   "tenant.manage",
   "platform.subscription.read",
   "platform.subscription.manage",
+  "platform.subscriptions.activate",
+  "platform.subscriptions.override_price",
   "platform.pricing.read",
   "platform.pricing.manage",
   "platform.crm.read",
@@ -108,6 +110,8 @@ const ROLE_CAPABILITIES: Record<PlatformRole, PlatformCapability[]> = {
     "tenant.manage",
     "platform.subscription.read",
     "platform.subscription.manage",
+    "platform.subscriptions.activate",
+    "platform.subscriptions.override_price",
     "platform.pricing.read",
     "platform.pricing.manage",
     "platform.crm.read",
@@ -141,6 +145,8 @@ const ROLE_CAPABILITIES: Record<PlatformRole, PlatformCapability[]> = {
     "platform.pricing.manage",
     "platform.crm.read",
     "platform.subscription.read",
+    "platform.subscriptions.activate",
+    // Price override remains SUPER_ADMIN / PLATFORM_ADMIN only
   ],
   SUPPORT_ADMIN: [
     "platform.dashboard.read",

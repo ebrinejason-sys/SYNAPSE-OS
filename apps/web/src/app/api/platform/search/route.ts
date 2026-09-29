@@ -27,11 +27,12 @@ export async function GET(request: NextRequest) {
   const results: Result[] = [];
   const pattern = `%${q}%`;
 
-  const [tenantsByName, tenantsBySlug, usersByName, usersByEmail, tickets, audit] = await Promise.allSettled([
+  const [tenantsByName, tenantsBySlug, usersByName, usersByEmail, usersBySynapse, tickets, audit] = await Promise.allSettled([
     (supabaseAdmin as any).from("tenants").select("id, name, slug, facility_type, email").ilike("name", pattern).limit(5),
     (supabaseAdmin as any).from("tenants").select("id, name, slug, facility_type, email").ilike("slug", pattern).limit(5),
-    (supabaseAdmin as any).from("profiles").select("id, full_name, email, role").ilike("full_name", pattern).limit(5),
-    (supabaseAdmin as any).from("profiles").select("id, full_name, email, role").ilike("email", pattern).limit(5),
+    (supabaseAdmin as any).from("profiles").select("id, full_name, email, role, synapse_id").ilike("full_name", pattern).limit(5),
+    (supabaseAdmin as any).from("profiles").select("id, full_name, email, role, synapse_id").ilike("email", pattern).limit(5),
+    (supabaseAdmin as any).from("profiles").select("id, full_name, email, role, synapse_id").ilike("synapse_id", pattern).limit(5),
     (supabaseAdmin as any).from("support_tickets").select("id, subject, status").ilike("subject", pattern).limit(5),
     (supabaseAdmin as any)
       .from("audit_log")
@@ -51,13 +52,13 @@ export async function GET(request: NextRequest) {
     results.push({
       title: (row.name as string) ?? "Facility",
       subtitle: `${(row.facility_type as string) ?? "facility"} · ${(row.slug as string) ?? row.id}`,
-      href: `/platform/hospitals/${row.id}`,
+      href: `/platform/facilities/${row.id}`,
       type: "facility",
     });
   }
 
   const userRows = new Map<string, Record<string, unknown>>();
-  for (const settled of [usersByName, usersByEmail]) {
+  for (const settled of [usersByName, usersByEmail, usersBySynapse]) {
     if (settled.status === "fulfilled" && settled.value.data) {
       for (const row of settled.value.data) userRows.set(row.id, row);
     }
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
     results.push({
       title: (row.full_name as string) ?? (row.email as string) ?? "User",
       subtitle: `${(row.role as string) ?? "user"} · ${(row.email as string) ?? ""}`,
-      href: "/platform/users",
+      href: `/platform/users/${row.id}`,
       type: "user",
     });
   }

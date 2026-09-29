@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ShieldCheck, Mail, KeyRound } from "lucide-react";
 import { SynapseLogo } from "../../../components/SynapseLogo";
+import { requestActivationResend, shouldOfferActivationResend } from "./activation-resend";
 
 type LoginStep = "credentials" | "otp";
 
@@ -14,11 +15,16 @@ export default function PlatformLoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resendMsg, setResendMsg] = useState<string | null>(null);
+  const [offerActivationResend, setOfferActivationResend] = useState(false);
+  const [activationMsg, setActivationMsg] = useState<string | null>(null);
+  const [activationSending, setActivationSending] = useState(false);
 
   async function handleCredentials(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setOfferActivationResend(false);
+    setActivationMsg(null);
 
     const res = await fetch("/api/auth/password-login", {
       method: "POST",
@@ -30,9 +36,12 @@ export default function PlatformLoginPage() {
       otpSent?: boolean;
       mfaRequired?: boolean;
       error?: string;
+      code?: string;
+      activationRequired?: boolean;
     };
 
     if (!res.ok) {
+      setOfferActivationResend(shouldOfferActivationResend(res.status, data));
       setError(data.error ?? "Access denied. Check your credentials.");
       setLoading(false);
       return;
@@ -81,6 +90,20 @@ export default function PlatformLoginPage() {
     }
 
     window.location.href = "/platform";
+  }
+
+  async function handleActivationResend() {
+    if (!email) return;
+    setActivationSending(true);
+    setActivationMsg(null);
+    try {
+      const result = await requestActivationResend(email);
+      setActivationMsg(result.message);
+    } catch {
+      setActivationMsg("Could not resend activation email.");
+    } finally {
+      setActivationSending(false);
+    }
   }
 
   async function handleResend() {
@@ -139,7 +162,18 @@ export default function PlatformLoginPage() {
               autoComplete="current-password"
               className="w-full bg-[#111117] border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[#F97316] text-white"
             />
-            {error && <p className="text-red-400 text-sm">{error}</p>}
+            {error && <p className="text-red-400 text-sm" role="alert">{error}</p>}
+            {offerActivationResend && (
+              <button
+                type="button"
+                onClick={handleActivationResend}
+                disabled={activationSending}
+                className="w-full py-2 text-sm font-semibold text-[#E8B84B] hover:text-[#F97316] disabled:opacity-50"
+              >
+                {activationSending ? "Sending..." : "Resend activation email"}
+              </button>
+            )}
+            {activationMsg && <p className="text-green-400 text-sm" role="status">{activationMsg}</p>}
             <div className="text-right">
               <a href="/forgot-password" className="text-xs text-[#E8B84B] hover:text-[#F97316]">
                 Forgot password?

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ACCOUNT_ACTIVATION_ERROR, isAccountActivated, verifyPassword, createAndSendOTP, shouldSkipOtpEmailDelivery } from '@synapse/auth'
+import { accountStateResponse, classifyAccountState, verifyPassword, createAndSendOTP, shouldSkipOtpEmailDelivery } from '@synapse/auth'
 import { signMfaPendingToken, mfaCookieOptions, MFA_PENDING_COOKIE } from '@synapse/auth/mfa'
 import { supabaseAdmin } from '@synapse/db/admin'
 import { sendOtpEmail } from '../../../../lib/resend'
@@ -64,8 +64,10 @@ export async function POST(req: NextRequest) {
     .update({ login_attempts: 0, locked_until: null as unknown as string })
     .eq('id', profile.id as string)
 
-  if (!isAccountActivated(profile)) {
-    return NextResponse.json({ error: ACCOUNT_ACTIVATION_ERROR }, { status: 403 })
+  // Credential proven above: state-specific responses are safe to return now.
+  const blockedState = accountStateResponse(classifyAccountState({ ...profile, locked_until: null }))
+  if (blockedState) {
+    return NextResponse.json(blockedState.body, { status: blockedState.status })
   }
 
   const { data: suspendedMembership } = await db

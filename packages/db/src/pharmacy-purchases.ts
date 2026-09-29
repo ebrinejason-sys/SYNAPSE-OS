@@ -108,6 +108,8 @@ export type CatalogProduct = {
   manufacturer?: string | null
   price?: number | null
   costPrice?: number | null
+  /** Current book stock (may be negative). */
+  quantity?: number | null
 }
 
 export type ProductMatchQuery = {
@@ -226,6 +228,7 @@ export function catalogProductFromRow(row: Record<string, unknown>): CatalogProd
     manufacturer: (row.manufacturer as string | null) ?? null,
     price: row.price != null ? Number(row.price) : row.sellingPrice != null ? Number(row.sellingPrice) : null,
     costPrice: row.cost_price != null ? Number(row.cost_price) : row.costPrice != null ? Number(row.costPrice) : null,
+    quantity: row.quantity != null ? Number(row.quantity) : null,
   }
 }
 
@@ -241,7 +244,7 @@ export function matchCatalogProducts(
 }
 
 /**
- * Import / migration matching: barcode → SKU → name.
+ * Import / migration matching: barcode ? SKU ? name.
  * Name matches MUST NOT silently merge clinically distinct products
  * (e.g. Amoxicillin 250 mg vs 500 mg) when strength or dosage form differ.
  */
@@ -299,13 +302,13 @@ export function resolveImportCatalogMatch(
     return { kind: "match", product: sole, via: "name" }
   }
   if (compatible.length === 0) {
-    // Name collided with different strength/form — do not merge.
+    // Name collided with different strength/form - do not merge.
     return { kind: "ambiguous_name", candidates: nameMatches }
   }
   return { kind: "ambiguous_name", candidates: compatible }
 }
 
-/** Import quantity is always a receipt delta via receive_pharmacy_stock — never an absolute stock overwrite. */
+/** Import quantity is always a receipt delta via receive_pharmacy_stock - never an absolute stock overwrite. */
 export const IMPORT_QUANTITY_SEMANTICS = "STOCK_RECEIPT_DELTA" as const
 
 export function allocatePurchaseIdempotencyKey(existing: string | null, randomUUID: () => string): string {

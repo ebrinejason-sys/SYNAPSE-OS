@@ -1,7 +1,7 @@
 "use server";
 
 import { Resend } from "resend";
-import { requirePlatformAdmin } from "../../../lib/platform/auth";
+import { requirePlatformAccess } from "../../../lib/platform/auth";
 import { createServiceClient } from "../../../lib/supabase/server";
 import { logPlatformEvent } from "../_lib/platform-data";
 import { FROM_ADDRESS, brandedHtml } from "@synapse/email";
@@ -31,7 +31,7 @@ function buildEmailHtml(subject: string, body: string): string {
 export async function sendEmailBroadcast(
   formData: FormData
 ): Promise<{ ok: boolean; message: string }> {
-  const admin = await requirePlatformAdmin();
+  const admin = await requirePlatformAccess("platform.crm.manage");
 
   const scope = String(formData.get("scope") ?? "").trim();
   const role = String(formData.get("role") ?? "").trim();
@@ -127,7 +127,7 @@ export async function sendEmailBroadcast(
 export async function sendSmsBroadcast(
   formData: FormData
 ): Promise<{ ok: boolean; message: string }> {
-  const admin = await requirePlatformAdmin();
+  const admin = await requirePlatformAccess("platform.crm.manage");
 
   const scope = String(formData.get("scope") ?? "").trim();
   const role = String(formData.get("role") ?? "").trim();

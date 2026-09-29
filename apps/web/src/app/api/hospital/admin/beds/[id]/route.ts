@@ -41,6 +41,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .from('hospital_beds')
     .update({ ...parsed.data, updated_at: new Date().toISOString() })
     .eq('id', id)
+    .eq('hospital_id', ctx.hospitalId)
     .select('*')
     .single()
 
@@ -82,6 +83,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     .from('hospital_beds')
     .update({ is_deleted: true, updated_at: new Date().toISOString() })
     .eq('id', id)
+    .eq('hospital_id', ctx.hospitalId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

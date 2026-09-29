@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requirePlatformAdminApi()
+  const auth = await requirePlatformAdminApi("tenant.manage")
   if (!auth.ok) return auth.response
   const actor = auth.profile
   const body = await request.json().catch(() => ({}))
@@ -155,8 +155,29 @@ export async function POST(request: Request) {
       slug: result.slug,
       status: result.status,
       warnings: result.warnings,
+      paymentStatus: body.paymentStatus ?? "ONLINE_REQUIRED",
     },
   })
+
+  if (result.ok && result.tenantId && body.paymentStatus) {
+    const paymentMap: Record<string, string> = {
+      ONLINE_REQUIRED: "unpaid",
+      OFFLINE_RECEIVED: "pending",
+      PENDING: "pending",
+      COMPLIMENTARY: "unpaid",
+    }
+    const nextStatus = paymentMap[String(body.paymentStatus)]
+    if (nextStatus) {
+      await (supabaseAdmin as any)
+        .from("tenant_subscriptions")
+        .update({
+          payment_status: nextStatus,
+          commercial_notes: `Provisioning payment intent: ${body.paymentStatus}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("tenant_id", result.tenantId)
+    }
+  }
 
   const failed = result.steps.find((s) => s.status === "FAILED")
   return NextResponse.json(
@@ -172,6 +193,7 @@ export async function POST(request: Request) {
       warnings: result.warnings,
       inviteStatus: result.inviteStatus,
       invitePath: result.inviteToken ? `/invite/facility/${result.inviteToken}` : null,
+      paymentStatus: body.paymentStatus ?? "ONLINE_REQUIRED",
       error: result.error,
       correlationId: result.correlationId,
       failureStep: failed?.step ?? null,

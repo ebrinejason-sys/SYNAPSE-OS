@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { tenantOwnsRecord } from "@/lib/tenant-ownership"
 
 export async function GET() {
   try {
@@ -63,6 +64,12 @@ export async function POST(request: NextRequest) {
 
     if (!customerId || !["credit", "repayment"].includes(type) || !Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ error: "Customer, entry type, and positive amount are required" }, { status: 400 })
+    }
+    if (!(await tenantOwnsRecord("pharmacy_customers", tenantId, customerId))) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 })
+    }
+    if (body.transactionId && !(await tenantOwnsRecord("pharmacy_transactions", tenantId, body.transactionId))) {
+      return NextResponse.json({ error: "Transaction not found" }, { status: 404 })
     }
 
     const { data: latest } = await supabaseAdmin

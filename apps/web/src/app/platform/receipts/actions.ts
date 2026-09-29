@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requirePlatformAdmin } from "../../../lib/platform/auth";
+import { requirePlatformAccess } from "../../../lib/platform/auth";
 import { createServiceClient } from "../../../lib/supabase/server";
 import { logPlatformEvent } from "../_lib/platform-data";
 import {
@@ -32,7 +32,7 @@ function failCreate(kind: string, code: string, detail?: string): never {
 }
 
 export async function uploadAuthorizedSignature(formData: FormData) {
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("platform.subscription.manage");
   const file = formData.get("signature") as File | null;
   const signerName = String(formData.get("signer_name") ?? "").trim() || DEFAULT_SIGNER_NAME;
   const signerTitle = String(formData.get("signer_title") ?? "").trim() || DEFAULT_SIGNER_TITLE;
@@ -82,7 +82,7 @@ export async function uploadAuthorizedSignature(formData: FormData) {
 }
 
 export async function clearAuthorizedSignature() {
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("platform.subscription.manage");
   await db()
     .from("platform_document_settings")
     .upsert(
@@ -109,7 +109,7 @@ export async function clearAuthorizedSignature() {
 }
 
 export async function createManualDocument(formData: FormData) {
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("platform.subscription.manage");
 
   const kind = String(formData.get("kind") ?? "receipt") === "invoice" ? "invoice" : "receipt";
   const tenantIdRaw = String(formData.get("tenant_id") ?? "").trim();
@@ -196,7 +196,7 @@ function failEdit(id: string, code: string, detail?: string): never {
 }
 
 export async function updateManualDocument(formData: FormData) {
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("platform.subscription.manage");
 
   const id = String(formData.get("id") ?? "").trim();
   const sourceRaw = String(formData.get("source") ?? "platform");
@@ -286,7 +286,7 @@ export async function updateManualDocument(formData: FormData) {
 }
 
 export async function deleteManualDocument(formData: FormData) {
-  const profile = await requirePlatformAdmin();
+  const profile = await requirePlatformAccess("platform.subscription.manage");
   const id = String(formData.get("id") ?? "").trim();
   const sourceRaw = String(formData.get("source") ?? "");
   const source =

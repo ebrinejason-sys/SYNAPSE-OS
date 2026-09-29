@@ -8,7 +8,8 @@ type LoginStep = "credentials" | "otp"
 
 export default function LoginPage() {
   const [step, setStep] = useState<LoginStep>("credentials")
-  const [email, setEmail] = useState("")
+  const [identifier, setIdentifier] = useState("")
+  const [resolvedEmail, setResolvedEmail] = useState("")
   const [password, setPassword] = useState("")
   const [otp, setOtp] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -23,16 +24,26 @@ export default function LoginPage() {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier, password }),
     })
     const data = await res.json()
 
     if (!res.ok) {
-      setError(data.error ?? 'Invalid email or password.')
+      setError(data.error ?? 'Invalid email/username or password.')
       setIsLoading(false)
       return
     }
 
+    // Staff (non-admin): password-only session already issued
+    if (data.sessionIssued) {
+      window.location.assign(
+        data.redirect ??
+          (data.mustChangePassword ? "/change-password" : "/portal/dashboard"),
+      )
+      return
+    }
+
+    setResolvedEmail(typeof data.email === 'string' ? data.email : identifier.trim().toLowerCase())
     setStep("otp")
     setIsLoading(false)
   }
@@ -42,10 +53,11 @@ export default function LoginPage() {
     setIsLoading(true)
     setError(null)
 
+    const emailForOtp = resolvedEmail || identifier.trim().toLowerCase()
     const res = await fetch('/api/auth/otp-verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, otp }),
+      body: JSON.stringify({ email: emailForOtp, otp }),
     })
     const data = await res.json()
 
@@ -64,10 +76,11 @@ export default function LoginPage() {
   const handleResend = async () => {
     setResendMsg(null)
     setError(null)
+    const emailForOtp = resolvedEmail || identifier.trim().toLowerCase()
     const res = await fetch('/api/auth/otp-send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email: emailForOtp }),
     })
     if (res.ok) {
       setResendMsg("A new code was sent to your email.")
@@ -87,7 +100,9 @@ export default function LoginPage() {
             Synapse <span className="text-[#1FA6A6]">Pharm</span>
           </h1>
           <p className="font-mono text-xs mt-1 uppercase tracking-wider text-zinc-400">
-            {step === "credentials" ? "Staff & Admin Portal" : `Code sent to ${email}`}
+            {step === "credentials"
+              ? "Staff & Admin Portal"
+              : `Code sent to ${resolvedEmail || identifier}`}
           </p>
         </div>
 
@@ -97,17 +112,18 @@ export default function LoginPage() {
             <form onSubmit={handleCredentials} className="space-y-4">
               <div className="space-y-1.5">
                 <label
-                  htmlFor="email"
+                  htmlFor="identifier"
                   className="text-xs font-medium uppercase tracking-wider text-zinc-400"
                 >
-                  Email address
+                  Email or username
                 </label>
                 <input
-                  id="email"
-                  type="email"
-                  placeholder="you@synapseos.tech"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="identifier"
+                  type="text"
+                  autoComplete="username"
+                  placeholder="you@pharmacy.com or cashier1"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   required
                   disabled={isLoading}
                   className="synapse-input"
@@ -124,6 +140,7 @@ export default function LoginPage() {
                 <input
                   id="password"
                   type="password"
+                  autoComplete="current-password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -144,7 +161,7 @@ export default function LoginPage() {
                 disabled={isLoading}
                 className="btn-primary w-full h-11 mt-2"
               >
-                {isLoading ? "Checking…" : "Continue"}
+                {isLoading ? "Checking…" : "Sign in"}
               </button>
 
               <div className="text-center pt-1">
@@ -161,7 +178,7 @@ export default function LoginPage() {
                 <Mail className="mt-0.5 h-4 w-4 shrink-0 text-[#E8B84B]" />
                 <p className="text-sm text-zinc-300">
                   A 6-digit code was sent to{" "}
-                  <span className="text-white font-medium">{email}</span>. Expires in 10 minutes.
+                  <span className="text-white font-medium">{resolvedEmail || identifier}</span>. Expires in 10 minutes.
                 </p>
               </div>
 
@@ -198,21 +215,26 @@ export default function LoginPage() {
                 disabled={isLoading || otp.length !== 6}
                 className="btn-primary w-full h-11 mt-2"
               >
-                {isLoading ? "Verifying…" : "Verify & Sign In"}
+                {isLoading ? "Verifying…" : "Verify & Sign in"}
               </button>
 
-              <div className="flex items-center justify-between text-xs text-zinc-600 pt-1">
+              <div className="flex items-center justify-between pt-1">
                 <button
                   type="button"
-                  onClick={() => { setStep("credentials"); setOtp(""); setError(null); setResendMsg(null) }}
-                  className="hover:text-zinc-300"
+                  onClick={() => {
+                    setStep("credentials")
+                    setOtp("")
+                    setError(null)
+                    setResendMsg(null)
+                  }}
+                  className="text-xs text-zinc-600 hover:text-zinc-300"
                 >
                   ← Back
                 </button>
                 <button
                   type="button"
                   onClick={handleResend}
-                  className="text-[#E8B84B] hover:text-[#F97316]"
+                  className="text-xs text-[#1FA6A6] hover:underline"
                 >
                   Resend code
                 </button>
@@ -221,16 +243,8 @@ export default function LoginPage() {
           )}
         </div>
 
-        <p className="text-center text-xs mt-6 text-zinc-600">
-          <Link href="/" className="text-zinc-500 hover:text-[#E8B84B]">
-            Home
-          </Link>
-          {" · "}
-          <Link href="/register" className="text-[#F97316] hover:text-orange-400">
-            Start free trial
-          </Link>
-          <br />
-          Synapse Health Technologies &copy; {new Date().getFullYear()}
+        <p className="mt-6 text-center text-xs text-zinc-600">
+          Synapse Health Technologies © {new Date().getFullYear()}
         </p>
       </div>
     </div>

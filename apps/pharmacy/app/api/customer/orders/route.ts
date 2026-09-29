@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { customerFromRequest } from "@/lib/customer-session"
 import { sendEmail } from "@/lib/email"
 
 function formatCurrency(amount: number): string {
@@ -13,12 +14,11 @@ function formatCurrency(amount: number): string {
 // Get customer's orders
 export async function GET(request: NextRequest) {
   try {
-    const customerId = request.headers.get("x-customer-id")
-    const tenantId = request.headers.get("x-tenant-id")
-
-    if (!customerId || !tenantId) {
+    const session = customerFromRequest(request)
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    const { customerId, tenantId } = session
 
     const { data: orders, error } = await supabaseAdmin
       .from("pharmacy_orders")
@@ -75,12 +75,11 @@ export async function GET(request: NextRequest) {
 // Place a new order
 export async function POST(request: NextRequest) {
   try {
-    const customerId = request.headers.get("x-customer-id")
-    const tenantId = request.headers.get("x-tenant-id")
-
-    if (!customerId || !tenantId) {
+    const session = customerFromRequest(request)
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    const { customerId, tenantId } = session
 
     const { items, notes, deliveryAddress } = await request.json()
 
@@ -112,6 +111,9 @@ export async function POST(request: NextRequest) {
     }> = []
 
     for (const item of items as Array<{ productId: string; quantity: number }>) {
+      if (!Number.isInteger(item?.quantity) || item.quantity <= 0) {
+        return NextResponse.json({ error: "Invalid item quantity" }, { status: 400 })
+      }
       const { data: product, error: productError } = await supabaseAdmin
         .from("pharmacy_products")
         .select("id, name, price, quantity, is_active")

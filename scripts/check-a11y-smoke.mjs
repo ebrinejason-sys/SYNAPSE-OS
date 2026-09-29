@@ -10,6 +10,10 @@ const files = [
   "apps/web/src/app/os/[slug]/layout.tsx",
   "apps/web/src/app/hospital/admin/layout.tsx",
   "apps/web/src/app/login/page.tsx",
+  "apps/web/src/app/platform/layout.tsx",
+  "apps/web/src/app/lab/layout.tsx",
+  "apps/web/src/app/admin/layout.tsx",
+  "apps/pharmacy/app/portal/layout.tsx",
 ]
 
 const failures = []

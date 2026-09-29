@@ -9,7 +9,7 @@ async function loadCatalog(tenantId: string) {
   const { data, error } = await db()
     .from("pharmacy_products")
     .select(
-      "id, name, sku, barcode, generic_name, strength, dosage_form, manufacturer, price, cost_price, unit_of_measure, category, reorder_level",
+      "id, name, sku, barcode, generic_name, strength, dosage_form, manufacturer, price, cost_price, quantity, unit_of_measure, category, reorder_level",
     )
     .eq("tenant_id", tenantId)
     .eq("is_active", true)
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     manufacturer: (body.manufacturer as string | null) ?? null,
     category: (body.category as string | null) ?? null,
     sellingPrice: body.sellingPrice != null ? Number(body.sellingPrice) : body.price != null ? Number(body.price) : 0,
-    costPrice: body.costPrice != null ? Number(body.costPrice) : 0,
+    costPrice: body.costPrice != null ? Number(body.costPrice) : body.unitCost != null ? Number(body.unitCost) : 0,
     reorderLevel: body.reorderLevel != null ? Number(body.reorderLevel) : 10,
     expiryRequired: body.expiryRequired !== false,
     createAnyway: body.createAnyway === true,
