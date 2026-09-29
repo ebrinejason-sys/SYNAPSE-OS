@@ -10,6 +10,7 @@ const {
   recordTriageCompleted,
   encounterUpdate,
   triageTaskRow,
+  encounterHospital,
 } = vi.hoisted(() => ({
   requireHospitalStaffContext: vi.fn(),
   requireHospitalCapability: vi.fn(),
@@ -19,6 +20,7 @@ const {
   recordTriageCompleted: vi.fn(),
   encounterUpdate: vi.fn(),
   triageTaskRow: { current: null as Record<string, unknown> | null },
+  encounterHospital: { current: "" },
 }))
 
 vi.mock("@/lib/hospital-dept", async () => {
@@ -58,8 +60,13 @@ vi.mock("@synapse/db/admin", () => ({
   supabaseAdmin: {
     from: (table: string) => {
       if (table === "encounters") {
+        const filters: Record<string, unknown> = {}
+        const row = { id: ENCOUNTER, patient_id: PATIENT, is_signed: false, hospital_id: encounterHospital.current }
+        const node = chain(null)
+        node.eq = (column: string, value: unknown) => { filters[column] = value; return node }
+        node.maybeSingle = async () => ({ data: Object.entries(filters).every(([k, v]) => !(k in row) || row[k as keyof typeof row] === v) ? row : null, error: null })
         return {
-          ...chain({ data: { id: ENCOUNTER, patient_id: PATIENT, is_signed: false }, error: null }),
+          ...node,
           update: (patch: unknown) => {
             encounterUpdate(patch)
             return { eq: () => ({ eq: async () => ({ error: null }) }) }
@@ -116,6 +123,7 @@ describe("POST /api/opd/vitals", () => {
     persistWorkQueueArtifactsBestEffort.mockResolvedValue({ errors: [] })
     recordTriageCompleted.mockReturnValue({ doctorTask: { id: "doctor-task" } })
     triageTaskRow.current = null
+    encounterHospital.current = HOSPITAL
   })
 
   afterEach(() => {
@@ -162,5 +170,15 @@ describe("POST /api/opd/vitals", () => {
     expect(res.status).toBe(201)
     expect(recordTriageCompleted).not.toHaveBeenCalled()
     expect(encounterUpdate).not.toHaveBeenCalled()
+  })
+
+  it("hides encounters from another hospital in the same tenant", async () => {
+    requireHospitalStaffContext.mockResolvedValue(staffCtx("nurse"))
+    requireHospitalCapability.mockResolvedValue(null)
+    encounterHospital.current = "99999999-9999-4999-8999-999999999999"
+    const { POST } = await import("./route")
+    const res = await POST(postBody())
+    expect(res.status).toBe(404)
+    expect(logHospitalAudit).not.toHaveBeenCalled()
   })
 })

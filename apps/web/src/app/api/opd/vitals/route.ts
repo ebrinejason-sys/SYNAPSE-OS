@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
     .select('id, patient_id, is_signed')
     .eq('id', encounter_id)
     .eq('tenant_id', ctx.tenantId)
+    .eq('hospital_id', ctx.hospitalId)
     .maybeSingle()
 
   if (encError) return NextResponse.json({ error: encError.message }, { status: 500 })

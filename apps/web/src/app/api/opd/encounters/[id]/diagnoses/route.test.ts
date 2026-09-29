@@ -26,11 +26,16 @@ import { GET, POST } from './route'
 
 const ENCOUNTER = '00000000-0000-4000-8000-0000000000e1'
 const TENANT = '00000000-0000-4000-8000-0000000000t1'
+const HOSPITAL = '00000000-0000-4000-8000-0000000000h1'
+const OTHER_HOSPITAL_ENCOUNTER = '00000000-0000-4000-8000-0000000000e2'
 
 function seed() {
   state.cap = null
   state.db = createMemoryDb({
-    encounters: [{ id: ENCOUNTER, tenant_id: TENANT, patient_id: '00000000-0000-4000-8000-0000000000p1', is_signed: false }],
+    encounters: [
+      { id: ENCOUNTER, tenant_id: TENANT, hospital_id: HOSPITAL, patient_id: '00000000-0000-4000-8000-0000000000p1', is_signed: false },
+      { id: OTHER_HOSPITAL_ENCOUNTER, tenant_id: TENANT, hospital_id: '00000000-0000-4000-8000-0000000000h2', patient_id: '00000000-0000-4000-8000-0000000000p2', is_signed: false },
+    ],
     encounter_diagnoses: [],
   })
 }
@@ -64,5 +69,14 @@ describe('encounter ICD-11 diagnosis', () => {
     const denied = await POST(new NextRequest('http://localhost/api', { method: 'POST', body: JSON.stringify({ stem_code: '1F40' }) }), { params: Promise.resolve({ id: ENCOUNTER }) })
     expect(denied.status).toBe(403)
     expect(state.db.tables.encounter_diagnoses).toHaveLength(0)
+  })
+
+  it('hides encounters from another hospital in the same tenant', async () => {
+    const params = { params: Promise.resolve({ id: OTHER_HOSPITAL_ENCOUNTER }) }
+    const post = await POST(new NextRequest('http://localhost/api', { method: 'POST', body: JSON.stringify({ stem_code: '1F40' }) }), params)
+    expect(post.status).toBe(404)
+    expect(state.db.tables.encounter_diagnoses).toHaveLength(0)
+    const listed = await GET(new NextRequest('http://localhost/api'), { params: Promise.resolve({ id: OTHER_HOSPITAL_ENCOUNTER }) })
+    expect(listed.status).toBe(404)
   })
 })
