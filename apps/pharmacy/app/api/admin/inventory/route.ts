@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
 import { tenantRefsNotFound } from "@/lib/tenant-refs"
+import { duplicateBarcodeResponse, normalizeBarcode } from "@/lib/barcode"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { summarizeInventory, kampalaToday, normaliseBatch, isSellableBatch } from "@synapse/db/inventory"
 import { receivePharmacyStock } from "@synapse/db/inventory-rpc"
@@ -109,6 +110,10 @@ export async function POST(request: NextRequest) {
     const foreignRef = await tenantRefsNotFound(tenantId, { supplierId: data.supplierId })
     if (foreignRef) return foreignRef
 
+    const barcode = normalizeBarcode(data.barcode)
+    const dupBarcode = await duplicateBarcodeResponse(tenantId, barcode)
+    if (dupBarcode) return dupBarcode
+
     // Check if SKU already exists (scoped to tenant)
     const { data: existingProduct } = await (supabaseAdmin as any)
       .from("pharmacy_products")
@@ -128,7 +133,7 @@ export async function POST(request: NextRequest) {
         tenant_id: tenantId,
         name: data.name as string,
         sku: data.sku as string,
-        barcode: (data.barcode as string) || null,
+        barcode,
         category: (data.category as string) || "General",
         price: data.price as number,
         cost_price: data.costPrice as number,
@@ -150,7 +155,13 @@ export async function POST(request: NextRequest) {
       .select()
       .single()
 
-    if (productError) return NextResponse.json({ error: productError.message }, { status: 500 })
+    if (productError) {
+      if ((productError as { code?: string }).code === "23505") {
+        return NextResponse.json({ error: "A product with this SKU or barcode already exists.", code: "DUPLICATE_PRODUCT" }, { status: 409 })
+      }
+      console.error("[inventory] product write failed:", (productError as { code?: string }).code ?? "unknown")
+      return NextResponse.json({ error: "Failed to save product" }, { status: 500 })
+    }
 
     // Create packages if provided
     const packages = data.packages as Array<Record<string, unknown>> | undefined
@@ -247,6 +258,10 @@ export async function PATCH(request: NextRequest) {
     const foreignRef = await tenantRefsNotFound(tenantId, { supplierId: data.supplierId })
     if (foreignRef) return foreignRef
 
+    const barcode = normalizeBarcode(data.barcode)
+    const dupBarcode = await duplicateBarcodeResponse(tenantId, barcode, data.id as string)
+    if (dupBarcode) return dupBarcode
+
     if (catalogueQuantityPatchForbidden(data) || catalogueBatchMutationForbidden(data)) {
       const err = pharmacyDomainError(
         "REQUIRES_BATCH",
@@ -260,7 +275,7 @@ export async function PATCH(request: NextRequest) {
       .from("pharmacy_products")
       .update({
         name: data.name as string,
-        barcode: (data.barcode as string) || null,
+        barcode,
         category: (data.category as string) || "General",
         price: data.price as number,
         cost_price: data.costPrice as number,
@@ -283,7 +298,13 @@ export async function PATCH(request: NextRequest) {
       .select()
       .single()
 
-    if (productError) return NextResponse.json({ error: productError.message }, { status: 500 })
+    if (productError) {
+      if ((productError as { code?: string }).code === "23505") {
+        return NextResponse.json({ error: "A product with this SKU or barcode already exists.", code: "DUPLICATE_PRODUCT" }, { status: 409 })
+      }
+      console.error("[inventory] product write failed:", (productError as { code?: string }).code ?? "unknown")
+      return NextResponse.json({ error: "Failed to save product" }, { status: 500 })
+    }
 
     // Batch quantity / create / delete is not allowed on catalogue PATCH.
     // Receive and adjust RPCs own those mutations.

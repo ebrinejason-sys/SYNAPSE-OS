@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
+import { normalizeBarcode } from "@/lib/barcode"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { validateImportRow } from "@synapse/db/import-validation"
 import { receivePharmacyStock } from "@synapse/db/inventory-rpc"
@@ -109,6 +110,7 @@ export async function POST(request: NextRequest) {
     const warnings: string[] = []
     const skippedDuplicates: string[] = []
     const seenSkus = new Set<string>()
+    const seenBarcodes = new Set<string>()
     let created = 0
     let receivedBatches = 0
 
@@ -154,8 +156,7 @@ export async function POST(request: NextRequest) {
         "opening stock", "stock qty", "available", "in stock", "closing balance"
       )
 
-      const barcode =
-        getFieldValue(data, "barcode", "bar code", "upc", "ean") || null
+      const barcode = normalizeBarcode(getFieldValue(data, "barcode", "bar code", "upc", "ean"))
 
       const unitOfMeasure =
         getFieldValue(data, "unit_of_measure", "unit", "unitofmeasure", "uom", "unit of measure", "base unit") ||
@@ -248,6 +249,21 @@ export async function POST(request: NextRequest) {
         continue
       }
 
+      // Barcodes are unique per pharmacy: skip rows whose barcode exists or repeats in the file.
+      if (barcode) {
+        const { data: barcodeOwner } = await db()
+          .from("pharmacy_products")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("barcode", barcode)
+          .maybeSingle()
+        if (barcodeOwner || seenBarcodes.has(barcode)) {
+          skippedDuplicates.push(`Row ${rowNumber}: barcode "${barcode}" already exists (${name})`)
+          continue
+        }
+        seenBarcodes.add(barcode)
+      }
+
       // Check for duplicate SKU in current batch
       let finalSku = sku
       if (seenSkus.has(finalSku)) {
@@ -283,7 +299,7 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (insertError || !product) {
-        errors.push(`Row ${rowNumber}: ${insertError?.message ?? "insert failed"}`)
+        errors.push(`Row ${rowNumber}: ${insertError?.code === "23505" ? "duplicate SKU or barcode" : "could not be saved"}`)
         continue
       }
 
