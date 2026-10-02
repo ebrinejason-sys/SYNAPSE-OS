@@ -51,6 +51,9 @@ export type PharmacyRpcErrorCode =
   | "INVALID_QUANTITY"
   | "EXPIRED_RECEIPT"
   | "PRODUCT_NOT_FOUND"
+  | "SUPPLIER_NOT_FOUND"
+  | "PURCHASE_ORDER_NOT_FOUND"
+  | "STORE_NOT_FOUND"
   | "BATCH_NOT_FOUND"
   | "INSUFFICIENT_BATCH"
   | "ALREADY_REFUNDED"
@@ -84,6 +87,9 @@ export function parsePharmacyRpcError(raw: string | null | undefined): PharmacyR
     INVALID_QUANTITY: "Quantity must be a positive whole number.",
     EXPIRED_RECEIPT: "Cannot receive stock that is already expired.",
     PRODUCT_NOT_FOUND: "Product was not found in this pharmacy.",
+    SUPPLIER_NOT_FOUND: "Supplier was not found in this pharmacy.",
+    PURCHASE_ORDER_NOT_FOUND: "Purchase order was not found in this pharmacy.",
+    STORE_NOT_FOUND: "Store was not found in this pharmacy.",
     BATCH_NOT_FOUND: "The selected batch was not found.",
     INSUFFICIENT_BATCH: "Not enough quantity remains on the selected batch.",
     INSUFFICIENT_STOCK:

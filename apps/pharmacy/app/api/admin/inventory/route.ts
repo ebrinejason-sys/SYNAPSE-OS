@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
+import { tenantRefsNotFound } from "@/lib/tenant-refs"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { summarizeInventory, kampalaToday, normaliseBatch, isSellableBatch } from "@synapse/db/inventory"
 import { receivePharmacyStock } from "@synapse/db/inventory-rpc"
@@ -103,6 +104,10 @@ export async function POST(request: NextRequest) {
     const { session, tenantId } = auth
 
     const data: Record<string, unknown> = await request.json()
+
+    // A supplier from another pharmacy must never be linkable.
+    const foreignRef = await tenantRefsNotFound(tenantId, { supplierId: data.supplierId })
+    if (foreignRef) return foreignRef
 
     // Check if SKU already exists (scoped to tenant)
     const { data: existingProduct } = await (supabaseAdmin as any)
@@ -238,6 +243,9 @@ export async function PATCH(request: NextRequest) {
     if (!existingProduct) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
+
+    const foreignRef = await tenantRefsNotFound(tenantId, { supplierId: data.supplierId })
+    if (foreignRef) return foreignRef
 
     if (catalogueQuantityPatchForbidden(data) || catalogueBatchMutationForbidden(data)) {
       const err = pharmacyDomainError(
