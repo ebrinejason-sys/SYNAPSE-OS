@@ -234,20 +234,59 @@ export type InitSubscribeResult = {
   amountUgx: number
 }
 
+/** Client-safe checkout rejection (message is shown to the user; never a raw DB error). */
+export class SubscriptionPlanError extends Error {
+  readonly code: 'PLAN_INVALID' | 'PLAN_FACILITY_MISMATCH' | 'PLAN_CYCLE'
+  constructor(message: string, code: 'PLAN_INVALID' | 'PLAN_FACILITY_MISMATCH' | 'PLAN_CYCLE') {
+    super(message)
+    this.name = 'SubscriptionPlanError'
+    this.code = code
+  }
+}
+
+const HOSPITAL_LIKE = new Set(['hospital', 'clinic', 'health_centre', 'health_center', 'hospital_os'])
+function facilityFamily(value: unknown): string | null {
+  const v = String(value ?? '').trim().toLowerCase()
+  if (!v) return null
+  if (HOSPITAL_LIKE.has(v)) return 'hospital'
+  if (v === 'lab' || v === 'laboratory') return 'laboratory'
+  return v
+}
+
+/**
+ * A tenant may only buy plans for its own facility type (a pharmacy cannot buy the
+ * OS / Lab plans and vice versa). Unknown tenant facility types are allowed so legacy
+ * tenants without facility_type are not locked out.
+ */
+export function assertPlanMatchesFacility(planFacility: unknown, tenantFacility: unknown): void {
+  const plan = facilityFamily(planFacility)
+  const tenant = facilityFamily(tenantFacility)
+  if (plan && tenant && plan !== tenant) {
+    throw new SubscriptionPlanError('This plan is not available for your facility type.', 'PLAN_FACILITY_MISMATCH')
+  }
+}
+
 export async function initiateSubscriptionPayment(input: InitSubscribeInput): Promise<InitSubscribeResult> {
   const { data: plan, error: planErr } = await db()
     .from('subscription_plans')
-    .select('id, slug, name, price_ugx, billing_cycle, is_active')
+    .select('id, slug, name, price_ugx, billing_cycle, is_active, facility_type')
     .eq('slug', input.planSlug)
     .eq('is_active', true)
     .maybeSingle()
 
-  if (planErr || !plan) throw new Error('Invalid or inactive plan')
-  if (!plan.price_ugx || plan.price_ugx <= 0) throw new Error('Plan price not configured')
+  if (planErr || !plan) throw new SubscriptionPlanError('Invalid or inactive plan', 'PLAN_INVALID')
+  if (!plan.price_ugx || plan.price_ugx <= 0) throw new SubscriptionPlanError('Plan price not configured', 'PLAN_INVALID')
+
+  const { data: tenantRow } = await db()
+    .from('tenants')
+    .select('facility_type')
+    .eq('id', input.tenantId)
+    .maybeSingle()
+  assertPlanMatchesFacility((plan as { facility_type?: unknown }).facility_type, tenantRow?.facility_type)
   // Pharmacy portal self-serve: yearly only (monthly/quarterly are platform/historical).
   const cycle = String(plan.billing_cycle ?? '').toLowerCase()
   if (cycle !== 'yearly' && cycle !== 'annual' && plan.slug !== PHARMACY_SELF_SERVE_PLAN_SLUG) {
-    throw new Error('Only the yearly Pharmacy subscription can be purchased in-app')
+    throw new SubscriptionPlanError('Only the yearly Pharmacy subscription can be purchased in-app', 'PLAN_CYCLE')
   }
 
   const { data: sub } = await db()

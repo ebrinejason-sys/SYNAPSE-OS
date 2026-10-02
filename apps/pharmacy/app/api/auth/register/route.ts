@@ -11,12 +11,18 @@ import { CANONICAL_PLAN_SLUGS } from "@synapse/db/commercial-pricing"
 import { sendWelcome } from "@synapse/email"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { pharmacyUrl } from "@/lib/app-url"
+import { checkRateLimit } from "@/lib/rateLimit"
 
 export const runtime = "nodejs"
 
-const LEGACY_PLAN_SLUGS = new Set(["pharm_monthly", "pharm_quarterly", "pharm_yearly"])
+/**
+ * New self-serve signups get the single Pharmacy annual plan (UGX 240,000/yr).
+ * Legacy pharm_monthly / pharm_quarterly / pharm_yearly and non-pharmacy plans are
+ * rejected for NEW signups; existing tenants on them are untouched.
+ */
 const CANONICAL_PHARMACY_SLUG = CANONICAL_PLAN_SLUGS.pharmacy
-const ALLOWED_PLAN_SLUGS = new Set([...LEGACY_PLAN_SLUGS, CANONICAL_PHARMACY_SLUG])
+const ALLOWED_PLAN_SLUGS: ReadonlySet<string> = new Set<string>([CANONICAL_PHARMACY_SLUG])
+const SIGNUP_FAILED = "We couldn't create your pharmacy account. Please try again or contact support."
 const PHONE_RE = /^\+256[7]\d{8}$/
 
 function slugify(value: string) {
@@ -52,7 +58,20 @@ async function cleanupTenant(tenantId: string) {
   await supabaseAdmin.from("tenants").delete().eq("id", tenantId)
 }
 
+function clientIp(req: NextRequest): string {
+  return (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || req.headers.get("x-real-ip") || "unknown"
+}
+
 export async function POST(req: NextRequest) {
+  // Best-effort abuse limit (in-memory, per server instance): 5 signups / 15 min / IP.
+  const limited = checkRateLimit(`pharmacy-register:${clientIp(req)}`)
+  if (!limited.allowed) {
+    return NextResponse.json(
+      { error: "Too many sign-up attempts. Please wait and try again." },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfter ?? 900) } },
+    )
+  }
+
   const body = (await req.json().catch(() => ({}))) as RegisterBody
 
   const pharmacyName = String(body.pharmacyName ?? "").trim()
@@ -63,7 +82,7 @@ export async function POST(req: NextRequest) {
   const phone = String(body.phone ?? "").trim().replace(/\s+/g, "")
   const email = String(body.email ?? "").trim().toLowerCase()
   const password = String(body.password ?? "")
-  const planSlug = String(body.planSlug ?? "pharm_monthly").trim()
+  const planSlug = String(body.planSlug ?? CANONICAL_PHARMACY_SLUG).trim() || CANONICAL_PHARMACY_SLUG
   const pdpoConsent = Boolean(body.pdpoConsent)
 
   if (!pharmacyName || pharmacyName.length < 2) {
@@ -101,7 +120,10 @@ export async function POST(req: NextRequest) {
     )
   }
   if (!ALLOWED_PLAN_SLUGS.has(planSlug)) {
-    return NextResponse.json({ error: "Select a valid plan." }, { status: 400 })
+    return NextResponse.json(
+      { error: "New pharmacies sign up on the Synapse Pharmacy annual plan.", code: "PLAN_NOT_AVAILABLE" },
+      { status: 400 },
+    )
   }
   if (!pdpoConsent) {
     return NextResponse.json(
@@ -181,7 +203,8 @@ export async function POST(req: NextRequest) {
   })
 
   if (tenantErr) {
-    return NextResponse.json({ error: tenantErr.message }, { status: 400 })
+    console.error("[register] tenant insert failed:", tenantErr.code ?? "unknown")
+    return NextResponse.json({ error: SIGNUP_FAILED }, { status: 400 })
   }
 
   try {
@@ -277,8 +300,9 @@ export async function POST(req: NextRequest) {
     )
   } catch (err) {
     await cleanupTenant(tenantId)
-    const message = err instanceof Error ? err.message : "Registration failed."
-    return NextResponse.json({ error: message }, { status: 400 })
+    // Raw database errors stay in the server log, never in the response.
+    console.error("[register] provisioning failed:", err instanceof Error ? err.message : "unknown")
+    return NextResponse.json({ error: SIGNUP_FAILED }, { status: 400 })
   }
 
   try {
