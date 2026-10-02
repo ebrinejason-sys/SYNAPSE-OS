@@ -9,6 +9,7 @@ import {
 const mocks = vi.hoisted(() => ({
   suspendedIds: new Set<string>(),
   profile: null as Record<string, unknown> | null,
+  settings: null as Record<string, unknown> | null,
   verifyOTP: vi.fn(),
   createSession: vi.fn(),
 }))
@@ -27,6 +28,7 @@ vi.mock('@synapse/db/admin', () => ({
       const q: any = { then: (r: any) => Promise.resolve({ data: null, error: null }).then(r) }
       for (const m of ['select', 'eq', 'update']) q[m] = vi.fn(() => q)
       q.single = vi.fn(async () => ({ data: mocks.profile, error: mocks.profile ? null : { code: 'PGRST116' } }))
+      q.maybeSingle = vi.fn(async () => ({ data: mocks.settings, error: null }))
       return q
     },
   },
@@ -51,6 +53,24 @@ describe('pharmacy POST /api/auth/otp-verify account-state gate', () => {
     vi.clearAllMocks()
     mocks.verifyOTP.mockResolvedValue({ valid: true })
     mocks.suspendedIds = new Set()
+    mocks.settings = null
+  })
+
+  it('deactivated pharmacy staff are refused a session after OTP proof', async () => {
+    mocks.profile = { ...base }
+    mocks.settings = { is_active: false }
+    const r = await verify()
+    expect(r.status).toBe(403)
+    expect(r.body.code).toBe('ACCOUNT_INACTIVE')
+    expect(mocks.createSession).not.toHaveBeenCalled()
+  })
+
+  it('reactivated pharmacy staff can sign in with an email code again', async () => {
+    mocks.profile = { ...base }
+    mocks.settings = { is_active: true }
+    const r = await verify()
+    expect(r.status).toBe(200)
+    expect(mocks.createSession).toHaveBeenCalledTimes(1)
   })
 
   it('invalid OTP never reveals account state', async () => {

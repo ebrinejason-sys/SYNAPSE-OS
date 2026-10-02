@@ -45,6 +45,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(blockedState.body, { status: blockedState.status })
   }
 
+  // Deactivated pharmacy staff cannot sign in with an email code either.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: settings } = await (supabaseAdmin as any)
+    .from('pharmacy_user_settings')
+    .select('is_active')
+    .eq('profile_id', profile.id)
+    .maybeSingle()
+  if (settings?.is_active === false) {
+    return NextResponse.json(
+      { error: 'This account has been deactivated. Contact your pharmacy administrator.', code: 'ACCOUNT_INACTIVE' },
+      { status: 403 },
+    )
+  }
+
   const token = await signToken({
     sub:       profile.id as string,
     email,

@@ -35,11 +35,12 @@ async function loadPharmacySettings(userId: string): Promise<{
   permissions: string[]
   mustChangePassword: boolean | null
   storeId: string | null
+  isActive: boolean
 }> {
   try {
     const { data } = await (supabaseAdmin as any)
       .from('pharmacy_user_settings')
-      .select('pharmacy_role, permissions, must_change_password, store_id')
+      .select('pharmacy_role, permissions, must_change_password, store_id, is_active')
       .eq('profile_id', userId)
       .maybeSingle()
 
@@ -48,14 +49,18 @@ async function loadPharmacySettings(userId: string): Promise<{
       permissions: Array.isArray(data?.permissions) ? (data.permissions as string[]) : [],
       mustChangePassword: (data?.must_change_password as boolean | null) ?? null,
       storeId: (data?.store_id as string | null) ?? null,
+      // Only an explicit false deactivates; users without a settings row (platform) stay active.
+      isActive: data?.is_active !== false,
     }
   } catch {
-    return { pharmacyRole: null, permissions: [], mustChangePassword: null, storeId: null }
+    return { pharmacyRole: null, permissions: [], mustChangePassword: null, storeId: null, isActive: true }
   }
 }
 
-async function toPharmacySession(ctx: SynapseContext): Promise<PharmacySession> {
+async function toPharmacySession(ctx: SynapseContext): Promise<PharmacySession | null> {
   const settings = await loadPharmacySettings(ctx.user.id)
+  // Deactivated staff are refused on every request, whichever login path minted the session.
+  if (!settings.isActive) return null
   const pharmacyRole = settings.pharmacyRole ?? ctx.user.role
   const isAdmin =
     ctx.user.isAdmin ||
@@ -115,7 +120,9 @@ export async function getPharmacySession(): Promise<PharmacySession | null> {
 export async function requirePharmacySession(): Promise<PharmacySession> {
   const ctx: SynapseContext = await getContext('pharmacy', '/login')
   if (!isPharmacyAppContext(ctx.tenant.facilityType)) redirect('/login?error=no_pharmacy_access')
-  return toPharmacySession(ctx)
+  const session = await toPharmacySession(ctx)
+  if (!session) redirect('/login?error=account_inactive')
+  return session
 }
 
 export function hasPharmacyPermission(session: PharmacySession, permission: string): boolean {
