@@ -14,12 +14,12 @@ vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin: { from: mocks.from } }))
 vi.mock('@/lib/email', () => ({ sendEmail: mocks.sendEmail }))
 vi.mock('@synapse/db/pharmacy-purchases', () => ({ receivePharmacyPurchase: vi.fn() }))
 
-async function create() {
+async function create(extra: Record<string, unknown> = {}, productName = 'Test item') {
   const { POST } = await import('./route')
   return POST(new Request('https://example.test/api/admin/purchase-orders', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ supplierId: 'supplier', sendEmailToSupplier: true,
-      items: [{ productName: 'Test item', quantity: 2, unitPrice: 10 }] }),
+      items: [{ productName, quantity: 2, unitPrice: 10 }], ...extra }),
   }) as any)
 }
 
@@ -78,5 +78,60 @@ describe('purchase order email status persistence', () => {
     expect(body.purchaseOrder.status).toBe('DRAFT')
     expect(body.warning).toContain('could not be delivered')
     expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('HTML-escapes product names and notes in the supplier email', async () => {
+    await create({ notes: '<img src=x onerror=alert(1)>' }, '<script>alert("po")</script>')
+    const html = String(mocks.sendEmail.mock.calls[0][0].html)
+    expect(html).not.toContain('<script>')
+    expect(html).not.toContain('<img src=x')
+    expect(html).toContain('&lt;script&gt;alert(&quot;po&quot;)&lt;/script&gt;')
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+  })
+})
+
+describe('purchase order resend (PATCH resendEmail)', () => {
+  const po = {
+    id: 'po', order_no: 'PO-9', total_amount: 20, email_sent: true, status: 'SENT', supplier_id: 'supplier',
+    supplier: { name: 'Supplier', email: 'supplier@example.test', contact_person: null },
+    items: [{ id: 'i1', product_id: 'p1', product_name: 'Item', quantity: 2, received_quantity: 0, unit_price: 10, total_price: 20 }],
+  }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.from.mockImplementation(() => {
+      let updating = false
+      const query: any = {
+        select: () => query,
+        eq: (...args: unknown[]) => { mocks.eq(...args); return query },
+        insert: () => query,
+        update: (row: unknown) => { updating = true; mocks.update(row); return query },
+        single: async () => (updating ? { data: { ...po }, error: null } : { data: po, error: null }),
+        then: (resolve: (value: unknown) => unknown) => Promise.resolve({ error: null }).then(resolve),
+      }
+      return query
+    })
+  })
+
+  async function resend() {
+    const { PATCH } = await import('./route')
+    return PATCH(new Request('https://example.test/api/admin/purchase-orders', {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: 'po', resendEmail: true }),
+    }) as any)
+  }
+
+  it('a provider failure on resend returns 502 and never records the email as sent', async () => {
+    mocks.sendEmail.mockResolvedValue({ success: false, error: 'provider down' })
+    const res = await resend()
+    expect(res.status).toBe(502)
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('a successful resend records email_sent with a fresh timestamp', async () => {
+    mocks.sendEmail.mockResolvedValue({ success: true })
+    const res = await resend()
+    expect(res.status).toBe(200)
+    expect(mocks.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'supplier@example.test' }))
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ email_sent: true, email_sent_at: expect.any(String) }))
   })
 })

@@ -66,7 +66,7 @@ export default function UsersScreen() {
     }
     setInviting(true)
     try {
-      const res = await apiRequest<{ tempPassword: string; emailSent: boolean }>('/api/mobile/pharmacy/users', {
+      const res = await apiRequest<{ inviteSent?: boolean; emailSent?: boolean }>('/api/mobile/pharmacy/users', {
         method: 'POST',
         token,
         body: { name, email, role },
@@ -78,7 +78,9 @@ export default function UsersScreen() {
       await load()
       Alert.alert(
         'User created',
-        `Temporary password: ${res.tempPassword}\n\nShare it securely; they must change it at first login.${res.emailSent ? '\nA welcome email was also sent.' : ''}`,
+        res.inviteSent
+          ? 'A secure set-password link was emailed to them (valid 72 hours).'
+          : 'The account was created but the invite email could not be sent. Use "Reset password" to send a new link.',
       )
     } catch (err) {
       Alert.alert('Invite failed', err instanceof ApiError ? err.message : 'Try again.')
@@ -90,14 +92,19 @@ export default function UsersScreen() {
   const patch = async (id: string, body: Record<string, unknown>, successMsg?: string) => {
     if (!token) return
     try {
-      const res = await apiRequest<{ tempPassword?: string }>('/api/mobile/pharmacy/users', {
+      const res = await apiRequest<{ resetLinkSent?: boolean }>('/api/mobile/pharmacy/users', {
         method: 'PATCH',
         token,
         body: { id, ...body },
       })
       await load()
-      if (res.tempPassword) {
-        Alert.alert('Password reset', `New temporary password: ${res.tempPassword}\n\nShare it securely.`)
+      if (res.resetLinkSent !== undefined) {
+        Alert.alert(
+          'Password reset',
+          res.resetLinkSent
+            ? 'Their old password and sessions were revoked. A secure set-password link was emailed.'
+            : 'Their old password was revoked, but the email could not be sent. Try again.',
+        )
       } else if (successMsg) {
         Alert.alert('Done', successMsg)
       }

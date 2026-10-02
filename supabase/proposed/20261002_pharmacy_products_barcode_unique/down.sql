@@ -1,0 +1,1 @@
+drop index concurrently if exists public.pharmacy_products_tenant_barcode_uniq;

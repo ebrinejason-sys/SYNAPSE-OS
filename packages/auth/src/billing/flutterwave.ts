@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto'
 const FLW_BASE = 'https://api.flutterwave.com/v3'
 
 export type FlutterwaveInitParams = {
@@ -22,15 +23,22 @@ function secretKey(): string {
   return key
 }
 
+/**
+ * The dashboard "Secret hash" (sent as the verif-hash header). Must be its own value:
+ * the API secret key is never accepted as a webhook credential.
+ */
 export function webhookSecret(): string {
-  return process.env.FLUTTERWAVE_WEBHOOK_SECRET ?? process.env.FLUTTERWAVE_SECRET_KEY ?? ''
+  return (process.env.FLUTTERWAVE_WEBHOOK_SECRET ?? '').trim()
 }
 
 export function verifyWebhookHash(header: string | null): boolean {
   if (!header) return false
   const expected = webhookSecret()
   if (!expected) return false
-  return header === expected
+  // Constant-time comparison (hash both sides so lengths always match).
+  const a = createHash('sha256').update(header, 'utf8').digest()
+  const b = createHash('sha256').update(expected, 'utf8').digest()
+  return timingSafeEqual(a, b)
 }
 
 export async function initFlutterwavePayment(params: FlutterwaveInitParams): Promise<FlutterwaveInitResult> {

@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { generateSecurePassword, secureRandomInt } from "./secure-random"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -18,7 +19,7 @@ export function generateTransactionNo(): string {
   const year = date.getFullYear().toString().slice(-2)
   const month = (date.getMonth() + 1).toString().padStart(2, '0')
   const day = date.getDate().toString().padStart(2, '0')
-  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0')
+  const random = String(secureRandomInt(100) * 100 + secureRandomInt(100)).padStart(4, '0')
   return `TXN${year}${month}${day}${random}`
 }
 
@@ -27,16 +28,11 @@ export function generateOrderNo(): string {
   const year = date.getFullYear().toString().slice(-2)
   const month = (date.getMonth() + 1).toString().padStart(2, '0')
   const day = date.getDate().toString().padStart(2, '0')
-  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0')
+  const random = String(secureRandomInt(100) * 100 + secureRandomInt(100)).padStart(4, '0')
   return `ORD${year}${month}${day}${random}`
 }
 
+/** CSPRNG password (never emailed; see lib/password-setup.ts for invites). */
 export function generatePassword(): string {
-  const length = 12
-  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
-  let password = ''
-  for (let i = 0; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length))
-  }
-  return password
+  return generateSecurePassword(16)
 }

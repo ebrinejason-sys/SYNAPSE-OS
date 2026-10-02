@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createServiceClient } from "../../../lib/supabase/server";
 import { requirePlatformAccess } from "../../../lib/platform/auth";
 import { provisionVercelProjectDomain, verifyVercelProjectDomain } from "../../../lib/vercel-domains";
-import { sendPharmacyCredentialsEmail } from "../../../lib/resend";
-import { hashPassword } from "@synapse/auth";
+import { sendInvite } from "@synapse/email";
+import { PHARMACY_INVITE_LINK_TTL_HOURS, issuePharmacyPasswordSetupLink } from "../../../lib/pharmacy-password-setup";
 import { logPlatformEvent } from "../_lib/platform-data";
 
 export async function updatePharmacyDomain(formData: FormData) {
@@ -243,24 +243,35 @@ export async function resendPharmacySetupInvite(formData: FormData) {
   }
   if (!adminEmail) return;
 
-  // Generate a fresh temp password, hash it, and update the profile so it matches what we email
-  const randomUpper = () => String.fromCharCode(65 + Math.floor(Math.random() * 26));
-  const randomDigit = () => String(Math.floor(Math.random() * 10));
-  const newTempPassword = `Synapse${randomUpper()}${randomUpper()}${randomUpper()}${randomUpper()}${randomDigit()}${randomDigit()}${randomDigit()}${randomDigit()}!`;
-  const newHash = await hashPassword(newTempPassword);
+  if (!adminProfileId) return;
 
-  if (adminProfileId) {
-    await (supabaseAdmin as any).from("profiles")
-      .update({ password_hash: newHash, must_change_password: true, login_attempts: 0, locked_until: null })
-      .eq("id", adminProfileId);
+  // Never generate or email a password: send a single-use set-password link
+  // (password_reset_tokens, sha256 only, 72h) at the Pharmacy URL.
+  const link = await issuePharmacyPasswordSetupLink(adminProfileId, PHARMACY_INVITE_LINK_TTL_HOURS);
+  let delivered = false;
+  if (link) {
+    try {
+      await sendInvite({
+        to: adminEmail,
+        name: adminName,
+        facilityName: tenant.name ?? "Your pharmacy",
+        role: "pharmacy_admin",
+        inviteUrl: link.url,
+      });
+      delivered = true;
+    } catch (err) {
+      console.error("[pharmacy-network] setup invite not delivered", err instanceof Error ? err.name : "error");
+    }
   }
-
-  await sendPharmacyCredentialsEmail({
-    to: adminEmail,
-    pharmacyName: tenant.name ?? "Your pharmacy",
-    adminName,
-    tempPassword: newTempPassword,
-  });
+  if (!delivered) {
+    await logPlatformEvent({
+      actorId: actor.id, action: "pharmacy.setup_invite_failed",
+      entityType: "tenant", entityId: tenantId, tenantId,
+      metadata: { admin_email: adminEmail },
+    });
+    revalidatePath("/platform/pharmacy-network");
+    return;
+  }
 
   await (supabaseAdmin as any).from("pharmacy_onboarding").upsert(
     { tenant_id: tenantId, invite_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() },
@@ -268,7 +279,7 @@ export async function resendPharmacySetupInvite(formData: FormData) {
   );
 
   await logPlatformEvent({
-    actorId: actor.id, action: "pharmacy.credentials_resent",
+    actorId: actor.id, action: "pharmacy.setup_invite_resent",
     entityType: "tenant", entityId: tenantId, tenantId,
     metadata: { admin_email: adminEmail },
   });

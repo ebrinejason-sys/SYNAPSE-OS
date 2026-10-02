@@ -44,6 +44,10 @@ function makeFakeDb(tables: Record<string, Record<string, unknown>[]>) {
         filters.push((row) => vals.includes(row[col]))
         return builder
       },
+      gt(col: string, val: unknown) {
+        filters.push((row) => String(row[col]) > String(val))
+        return builder
+      },
       limit() {
         return Promise.resolve(builder.__forceError ? { data: null, error: { message: builder.__forceError } } : { data: applyFilters(rows).slice(0, 1), error: null })
       },
@@ -415,5 +419,46 @@ describe("facility-invitations.server", () => {
     expect(fakeDb.__tables.facility_invitations[0].status).toBe("ACCEPTED")
     expect(fakeDb.__tables.staff_scope_assignments.some((s: { tenant_id: string }) => s.tenant_id === "hosp-1")).toBe(true)
   })
-})
 
+  it("activates a provisioned HASHED invite once; replay and the stored hash are refused", async () => {
+    const { redeemFacilityInvitation, lookupFacilityInvitation } = await import("./facility-invitations.server")
+    const { generateFacilityInviteToken, hashFacilityInviteToken } = await import("@synapse/db/facility-invite-token")
+    const token = generateFacilityInviteToken()
+    const stored = hashFacilityInviteToken(token)
+    fakeDb.__tables.tenants.push({ id: "ph-1", name: "Pharm", facility_type: "pharmacy" })
+    fakeDb.__tables.profiles.push({ id: "prov-h", email: "padmin@example.test", tenant_id: "ph-1", password_hash: null })
+    fakeDb.__tables.facility_invitations.push({
+      id: "inv-h-1", tenant_id: "ph-1", email: "padmin@example.test", full_name: "P Admin", role: "pharmacy_admin",
+      invite_token: null, token_hash: stored, status: "SENT",
+      expires_at: new Date(Date.now() + 86400000).toISOString(), profile_id: "prov-h", tenants: { name: "Pharm" },
+    })
+    // the DB value is not a credential
+    const byHash = await lookupFacilityInvitation(stored)
+    expect(byHash.ok).toBe(false)
+    const first = await redeemFacilityInvitation({ token, password: "supersecret1" })
+    expect(first.ok).toBe(true)
+    const hashAfter = fakeDb.__tables.profiles[0].password_hash
+    const replay = await redeemFacilityInvitation({ token, password: "attacker-pass1" })
+    expect(replay.ok).toBe(false)
+    if (!replay.ok) expect(replay.code).toBe("INVITE_ALREADY_USED")
+    expect(fakeDb.__tables.profiles[0].password_hash).toBe(hashAfter)
+    expect(JSON.stringify(fakeDb.__tables.facility_invitations)).not.toContain(token)
+  })
+
+  it("refuses an expired hashed invite", async () => {
+    const { redeemFacilityInvitation } = await import("./facility-invitations.server")
+    const { generateFacilityInviteToken, hashFacilityInviteToken } = await import("@synapse/db/facility-invite-token")
+    const token = generateFacilityInviteToken()
+    fakeDb.__tables.tenants.push({ id: "ph-2", name: "Pharm2", facility_type: "pharmacy" })
+    fakeDb.__tables.profiles.push({ id: "prov-e", email: "e@example.test", tenant_id: "ph-2", password_hash: null })
+    fakeDb.__tables.facility_invitations.push({
+      id: "inv-e", tenant_id: "ph-2", email: "e@example.test", role: "pharmacy_admin", invite_token: null,
+      token_hash: hashFacilityInviteToken(token), status: "SENT", expires_at: new Date(Date.now() - 1000).toISOString(),
+      profile_id: "prov-e", tenants: { name: "Pharm2" },
+    })
+    const r = await redeemFacilityInvitation({ token, password: "supersecret1" })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.code).toBe("INVITE_EXPIRED")
+    expect(fakeDb.__tables.profiles[0].password_hash).toBeNull()
+  })
+})

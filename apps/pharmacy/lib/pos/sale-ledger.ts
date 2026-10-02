@@ -243,7 +243,7 @@ export async function listLedgerSalesForHistory(params: {
     .from("pharmacy_transactions")
     .select(
       `
-      id, transaction_no, status, subtotal, discount, tax, net_amount,
+      id, transaction_no, status, total_amount, discount, tax, net_amount,
       payment_method, cashier_id, created_at, client_name, notes,
       cashier:profiles!pharmacy_transactions_cashier_id_fkey ( full_name ),
       items:pharmacy_transaction_items (
@@ -261,7 +261,10 @@ export async function listLedgerSalesForHistory(params: {
   if (params.fromIso) orderQ = orderQ.gte("created_at", params.fromIso)
   if (params.toIso) orderQ = orderQ.lte("created_at", params.toIso)
 
-  const { data: orderTxs } = await orderQ
+  // pharmacy_transactions has total_amount (pre-discount), not subtotal. Selecting a
+  // missing column made PostgREST fail and every order sale vanished from history.
+  const { data: orderTxs, error: orderErr } = await orderQ
+  if (orderErr) console.error("[sale-ledger] order list failed:", orderErr.message)
 
   const orderMapped: LedgerSaleRow[] = (orderTxs ?? []).map((s: any) => ({
     id: s.id,
@@ -269,7 +272,7 @@ export async function listLedgerSalesForHistory(params: {
     transactionNo: s.transaction_no,
     status: "COMPLETED",
     netAmount: Number(s.net_amount ?? 0),
-    subtotal: Number(s.subtotal ?? 0),
+    subtotal: Number(s.total_amount ?? 0),
     discount: Number(s.discount ?? 0),
     tax: Number(s.tax ?? 0),
     paymentMethod: s.payment_method,

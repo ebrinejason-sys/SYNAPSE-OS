@@ -3,6 +3,7 @@ import { hashPassword } from "@synapse/auth"
 import { supabaseAdmin } from "@synapse/db/admin"
 import { canBindInviteToTenant } from "../invite-scope"
 import { generateInviteToken, hashInviteToken } from "./membership.server"
+import { findFacilityInvitationByToken } from "@synapse/db/facility-invite-token"
 import { normalizeFacilityInvitationRole } from "./facility-invitation-roles"
 
 export { normalizeFacilityInvitationRole } from "./facility-invitation-roles"
@@ -229,8 +230,10 @@ export type FacilityInvitationLookup =
       tenantName: string
       /** True only when a profile already has a usable password — provisioned admins with null password_hash must activate via redeem. */
       hasExistingAccount: boolean
-      /** Hospital/pharmacy provision still persists invite_token; platform staff invites use token_hash only. */
+      /** All new invites store token_hash only; invite_token is the pre-20261002150000 legacy column. */
       storage: "token_hash" | "invite_token"
+      /** A profile row was pre-created (provisioned admin / staff): activation sets its password. */
+      provisioned: boolean
     }
   | { ok: false; status: number; code: string; error: string }
 
@@ -259,26 +262,13 @@ export async function lookupFacilityInvitation(token: string): Promise<FacilityI
   if (!token) return { ok: false, status: 400, code: "INVALID_INPUT", error: "Missing invitation token" }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
-  const tokenHash = hashInviteToken(token)
-
-  const hashed = await db
-    .from("facility_invitations")
-    .select("email, status, expires_at, tenant_id, profile_id, role, tenants(name)")
-    .eq("token_hash", tokenHash)
-    .maybeSingle()
-
-  let invite: FacilityInviteRow | null = hashed.data ?? null
-  let storage: "token_hash" | "invite_token" = "token_hash"
-
-  if (!invite) {
-    const legacy = await db
-      .from("facility_invitations")
-      .select("email, status, expires_at, tenant_id, profile_id, role, tenants(name)")
-      .eq("invite_token", token)
-      .maybeSingle()
-    invite = legacy.data ?? null
-    storage = "invite_token"
-  }
+  const found = await findFacilityInvitationByToken<FacilityInviteRow>(
+    db,
+    token,
+    "email, status, expires_at, tenant_id, profile_id, role, tenants(name)",
+  )
+  const invite: FacilityInviteRow | null = found?.invite ?? null
+  const storage: "token_hash" | "invite_token" = found?.storage ?? "token_hash"
 
   if (!invite) return { ok: false, status: 404, code: "INVITE_NOT_FOUND", error: "Invalid invitation" }
   const statusErr = invitationStatusError(invite)
@@ -300,6 +290,7 @@ export async function lookupFacilityInvitation(token: string): Promise<FacilityI
     tenantName: invite.tenants?.name ?? "",
     hasExistingAccount,
     storage,
+    provisioned: Boolean(invite.profile_id),
   }
 }
 
@@ -397,13 +388,12 @@ export async function activateProvisionedFacilityInvitation(params: {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any
-  const { data: invite } = await db
-    .from("facility_invitations")
-    .select("id, email, status, expires_at, tenant_id, profile_id, role, invite_token, token_hash")
-    .eq("invite_token", params.token)
-    .maybeSingle()
+  const found = await findFacilityInvitationByToken<{
+    id: string; email: string; status: string; expires_at: string; tenant_id: string; profile_id: string | null; role: string
+  }>(db, params.token, "id, email, status, expires_at, tenant_id, profile_id, role")
+  const invite = found?.invite ?? null
 
-  if (!invite || invite.token_hash) {
+  if (!invite) {
     return { ok: false, status: 404, code: "INVITE_NOT_FOUND", error: "Invalid invitation" }
   }
   if (invite.status === "REVOKED") return { ok: false, status: 410, code: "INVITE_REVOKED", error: "This invitation was revoked" }
@@ -442,6 +432,21 @@ export async function activateProvisionedFacilityInvitation(params: {
 
   const passwordHash = await hashPassword(params.password)
   const now = new Date().toISOString()
+  // Single use: atomically claim the invitation before touching the password, so a
+  // replayed or concurrent redemption cannot set a second password.
+  const { data: claimed, error: claimErr } = await db
+    .from("facility_invitations")
+    .update({ status: "ACCEPTED", accepted_at: now, redeemed_by: invite.profile_id, updated_at: now })
+    .eq("id", invite.id)
+    .in("status", ["PENDING", "SENT"])
+    .gt("expires_at", now)
+    .select("id")
+    .maybeSingle()
+  if (claimErr) return { ok: false, status: 500, code: "ACCEPT_FAILED", error: "Failed to accept invitation" }
+  if (!claimed) return { ok: false, status: 409, code: "INVITE_ALREADY_USED", error: "This invitation has already been used" }
+  const releaseClaim = () =>
+    db.from("facility_invitations").update({ status: invite.status, accepted_at: null, redeemed_by: null, updated_at: new Date().toISOString() }).eq("id", invite.id)
+
   const { error: profileErr } = await db
     .from("profiles")
     .update({
@@ -454,7 +459,10 @@ export async function activateProvisionedFacilityInvitation(params: {
       updated_at: now,
     })
     .eq("id", invite.profile_id)
-  if (profileErr) return { ok: false, status: 500, code: "ACCEPT_FAILED", error: profileErr.message ?? "Failed to accept invitation" }
+  if (profileErr) {
+    await releaseClaim()
+    return { ok: false, status: 500, code: "ACCEPT_FAILED", error: "Failed to accept invitation" }
+  }
 
   if (!activeTenantIds.includes(invite.tenant_id)) {
     const { error: scopeError } = await db.from("staff_scope_assignments").insert({
@@ -468,23 +476,11 @@ export async function activateProvisionedFacilityInvitation(params: {
     }
   }
 
-  const { error: inviteErr } = await db
-    .from("facility_invitations")
-    .update({
-      status: "ACCEPTED",
-      accepted_at: now,
-      redeemed_by: invite.profile_id,
-      updated_at: now,
-    })
-    .eq("id", invite.id)
-    .in("status", ["PENDING", "SENT"])
-  if (inviteErr) return { ok: false, status: 500, code: "ACCEPT_FAILED", error: inviteErr.message ?? "Failed to accept invitation" }
-
   await db.from("facility_invitation_audit").insert({
     invitation_id: invite.id,
     event: "ACCEPTED_PROVISIONED_PROFILE",
     actor_profile_id: invite.profile_id,
-    metadata: { tenant_id: invite.tenant_id, role: invite.role, storage: "invite_token" },
+    metadata: { tenant_id: invite.tenant_id, role: invite.role, storage: found?.storage ?? "token_hash" },
   })
 
   return { ok: true, profileId: invite.profile_id, tenantId: invite.tenant_id }
@@ -505,7 +501,7 @@ export async function redeemFacilityInvitation(params: {
       error: "An account already exists for this email; sign in to accept this invitation",
     }
   }
-  if (preview.storage === "invite_token") {
+  if (preview.storage === "invite_token" || preview.provisioned) {
     return activateProvisionedFacilityInvitation(params)
   }
   return registerFacilityInvitationNewAccount(params)

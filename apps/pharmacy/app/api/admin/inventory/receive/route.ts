@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
 import { requireStoreScope } from "@/lib/pharmacy-context"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { tenantRefsNotFound } from "@/lib/tenant-refs"
 import { receivePharmacyStock, parsePharmacyRpcError } from "@synapse/db/inventory-rpc"
 
 const db = () => supabaseAdmin as any
@@ -46,6 +47,14 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       )
     }
+
+    // Supplier / PO / store ids must belong to this pharmacy (also enforced in the RPC).
+    const foreignRef = await tenantRefsNotFound(tenantId, {
+      supplierId: body.supplierId,
+      purchaseOrderId: body.purchaseOrderId,
+      storeId: scoped.storeId,
+    })
+    if (foreignRef) return foreignRef
 
     const { data, error } = await receivePharmacyStock(db(), {
       tenantId,

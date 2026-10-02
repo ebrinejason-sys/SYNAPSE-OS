@@ -47,6 +47,14 @@ vi.mock('@/lib/api-auth', () => ({
 }))
 vi.mock('@/lib/email', () => ({ sendEmail: vi.fn(async () => ({ success: true })), generateWelcomeEmail: vi.fn(() => '') }))
 vi.mock('@/lib/utils', () => ({ generatePassword: () => 'Temp-Passw0rd!' }))
+vi.mock('@/lib/password-setup', () => ({
+  INVITE_LINK_TTL_HOURS: 72,
+  ADMIN_RESET_LINK_TTL_HOURS: 24,
+  issuePasswordSetupLink: vi.fn(async (userId: string) => ({
+    url: `https://pharm.synapseos.tech/reset-password/tok-${userId}`,
+    expiresAt: '2099-01-01T00:00:00.000Z',
+  })),
+}))
 vi.mock('@synapse/auth/password', () => ({
   hashPassword: vi.fn(async () => 'hashed'),
   validatePasswordStrength: () => ({ valid: true, errors: [] }),
@@ -282,5 +290,55 @@ describe('Audit preservation: DELETE /api/admin/users', () => {
     expect(mocks.writes).toContainEqual(
       expect.objectContaining({ table: 'pharmacy_audit_logs', op: 'insert', values: expect.objectContaining({ action: 'DELETE_USER', entity_id: 'staff-9' }) }),
     )
+  })
+})
+
+describe('Secure invite/reset: no plaintext passwords leave the server', () => {
+  it('POST without a password emails a single-use set-password link and never the password', async () => {
+    const { sendEmail, generateWelcomeEmail } = await import('@/lib/email')
+    const { issuePasswordSetupLink } = await import('@/lib/password-setup')
+    const r = await call('POST', { name: 'New', email: 'new@a.test', role: 'STAFF' })
+    expect(r.status).toBe(200)
+    expect(r.body.emailSent).toBe(true)
+    expect(JSON.stringify(r.body)).not.toContain('Temp-Passw0rd!')
+    expect(issuePasswordSetupLink).toHaveBeenCalledWith(expect.any(String), 72)
+    const args = vi.mocked(generateWelcomeEmail).mock.calls[0]
+    expect(args[2]).toMatch(/^https:\/\/pharm\.synapseos\.tech\/reset-password\/tok-/)
+    expect(JSON.stringify(args)).not.toContain('Temp-Passw0rd!')
+    expect(sendEmail).toHaveBeenCalledTimes(1)
+  })
+
+  it('POST with sendWelcomeEmail=false but no password still sends the invite (otherwise the account is unusable)', async () => {
+    const { sendEmail } = await import('@/lib/email')
+    const r = await call('POST', { name: 'New', email: 'new2@a.test', role: 'STAFF', sendWelcomeEmail: false })
+    expect(r.status).toBe(200)
+    expect(sendEmail).toHaveBeenCalledTimes(1)
+    expect(r.body.temporaryPassword).toBeUndefined()
+  })
+
+  it('PATCH resetPassword emails a set-password link, not a password, and revokes sessions', async () => {
+    const { sendEmail } = await import('@/lib/email')
+    const r = await patch({ id: 'staff-9', resetPassword: true })
+    expect(r.status).toBe(200)
+    const html = String(vi.mocked(sendEmail).mock.calls[0][0].html)
+    expect(html).toContain('https://pharm.synapseos.tech/reset-password/tok-staff-9')
+    expect(html).not.toContain('Temp-Passw0rd!')
+    expect(html).not.toMatch(/New Password:/)
+    expect(writesTo('synapse_sessions').map((w) => w.op)).toContain('delete')
+  })
+})
+
+describe('Deactivation revokes access', () => {
+  it('PATCH isActive=false revokes every session of that user', async () => {
+    const r = await patch({ id: 'staff-9', isActive: false })
+    expect(r.status).toBe(200)
+    const sess = writesTo('synapse_sessions')
+    expect(sess.map((w) => w.op)).toContain('delete')
+  })
+
+  it('PATCH that only renames does not revoke sessions', async () => {
+    const r = await patch({ id: 'staff-9', name: 'Renamed' })
+    expect(r.status).toBe(200)
+    expect(writesTo('synapse_sessions')).toEqual([])
   })
 })

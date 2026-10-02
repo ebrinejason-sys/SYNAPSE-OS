@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken, validateSession, roleHasCapability, type PharmacyCapability } from '@synapse/auth'
+import { supabaseAdmin } from '@synapse/db/admin'
 
 const PHARMACY_ROLES = new Set([
   'pharmacist',
@@ -54,6 +55,17 @@ export async function requireMobilePharmacyAuth(
   const tenantId = String(payload.tenant_id ?? '')
   if (!tenantId) {
     return NextResponse.json({ error: 'No tenant context' }, { status: 403 })
+  }
+
+  // Deactivated pharmacy staff are refused server-side even with a still-valid session.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: settings } = await (supabaseAdmin as any)
+    .from('pharmacy_user_settings')
+    .select('is_active')
+    .eq('profile_id', payload.sub)
+    .maybeSingle()
+  if (settings?.is_active === false) {
+    return NextResponse.json({ error: 'Account deactivated', code: 'ACCOUNT_INACTIVE' }, { status: 403 })
   }
 
   return {

@@ -4,6 +4,12 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "ignoreCommand": "node scripts/vercel-build-gate.mjs web",
+  "crons": [
+    {
+      "path": "/api/cron/billing-sweep",
+      "schedule": "15 21 * * *"
+    }
+  ],
   "redirects": [
     {
       "source": "/demo",

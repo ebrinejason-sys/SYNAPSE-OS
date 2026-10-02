@@ -459,6 +459,12 @@ export default function POSPage() {
   }
 
   const addToCart = (product: Product, selectedPackage?: ProductPackage | null) => {
+    // Stock may never go negative on a sale (server enforces INSUFFICIENT_STOCK too).
+    if (Number(product.quantity ?? 0) <= 0) {
+      setLiveMessage(`${product.name} is out of stock`)
+      toast({ title: "Out of stock", description: `${product.name} has no sellable stock. Receive stock first.`, variant: "destructive" })
+      return
+    }
     setLiveMessage(`${product.name} added to cart`)
     const existingItem = cart.find((item) => item.id === product.id &&
       item.selectedPackage?.id === selectedPackage?.id)
@@ -1039,7 +1045,7 @@ export default function POSPage() {
             {isOnline ? (
               <><Wifi className="h-3 w-3" /> Online</>
             ) : (
-              <><WifiOff className="h-3 w-3" /> Offline Mode</>
+              <><WifiOff className="h-3 w-3" /> Offline — sales paused</>
             )}
           </div>
 
@@ -1425,7 +1431,7 @@ export default function POSPage() {
                           </span>
                         ) : product.quantity === 0 ? (
                           <span className="text-amber-700 font-medium">
-                            Zero stock · sales still allowed
+                            Out of stock · cannot be sold
                           </span>
                         ) : (
                           <span>Stock: {product.quantity}</span>

@@ -4,6 +4,7 @@ import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail, generateWelcomeEmail } from "@/lib/email"
 import { generatePassword } from "@/lib/utils"
+import { ADMIN_RESET_LINK_TTL_HOURS, INVITE_LINK_TTL_HOURS, issuePasswordSetupLink } from "@/lib/password-setup"
 import { hashPassword, validatePasswordStrength } from "@synapse/auth/password"
 
 const db = supabaseAdmin
@@ -239,6 +240,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Without an admin-set password the account gets an unguessable password that is
+    // never disclosed; the user chooses their own via a single-use emailed link.
     const password = customPassword ?? generatePassword()
     const passwordHash = await hashPassword(password)
     const mustChangePassword = !customPassword
@@ -302,16 +305,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to create user settings" }, { status: 500 })
     }
 
-    const shouldEmail = sendWelcomeEmail !== false
+    // An invite link is always issued when the admin did not set a password, because
+    // otherwise nobody could ever sign in to the account.
+    const shouldEmail = sendWelcomeEmail !== false || !customPassword
     let emailSent = false
     if (shouldEmail) {
-      const emailResult = await sendEmail({
-        to: email,
-        subject: "Welcome to Synapse Pharmacy — Your Account Details",
-        html: generateWelcomeEmail(name, email, password, pharmacyRole),
-      })
-      emailSent = emailResult.success
-      if (!emailResult.success) console.error("Failed to send welcome email:", emailResult.error)
+      const link = await issuePasswordSetupLink(newUserId, INVITE_LINK_TTL_HOURS)
+      if (link) {
+        const emailResult = await sendEmail({
+          to: email,
+          subject: "You're invited to Synapse Pharmacy — set your password",
+          html: generateWelcomeEmail(name, email, link.url, pharmacyRole, INVITE_LINK_TTL_HOURS),
+        })
+        emailSent = emailResult.success
+        if (!emailResult.success) console.error("Failed to send invite email")
+      }
     }
 
     await db.from("pharmacy_audit_logs").insert({
@@ -327,8 +335,6 @@ export async function POST(request: NextRequest) {
       success: true,
       user: { id: newUserId, name, email, role: pharmacyRole },
       emailSent,
-      /** Only returned when admin set the password and chose not to email — for one-time display. */
-      temporaryPassword: !shouldEmail && customPassword ? password : undefined,
     })
   } catch (error) {
     console.error("Create user error:", error)
@@ -470,27 +476,27 @@ export async function PATCH(request: NextRequest) {
       const targetProfile = target
       if (!targetProfile.email) return notFound()
 
-      const newPassword = generatePassword()
-      const newHash = await hashPassword(newPassword)
-
+      // Revoke the old password and sessions, then email a single-use set-password link.
+      const newHash = await hashPassword(generatePassword())
       await db.from("profiles").update({ password_hash: newHash, must_change_password: true, updated_at: new Date().toISOString() }).eq("id", id).eq("tenant_id", tenantId)
       await db.from("pharmacy_user_settings").update({ must_change_password: true, updated_at: new Date().toISOString() }).eq("tenant_id", tenantId).eq("profile_id", id)
       await db.from("synapse_sessions").delete().eq("user_id", id)
 
-      const emailResult = await sendEmail({
-        to: targetProfile.email,
-        subject: "Password Reset — Synapse Pharmacy",
-        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+      const link = await issuePasswordSetupLink(id, ADMIN_RESET_LINK_TTL_HOURS)
+      const displayName = String(targetProfile.full_name ?? targetProfile.email).replace(/[&<>"']/g, "")
+      const emailResult = link
+        ? await sendEmail({
+            to: targetProfile.email,
+            subject: "Password Reset — Synapse Pharmacy",
+            html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
           <h2 style="color:#F97316">Password Reset</h2>
-          <p>Hello ${targetProfile.full_name ?? targetProfile.email},</p>
-          <p>Your password has been reset by an administrator.</p>
-          <div style="background:#f3f4f6;padding:20px;border-radius:8px;margin:20px 0">
-            <p><strong>Email:</strong> ${targetProfile.email}</p>
-            <p><strong>New Password:</strong> ${newPassword}</p>
-          </div>
-          <p style="color:#dc2626"><strong>Important:</strong> You will be required to change this password on next login.</p>
+          <p>Hello ${displayName},</p>
+          <p>An administrator reset your Synapse Pharmacy password. Choose a new one with the secure link below.</p>
+          <p><a href="${link.url}" style="display:inline-block;padding:12px 24px;background:#F97316;color:#fff;text-decoration:none;border-radius:6px">Set a new password</a></p>
+          <p style="color:#6b7280">The link works once and expires in ${ADMIN_RESET_LINK_TTL_HOURS} hours.</p>
         </div>`,
-      })
+          })
+        : { success: false }
 
       await db.from("pharmacy_audit_logs").insert({
         tenant_id: tenantId,
@@ -501,7 +507,7 @@ export async function PATCH(request: NextRequest) {
         details: `Reset password for: ${targetProfile.full_name ?? targetProfile.email}`,
       })
 
-      return NextResponse.json({ success: true, message: "Password reset. New credentials sent via email.", emailSent: emailResult.success })
+      return NextResponse.json({ success: true, message: emailResult.success ? "Password reset. A set-password link was emailed." : "Password reset, but the email could not be sent. Try again.", emailSent: emailResult.success })
     }
 
     if (username) {
@@ -532,6 +538,11 @@ export async function PATCH(request: NextRequest) {
     if (updateError) {
       console.error("Error updating user settings:", updateError)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    }
+
+    // Deactivation must end access now, not when the current session expires.
+    if (isActive === false) {
+      await db.from("synapse_sessions").delete().eq("user_id", id)
     }
 
     if (name) {

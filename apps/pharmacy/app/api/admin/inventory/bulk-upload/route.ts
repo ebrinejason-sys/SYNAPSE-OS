@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePharmacyTenant } from "@/lib/api-auth"
+import { requirePharmacyPermission } from "@/lib/api-auth"
+import { normalizeBarcode } from "@/lib/barcode"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { validateImportRow } from "@synapse/db/import-validation"
 import { receivePharmacyStock } from "@synapse/db/inventory-rpc"
 import Papa from "papaparse"
 import * as XLSX from "xlsx"
+import {
+  assertCsvRowCap,
+  assertRowCap,
+  checkImportFile,
+  importErrorResponse,
+  neutralizeRow,
+  SAFE_XLSX_READ_OPTS,
+} from "@/lib/import-guard"
 
 const db = () => supabaseAdmin as any
 
@@ -47,7 +56,8 @@ function generateSKU(name: string, index: number): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requirePharmacyTenant()
+    // Creating products and receiving stock is an inventory-management action.
+    const auth = await requirePharmacyPermission("inventory.write")
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 
@@ -58,27 +68,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
     }
 
-    const fileName = file.name.toLowerCase()
+    // Size, extension, MIME and magic-byte checks happen before any parser runs.
+    const { kind, bytes } = await checkImportFile(file, ["csv", "xlsx", "xls"])
     let parsedData: Record<string, unknown>[] = []
 
-    // Handle both CSV and Excel files
-    if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
-      const arrayBuffer = await file.arrayBuffer()
-      const workbook = XLSX.read(arrayBuffer, { type: "array" })
+    if (kind === "xlsx" || kind === "xls") {
+      const workbook = XLSX.read(bytes, SAFE_XLSX_READ_OPTS)
       const sheetName = workbook.SheetNames[0]
       if (!sheetName) {
         return NextResponse.json({ error: "No sheets found in Excel file" }, { status: 400 })
       }
       const worksheet = workbook.Sheets[sheetName]
-      parsedData = XLSX.utils.sheet_to_json(worksheet, { defval: "" }) as Record<string, unknown>[]
+      parsedData = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false }) as Record<string, unknown>[]
     } else {
-      const text = await file.text()
+      const text = new TextDecoder().decode(bytes)
+      assertCsvRowCap(text)
       const results = Papa.parse<Record<string, unknown>>(text, {
         header: true,
         skipEmptyLines: true,
       })
       parsedData = results.data
     }
+    assertRowCap(parsedData.length)
+    parsedData = parsedData.map((row) => neutralizeRow(row))
 
     if (!parsedData || parsedData.length === 0) {
       return NextResponse.json({ error: "No data found in file" }, { status: 400 })
@@ -98,6 +110,7 @@ export async function POST(request: NextRequest) {
     const warnings: string[] = []
     const skippedDuplicates: string[] = []
     const seenSkus = new Set<string>()
+    const seenBarcodes = new Set<string>()
     let created = 0
     let receivedBatches = 0
 
@@ -143,8 +156,7 @@ export async function POST(request: NextRequest) {
         "opening stock", "stock qty", "available", "in stock", "closing balance"
       )
 
-      const barcode =
-        getFieldValue(data, "barcode", "bar code", "upc", "ean") || null
+      const barcode = normalizeBarcode(getFieldValue(data, "barcode", "bar code", "upc", "ean"))
 
       const unitOfMeasure =
         getFieldValue(data, "unit_of_measure", "unit", "unitofmeasure", "uom", "unit of measure", "base unit") ||
@@ -237,6 +249,21 @@ export async function POST(request: NextRequest) {
         continue
       }
 
+      // Barcodes are unique per pharmacy: skip rows whose barcode exists or repeats in the file.
+      if (barcode) {
+        const { data: barcodeOwner } = await db()
+          .from("pharmacy_products")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("barcode", barcode)
+          .maybeSingle()
+        if (barcodeOwner || seenBarcodes.has(barcode)) {
+          skippedDuplicates.push(`Row ${rowNumber}: barcode "${barcode}" already exists (${name})`)
+          continue
+        }
+        seenBarcodes.add(barcode)
+      }
+
       // Check for duplicate SKU in current batch
       let finalSku = sku
       if (seenSkus.has(finalSku)) {
@@ -272,7 +299,7 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (insertError || !product) {
-        errors.push(`Row ${rowNumber}: ${insertError?.message ?? "insert failed"}`)
+        errors.push(`Row ${rowNumber}: ${insertError?.code === "23505" ? "duplicate SKU or barcode" : "could not be saved"}`)
         continue
       }
 
@@ -332,6 +359,8 @@ export async function POST(request: NextRequest) {
       skipped: skippedDuplicates.length > 0 ? skippedDuplicates : undefined,
     })
   } catch (error) {
+    const rejected = importErrorResponse(error)
+    if (rejected) return NextResponse.json(rejected.body, { status: rejected.status })
     console.error("Bulk upload error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

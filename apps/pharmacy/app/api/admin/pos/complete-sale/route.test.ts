@@ -9,7 +9,11 @@ const {
   rpc,
   productMaybeSingle,
   settingsMaybeSingle,
+  attachSaleToTill,
+  recordTillSale,
 } = vi.hoisted(() => ({
+  attachSaleToTill: vi.fn(),
+  recordTillSale: vi.fn(),
   requirePharmacyPermission: vi.fn(),
   gateFeature: vi.fn(),
   findSaleIdempotency: vi.fn(),
@@ -28,7 +32,8 @@ vi.mock("@synapse/auth/features", () => ({
 }))
 
 vi.mock("@/lib/pos/till-service", () => ({
-  attachSaleToTill: vi.fn().mockResolvedValue({ ok: true, sessionId: "till-1" }),
+  attachSaleToTill: (...args: unknown[]) => attachSaleToTill(...args),
+  recordTillSale: (...args: unknown[]) => recordTillSale(...args),
 }))
 
 vi.mock("@/lib/pos/idempotency", async (importOriginal) => {
@@ -149,6 +154,10 @@ describe("POST /api/admin/pos/complete-sale", () => {
     productMaybeSingle.mockReset()
     settingsMaybeSingle.mockReset()
 
+    attachSaleToTill.mockReset()
+    recordTillSale.mockReset()
+    attachSaleToTill.mockResolvedValue({ ok: true, sessionId: "till-1" })
+    recordTillSale.mockResolvedValue(undefined)
     requirePharmacyPermission.mockResolvedValue(sessionAuth())
     gateFeature.mockResolvedValue(null)
     settingsMaybeSingle.mockResolvedValue({
@@ -294,5 +303,69 @@ describe("POST /api/admin/pos/complete-sale", () => {
       expect(res.status).toBe(404)
       expect(rpc).not.toHaveBeenCalled()
     })
+  })
+
+  it("rejects a non-UUID cartId with 400 before calling the RPC", async () => {
+    const res = await POST(
+      makeRequest({ items: [{ productId: "p1", quantity: 1, unitPrice: 1000 }], paymentMethod: "cash", cartId: "not-a-uuid" }),
+    )
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe("INVALID_CART_ID")
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it("does not echo raw database error text to the client", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'relation "pharmacy_pos_sales" violates constraint xyz_internal' } })
+    const res = await POST(
+      makeRequest({ items: [{ productId: "p1", quantity: 1, unitPrice: 1000 }], paymentMethod: "cash", amountPaid: 1000 }),
+    )
+    expect(res.status).toBe(500)
+    const text = JSON.stringify(await res.json())
+    expect(text).not.toMatch(/relation|constraint|xyz_internal/)
+  })
+
+  it("does not credit the till when the sale RPC fails", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "INSUFFICIENT_STOCK: not enough" } })
+    const res = await POST(makeRequest({ items: [{ productId: "p1", quantity: 1 }], paymentMethod: "CASH", amountPaid: 1000 }))
+    expect(res.status).toBe(409)
+    for (const call of attachSaleToTill.mock.calls) expect((call[0] as { amount: number }).amount).toBe(0)
+    expect(recordTillSale).not.toHaveBeenCalled()
+  })
+
+  it("credits the till with cash actually received after a successful partial sale", async () => {
+    rpc.mockResolvedValue({ data: { sale_id: "s1", receipt_number: "R-1" }, error: null })
+    const res = await POST(
+      makeRequest({ items: [{ productId: "p1", quantity: 3 }], paymentMethod: "CASH", amountPaid: 1000, clientName: "Walk in" }),
+    )
+    expect(res.status).toBe(200)
+    expect(recordTillSale).toHaveBeenCalledTimes(1)
+    expect(recordTillSale.mock.calls[0][0]).toMatchObject({ sessionId: "till-1", paymentMethod: "CASH", amount: 1000 })
+    // Keyed by the committed sale id so the DB can dedupe the cash event.
+    expect(recordTillSale.mock.calls[0][0]).toMatchObject({ saleId: "s1", actorId: "cashier-1" })
+  })
+
+  it("an idempotent replay (retry with same key) adds no cash to the till", async () => {
+    findSaleIdempotency.mockResolvedValue({ saleId: "s1", response: { sale_id: "s1" } })
+    const res = await POST(
+      makeRequest({ items: [{ productId: "p1", quantity: 1 }], paymentMethod: "CASH", amountPaid: 1000 }, { "Idempotency-Key": "retry-2" }),
+    )
+    expect(res.status).toBe(200)
+    expect(rpc).not.toHaveBeenCalled()
+    expect(recordTillSale).not.toHaveBeenCalled()
+    for (const call of attachSaleToTill.mock.calls) expect((call[0] as { amount: number }).amount).toBe(0)
+  })
+
+  it("a credit sale posts the ledger with an idempotency key derived from the sale id", async () => {
+    rpc.mockImplementation(async (fn: string) =>
+      fn === "complete_pharmacy_sale"
+        ? { data: { sale_id: "s2", receipt_number: "R-2" }, error: null }
+        : { data: { id: "e-1", balance_after: 3000, replayed: false }, error: null },
+    )
+    const res = await POST(
+      makeRequest({ items: [{ productId: "p1", quantity: 3 }], paymentMethod: "CREDIT", amountPaid: 0, customerId: "cust-own", clientName: "Jane" }),
+    )
+    expect(res.status).toBe(200)
+    const credit = rpc.mock.calls.find((c) => c[0] === "post_pharmacy_credit_entry")
+    expect(credit?.[1]).toMatchObject({ p_idempotency_key: "pos-sale:s2", p_type: "credit", p_amount: 3000 })
   })
 })

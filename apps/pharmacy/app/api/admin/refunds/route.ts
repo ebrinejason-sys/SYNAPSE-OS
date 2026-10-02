@@ -206,6 +206,7 @@ export async function POST(request: NextRequest) {
         amount: posResult.refundAmount,
         kind: "refund",
         required: false,
+        sourceId: `refund:${id}`,
       })
       return NextResponse.json({
         success: true,

@@ -27,6 +27,7 @@
     "./offline-crypto": "./src/offline-crypto.ts",
     "./audit-contract": "./src/audit-contract.ts",
     "./till-service": "./src/till-service.ts",
+    "./facility-invite-token": "./src/facility-invite-token.ts",
     "./exchange": "./src/exchange.ts",
     "./lab-workflow": "./src/lab-workflow.ts",
     "./lab-device-intelligence": "./src/lab-device-intelligence.ts",

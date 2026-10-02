@@ -3,6 +3,12 @@ import { randomUUID } from 'node:crypto'
 import { hashPassword } from '@synapse/auth/password'
 import { supabaseAdmin } from '@synapse/db/admin'
 import {
+  PHARMACY_INVITE_LINK_TTL_HOURS,
+  PHARMACY_RESET_LINK_TTL_HOURS,
+  issuePharmacyPasswordSetupLink,
+  unusablePasswordSeed,
+} from '../../../../../lib/pharmacy-password-setup'
+import {
   isMobileAuth,
   isMobilePharmacyAdmin,
   requireMobilePharmacyAuth,
@@ -25,11 +31,17 @@ const ROLE_MAP: Record<string, string> = {
   pharmacy_store_manager: 'pharmacy_store_manager',
 }
 
-function generateTempPassword(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
-  let out = ''
-  for (let i = 0; i < 10; i += 1) out += chars[Math.floor(Math.random() * chars.length)]
-  return `${out}!2`
+const ALLOWED_ROLES = new Set(Object.values(ROLE_MAP))
+
+/** The target must be a member of the caller's pharmacy (prevents cross-tenant edits/resets). */
+async function tenantMember(tenantId: string, profileId: string) {
+  const { data } = await db()
+    .from('pharmacy_user_settings')
+    .select('profile_id')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', profileId)
+    .maybeSingle()
+  return Boolean(data)
 }
 
 /** GET — staff list for this tenant. */
@@ -71,7 +83,11 @@ export async function GET(req: NextRequest) {
   })
 }
 
-/** POST — invite/create a staff user. Admin only. Returns a temp password for handover. */
+/**
+ * POST — invite/create a staff user. Admin only.
+ * No password is generated for handover or returned: the new user receives a
+ * single-use set-password link (72h) at the Pharmacy URL.
+ */
 export async function POST(req: NextRequest) {
   const auth = await requireMobilePharmacyAuth(req)
   if (!isMobileAuth(auth)) return auth
@@ -86,8 +102,7 @@ export async function POST(req: NextRequest) {
   const { data: existing } = await db().from('profiles').select('id').eq('email', emailLc).maybeSingle()
   if (existing) return NextResponse.json({ error: 'A user with this email already exists' }, { status: 400 })
 
-  const tempPassword = generateTempPassword()
-  const passwordHash = await hashPassword(tempPassword)
+  const passwordHash = await hashPassword(unusablePasswordSeed())
   const now = new Date().toISOString()
   const newId = randomUUID()
 
@@ -128,12 +143,15 @@ export async function POST(req: NextRequest) {
   }
 
   let emailSent = false
-  try {
-    const { sendWelcome } = await import('@synapse/email')
-    await sendWelcome({ to: emailLc, name, product: 'Synapse Pharm' })
-    emailSent = true
-  } catch {
-    /* email infra optional */
+  const link = await issuePharmacyPasswordSetupLink(newId, PHARMACY_INVITE_LINK_TTL_HOURS)
+  if (link) {
+    try {
+      const { sendInvite } = await import('@synapse/email')
+      await sendInvite({ to: emailLc, name, facilityName: 'Synapse Pharmacy', role: pharmacyRole, inviteUrl: link.url })
+      emailSent = true
+    } catch (err) {
+      console.error('[mobile/pharmacy/users] invite email not delivered', err instanceof Error ? err.name : 'error')
+    }
   }
 
   try {
@@ -152,7 +170,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     user: { id: newId, name, email: emailLc, role: pharmacyRole },
-    tempPassword,
+    inviteSent: emailSent,
     emailSent,
   })
 }
@@ -166,26 +184,54 @@ export async function PATCH(req: NextRequest) {
   const { id, name, role, isActive, resetPassword } = (await req.json().catch(() => ({}))) as Record<string, unknown>
   if (!id || typeof id !== 'string') return NextResponse.json({ error: 'User id required' }, { status: 400 })
 
+  if (!(await tenantMember(auth.tenantId, id))) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
   if (resetPassword) {
-    const tempPassword = generateTempPassword()
-    const newHash = await hashPassword(tempPassword)
-    await db().from('profiles').update({ password_hash: newHash, must_change_password: true, updated_at: new Date().toISOString() }).eq('id', id)
+    // Revoke the old password + sessions, then email a single-use set-password link.
+    // The new password is chosen by the user; nothing is returned to the admin.
+    const now = new Date().toISOString()
+    const { data: target } = await db().from('profiles').select('email, full_name').eq('id', id).eq('tenant_id', auth.tenantId).maybeSingle()
+    if (!target?.email) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    await db().from('profiles').update({ password_hash: await hashPassword(unusablePasswordSeed()), must_change_password: true, updated_at: now }).eq('id', id).eq('tenant_id', auth.tenantId)
     try {
       await db().from('pharmacy_user_settings').update({ must_change_password: true }).eq('tenant_id', auth.tenantId).eq('profile_id', id)
       await db().from('synapse_sessions').delete().eq('user_id', id)
     } catch {
       /* non-fatal */
     }
-    return NextResponse.json({ ok: true, tempPassword })
+    let emailSent = false
+    const link = await issuePharmacyPasswordSetupLink(id, PHARMACY_RESET_LINK_TTL_HOURS)
+    if (link) {
+      try {
+        const { sendPasswordReset } = await import('@synapse/email')
+        await sendPasswordReset({ to: target.email, name: target.full_name ?? target.email, resetUrl: link.url })
+        emailSent = true
+      } catch (err) {
+        console.error('[mobile/pharmacy/users] reset email not delivered', err instanceof Error ? err.name : 'error')
+      }
+    }
+    try {
+      await db().from('pharmacy_audit_logs').insert({
+        tenant_id: auth.tenantId, profile_id: auth.userId, action: 'RESET_PASSWORD', entity: 'USER', entity_id: id,
+        details: { source: 'mobile', link_emailed: emailSent },
+      })
+    } catch {
+      /* non-fatal */
+    }
+    return NextResponse.json({ ok: true, resetLinkSent: emailSent, emailSent })
   }
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
-  if (role) update.pharmacy_role = ROLE_MAP[String(role)] ?? String(role)
+  if (role) {
+    const mapped = ROLE_MAP[String(role)]
+    if (!mapped || !ALLOWED_ROLES.has(mapped)) return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+    update.pharmacy_role = mapped
+  }
   if (isActive !== undefined) update.is_active = Boolean(isActive)
   const { error } = await db().from('pharmacy_user_settings').update(update).eq('tenant_id', auth.tenantId).eq('profile_id', id)
   if (error) return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
   if (typeof name === 'string' && name) {
-    await db().from('profiles').update({ full_name: name, updated_at: new Date().toISOString() }).eq('id', id)
+    await db().from('profiles').update({ full_name: name, updated_at: new Date().toISOString() }).eq('id', id).eq('tenant_id', auth.tenantId)
   }
   return NextResponse.json({ ok: true })
 }

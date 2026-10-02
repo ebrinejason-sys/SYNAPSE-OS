@@ -4,6 +4,7 @@
  * Modes: REAL | SYNTHETIC_ACCEPTANCE
  */
 
+import { generateFacilityInviteToken, hashFacilityInviteToken, rotateFacilityInviteToken } from "./facility-invite-token"
 import {
   HOSPITAL_DEPARTMENTS,
   HOSPITAL_LOCATIONS,
@@ -789,13 +790,16 @@ export async function provisionHospital(
   {
     const { data: existingInvite } = await db
       .from("facility_invitations")
-      .select("id, invite_token, status, expires_at")
+      .select("id, status, expires_at")
       .eq("run_id", runId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
-    if (existingInvite?.invite_token) {
-      inviteToken = existingInvite.invite_token
+    if (existingInvite) {
+      // Raw secrets are never stored: issue a fresh one for a still-open invite.
+      inviteToken = ["PENDING", "SENT"].includes(existingInvite.status)
+        ? await rotateFacilityInviteToken(db, existingInvite.id)
+        : null
       inviteStatus = existingInvite.status
       await completeStep(db, runId!, "invitation", {
         inviteId: existingInvite.id,
@@ -808,7 +812,7 @@ export async function provisionHospital(
         evidence: { inviteId: existingInvite.id, resumed: true },
       })
     } else {
-    inviteToken = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "")
+    inviteToken = generateFacilityInviteToken()
     const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString()
     const { data: invite, error: inviteErr } = await db
       .from("facility_invitations")
@@ -818,7 +822,8 @@ export async function provisionHospital(
         email: adminEmail,
         full_name: input.adminName.trim(),
         role: input.facilityType === "laboratory" ? "lab_admin" : "hospital_admin",
-        invite_token: inviteToken,
+        token_hash: hashFacilityInviteToken(inviteToken),
+        invite_token: null,
         status: "PENDING",
         expires_at: expiresAt,
         profile_id: profileId,

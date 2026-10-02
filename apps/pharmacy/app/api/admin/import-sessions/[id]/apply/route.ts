@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyPermission } from "@/lib/api-auth"
+import { MAX_IMPORT_ROWS, neutralizeFormula } from "@/lib/import-guard"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import {
   createPurchaseCatalogProduct,
@@ -94,7 +95,7 @@ async function loadExistingProducts(tenantId: string) {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const auth = await requirePharmacyPermission("inventory.adjust")
@@ -112,7 +113,7 @@ export async function POST(
     )
     if (!scoped.ok) return scoped.response
 
-    const sessionId = params.id
+    const { id: sessionId } = await params
 
     if (!body.allRows || !Array.isArray(body.allRows) || body.allRows.length === 0) {
       return NextResponse.json(
@@ -120,6 +121,17 @@ export async function POST(
         { status: 400 },
       )
     }
+    if (body.allRows.length > MAX_IMPORT_ROWS) {
+      return NextResponse.json(
+        { error: `Imports are limited to ${MAX_IMPORT_ROWS} rows`, code: "IMPORT_TOO_LARGE" },
+        { status: 413 },
+      )
+    }
+    // Rows arrive from the client, so the analysis-time formula neutralisation cannot
+    // be trusted: neutralise again and bound row width / cell size before any write.
+    body.allRows = body.allRows.map((row) =>
+      Array.isArray(row) ? row.slice(0, 200).map((cell) => neutralizeFormula(String(cell ?? "").slice(0, 2000))) : [],
+    )
 
     // Atomic claim: block double-click / retry / replay while applying or already complete.
     const { data: claimed, error: claimError } = await db()

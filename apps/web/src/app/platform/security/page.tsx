@@ -46,6 +46,8 @@ function safeRows<T>(data: unknown): T[] {
 
 const SECURITY_ACTIONS = [
   "pharmacy.credentials_resent",
+  "pharmacy.setup_invite_resent",
+  "pharmacy.setup_invite_failed",
   "pharmacy.admin_profile_failed",
   "pharmacy.credentials_email_failed",
   "pharmacy.suspended",

@@ -1,3 +1,4 @@
+import { generateFacilityInviteToken, hashFacilityInviteToken } from "@synapse/db/facility-invite-token"
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from '@synapse/db/admin'
@@ -81,10 +82,10 @@ export async function POST(req: NextRequest) {
 
   const hospitalName = facility?.name ?? 'your facility'
 
-  const inviteToken = randomUUID().replaceAll('-', '') + randomUUID().replaceAll('-', '')
+  const inviteToken = generateFacilityInviteToken()
   const { error: inviteError } = await db.from('facility_invitations').insert({
     tenant_id: ctx.tenantId, email, full_name: parsed.data.full_name.trim(),
-    role: parsed.data.role, profile_id: profileId, invite_token: inviteToken,
+    role: parsed.data.role, profile_id: profileId, token_hash: hashFacilityInviteToken(inviteToken), invite_token: null,
     status: 'PENDING', expires_at: new Date(Date.now() + 7 * 86400000).toISOString(), created_by: ctx.userId,
   })
   if (inviteError) return NextResponse.json({ error: 'Secure invitation could not be created.' }, { status: 500 })
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest) {
         inviteToken,
         { appUrl },
       ) })
-    await db.from('facility_invitations').update({ status: 'SENT', sent_at: new Date().toISOString() }).eq('invite_token', inviteToken)
+    await db.from('facility_invitations').update({ status: 'SENT', sent_at: new Date().toISOString() }).eq('token_hash', hashFacilityInviteToken(inviteToken))
   } catch {
     inviteStatus = 'PENDING'
   }

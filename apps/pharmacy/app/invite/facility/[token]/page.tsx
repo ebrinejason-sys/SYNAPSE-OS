@@ -1,13 +1,13 @@
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { findFacilityInvitationByToken } from '@synapse/db/facility-invite-token'
 import { FacilityInviteForm } from './FacilityInviteForm'
 
 export default async function PharmacyFacilityInvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const { data: invite } = await (supabaseAdmin as any)
-    .from('facility_invitations')
-    .select('email, status, expires_at, tenants(name, facility_type)')
-    .eq('invite_token', token)
-    .maybeSingle()
+  const found = await findFacilityInvitationByToken<{
+    email: string; status: string; expires_at: string; tenants: { name?: string; facility_type?: string } | null
+  }>(supabaseAdmin, token, 'email, status, expires_at, tenants(name, facility_type)')
+  const invite = found?.invite ?? null
   const tenant = invite?.tenants as { name?: string; facility_type?: string } | null
   const valid = invite && tenant?.facility_type === 'pharmacy' && !['ACCEPTED', 'REVOKED', 'EXPIRED'].includes(invite.status) && new Date(invite.expires_at) >= new Date()
 

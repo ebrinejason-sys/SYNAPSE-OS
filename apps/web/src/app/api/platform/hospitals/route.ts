@@ -1,3 +1,4 @@
+import { hashFacilityInviteToken, rotateFacilityInviteToken } from "@synapse/db/facility-invite-token"
 import { NextResponse } from "next/server"
 import { createServiceClient } from "../../../../lib/supabase/server"
 import { requirePlatformAdminApi } from "../../../../lib/platform/auth"
@@ -68,6 +69,11 @@ export async function POST(request: Request) {
     if (!detail?.invite) {
       return NextResponse.json({ error: "Invitation not found" }, { status: 404 })
     }
+    // Only the hash is stored: a resend issues a fresh secret (old link stops working).
+    const freshToken = await rotateFacilityInviteToken(supabaseAdmin, detail.invite.id)
+    if (!freshToken) {
+      return NextResponse.json({ error: "Invitation is no longer open" }, { status: 409 })
+    }
     try {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://synapseos.tech"
       await sendHospitalStaffInviteEmail({
@@ -75,7 +81,7 @@ export async function POST(request: Request) {
         hospitalName: detail.run.facility_name,
         staffName: detail.invite.full_name || "Hospital Admin",
         role: detail.invite.role,
-        inviteUrl: facilityInviteUrl("hospital", detail.run.slug, detail.invite.invite_token, { appUrl }),
+        inviteUrl: facilityInviteUrl("hospital", detail.run.slug, freshToken, { appUrl }),
       })
       await (supabaseAdmin as any)
         .from("facility_invitations")
@@ -196,7 +202,7 @@ export async function POST(request: Request) {
       await (supabaseAdmin as any)
         .from("facility_invitations")
         .update({ status: "SENT", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq("invite_token", result.inviteToken)
+        .eq("token_hash", hashFacilityInviteToken(result.inviteToken))
       result.inviteStatus = "SENT"
     } catch (err) {
       result.warnings.push(`invite_email: ${err instanceof Error ? err.message : "send_failed"}`)
@@ -209,7 +215,7 @@ export async function POST(request: Request) {
           last_error: err instanceof Error ? err.message : "send_failed",
           updated_at: new Date().toISOString(),
         })
-        .eq("invite_token", result.inviteToken)
+        .eq("token_hash", hashFacilityInviteToken(result.inviteToken))
     }
   }
 

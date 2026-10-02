@@ -44,6 +44,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'This reset link has expired' }, { status: 400 })
   }
 
+  // Claim the token atomically before changing the password so a link can never be
+  // used twice (concurrent submissions race on used_at IS NULL).
+  const { data: claimed } = await supabaseAdmin
+    .from('password_reset_tokens')
+    .update({ used_at: new Date().toISOString() })
+    .eq('id', resetToken.id as string)
+    .is('used_at', null)
+    .select('id')
+  if (!claimed || claimed.length !== 1) {
+    return NextResponse.json({ error: 'This reset link has already been used' }, { status: 400 })
+  }
+
   const newHash = await hashPassword(newPassword)
 
   const { error: updateError } = await supabaseAdmin
@@ -52,15 +64,12 @@ export async function POST(request: NextRequest) {
     .eq('id', resetToken.user_id as string)
 
   if (updateError) {
-    console.error('[reset-password] update failed:', updateError)
+    console.error('[reset-password] update failed:', updateError.code ?? 'unknown')
     return NextResponse.json({ error: 'Failed to update password' }, { status: 500 })
   }
 
-  // Mark token as used
-  await supabaseAdmin
-    .from('password_reset_tokens')
-    .update({ used_at: new Date().toISOString() })
-    .eq('id', resetToken.id as string)
+  // Old sessions die with the old password.
+  await supabaseAdmin.from('synapse_sessions').delete().eq('user_id', resetToken.user_id as string)
 
   // Also clear must_change_password in pharmacy_user_settings if present
   await supabaseAdmin

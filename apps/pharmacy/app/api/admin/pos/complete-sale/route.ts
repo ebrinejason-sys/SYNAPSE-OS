@@ -18,7 +18,7 @@ import {
 import { buildStockError, type StructuredStockError } from "@synapse/db/inventory"
 import { pharmacyDispenseTimelineEvent } from "@synapse/db/timeline"
 import { publishTimelineEvent } from "@synapse/db/identity-persist"
-import { attachSaleToTill } from "@/lib/pos/till-service"
+import { attachSaleToTill, recordTillSale } from "@/lib/pos/till-service"
 import { httpStatusForPharmacyError } from "@synapse/db/errors"
 import { paymentStateForMethod } from "@synapse/db/cashier-session"
 import { findOrCreateCreditCustomer, postCreditLedgerEntry } from "@/lib/credit-ledger"
@@ -54,6 +54,14 @@ export async function POST(request: NextRequest) {
         { ok: true, sale: prior.response, idempotentReplay: true },
         { status: 200, headers: { "X-Idempotent-Replay": "true" } },
       )
+    }
+  }
+
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  for (const [field, code] of [["cartId", "INVALID_CART_ID"], ["patientId", "INVALID_PATIENT_ID"]] as const) {
+    const v = (body as Record<string, unknown>)[field]
+    if (v != null && v !== "" && (typeof v !== "string" || !UUID_RE.test(v))) {
+      return NextResponse.json({ error: `${field} must be a UUID`, code }, { status: 400 })
     }
   }
 
@@ -169,11 +177,13 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // Validate the open till (and get its session id) without crediting cash yet;
+  // cash is recorded only after the sale RPC commits (see recordTillSale below).
   const till = await attachSaleToTill({
     tenantId,
     cashierId,
     paymentMethod,
-    amount: settlement.isPartial ? settlement.amountPaid : saleAmount,
+    amount: 0,
     kind: "sale",
   })
   if (!till.ok) {
@@ -200,11 +210,11 @@ export async function POST(request: NextRequest) {
     p_items: rpcItems,
     p_payment_method: paymentMethod,
     p_session_id: till.sessionId,
-    p_cart_id: body.cartId ?? null,
+    p_cart_id: body.cartId || null,
     p_payment_ref: paymentRef,
     p_discount_total: 0,
     p_tax_amount: taxAmount,
-    p_patient_id: body.patientId ?? null,
+    p_patient_id: body.patientId || null,
     p_confirmed_by: session.userId,
     // Always named: an older 11-argument overload still exists, so omitting it is ambiguous.
     p_idempotency_key: idempotencyKey ?? null,
@@ -231,6 +241,17 @@ export async function POST(request: NextRequest) {
   const saleId = String(sale.sale_id ?? sale.id ?? "") || null
   const receiptNumber = String(sale.receipt_number ?? "")
 
+  if (till.sessionId) {
+    // Cash kept in the drawer: what was paid on a partial sale, otherwise the total (change goes back).
+    const cashReceived = settlement.isPartial ? settlement.amountPaid : grandTotal
+    try {
+      await recordTillSale({ tenantId, sessionId: till.sessionId, paymentMethod, amount: cashReceived, saleId, actorId: session.userId })
+    } catch (err) {
+      console.error("[pos] till cash record failed:", err)
+    }
+  }
+
+
   // Persist balance due on credit ledger + audit for monitoring shortfalls.
   let creditCustomerId: string | null = customerIdBody || null
   let balanceAfter: number | null = null
@@ -256,6 +277,8 @@ export async function POST(request: NextRequest) {
           dueDate: creditDueDate || null,
           notes: `POS ${receiptNumber || saleId || "sale"} | paid ${settlement.amountPaid} | balance ${creditAmount}`,
           createdBy: session.userId,
+          // One credit posting per sale, even if this request is retried.
+          idempotencyKey: saleId ? `pos-sale:${saleId}` : null,
         })
         balanceAfter = Number(entry.balance_after ?? creditAmount)
       }

@@ -64,7 +64,8 @@ export async function POST(request: NextRequest) {
         { status: 409 },
       )
     }
-    const status = result.code === "NAME_REQUIRED" || result.code === "SKU_EXISTS" ? 400 : 500
+    const status =
+      result.code === "BARCODE_EXISTS" ? 409 : result.code === "NAME_REQUIRED" || result.code === "SKU_EXISTS" ? 400 : 500
     return NextResponse.json({ error: result.error, code: result.code }, { status })
   }
 

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { customerFromRequest } from "@/lib/customer-session"
 import { sendEmail } from "@/lib/email"
+import { pharmacyUrl } from "@/lib/app-url"
+import { escapeHtml } from "@/lib/html"
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-UG", {
@@ -286,7 +288,7 @@ function generateNewOrderEmail(
     .map(
       (item) => `
       <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.product_name}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(item.product_name)}</td>
         <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
         <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.unit_price)}</td>
         <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.total_price)}</td>
@@ -317,15 +319,15 @@ function generateNewOrderEmail(
           <h1>New Customer Order</h1>
         </div>
         <div class="content">
-          <h2>Hello ${staffName},</h2>
+          <h2>Hello ${escapeHtml(staffName)},</h2>
           <p>A new customer order has been placed and is waiting to be claimed.</p>
           <div class="highlight">
             <strong>First come, first served!</strong> Claim this order now to process it.
           </div>
           <div class="order-details">
             <h3>Order Details:</h3>
-            <p><strong>Order #:</strong> ${orderNo}</p>
-            <p><strong>Customer:</strong> ${customerName}</p>
+            <p><strong>Order #:</strong> ${escapeHtml(orderNo)}</p>
+            <p><strong>Customer:</strong> ${escapeHtml(customerName)}</p>
             <p><strong>Total Amount:</strong> ${formatCurrency(totalAmount)}</p>
           </div>
           <h4>Order Items:</h4>
@@ -340,13 +342,13 @@ function generateNewOrderEmail(
             </thead>
             <tbody>${itemsHtml}</tbody>
           </table>
-          <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ""}/portal/orders" style="display: inline-block; padding: 12px 30px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">View &amp; Claim Order</a>
+          <a href="${pharmacyUrl("/portal/orders")}" style="display: inline-block; padding: 12px 30px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">View &amp; Claim Order</a>
           <p style="margin-top: 30px; font-size: 12px; color: #666;">
             This order will be assigned to the first staff member who claims it.
           </p>
         </div>
         <div class="footer">
-          <p>&copy; ${new Date().getFullYear()} ${pharmacyName}. All rights reserved.</p>
+          <p>&copy; ${new Date().getFullYear()} ${escapeHtml(pharmacyName)}. All rights reserved.</p>
         </div>
       </div>
     </body>

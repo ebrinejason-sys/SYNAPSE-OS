@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
-import { randomBytes } from 'crypto'
+import { generateSecurePassword } from './secure-random'
+import { pharmacyUrl } from "./app-url"
 
 // Lazy instance --- avoids throwing at module load time when key is absent
 let _resend: Resend | null = null
@@ -37,7 +38,12 @@ export async function sendEmail({ to, subject, html }: SendEmailParams) {
   }
 }
 
-export function generateWelcomeEmail(name: string, email: string, password: string, role: string) {
+function esc(v: string): string {
+  return v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string)
+}
+
+/** Staff invite: carries a single-use set-password link, never a password. */
+export function generateWelcomeEmail(name: string, email: string, setupUrl: string, role: string, expiresInHours = 72) {
   return `
     <!DOCTYPE html>
     <html>
@@ -58,20 +64,15 @@ export function generateWelcomeEmail(name: string, email: string, password: stri
           <h1>Welcome to SYNAPSE Pharm</h1>
         </div>
         <div class="content">
-          <h2>Hello ${name},</h2>
-          <p>Your account has been created successfully. You can now access the SYNAPSE Pharm POS system.</p>
-          
+          <h2>Hello ${esc(name)},</h2>
+          <p>An account has been created for you on SYNAPSE Pharm.</p>
           <div class="credentials">
-            <h3>Your Login Credentials:</h3>
-            <p><strong>Email:</strong> ${email}</p>
-            <p><strong>Temporary Password:</strong> ${password}</p>
-            <p><strong>Role:</strong> ${role}</p>
+            <p><strong>Email:</strong> ${esc(email)}</p>
+            <p><strong>Role:</strong> ${esc(role)}</p>
           </div>
-          
-          <p><strong>Important:</strong> For security reasons, you will be required to change your password upon first login.</p>
-          
-          <a href="${process.env.NEXT_PUBLIC_APP_URL}/login" class="button">Login to Your Account</a>
-          
+          <p>Choose your password using the secure link below. The link works once and expires in ${expiresInHours} hours.</p>
+          <a href="${setupUrl}" class="button">Set Your Password</a>
+          <p style="margin-top: 20px;">After setting it, sign in at ${pharmacyUrl("/login")}</p>
           <p style="margin-top: 30px;">If you have any questions or need assistance, please contact your administrator.</p>
         </div>
         <div class="footer">
@@ -122,26 +123,7 @@ export function generatePasswordResetEmail(name: string, resetLink: string) {
 }
 
 export function generateTempPassword(length = 12): string {
-  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-  const lowercase = 'abcdefghijklmnopqrstuvwxyz'
-  const numbers = '0123456789'
-  const symbols = '!@#$%^&*'
-  const all = uppercase + lowercase + numbers + symbols
-
-  let password = ''
-  password += uppercase[Math.floor(Math.random() * uppercase.length)]
-  password += lowercase[Math.floor(Math.random() * lowercase.length)]
-  password += numbers[Math.floor(Math.random() * numbers.length)]
-  password += symbols[Math.floor(Math.random() * symbols.length)]
-
-  for (let i = password.length; i < length; i++) {
-    password += all[Math.floor(Math.random() * all.length)]
-  }
-
-  return password
-    .split('')
-    .sort(() => randomBytes(1)[0] - 128)
-    .join('')
+  return generateSecurePassword(length)
 }
 
 function generatePharmacyInviteEmailHtml({
@@ -153,7 +135,7 @@ function generatePharmacyInviteEmailHtml({
   adminName: string
   inviteToken: string
 }): string {
-  const pharmacyAppUrl = process.env.NEXT_PUBLIC_PHARMACY_APP_URL ?? "https://pharm.synapseos.tech"
+  const pharmacyAppUrl = pharmacyUrl("/").replace(/\/$/, "")
   const inviteUrl = `${pharmacyAppUrl.replace(/\/$/, "")}/invite/${inviteToken}`
 
   return `
@@ -474,7 +456,7 @@ function generateStaffWelcomeEmailHtml({
             <p>You must change your temporary password immediately upon first login. Use a strong, unique password that you haven't used elsewhere.</p>
           </div>
 
-          <a href="https://pharm.synapseos.tech/login" class="button">Log In to Synapse Pharmacy</a>
+          <a href="${pharmacyUrl("/login")}" class="button">Log In to Synapse Pharmacy</a>
 
           <div class="footer">
             <p>Synapse Health Technologies Limited</p>

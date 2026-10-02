@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requirePharmacyAdmin } from "@/lib/api-auth"
-import { initiateSubscriptionPayment } from '@synapse/auth/billing'
+import { initiateSubscriptionPayment, SubscriptionPlanError } from '@synapse/auth/billing'
+import { pharmacyAppUrl } from '@/lib/app-url'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     const planSlug = body.planSlug?.trim()
     if (!planSlug) return NextResponse.json({ error: 'planSlug is required' }, { status: 400 })
 
-    const base = process.env.NEXT_PUBLIC_PHARMACY_APP_URL ?? req.nextUrl.origin
+    const base = pharmacyAppUrl()
     const result = await initiateSubscriptionPayment({
       tenantId: session.tenantId,
       planSlug,
@@ -25,7 +26,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result)
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Payment initiation failed'
-    return NextResponse.json({ error: message }, { status: 500 })
+    if (e instanceof SubscriptionPlanError) {
+      return NextResponse.json({ error: e.message, code: e.code }, { status: 400 })
+    }
+    // Never echo raw database / payment-provider errors to the client.
+    console.error('[billing/subscribe] initiation failed:', e instanceof Error ? e.name : 'unknown')
+    return NextResponse.json({ error: 'Payment initiation failed. Please try again.' }, { status: 500 })
   }
 }

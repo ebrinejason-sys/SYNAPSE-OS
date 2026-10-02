@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { CreditLedgerError, postCreditLedgerEntry } from "@/lib/credit-ledger"
 import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { tenantOwnsRecord } from "@/lib/tenant-ownership"
@@ -72,35 +73,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Transaction not found" }, { status: 404 })
     }
 
-    const { data: latest } = await supabaseAdmin
-      .from("pharmacy_credit_ledger")
-      .select("balance_after")
-      .eq("tenant_id", tenantId)
-      .eq("customer_id", customerId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    const idempotencyKey =
+      request.headers.get("idempotency-key")?.trim().slice(0, 128) ||
+      (typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim().slice(0, 128) : "") ||
+      null
 
-    const currentBalance = Number(latest?.balance_after ?? 0)
-    const balanceAfter = type === "credit" ? currentBalance + amount : Math.max(currentBalance - amount, 0)
-
-    const { data, error } = await supabaseAdmin
-      .from("pharmacy_credit_ledger")
-      .insert({
-        tenant_id: tenantId,
-        customer_id: customerId,
-        transaction_id: body.transactionId || null,
+    let data: Awaited<ReturnType<typeof postCreditLedgerEntry>>
+    try {
+      // Atomic in the DB: customer row lock + balance + overpayment check + insert.
+      data = await postCreditLedgerEntry({
+        tenantId,
+        customerId,
+        type: type as "credit" | "repayment",
         amount,
-        type,
-        balance_after: balanceAfter,
-        due_date: body.dueDate || null,
+        transactionId: body.transactionId || null,
+        dueDate: body.dueDate || null,
         notes: body.notes || null,
-        created_by: session.user.id,
+        createdBy: session.user.id,
+        idempotencyKey,
       })
-      .select()
-      .single()
-
-    if (error) throw error
+    } catch (err) {
+      if (err instanceof CreditLedgerError && err.code === "OVERPAYMENT") {
+        const currentBalance = err.balance ?? 0
+        return NextResponse.json(
+          {
+            error:
+              currentBalance > 0
+                ? `Repayment exceeds the outstanding balance of ${currentBalance}.`
+                : "This customer has no outstanding balance.",
+            code: "OVERPAYMENT",
+            balance: currentBalance,
+          },
+          { status: 400 },
+        )
+      }
+      if (err instanceof CreditLedgerError && err.code === "CUSTOMER_NOT_FOUND") {
+        return NextResponse.json({ error: "Customer not found" }, { status: 404 })
+      }
+      throw err
+    }
+    const balanceAfter = Number(data.balance_after)
+    if (data.replayed) return NextResponse.json(data, { status: 200 })
 
     await supabaseAdmin.from("pharmacy_audit_logs").insert({
       tenant_id: tenantId,

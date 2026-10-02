@@ -1,3 +1,4 @@
+import { isOfferableNewPharmacyPlan } from '@synapse/db/commercial-pricing'
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { requirePlatformAdminApi } from '@/lib/platform/auth'
@@ -43,9 +44,13 @@ export async function POST(request: Request) {
   const planSlug = typeof body.plan_slug === 'string' ? body.plan_slug : null
   let planId: string | null = null
   if (planSlug) {
-    const { data: plan, error: planError } = await db.from('subscription_plans').select('id').eq('slug', planSlug).eq('is_active', true).maybeSingle()
+    const { data: plan, error: planError } = await db.from('subscription_plans').select('id, facility_type').eq('slug', planSlug).eq('is_active', true).maybeSingle()
     if (planError) return NextResponse.json({ error: planError.message }, { status: 500 })
     if (!plan) return bad('Unknown or inactive plan')
+    // New pharmacy grants use the annual plan only; legacy pharmacy plans are not offered.
+    if (String(plan.facility_type ?? '') === 'pharmacy' && !isOfferableNewPharmacyPlan(planSlug)) {
+      return bad('New pharmacy grants use the Synapse Pharmacy annual plan only')
+    }
     planId = plan.id
   }
   const idempotencyKey = typeof body.idempotency_key === 'string' ? body.idempotency_key.trim() : null

@@ -111,16 +111,23 @@ describe('POST /api/admin/credit-ledger (customer/transaction reference)', () =>
     ['tenant B customer', { customerId: 'cust-b', type: 'credit', amount: 100 }],
     ['tenant B transaction', { customerId: 'cust-a', type: 'credit', amount: 100, transactionId: 'txn-b' }],
   ])('refuses %s with 404 and no ledger write', async (_l, body) => {
+    const rpc = vi.fn(async () => ({ data: null, error: null }))
+    h.db.client.rpc = rpc
     const { POST } = await import('./credit-ledger/route')
     const res = await POST(req('/api/admin/credit-ledger', 'POST', body))
     expect(res.status).toBe(404)
     expect(writesTo('pharmacy_credit_ledger')).toEqual([])
+    // Ledger postings go through the atomic post_pharmacy_credit_entry RPC; it must not run.
+    expect(rpc).not.toHaveBeenCalled()
   })
 
   it('accepts an own-tenant customer and transaction', async () => {
+    const rpc = vi.fn(async () => ({ data: { id: 'led-1', balance_after: 100, replayed: false }, error: null }))
+    h.db.client.rpc = rpc
     const { POST } = await import('./credit-ledger/route')
     const res = await POST(req('/api/admin/credit-ledger', 'POST', { customerId: 'cust-a', type: 'credit', amount: 100, transactionId: 'txn-a' }))
     expect(res.status).toBe(201)
+    expect(rpc).toHaveBeenCalledWith('post_pharmacy_credit_entry', expect.objectContaining({ p_tenant_id: 'tenant-a', p_customer_id: 'cust-a' }))
   })
 })
 

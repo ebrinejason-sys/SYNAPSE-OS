@@ -27,6 +27,28 @@ export const CANONICAL_PLAN_SLUGS = {
   exchange: 'synapse_exchange',
 } as const
 
+/**
+ * Product decision (2 Oct 2026): NEW Pharmacy subscriptions (self-serve signup,
+ * platform provisioning, in-app checkout, new admin grants) are offered ONLY the
+ * annual plan. Legacy monthly/quarterly/yearly plan rows are kept (never deleted) and
+ * existing subscriptions on them are never rewritten; they keep entitlement until
+ * renewal, explicit migration or an admin change.
+ */
+export const LEGACY_PHARMACY_PLAN_SLUGS = [
+  'pharm_monthly',
+  'pharm_quarterly',
+  'pharm_yearly',
+  'pharmacy_starter',
+  'pharmacy_growth',
+  'pharmacy_multi_branch',
+  'starter_pharmacy',
+  'growth_pharmacy',
+] as const
+
+export function isOfferableNewPharmacyPlan(slug: unknown): boolean {
+  return String(slug ?? '').trim() === CANONICAL_PLAN_SLUGS.pharmacy
+}
+
 /** Safe fallback catalog when the pricing service / DB is unavailable. */
 export const FALLBACK_PUBLIC_PLANS: CommercialPlan[] = [
   {

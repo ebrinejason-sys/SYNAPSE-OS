@@ -160,19 +160,23 @@ export async function recordCashMovement(params: {
   if (!isOpenTillStatus(row.session.status) || row.session.status === "closing") {
     return { ok: false, error: fail("TILL_NOT_OPEN", "Till is not accepting cash movements.") }
   }
-  const patch =
-    params.kind === "in"
-      ? { cash_in: Number(row.session.cash_in) + params.amount }
-      : { cash_out: Number(row.session.cash_out) + params.amount }
-  const { data, error } = await db
-    .from("pharmacy_cashier_sessions")
-    .update(patch)
-    .eq("id", params.sessionId)
-    .eq("tenant_id", params.tenantId)
-    .select("*")
-    .single()
-  if (error || !data) {
-    return { ok: false, error: fail("UNKNOWN", error?.message ?? "Failed to record cash movement.") }
+  let updated: TillSessionRow | undefined
+  try {
+    const r = await recordTillCashEvent({
+      tenantId: params.tenantId,
+      sessionId: params.sessionId,
+      kind: params.kind === "in" ? "cash_in" : "cash_out",
+      amount: params.amount,
+      sourceId: null,
+      actorId: params.cashierId,
+    })
+    updated = r.session
+  } catch {
+    updated = undefined
+  }
+  const data = updated
+  if (!data) {
+    return { ok: false, error: fail("UNKNOWN", "Failed to record cash movement.") }
   }
   return { ok: true, session: presentTill(data as TillSessionRow) }
 }
@@ -184,6 +188,8 @@ export async function attachSaleToTill(params: {
   amount: number
   kind: "sale" | "refund"
   required?: boolean
+  /** Unique source for refunds (e.g. refund:<saleId>) so a retry never refunds cash twice. */
+  sourceId?: string | null
 }): Promise<{ ok: true; sessionId: string | null } | { ok: false; error: PharmacyDomainError }> {
   const open = await getOpenTill({ tenantId: params.tenantId, cashierId: params.cashierId })
   if (!open) {
@@ -196,15 +202,68 @@ export async function attachSaleToTill(params: {
   const method = params.paymentMethod.trim().toLowerCase()
   const cash = method === "cash"
   const nextStatus = statusAfterSale(open.status)
-  const patch: Record<string, unknown> = { status: nextStatus }
-  if (cash && params.kind === "sale") {
-    patch.cash_payment_total = Number(open.cash_payment_total) + params.amount
+  await db.from("pharmacy_cashier_sessions").update({ status: nextStatus }).eq("id", open.id).eq("tenant_id", params.tenantId)
+  // Sale cash is recorded after commit via recordTillSale. Refund cash is recorded
+  // here (the caller only refunds after the reversal committed), atomically and once per source.
+  if (cash && params.kind === "refund" && params.amount > 0) {
+    await recordTillCashEvent({
+      tenantId: params.tenantId,
+      sessionId: open.id,
+      kind: params.kind,
+      amount: params.amount,
+      sourceId: params.sourceId ?? null,
+    })
   }
-  if (cash && params.kind === "refund") {
-    patch.cash_refund_total = Number(open.cash_refund_total) + params.amount
-  }
-  await db.from("pharmacy_cashier_sessions").update(patch).eq("id", open.id).eq("tenant_id", params.tenantId)
   return { ok: true, sessionId: open.id }
+}
+
+/**
+ * Credit a completed sale's cash to a specific till session. Call only AFTER the
+ * sale has committed: crediting before the RPC inflated expected cash for every
+ * failed or retried sale and produced false variances at close.
+ */
+export async function recordTillSale(params: {
+  tenantId: string
+  sessionId: string
+  paymentMethod: string
+  amount: number
+  /** Unique source (sale id). A replayed/duplicate sale never credits twice. */
+  saleId: string | null
+  actorId?: string | null
+}): Promise<{ applied: boolean }> {
+  if (params.paymentMethod.trim().toLowerCase() !== "cash") return { applied: false }
+  const amount = Number(params.amount)
+  if (!Number.isFinite(amount) || amount <= 0) return { applied: false }
+  return recordTillCashEvent({
+    tenantId: params.tenantId,
+    sessionId: params.sessionId,
+    kind: "sale",
+    amount,
+    sourceId: params.saleId ? `sale:${params.saleId}` : null,
+    actorId: params.actorId ?? null,
+  })
+}
+
+/** Atomic till cash event: insert-once by source + UPDATE x = x + amount (pharmacy_till_record_cash). */
+export async function recordTillCashEvent(params: {
+  tenantId: string
+  sessionId: string
+  kind: "sale" | "refund" | "cash_in" | "cash_out"
+  amount: number
+  sourceId: string | null
+  actorId?: string | null
+}): Promise<{ applied: boolean; session?: TillSessionRow }> {
+  const { data, error } = await db.rpc("pharmacy_till_record_cash", {
+    p_tenant_id: params.tenantId,
+    p_session_id: params.sessionId,
+    p_kind: params.kind,
+    p_amount: params.amount,
+    p_source_id: params.sourceId,
+    p_actor_id: params.actorId ?? null,
+  })
+  if (error) throw new Error(`TILL_CASH_RECORD_FAILED: ${error.message}`)
+  const result = (data ?? {}) as { applied?: boolean; session?: TillSessionRow }
+  return { applied: result.applied === true, session: result.session }
 }
 
 export async function closeTill(params: {

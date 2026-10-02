@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requirePharmacyAdmin } from "@/lib/api-auth"
+import { requirePharmacyPermission } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { adapterFor } from "@synapse/db"
 import Papa from "papaparse"
 import * as XLSX from "xlsx"
+import {
+  assertCsvRowCap,
+  assertRowCap,
+  checkImportFile,
+  importErrorResponse,
+  ImportRejected,
+  MAX_IMPORT_ROWS,
+  neutralizeFormula,
+  neutralizeRow,
+  parseJsonSafely,
+  SAFE_XLSX_READ_OPTS,
+} from "@/lib/import-guard"
 
 const FIELD_PATTERNS: Record<string, RegExp[]> = {
   name: [/^name$/i, /drug/i, /medicine/i, /product/i, /item/i, /stock.?item/i],
@@ -55,42 +67,43 @@ async function parseUpload(file: File): Promise<{
   discoverySummary: string
 }> {
   const fileName = file.name
-  const lower = fileName.toLowerCase()
+  // Size, extension, MIME and magic-byte checks happen before any parser runs.
+  const { kind, bytes } = await checkImportFile(file, ["csv", "xlsx", "xls", "json"])
   let rows: Record<string, unknown>[] = []
 
-  if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
-    const arrayBuffer = await file.arrayBuffer()
-    const workbook = XLSX.read(arrayBuffer, { type: "array" })
+  if (kind === "xlsx" || kind === "xls") {
+    const workbook = XLSX.read(bytes, SAFE_XLSX_READ_OPTS)
     const sheetName = workbook.SheetNames[0]
-    if (!sheetName) throw new Error("No sheets found in Excel file")
+    if (!sheetName) throw new ImportRejected("No sheets found in Excel file", 400)
     const worksheet = workbook.Sheets[sheetName]
-    rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" }) as Record<string, unknown>[]
-  } else if (lower.endsWith(".json")) {
-    const text = await file.text()
-    const value = JSON.parse(text) as Record<string, unknown>
-    const data = Array.isArray(value.data)
-      ? value.data
-      : Array.isArray(value.rows)
-        ? value.rows
-        : Array.isArray(value)
-          ? value
+    rows = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false }) as Record<string, unknown>[]
+  } else if (kind === "json") {
+    const value = parseJsonSafely(new TextDecoder().decode(bytes)) as Record<string, unknown> | unknown[]
+    const data = Array.isArray(value)
+      ? value
+      : value && typeof value === "object" && Array.isArray((value as Record<string, unknown>).data)
+        ? ((value as Record<string, unknown>).data as unknown[])
+        : value && typeof value === "object" && Array.isArray((value as Record<string, unknown>).rows)
+          ? ((value as Record<string, unknown>).rows as unknown[])
           : []
-    rows = data as Record<string, unknown>[]
+    rows = data.filter((r): r is Record<string, unknown> => !!r && typeof r === "object" && !Array.isArray(r))
   } else {
-    const text = await file.text()
+    const text = new TextDecoder().decode(bytes)
+    assertCsvRowCap(text)
     const results = Papa.parse<Record<string, unknown>>(text, {
       header: true,
       skipEmptyLines: true,
     })
     rows = results.data
   }
+  assertRowCap(rows.length)
+  rows = rows.map((row) => neutralizeRow(row))
 
   const headers = headersFromRows(rows)
   const sampleRows = rows.map((row) => headers.map((h) => String(row[h] ?? "")))
 
   let discoverySummary = `Detected ${rows.length} data row(s) and ${headers.length} column(s).`
   try {
-    const bytes = new Uint8Array(await file.arrayBuffer())
     const discovery = adapterFor(fileName, file.type).analyse(bytes, fileName, file.type)
     const warningText = discovery.warnings.length ? ` Warnings: ${discovery.warnings.join(", ")}.` : ""
     discoverySummary = `Format ${discovery.format}${discovery.company ? ` · ${discovery.company}` : ""} · ${
@@ -105,7 +118,7 @@ async function parseUpload(file: File): Promise<{
 
 export async function GET() {
   try {
-    const auth = await requirePharmacyAdmin()
+    const auth = await requirePharmacyPermission("inventory.write")
     if (!auth.ok) return auth.response
     const { tenantId } = auth
 
@@ -126,7 +139,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requirePharmacyAdmin()
+    const auth = await requirePharmacyPermission("inventory.write")
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 
@@ -155,9 +168,11 @@ export async function POST(request: NextRequest) {
       const body = await request.json()
       sourceSystem = body.sourceSystem || "Unknown"
       fileName = body.fileName || "Manual mapping session"
-      headers = Array.isArray(body.headers) ? body.headers.map(String).filter(Boolean) : []
-      sampleRows = Array.isArray(body.sampleRows) ? body.sampleRows.slice(0, 20) : []
-      totalRows = Number(body.totalRows ?? sampleRows.length)
+      headers = Array.isArray(body.headers) ? body.headers.slice(0, 200).map((h: unknown) => neutralizeFormula(String(h))).filter(Boolean) : []
+      sampleRows = Array.isArray(body.sampleRows)
+        ? body.sampleRows.slice(0, 20).map((r: unknown) => (Array.isArray(r) ? r.slice(0, 200).map((c) => neutralizeFormula(String(c ?? ""))) : []))
+        : []
+      totalRows = Math.min(Math.max(0, Number(body.totalRows ?? sampleRows.length) || 0), MAX_IMPORT_ROWS)
     }
 
     if (headers.length === 0) {
@@ -197,15 +212,17 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     )
   } catch (error) {
+    const rejected = importErrorResponse(error)
+    if (rejected) return NextResponse.json(rejected.body, { status: rejected.status })
     console.error("Import sessions POST error:", error)
-    const message = error instanceof Error ? error.message : "Failed to analyse import file"
-    return NextResponse.json({ error: message }, { status: 500 })
+    // Never echo raw parser / database errors to the client.
+    return NextResponse.json({ error: "Failed to analyse import file" }, { status: 500 })
   }
 }
 
 export async function PATCH(request: NextRequest) {
   try {
-    const auth = await requirePharmacyAdmin()
+    const auth = await requirePharmacyPermission("inventory.write")
     if (!auth.ok) return auth.response
     const { tenantId } = auth
 

@@ -53,38 +53,42 @@ export async function findOrCreateCreditCustomer(
   return created.id as string
 }
 
-export async function postCreditLedgerEntry(params: CreditEntryParams) {
-  const { data: latest } = await supabaseAdmin
-    .from("pharmacy_credit_ledger")
-    .select("balance_after")
-    .eq("tenant_id", params.tenantId)
-    .eq("customer_id", params.customerId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle()
+export class CreditLedgerError extends Error {
+  code: "OVERPAYMENT" | "CUSTOMER_NOT_FOUND" | "INVALID_AMOUNT" | "UNKNOWN"
+  balance: number | null
+  constructor(code: CreditLedgerError["code"], message: string, balance: number | null = null) {
+    super(message)
+    this.code = code
+    this.balance = balance
+  }
+}
 
-  const currentBalance = Number(latest?.balance_after ?? 0)
-  const balanceAfter =
-    params.type === "credit"
-      ? currentBalance + params.amount
-      : Math.max(currentBalance - params.amount, 0)
-
-  const { data, error } = await supabaseAdmin
-    .from("pharmacy_credit_ledger")
-    .insert({
-      tenant_id: params.tenantId,
-      customer_id: params.customerId,
-      transaction_id: params.transactionId ?? null,
-      amount: params.amount,
-      type: params.type,
-      balance_after: balanceAfter,
-      due_date: params.dueDate ?? null,
-      notes: params.notes ?? null,
-      created_by: params.createdBy,
-    })
-    .select("id, balance_after")
-    .single()
-
-  if (error) throw error
-  return data
+/**
+ * Atomic credit-ledger posting (post_pharmacy_credit_entry): the customer row is
+ * locked, the running balance computed, overpayment rejected and the row inserted
+ * in one DB transaction. An idempotency key makes retries/callbacks post once.
+ */
+export async function postCreditLedgerEntry(params: CreditEntryParams & { idempotencyKey?: string | null }) {
+  const { data, error } = await supabaseAdmin.rpc("post_pharmacy_credit_entry", {
+    p_tenant_id: params.tenantId,
+    p_customer_id: params.customerId,
+    p_type: params.type,
+    p_amount: params.amount,
+    p_transaction_id: params.transactionId ?? null,
+    p_due_date: params.dueDate ?? null,
+    p_notes: params.notes ?? null,
+    p_created_by: params.createdBy,
+    p_idempotency_key: params.idempotencyKey ?? null,
+  })
+  if (error) {
+    const msg = String(error.message ?? "")
+    if (msg.startsWith("OVERPAYMENT")) {
+      const bal = msg.match(/balance\s+(-?[\d.]+)/)
+      throw new CreditLedgerError("OVERPAYMENT", "Repayment exceeds the outstanding balance.", bal ? Number(bal[1]) : null)
+    }
+    if (msg.startsWith("CUSTOMER_NOT_FOUND")) throw new CreditLedgerError("CUSTOMER_NOT_FOUND", "Customer not found")
+    if (msg.startsWith("INVALID_AMOUNT")) throw new CreditLedgerError("INVALID_AMOUNT", "Amount must be greater than zero")
+    throw new CreditLedgerError("UNKNOWN", "Failed to post credit ledger entry")
+  }
+  return data as { id: string; balance_after: number; replayed: boolean } & Record<string, unknown>
 }
