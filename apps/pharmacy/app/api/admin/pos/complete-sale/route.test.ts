@@ -340,5 +340,32 @@ describe("POST /api/admin/pos/complete-sale", () => {
     expect(res.status).toBe(200)
     expect(recordTillSale).toHaveBeenCalledTimes(1)
     expect(recordTillSale.mock.calls[0][0]).toMatchObject({ sessionId: "till-1", paymentMethod: "CASH", amount: 1000 })
+    // Keyed by the committed sale id so the DB can dedupe the cash event.
+    expect(recordTillSale.mock.calls[0][0]).toMatchObject({ saleId: "s1", actorId: "cashier-1" })
+  })
+
+  it("an idempotent replay (retry with same key) adds no cash to the till", async () => {
+    findSaleIdempotency.mockResolvedValue({ saleId: "s1", response: { sale_id: "s1" } })
+    const res = await POST(
+      makeRequest({ items: [{ productId: "p1", quantity: 1 }], paymentMethod: "CASH", amountPaid: 1000 }, { "Idempotency-Key": "retry-2" }),
+    )
+    expect(res.status).toBe(200)
+    expect(rpc).not.toHaveBeenCalled()
+    expect(recordTillSale).not.toHaveBeenCalled()
+    for (const call of attachSaleToTill.mock.calls) expect((call[0] as { amount: number }).amount).toBe(0)
+  })
+
+  it("a credit sale posts the ledger with an idempotency key derived from the sale id", async () => {
+    rpc.mockImplementation(async (fn: string) =>
+      fn === "complete_pharmacy_sale"
+        ? { data: { sale_id: "s2", receipt_number: "R-2" }, error: null }
+        : { data: { id: "e-1", balance_after: 3000, replayed: false }, error: null },
+    )
+    const res = await POST(
+      makeRequest({ items: [{ productId: "p1", quantity: 3 }], paymentMethod: "CREDIT", amountPaid: 0, customerId: "cust-own", clientName: "Jane" }),
+    )
+    expect(res.status).toBe(200)
+    const credit = rpc.mock.calls.find((c) => c[0] === "post_pharmacy_credit_entry")
+    expect(credit?.[1]).toMatchObject({ p_idempotency_key: "pos-sale:s2", p_type: "credit", p_amount: 3000 })
   })
 })

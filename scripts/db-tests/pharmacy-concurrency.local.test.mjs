@@ -91,4 +91,117 @@ describe("pharmacy concurrency (local Postgres)", { skip }, () => {
     const { data: p } = await db.from("pharmacy_products").select("quantity").eq("id", pid).single()
     assert.equal(p.quantity, 8, "stock decremented once")
   })
+
+  // ── Credit ledger (post_pharmacy_credit_entry) ─────────────────────────────
+  const customer = async () => {
+    const { data, error } = await db.from("pharmacy_customers").insert({
+      tenant_id: tenantId, name: `ZZ conc customer ${randomUUID().slice(0, 6)}`,
+      email: `zz-conc-${randomUUID().slice(0, 8)}@example.test`, phone: null, is_active: true,
+    }).select("id").single()
+    if (error) throw error
+    return data.id
+  }
+  const post = (customerId, type, amount, key = null) =>
+    db.rpc("post_pharmacy_credit_entry", {
+      p_tenant_id: tenantId, p_customer_id: customerId, p_type: type, p_amount: amount,
+      p_transaction_id: null, p_due_date: null, p_notes: "zz concurrency", p_created_by: cashierId, p_idempotency_key: key,
+    })
+  const balanceOf = async (customerId) => {
+    const { data } = await db.from("pharmacy_credit_ledger").select("type, amount, balance_after, created_at, id")
+      .eq("tenant_id", tenantId).eq("customer_id", customerId).order("created_at", { ascending: true }).order("id")
+    const sum = data.reduce((s, r) => s + (r.type === "credit" ? 1 : -1) * Number(r.amount), 0)
+    return { rows: data, sum, last: data.length ? Number(data[data.length - 1].balance_after) : 0 }
+  }
+
+  it("ten concurrent credits: final balance equals the sum of committed postings", async () => {
+    const c = await customer()
+    const rs = await Promise.all(Array.from({ length: 10 }, () => post(c, "credit", 100)))
+    assert.equal(rs.filter((r) => r.error).length, 0)
+    const b = await balanceOf(c)
+    assert.equal(b.rows.length, 10)
+    assert.equal(b.last, 1000)
+    assert.equal(b.sum, 1000)
+    // running balances form an unbroken chain 100, 200, ... 1000
+    assert.deepEqual(b.rows.map((r) => Number(r.balance_after)), [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000])
+  })
+
+  it("two simultaneous repayments that together overpay: exactly one commits", async () => {
+    const c = await customer()
+    await post(c, "credit", 1000)
+    const [a, b2] = await Promise.all([post(c, "repayment", 600), post(c, "repayment", 600)])
+    const ok = [a, b2].filter((r) => !r.error)
+    assert.equal(ok.length, 1)
+    assert.match([a, b2].find((r) => r.error).error.message, /^OVERPAYMENT/)
+    const b = await balanceOf(c)
+    assert.equal(b.last, 400)
+    assert.equal(b.sum, 400)
+  })
+
+  it("sale credit and repayment at the same time: both commit, balance is consistent", async () => {
+    const c = await customer()
+    await post(c, "credit", 500)
+    const rs = await Promise.all([post(c, "credit", 300), post(c, "repayment", 200)])
+    assert.equal(rs.filter((r) => r.error).length, 0)
+    const b = await balanceOf(c)
+    assert.equal(b.last, 600)
+    assert.equal(b.sum, 600)
+  })
+
+  it("duplicate callback/retry with the same key posts once", async () => {
+    const c = await customer()
+    await post(c, "credit", 1000)
+    const key = `zz-repay-${randomUUID()}`
+    const rs = await Promise.all([1, 2, 3, 4].map(() => post(c, "repayment", 250, key)))
+    assert.equal(rs.filter((r) => r.error).length, 0)
+    assert.equal(new Set(rs.map((r) => r.data.id)).size, 1, "every reply is the same ledger row")
+    assert.equal(rs.filter((r) => r.data.replayed === false).length, 1)
+    const b = await balanceOf(c)
+    assert.equal(b.rows.length, 2)
+    assert.equal(b.last, 750)
+  })
+
+  it("foreign-tenant customer is refused", async () => {
+    const r = await db.rpc("post_pharmacy_credit_entry", {
+      p_tenant_id: tenantId, p_customer_id: randomUUID(), p_type: "credit", p_amount: 1,
+    })
+    assert.match(r.error?.message ?? "", /^CUSTOMER_NOT_FOUND/)
+  })
+
+  // ── Till cash (pharmacy_till_record_cash) ───────────────────────────────────
+  const session = async () => {
+    const { data, error } = await db.from("pharmacy_cashier_sessions").insert({
+      tenant_id: tenantId, cashier_id: cashierId, opened_by: cashierId, status: "closed", opening_float: 0,
+    }).select("id").single()
+    if (error) throw error
+    return data.id
+  }
+  const cash = (sessionId, kind, amount, source) =>
+    db.rpc("pharmacy_till_record_cash", { p_tenant_id: tenantId, p_session_id: sessionId, p_kind: kind, p_amount: amount, p_source_id: source, p_actor_id: cashierId })
+
+  it("concurrent till writes: totals equal the sum of unique committed events", async () => {
+    const sid = await session()
+    const sales = Array.from({ length: 20 }, (_, i) => cash(sid, "sale", 100, `sale:${sid}:${i}`))
+    const dupes = Array.from({ length: 5 }, () => cash(sid, "sale", 999, `sale:${sid}:dup`))
+    const moves = [cash(sid, "cash_in", 50, null), cash(sid, "cash_out", 30, null), cash(sid, "refund", 100, `refund:${sid}:0`), cash(sid, "refund", 100, `refund:${sid}:0`)]
+    const rs = await Promise.all([...sales, ...dupes, ...moves])
+    assert.equal(rs.filter((r) => r.error).length, 0)
+    assert.equal(rs.slice(20, 25).filter((r) => r.data.applied).length, 1, "duplicate source applied once")
+    const { data: s } = await db.from("pharmacy_cashier_sessions").select("cash_payment_total, cash_refund_total, cash_in, cash_out").eq("id", sid).single()
+    const { data: ev } = await db.from("pharmacy_till_cash_events").select("kind, amount").eq("session_id", sid)
+    const sum = (k) => ev.filter((e) => e.kind === k).reduce((a, e) => a + Number(e.amount), 0)
+    assert.equal(Number(s.cash_payment_total), 2000 + 999)
+    assert.equal(Number(s.cash_payment_total), sum("sale"))
+    assert.equal(Number(s.cash_refund_total), 100)
+    assert.equal(Number(s.cash_refund_total), sum("refund"))
+    assert.equal(Number(s.cash_in), 50)
+    assert.equal(Number(s.cash_out), 30)
+  })
+
+  it("zero / failed amount records no cash event", async () => {
+    const sid = await session()
+    const r = await cash(sid, "sale", 0, `sale:${sid}:zero`)
+    assert.equal(r.data.applied, false)
+    const { data: ev } = await db.from("pharmacy_till_cash_events").select("id").eq("session_id", sid)
+    assert.equal(ev.length, 0)
+  })
 })

@@ -237,19 +237,20 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const sale = data && typeof data === "object" ? (data as Record<string, unknown>) : {}
+  const saleId = String(sale.sale_id ?? sale.id ?? "") || null
+  const receiptNumber = String(sale.receipt_number ?? "")
+
   if (till.sessionId) {
     // Cash kept in the drawer: what was paid on a partial sale, otherwise the total (change goes back).
     const cashReceived = settlement.isPartial ? settlement.amountPaid : grandTotal
     try {
-      await recordTillSale({ tenantId, sessionId: till.sessionId, paymentMethod, amount: cashReceived })
+      await recordTillSale({ tenantId, sessionId: till.sessionId, paymentMethod, amount: cashReceived, saleId, actorId: session.userId })
     } catch (err) {
       console.error("[pos] till cash record failed:", err)
     }
   }
 
-  const sale = data && typeof data === "object" ? (data as Record<string, unknown>) : {}
-  const saleId = String(sale.sale_id ?? sale.id ?? "") || null
-  const receiptNumber = String(sale.receipt_number ?? "")
 
   // Persist balance due on credit ledger + audit for monitoring shortfalls.
   let creditCustomerId: string | null = customerIdBody || null
@@ -276,6 +277,8 @@ export async function POST(request: NextRequest) {
           dueDate: creditDueDate || null,
           notes: `POS ${receiptNumber || saleId || "sale"} | paid ${settlement.amountPaid} | balance ${creditAmount}`,
           createdBy: session.userId,
+          // One credit posting per sale, even if this request is retried.
+          idempotencyKey: saleId ? `pos-sale:${saleId}` : null,
         })
         balanceAfter = Number(entry.balance_after ?? creditAmount)
       }

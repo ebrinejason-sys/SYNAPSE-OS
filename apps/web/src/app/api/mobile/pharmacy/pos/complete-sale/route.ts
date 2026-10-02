@@ -119,13 +119,14 @@ export async function POST(req: NextRequest) {
       Number(item.discount_amount ?? 0),
     0,
   )
-  const { attachSaleToTill } = await import('@synapse/db/till-service')
+  const { attachSaleToTill, recordTillSale } = await import('@synapse/db/till-service')
   const { httpStatusForPharmacyError } = await import('@synapse/db/errors')
   const till = await attachSaleToTill({
     tenantId: auth.tenantId,
     cashierId: auth.userId,
     paymentMethod,
-    amount: saleAmount,
+    // Validate the till only; cash is credited after the sale commits (recordTillSale).
+    amount: 0,
     kind: 'sale',
     required: body.syncReplay !== true,
   })
@@ -168,6 +169,23 @@ export async function POST(req: NextRequest) {
       },
       { status: saleErrorHttpStatus(msg) },
     )
+  }
+
+  const committed = data && typeof data === 'object' ? (data as Record<string, unknown>) : {}
+  if (till.sessionId) {
+    const tax = Number(body.taxAmount ?? 0)
+    try {
+      await recordTillSale({
+        tenantId: auth.tenantId,
+        sessionId: till.sessionId,
+        paymentMethod,
+        amount: Number(committed.total_amount ?? saleAmount + (Number.isFinite(tax) ? tax : 0)),
+        saleId: String(committed.sale_id ?? committed.id ?? '') || null,
+        actorId: auth.userId,
+      })
+    } catch (err) {
+      console.error('[mobile pos] till cash record failed:', err)
+    }
   }
 
   const responseBody = { ok: true as const, sale: data, lowStock: [] as Array<{

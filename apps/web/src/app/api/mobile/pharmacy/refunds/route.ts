@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
     amount: refundAmount,
     kind: 'refund',
     required: false,
+    sourceId: `refund:${saleId}`,
   })
 
   return NextResponse.json({
