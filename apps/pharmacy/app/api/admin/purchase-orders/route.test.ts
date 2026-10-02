@@ -89,3 +89,49 @@ describe('purchase order email status persistence', () => {
     expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
   })
 })
+
+describe('purchase order resend (PATCH resendEmail)', () => {
+  const po = {
+    id: 'po', order_no: 'PO-9', total_amount: 20, email_sent: true, status: 'SENT', supplier_id: 'supplier',
+    supplier: { name: 'Supplier', email: 'supplier@example.test', contact_person: null },
+    items: [{ id: 'i1', product_id: 'p1', product_name: 'Item', quantity: 2, received_quantity: 0, unit_price: 10, total_price: 20 }],
+  }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.from.mockImplementation(() => {
+      let updating = false
+      const query: any = {
+        select: () => query,
+        eq: (...args: unknown[]) => { mocks.eq(...args); return query },
+        insert: () => query,
+        update: (row: unknown) => { updating = true; mocks.update(row); return query },
+        single: async () => (updating ? { data: { ...po }, error: null } : { data: po, error: null }),
+        then: (resolve: (value: unknown) => unknown) => Promise.resolve({ error: null }).then(resolve),
+      }
+      return query
+    })
+  })
+
+  async function resend() {
+    const { PATCH } = await import('./route')
+    return PATCH(new Request('https://example.test/api/admin/purchase-orders', {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: 'po', resendEmail: true }),
+    }) as any)
+  }
+
+  it('a provider failure on resend returns 502 and never records the email as sent', async () => {
+    mocks.sendEmail.mockResolvedValue({ success: false, error: 'provider down' })
+    const res = await resend()
+    expect(res.status).toBe(502)
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('a successful resend records email_sent with a fresh timestamp', async () => {
+    mocks.sendEmail.mockResolvedValue({ success: true })
+    const res = await resend()
+    expect(res.status).toBe(200)
+    expect(mocks.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'supplier@example.test' }))
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ email_sent: true, email_sent_at: expect.any(String) }))
+  })
+})
