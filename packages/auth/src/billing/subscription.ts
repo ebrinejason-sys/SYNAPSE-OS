@@ -266,6 +266,14 @@ export function assertPlanMatchesFacility(planFacility: unknown, tenantFacility:
   }
 }
 
+/** Pharmacy purchases (by plan or tenant facility) must be the annual plan. */
+export function assertPharmacyPlanOfferable(planSlug: unknown, planFacility: unknown, tenantFacility: unknown): void {
+  const pharmacyPurchase = facilityFamily(planFacility) === 'pharmacy' || facilityFamily(tenantFacility) === 'pharmacy'
+  if (pharmacyPurchase && String(planSlug ?? '') !== PHARMACY_SELF_SERVE_PLAN_SLUG) {
+    throw new SubscriptionPlanError('New pharmacy subscriptions are on the Synapse Pharmacy annual plan only', 'PLAN_CYCLE')
+  }
+}
+
 export async function initiateSubscriptionPayment(input: InitSubscribeInput): Promise<InitSubscribeResult> {
   const { data: plan, error: planErr } = await db()
     .from('subscription_plans')
@@ -283,6 +291,9 @@ export async function initiateSubscriptionPayment(input: InitSubscribeInput): Pr
     .eq('id', input.tenantId)
     .maybeSingle()
   assertPlanMatchesFacility((plan as { facility_type?: unknown }).facility_type, tenantRow?.facility_type)
+  // Pharmacy: the annual plan is the ONLY plan a pharmacy can buy (legacy
+  // pharm_monthly/quarterly/yearly rows stay for existing subscribers' history).
+  assertPharmacyPlanOfferable(plan.slug, (plan as { facility_type?: unknown }).facility_type, tenantRow?.facility_type)
   // Pharmacy portal self-serve: yearly only (monthly/quarterly are platform/historical).
   const cycle = String(plan.billing_cycle ?? '').toLowerCase()
   if (cycle !== 'yearly' && cycle !== 'annual' && plan.slug !== PHARMACY_SELF_SERVE_PLAN_SLUG) {

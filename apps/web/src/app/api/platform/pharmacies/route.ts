@@ -1,3 +1,4 @@
+import { isOfferableNewPharmacyPlan } from "@synapse/db/commercial-pricing"
 import { hashFacilityInviteToken } from "@synapse/db/facility-invite-token"
 import { NextResponse } from "next/server"
 import { createServiceClient } from "../../../../lib/supabase/server"
@@ -8,6 +9,8 @@ import { facilityInviteUrl, provisionFacility, pharmacyLoginUrl, pharmacyTenantS
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
+
+const LEGACY_TIERS = new Set(["trial", "starter", "professional", "enterprise"])
 
 export async function GET(request: Request) {
   const auth = await requirePlatformAdminApi()
@@ -33,6 +36,18 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}))
   const supabaseAdmin = createServiceClient()
 
+  // New pharmacies get the Synapse Pharmacy annual plan only. `plan` is the legacy
+  // tenants.plan display tier (trial|starter|professional|enterprise) and never
+  // selects a billing plan; any other plan slug is refused.
+  const requestedSlug = typeof body.planSlug === "string" ? body.planSlug.trim() : ""
+  const tierInput = typeof body.plan === "string" ? body.plan.trim() : ""
+  if ((requestedSlug && !isOfferableNewPharmacyPlan(requestedSlug)) || (tierInput && !LEGACY_TIERS.has(tierInput) && !isOfferableNewPharmacyPlan(tierInput))) {
+    return NextResponse.json(
+      { error: "New pharmacies are provisioned on the Synapse Pharmacy annual plan only.", code: "PLAN_NOT_AVAILABLE" },
+      { status: 400 },
+    )
+  }
+
   const result = await provisionFacility(supabaseAdmin, {
     facilityType: "pharmacy",
     facilityName: String(body.pharmacyName ?? body.facilityName ?? ""),
@@ -45,7 +60,7 @@ export async function POST(request: Request) {
     adminName: String(body.adminName ?? body.contactName ?? "Pharmacy Admin"),
     adminEmail: String(body.adminEmail ?? ""),
     adminPhone: body.adminPhone ? String(body.adminPhone) : undefined,
-    tier: (body.plan as "trial" | "starter" | "professional" | "enterprise") || "starter",
+    tier: (LEGACY_TIERS.has(tierInput) ? tierInput : "starter") as "trial" | "starter" | "professional" | "enterprise",
     modules: Array.isArray(body.modules) ? body.modules.map(String) : undefined,
     licenseNumber: body.licenseNumber ? String(body.licenseNumber) : undefined,
     physicalAddress: body.physicalAddress ? String(body.physicalAddress) : undefined,

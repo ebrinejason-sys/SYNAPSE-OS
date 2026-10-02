@@ -482,21 +482,13 @@ async function provisionPharmacyFacility(
       enterprise: "synapse_pharmacy_annual",
     }
     const target = planSlugMap[input.tier ?? "starter"] ?? "synapse_pharmacy_annual"
-    let { data: planRow } = await db
+    const { data: planRow } = await db
       .from("subscription_plans")
       .select("id")
       .eq("slug", target)
       .eq("is_active", true)
       .maybeSingle()
-    if (!planRow) {
-      const { data: legacy } = await db
-        .from("subscription_plans")
-        .select("id")
-        .eq("slug", "pharmacy_starter")
-        .eq("is_active", true)
-        .maybeSingle()
-      planRow = legacy
-    }
+    // New pharmacies get the annual plan only — no legacy fallback.
     if (!planRow?.id) {
       return fail(
         "subscription",

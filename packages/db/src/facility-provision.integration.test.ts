@@ -145,4 +145,12 @@ describe('facility orchestration with persisted effects', () => {
     expect(result.error).toContain('reserved')
     expect(db.tables.tenants ?? []).toHaveLength(0)
   })
+  it('pharmacy provisioning never falls back to a legacy plan when the annual plan is missing', async () => {
+    const db = database()
+    db.tables.subscription_plans = db.tables.subscription_plans.filter((p: any) => p.slug !== 'synapse_pharmacy_annual')
+    const result = await provisionFacility(db, input('pharmacy'))
+    expect(result.ok).toBe(false)
+    expect(db.tables.tenant_subscriptions ?? []).toHaveLength(0)
+    expect(result.steps.find((s: any) => s.step === 'subscription')?.errorCode).toBe('PHARMACY_PLAN_MISSING')
+  })
 })

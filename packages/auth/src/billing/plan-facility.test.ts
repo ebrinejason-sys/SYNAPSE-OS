@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { assertPlanMatchesFacility, SubscriptionPlanError } from './subscription.ts'
+import { assertPharmacyPlanOfferable, assertPlanMatchesFacility, SubscriptionPlanError } from './subscription.ts'
 
 describe('checkout plan must match tenant facility type', () => {
   it('pharmacy tenant may buy the pharmacy plan', () => {
@@ -24,5 +24,22 @@ describe('checkout plan must match tenant facility type', () => {
   })
   it('legacy tenants without facility_type are not locked out', () => {
     assert.doesNotThrow(() => assertPlanMatchesFacility('pharmacy', null))
+  })
+})
+
+describe('new pharmacy purchases: annual plan only (legacy plans retired from new paths)', () => {
+  it('synapse_pharmacy_annual is purchasable by a pharmacy', () => {
+    assert.doesNotThrow(() => assertPharmacyPlanOfferable('synapse_pharmacy_annual', 'pharmacy', 'pharmacy'))
+  })
+  for (const slug of ['pharm_monthly', 'pharm_quarterly', 'pharm_yearly', 'pharmacy_starter']) {
+    it(`${slug} is refused for a pharmacy (by plan or tenant facility)`, () => {
+      assert.throws(() => assertPharmacyPlanOfferable(slug, 'pharmacy', 'pharmacy'), SubscriptionPlanError)
+      assert.throws(() => assertPharmacyPlanOfferable(slug, null, 'pharmacy'), SubscriptionPlanError)
+      assert.throws(() => assertPharmacyPlanOfferable(slug, 'pharmacy', null), SubscriptionPlanError)
+    })
+  }
+  it('non-pharmacy purchases are not affected', () => {
+    assert.doesNotThrow(() => assertPharmacyPlanOfferable('synapse_lab_annual', 'laboratory', 'laboratory'))
+    assert.doesNotThrow(() => assertPharmacyPlanOfferable('synapse_os_basic_annual', 'hospital', 'hospital'))
   })
 })

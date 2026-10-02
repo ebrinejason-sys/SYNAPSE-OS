@@ -36,7 +36,7 @@ export default function PharmacyOnboardingPage() {
   const [contactPhone, setContactPhone] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [customDomain, setCustomDomain] = useState("");
-  const [plan, setPlan] = useState("starter");
+  const plan = "starter"; // legacy tenants.plan display tier; billing plan is always annual
   const [migrationSource, setMigrationSource] = useState("csv_excel");
   const [deliveryAvailable, setDeliveryAvailable] = useState(false);
   const [deliveryRadiusKm, setDeliveryRadiusKm] = useState("5");
@@ -133,12 +133,9 @@ export default function PharmacyOnboardingPage() {
             </label>
             <label className="space-y-1">
               <span className="text-xs uppercase tracking-wide text-slate-500">Plan</span>
-              <select value={plan} onChange={(e) => setPlan(e.target.value)} className="w-full rounded-lg border border-slate-700 bg-[#07070A] px-3 py-2 text-sm">
-                <option value="trial">trial</option>
-                <option value="starter">starter</option>
-                <option value="professional">professional</option>
-                <option value="enterprise">enterprise</option>
-              </select>
+              <p className="w-full rounded-lg border border-slate-700 bg-[#07070A] px-3 py-2 text-sm">
+                Synapse Pharmacy — Annual (UGX 240,000/yr, 7-day trial)
+              </p>
             </label>
             <label className="space-y-1">
               <span className="text-xs uppercase tracking-wide text-slate-500">Migration source</span>

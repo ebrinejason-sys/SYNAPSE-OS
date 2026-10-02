@@ -1,6 +1,7 @@
 'use server'
 
 import { supabaseAdmin } from '@synapse/db/admin'
+import { isOfferableNewPharmacyPlan } from '@synapse/db/commercial-pricing'
 import { hashPassword, recordAndSendTrialReceipt } from '@synapse/auth'
 import { requirePlatformAccess } from '../../../../lib/platform/auth'
 import { Resend } from 'resend'
@@ -40,6 +41,11 @@ export async function provisionTenant(input: ProvisionInput): Promise<ProvisionR
     .maybeSingle()
 
   if (existing) return { ok: false, error: `Subdomain "${input.slug}" is already taken.` }
+
+  // New pharmacies are offered the annual plan only (legacy plans stay for existing tenants).
+  if (input.facilityType === 'pharmacy' && !isOfferableNewPharmacyPlan(input.planSlug)) {
+    return { ok: false, error: 'New pharmacies are provisioned on the Synapse Pharmacy annual plan only.' }
+  }
 
   // Validate plan exists
   const { data: plan } = await db
@@ -203,23 +209,13 @@ export async function provisionPharmacy(input: PharmacyProvisionInput): Promise<
   // 3b. Canonical annual pharmacy plan (trial) so POS/features are entitled on day one.
   // Subscription is required — do not leave an onboarded pharmacy without a subscription row.
   {
-    let { data: planRow } = await db
+    const { data: planRow } = await db
       .from('subscription_plans')
       .select('id, name, slug')
       .eq('slug', 'synapse_pharmacy_annual')
       .eq('is_active', true)
       .maybeSingle()
-
-    if (!planRow) {
-      // Legacy fallback only if canonical annual catalog row is missing in this environment.
-      const { data: legacy } = await db
-        .from('subscription_plans')
-        .select('id, name, slug')
-        .eq('slug', 'pharmacy_starter')
-        .eq('is_active', true)
-        .maybeSingle()
-      planRow = legacy ?? null
-    }
+    // New pharmacies get the annual plan only — no legacy fallback.
 
     if (!planRow?.id) {
       await db.from('profiles').delete().eq('id', profile.id)

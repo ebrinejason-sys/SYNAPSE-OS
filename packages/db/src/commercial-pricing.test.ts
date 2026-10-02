@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import {
   CANONICAL_PLAN_SLUGS,
   FALLBACK_PUBLIC_PLANS,
+  LEGACY_PHARMACY_PLAN_SLUGS,
+  isOfferableNewPharmacyPlan,
   buildPlanUpdatePayload,
   findPlanBySlug,
   formatUgxAnnual,
@@ -11,6 +13,14 @@ import {
   publicPlansOnly,
   snapshotSubscriptionTerms,
 } from './commercial-pricing.ts'
+
+describe('new pharmacy plan policy', () => {
+  it('only synapse_pharmacy_annual is offerable for new pharmacies; legacy rows are kept', () => {
+    assert.equal(isOfferableNewPharmacyPlan('synapse_pharmacy_annual'), true)
+    for (const slug of LEGACY_PHARMACY_PLAN_SLUGS) assert.equal(isOfferableNewPharmacyPlan(slug), false)
+    assert.equal(isOfferableNewPharmacyPlan(undefined), false)
+  })
+})
 
 describe('commercial pricing domain', () => {
   it('exposes canonical annual public fallback prices', () => {
