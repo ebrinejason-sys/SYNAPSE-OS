@@ -59,6 +59,20 @@ describe("consume_auth_rate_limit (real Postgres)", { skip }, () => {
     for (const r of rows ?? []) assert.match(r.bucket_key, /^[0-9a-f]{64}$/)
   })
 
+  it("status does not count; reset clears the failure count (supervisor lockout)", async () => {
+    const db = client()
+    const k = key(randomUUID())
+    for (let i = 0; i < 5; i += 1) await consume(db, k, 5, 60)
+    const st = await db.rpc("auth_rate_limit_status", { p_bucket_key: k, p_limit: 5, p_window_seconds: 60 })
+    assert.equal(st.data.allowed, false)
+    const st2 = await db.rpc("auth_rate_limit_status", { p_bucket_key: k, p_limit: 5, p_window_seconds: 60 })
+    assert.equal(st2.data.hits, 5, "status must not increment")
+    await db.rpc("reset_auth_rate_limit", { p_bucket_key: k })
+    const st3 = await db.rpc("auth_rate_limit_status", { p_bucket_key: k, p_limit: 5, p_window_seconds: 60 })
+    assert.equal(st3.data.allowed, true)
+    assert.equal(st3.data.hits, 0)
+  })
+
   it("anon cannot call the limiter or read buckets", { skip: ANON ? false : "no anon key" }, async () => {
     const anon = createClient(URL_, ANON, { auth: { persistSession: false } })
     const r = await consume(anon, key("x"), 5, 60)

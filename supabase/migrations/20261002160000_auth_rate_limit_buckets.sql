@@ -9,6 +9,8 @@
 --
 -- Forward-safe: new table + new function only. Rollback:
 --   drop function public.consume_auth_rate_limit(text, integer, integer);
+--   drop function public.auth_rate_limit_status(text, integer, integer);
+--   drop function public.reset_auth_rate_limit(text);
 --   drop table public.auth_rate_limit_buckets;
 
 create table if not exists public.auth_rate_limit_buckets (
@@ -72,3 +74,39 @@ $function$;
 
 revoke all on function public.consume_auth_rate_limit(text, integer, integer) from public, anon, authenticated;
 grant execute on function public.consume_auth_rate_limit(text, integer, integer) to service_role;
+
+-- Read-only status (no increment) for lockout checks, and an explicit reset used
+-- when a guarded action succeeds (e.g. supervisor approval resets its failure count).
+create or replace function public.auth_rate_limit_status(
+  p_bucket_key text,
+  p_limit integer,
+  p_window_seconds integer
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path to 'public'
+as $function$
+  select coalesce(
+    (select jsonb_build_object(
+              'allowed', not (b.hits >= p_limit and b.window_start > clock_timestamp() - make_interval(secs => greatest(p_window_seconds, 1))),
+              'hits', case when b.window_start > clock_timestamp() - make_interval(secs => greatest(p_window_seconds, 1)) then b.hits else 0 end,
+              'retry_after', greatest(ceil(extract(epoch from (b.window_start + make_interval(secs => greatest(p_window_seconds, 1)) - clock_timestamp())))::int, 1))
+       from auth_rate_limit_buckets b where b.bucket_key = p_bucket_key),
+    jsonb_build_object('allowed', true, 'hits', 0, 'retry_after', 0));
+$function$;
+
+create or replace function public.reset_auth_rate_limit(p_bucket_key text)
+returns void
+language sql
+security definer
+set search_path to 'public'
+as $function$
+  delete from auth_rate_limit_buckets where bucket_key = p_bucket_key;
+$function$;
+
+revoke all on function public.auth_rate_limit_status(text, integer, integer) from public, anon, authenticated;
+grant execute on function public.auth_rate_limit_status(text, integer, integer) to service_role;
+revoke all on function public.reset_auth_rate_limit(text) from public, anon, authenticated;
+grant execute on function public.reset_auth_rate_limit(text) to service_role;

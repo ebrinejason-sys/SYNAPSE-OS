@@ -56,3 +56,61 @@ export const SIGNUP_LIMITS = {
   ip: { limit: 5, windowSeconds: 15 * 60 },
   email: { limit: 3, windowSeconds: 60 * 60 },
 } as const
+
+/** Lockout check without counting (auth_rate_limit_status). Falls back to "allowed". */
+export async function rateLimitStatus(
+  scope: string,
+  identifier: string,
+  limit: number,
+  windowSeconds: number,
+): Promise<RateLimitDecision> {
+  try {
+    const { data, error } = await (supabaseAdmin as any).rpc("auth_rate_limit_status", {
+      p_bucket_key: rateLimitBucketKey(scope, identifier),
+      p_limit: limit,
+      p_window_seconds: windowSeconds,
+    })
+    if (error || !data) throw new Error(error?.code ?? "no_data")
+    return { allowed: Boolean(data.allowed), retryAfter: Number(data.retry_after ?? 0) }
+  } catch {
+    const local = memoryFailures.get(`${scope}:${rateLimitBucketKey(scope, identifier)}`)
+    if (local && local.hits >= limit && Date.now() - local.start < windowSeconds * 1000) {
+      return { allowed: false, retryAfter: Math.ceil((local.start + windowSeconds * 1000 - Date.now()) / 1000) }
+    }
+    return { allowed: true, retryAfter: 0 }
+  }
+}
+
+const memoryFailures = new Map<string, { start: number; hits: number }>()
+
+/** Count one failure (shared via Postgres; in-memory fallback). */
+export async function recordRateLimitFailure(scope: string, identifier: string, limit: number, windowSeconds: number) {
+  const key = rateLimitBucketKey(scope, identifier)
+  try {
+    const { error } = await (supabaseAdmin as any).rpc("consume_auth_rate_limit", {
+      p_bucket_key: key,
+      p_limit: limit,
+      p_window_seconds: windowSeconds,
+    })
+    if (error) throw new Error(error.code ?? "error")
+  } catch {
+    const k = `${scope}:${key}`
+    const cur = memoryFailures.get(k)
+    const now = Date.now()
+    if (!cur || now - cur.start >= windowSeconds * 1000) memoryFailures.set(k, { start: now, hits: 1 })
+    else cur.hits += 1
+  }
+}
+
+export async function resetRateLimit(scope: string, identifier: string) {
+  const key = rateLimitBucketKey(scope, identifier)
+  memoryFailures.delete(`${scope}:${key}`)
+  try {
+    await (supabaseAdmin as any).rpc("reset_auth_rate_limit", { p_bucket_key: key })
+  } catch {
+    /* best effort */
+  }
+}
+
+/** Supervisor approval: 5 failed attempts per 15 min lock the supervisor and the cashier. */
+export const SUPERVISOR_APPROVAL_LIMIT = { limit: 5, windowSeconds: 15 * 60 } as const
