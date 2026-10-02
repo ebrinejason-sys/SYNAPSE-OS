@@ -35,7 +35,6 @@ export default function PharmacyOnboardingPage() {
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
-  const [tempPassword, setTempPassword] = useState("");
   const [customDomain, setCustomDomain] = useState("");
   const [plan, setPlan] = useState("starter");
   const [migrationSource, setMigrationSource] = useState("csv_excel");
@@ -67,7 +66,6 @@ export default function PharmacyOnboardingPage() {
           contactName,
           contactPhone,
           adminEmail,
-          tempPassword: tempPassword.trim() || undefined,
           customDomain,
           plan,
           migrationSource,
@@ -194,19 +192,8 @@ export default function PharmacyOnboardingPage() {
               <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} className="w-full rounded-lg border border-slate-700 bg-[#07070A] px-3 py-2 text-sm" />
               <p className="text-xs text-slate-500">This becomes the login username. Must not already exist in Synapse.</p>
             </label>
-            <label className="space-y-1 md:col-span-2">
-              <span className="text-xs uppercase tracking-wide text-slate-500">Temporary password <span className="normal-case text-slate-600">(optional — auto-generated if blank)</span></span>
-              <input
-                type="text"
-                value={tempPassword}
-                onChange={(e) => setTempPassword(e.target.value)}
-                placeholder="e.g. KiuPharm2026!"
-                className="w-full rounded-lg border border-slate-700 bg-[#07070A] px-3 py-2 text-sm font-mono"
-              />
-              <p className="text-xs text-slate-500">Min 8 chars. Admin must change it on first login. Leave blank to auto-generate.</p>
-            </label>
             <div className="rounded-lg border border-[#E8B84B]/30 bg-[#E8B84B]/10 p-3 text-xs text-[#E8B84B] md:col-span-2">
-              Admin receives a credentials email with their login email and this password. They log in at pharm.synapseos.tech/login.
+              No password is set or emailed. The admin receives a single-use secure invitation link (pharm.synapseos.tech) and chooses their own password.
             </div>
           </div>
         ) : null}
