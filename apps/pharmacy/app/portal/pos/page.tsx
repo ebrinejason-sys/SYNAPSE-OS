@@ -1045,7 +1045,7 @@ export default function POSPage() {
             {isOnline ? (
               <><Wifi className="h-3 w-3" /> Online</>
             ) : (
-              <><WifiOff className="h-3 w-3" /> Offline Mode</>
+              <><WifiOff className="h-3 w-3" /> Offline — sales paused</>
             )}
           </div>
 

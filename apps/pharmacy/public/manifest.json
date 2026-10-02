@@ -1,7 +1,7 @@
 {
   "name": "SYNAPSE Pharm POS",
   "short_name": "SYNAPSE Pharm",
-  "description": "SYNAPSE Pharm point of sale system with offline support",
+  "description": "SYNAPSE Pharm point of sale system (requires an internet connection)",
   "start_url": "/login",
   "display": "standalone",
   "background_color": "#ffffff",

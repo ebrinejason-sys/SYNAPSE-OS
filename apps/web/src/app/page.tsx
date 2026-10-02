@@ -101,7 +101,7 @@ const TRUST = [
   { title: 'Row-level security', desc: 'Tenant isolation on clinical tables via Postgres RLS' },
   { title: 'Audit trail', desc: 'Actor, timestamp, and action logged for sensitive operations' },
   { title: 'TLS in transit', desc: 'HTTPS for web, API, and admin surfaces' },
-  { title: 'Offline-capable', desc: 'Durable offline checkout is not claimed. Edge architecture is documented as roadmap.' },
+  { title: 'Offline POS: not yet', desc: 'Pharmacy checkout needs a connection; durable offline checkout is roadmap, not shipped.' },
   { title: 'Role-based access', desc: 'Doctor, nurse, pharmacist, billing, and admin roles' },
   { title: 'Session revocation', desc: 'Password reset and logout invalidate server-side sessions' },
 ]

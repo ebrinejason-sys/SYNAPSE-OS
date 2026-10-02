@@ -8,7 +8,7 @@ const MODULES: Array<[string, string]> = [
   ["in_app_orders", "In-app patient orders"],
   ["prescription_fulfillment", "Prescription fulfillment"],
   ["inventory_migration", "Legacy data migration"],
-  ["offline_first_pos", "Offline-first POS"],
+  ["offline_first_pos", "Offline POS (not available yet)"],
   ["sms_refill_reminders", "SMS refill reminders"],
 ];
 

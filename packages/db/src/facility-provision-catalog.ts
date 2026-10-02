@@ -48,7 +48,8 @@ export const PHARMACY_FACILITY_MODULES = [
   { key: "pharmacy_network", label: "Pharmacy Network", defaultEnabled: true },
   { key: "staff", label: "Staff", defaultEnabled: true },
   { key: "reports", label: "Reports", defaultEnabled: true },
-  { key: "offline_first_pos", label: "Offline POS", defaultEnabled: true },
+  // Not implemented: web POS refuses offline completion (OfflineUnavailableError). Off by default.
+  { key: "offline_first_pos", label: "Offline POS (not available yet)", defaultEnabled: false },
   { key: "in_app_orders", label: "In-app Orders", defaultEnabled: true },
   { key: "sms_refill_reminders", label: "SMS Refill Reminders", defaultEnabled: false },
   { key: "inventory_migration", label: "Inventory Migration", defaultEnabled: false },
