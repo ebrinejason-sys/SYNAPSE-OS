@@ -95,7 +95,7 @@ async function loadExistingProducts(tenantId: string) {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const auth = await requirePharmacyPermission("inventory.adjust")
@@ -113,7 +113,7 @@ export async function POST(
     )
     if (!scoped.ok) return scoped.response
 
-    const sessionId = params.id
+    const { id: sessionId } = await params
 
     if (!body.allRows || !Array.isArray(body.allRows) || body.allRows.length === 0) {
       return NextResponse.json(

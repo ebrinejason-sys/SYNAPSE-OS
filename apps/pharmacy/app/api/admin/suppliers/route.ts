@@ -162,9 +162,11 @@ export async function PATCH(request: NextRequest) {
       .eq("id", id)
       .eq("tenant_id", tenantId)
       .select()
-      .single()
+      .maybeSingle()
 
     if (error) throw error
+    // Tenant-scoped update matched nothing: unknown or another pharmacy's id.
+    if (!supplier) return NextResponse.json({ error: "Supplier not found" }, { status: 404 })
 
     await supabaseAdmin.from("pharmacy_audit_logs").insert({
       tenant_id: tenantId,
