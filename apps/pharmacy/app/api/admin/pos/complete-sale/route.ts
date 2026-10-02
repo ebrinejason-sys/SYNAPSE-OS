@@ -18,7 +18,7 @@ import {
 import { buildStockError, type StructuredStockError } from "@synapse/db/inventory"
 import { pharmacyDispenseTimelineEvent } from "@synapse/db/timeline"
 import { publishTimelineEvent } from "@synapse/db/identity-persist"
-import { attachSaleToTill } from "@/lib/pos/till-service"
+import { attachSaleToTill, recordTillSale } from "@/lib/pos/till-service"
 import { httpStatusForPharmacyError } from "@synapse/db/errors"
 import { paymentStateForMethod } from "@synapse/db/cashier-session"
 import { findOrCreateCreditCustomer, postCreditLedgerEntry } from "@/lib/credit-ledger"
@@ -177,11 +177,13 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // Validate the open till (and get its session id) without crediting cash yet;
+  // cash is recorded only after the sale RPC commits (see recordTillSale below).
   const till = await attachSaleToTill({
     tenantId,
     cashierId,
     paymentMethod,
-    amount: settlement.isPartial ? settlement.amountPaid : saleAmount,
+    amount: 0,
     kind: "sale",
   })
   if (!till.ok) {
@@ -233,6 +235,16 @@ export async function POST(request: NextRequest) {
       },
       { status: saleErrorHttpStatus(msg) },
     )
+  }
+
+  if (till.sessionId) {
+    // Cash kept in the drawer: what was paid on a partial sale, otherwise the total (change goes back).
+    const cashReceived = settlement.isPartial ? settlement.amountPaid : grandTotal
+    try {
+      await recordTillSale({ tenantId, sessionId: till.sessionId, paymentMethod, amount: cashReceived })
+    } catch (err) {
+      console.error("[pos] till cash record failed:", err)
+    }
   }
 
   const sale = data && typeof data === "object" ? (data as Record<string, unknown>) : {}

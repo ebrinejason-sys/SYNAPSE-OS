@@ -207,6 +207,34 @@ export async function attachSaleToTill(params: {
   return { ok: true, sessionId: open.id }
 }
 
+/**
+ * Credit a completed sale's cash to a specific till session. Call only AFTER the
+ * sale has committed: crediting before the RPC inflated expected cash for every
+ * failed or retried sale and produced false variances at close.
+ */
+export async function recordTillSale(params: {
+  tenantId: string
+  sessionId: string
+  paymentMethod: string
+  amount: number
+}): Promise<void> {
+  if (params.paymentMethod.trim().toLowerCase() !== "cash") return
+  const amount = Number(params.amount)
+  if (!Number.isFinite(amount) || amount <= 0) return
+  const { data: open } = await db
+    .from("pharmacy_cashier_sessions")
+    .select("cash_payment_total")
+    .eq("id", params.sessionId)
+    .eq("tenant_id", params.tenantId)
+    .maybeSingle()
+  if (!open) return
+  await db
+    .from("pharmacy_cashier_sessions")
+    .update({ cash_payment_total: Number(open.cash_payment_total ?? 0) + amount })
+    .eq("id", params.sessionId)
+    .eq("tenant_id", params.tenantId)
+}
+
 export async function closeTill(params: {
   tenantId: string
   cashierId: string
