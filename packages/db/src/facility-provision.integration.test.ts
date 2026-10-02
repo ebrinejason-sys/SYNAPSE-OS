@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { provisionFacility, resumeFacilityProvision } from './facility-provision'
+import { hashFacilityInviteToken } from './facility-invite-token'
 
 // In-memory PostgREST adapter: exercises the real orchestration and persisted effects.
 function database() {
@@ -78,7 +79,14 @@ describe('facility orchestration with persisted effects', () => {
     const counts = Object.fromEntries(Object.entries(db.tables).map(([k, v]) => [k, v.length]))
     db.tables.facility_provisioning_runs[0].failure_code = 'STALE_FAILURE'
     const replayed = await provisionFacility(db, input(type))
-    expect(replayed.inviteToken).toBe(db.tables.facility_invitations[0].invite_token)
+    // Secrets are stored only as a SHA-256 hash: the retry's emailed token matches the
+    // stored hash, plaintext is never persisted, and a replay cannot re-reveal it.
+    expect(db.tables.facility_invitations[0].invite_token).toBeNull()
+    // Pharmacy replays return no secret; the hospital/lab workflow re-runs its steps and
+    // rotates the still-open invite (old link stops working, new one is re-sent).
+    if (type === 'pharmacy') expect(replayed.inviteToken).toBeNull()
+    const liveToken = replayed.inviteToken ?? retried.inviteToken!
+    expect(db.tables.facility_invitations[0].token_hash).toBe(hashFacilityInviteToken(liveToken))
     expect(replayed.inviteStatus).toBe(db.tables.facility_invitations[0].status)
     expect(db.tables.facility_provisioning_runs[0].failure_code).toBeNull()
     expect(Object.fromEntries(Object.entries(db.tables).map(([k, v]) => [k, v.length]))).toEqual(counts)

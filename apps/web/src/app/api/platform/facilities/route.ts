@@ -1,3 +1,4 @@
+import { hashFacilityInviteToken } from "@synapse/db/facility-invite-token"
 import { NextResponse } from "next/server"
 import { createServiceClient } from "../../../../lib/supabase/server"
 import { requirePlatformAdminApi } from "../../../../lib/platform/auth"
@@ -136,7 +137,7 @@ export async function POST(request: Request) {
       await (supabaseAdmin as any)
         .from("facility_invitations")
         .update({ status: "SENT", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq("invite_token", result.inviteToken)
+        .eq("token_hash", hashFacilityInviteToken(result.inviteToken))
       result.inviteStatus = "SENT"
     } catch (err) {
       result.warnings.push(`invite_email: ${err instanceof Error ? err.message : "send_failed"}`)

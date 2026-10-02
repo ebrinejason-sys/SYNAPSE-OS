@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSession, hashPassword, signToken } from '@synapse/auth'
 import { SESSION_COOKIE, SESSION_DURATION_DAYS } from '@synapse/config/constants'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { findFacilityInvitationByToken } from '@synapse/db/facility-invite-token'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,11 +14,11 @@ export async function POST(request: NextRequest) {
   if (password.length < 8) return NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 })
 
   const db = supabaseAdmin as any
-  const { data: invite } = await db
-    .from('facility_invitations')
-    .select('id, tenant_id, profile_id, email, role, status, expires_at')
-    .eq('invite_token', inviteToken)
-    .maybeSingle()
+  // Only the SHA-256 hash of the secret is stored; lookup + constant-time compare.
+  const found = await findFacilityInvitationByToken<{
+    id: string; tenant_id: string; profile_id: string; email: string; role: string; status: string; expires_at: string
+  }>(db, inviteToken, 'id, tenant_id, profile_id, email, role, status, expires_at')
+  const invite = found?.invite ?? null
 
   if (!invite) return NextResponse.json({ error: 'Invalid invite token.' }, { status: 404 })
   if (invite.status === 'ACCEPTED') return NextResponse.json({ error: 'This invite has already been used.' }, { status: 409 })
@@ -25,6 +26,9 @@ export async function POST(request: NextRequest) {
   if (new Date(invite.expires_at) < new Date()) {
     await db.from('facility_invitations').update({ status: 'EXPIRED', updated_at: new Date().toISOString() }).eq('id', invite.id)
     return NextResponse.json({ error: 'This invite has expired.' }, { status: 410 })
+  }
+  if (!['PENDING', 'SENT'].includes(invite.status)) {
+    return NextResponse.json({ error: 'This invite has already been used.' }, { status: 409 })
   }
 
   const [{ data: tenant }, { data: profile }] = await Promise.all([
@@ -39,6 +43,19 @@ export async function POST(request: NextRequest) {
   }
 
   const now = new Date().toISOString()
+  // Single use: claim the invitation atomically BEFORE writing the password, so a
+  // replayed/concurrent redemption of the same link cannot set a second password.
+  const { data: claimed, error: claimError } = await db
+    .from('facility_invitations')
+    .update({ status: 'ACCEPTED', accepted_at: now, redeemed_by: profile.id, updated_at: now })
+    .eq('id', invite.id)
+    .in('status', ['PENDING', 'SENT'])
+    .gt('expires_at', now)
+    .select('id')
+    .maybeSingle()
+  if (claimError) return NextResponse.json({ error: 'Could not activate this invitation.' }, { status: 500 })
+  if (!claimed) return NextResponse.json({ error: 'This invite has already been used.' }, { status: 409 })
+
   const passwordHash = await hashPassword(password)
   const { error: profileError } = await db.from('profiles').update({
     password_hash: passwordHash,
@@ -49,9 +66,13 @@ export async function POST(request: NextRequest) {
     onboarding_complete: false,
     updated_at: now,
   }).eq('id', profile.id).eq('tenant_id', invite.tenant_id)
-  if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
-
-  await db.from('facility_invitations').update({ status: 'ACCEPTED', accepted_at: now, updated_at: now }).eq('id', invite.id)
+  if (profileError) {
+    // Release the claim so the (still secret) link can be retried.
+    await db.from('facility_invitations')
+      .update({ status: invite.status, accepted_at: null, redeemed_by: null, updated_at: new Date().toISOString() })
+      .eq('id', invite.id)
+    return NextResponse.json({ error: 'Could not activate this invitation.' }, { status: 500 })
+  }
 
   const token = await signToken({
     sub: profile.id,

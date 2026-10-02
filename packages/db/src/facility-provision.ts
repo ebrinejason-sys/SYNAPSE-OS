@@ -13,6 +13,7 @@ import {
   type ProvisionHospitalResult,
   type ProvisionMode,
 } from "./hospital-provision"
+import { generateFacilityInviteToken, hashFacilityInviteToken, rotateFacilityInviteToken } from "./facility-invite-token"
 import {
   FACILITY_TYPES,
   defaultModulesForFacilityType,
@@ -230,7 +231,7 @@ async function provisionPharmacyFacility(
   if (existingRun?.status === "COMPLETE" && existingRun.tenant_id) {
     const { data: existingInvite } = await db
       .from("facility_invitations")
-      .select("invite_token, status")
+      .select("status")
       .eq("run_id", existingRun.id)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -248,7 +249,8 @@ async function provisionPharmacyFacility(
       status: "COMPLETE",
       correlationId: existingRun.correlation_id,
       steps: [],
-      inviteToken: existingInvite?.invite_token ?? null,
+      // Only the hash is stored, so a replay cannot re-reveal the invite secret.
+      inviteToken: null,
       inviteStatus: existingInvite?.status ?? null,
       warnings: ["Idempotent replay — existing COMPLETE pharmacy run"],
       facilityType: "pharmacy",
@@ -609,16 +611,19 @@ async function provisionPharmacyFacility(
   {
     const { data: existingInvite } = await db
       .from("facility_invitations")
-      .select("id, invite_token, status")
+      .select("id, status")
       .eq("run_id", runId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
-    if (existingInvite?.invite_token) {
-      inviteToken = existingInvite.invite_token
+    if (existingInvite) {
+      // Raw secrets are never stored: issue a fresh one for a still-open invite.
+      inviteToken = ["PENDING", "SENT"].includes(existingInvite.status)
+        ? await rotateFacilityInviteToken(db, existingInvite.id)
+        : null
       await complete("invitation", { inviteId: existingInvite.id, resumed: true })
     } else {
-      inviteToken = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "")
+      inviteToken = generateFacilityInviteToken()
       const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString()
       const { data: invite, error } = await db
         .from("facility_invitations")
@@ -628,7 +633,8 @@ async function provisionPharmacyFacility(
           email: adminEmail,
           full_name: input.adminName.trim(),
           role: "pharmacy_admin",
-          invite_token: inviteToken,
+          token_hash: hashFacilityInviteToken(inviteToken),
+          invite_token: null,
           status: "PENDING",
           expires_at: expiresAt,
           profile_id: profileId,
