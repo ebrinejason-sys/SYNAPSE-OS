@@ -11,7 +11,7 @@ import { CANONICAL_PLAN_SLUGS } from "@synapse/db/commercial-pricing"
 import { sendWelcome } from "@synapse/email"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { pharmacyUrl } from "@/lib/app-url"
-import { checkRateLimit } from "@/lib/rateLimit"
+import { SIGNUP_LIMITS, consumeRateLimits } from "@/lib/distributed-rate-limit"
 
 export const runtime = "nodejs"
 
@@ -22,7 +22,11 @@ export const runtime = "nodejs"
  */
 const CANONICAL_PHARMACY_SLUG = CANONICAL_PLAN_SLUGS.pharmacy
 const ALLOWED_PLAN_SLUGS: ReadonlySet<string> = new Set<string>([CANONICAL_PHARMACY_SLUG])
-const SIGNUP_FAILED = "We couldn't create your pharmacy account. Please try again or contact support."
+// One generic failure for every non-validation outcome (including "email already
+// registered"), so the response never reveals whether an email has an account.
+const SIGNUP_FAILED =
+  "We couldn't create your pharmacy account. If you already have one, sign in instead; otherwise try again or contact support."
+
 const PHONE_RE = /^\+256[7]\d{8}$/
 
 function slugify(value: string) {
@@ -63,15 +67,6 @@ function clientIp(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
-  // Best-effort abuse limit (in-memory, per server instance): 5 signups / 15 min / IP.
-  const limited = checkRateLimit(`pharmacy-register:${clientIp(req)}`)
-  if (!limited.allowed) {
-    return NextResponse.json(
-      { error: "Too many sign-up attempts. Please wait and try again." },
-      { status: 429, headers: { "Retry-After": String(limited.retryAfter ?? 900) } },
-    )
-  }
-
   const body = (await req.json().catch(() => ({}))) as RegisterBody
 
   const pharmacyName = String(body.pharmacyName ?? "").trim()
@@ -84,6 +79,20 @@ export async function POST(req: NextRequest) {
   const password = String(body.password ?? "")
   const planSlug = String(body.planSlug ?? CANONICAL_PHARMACY_SLUG).trim() || CANONICAL_PHARMACY_SLUG
   const pdpoConsent = Boolean(body.pdpoConsent)
+
+  // Distributed limiter (Postgres, shared across instances). Keys are HMACs of the
+  // client IP and of the email — raw identifiers are never stored. Applied before
+  // any lookup, so existing and new emails are counted identically.
+  const limited = await consumeRateLimits([
+    { scope: "pharmacy-register:ip", identifier: clientIp(req), ...SIGNUP_LIMITS.ip },
+    { scope: "pharmacy-register:email", identifier: email || "-", ...SIGNUP_LIMITS.email },
+  ])
+  if (!limited.allowed) {
+    return NextResponse.json(
+      { error: "Too many sign-up attempts. Please wait and try again." },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfter || 900) } },
+    )
+  }
 
   if (!pharmacyName || pharmacyName.length < 2) {
     return NextResponse.json({ error: "Pharmacy name is required." }, { status: 400 })
@@ -138,10 +147,9 @@ export async function POST(req: NextRequest) {
     .eq("email", email)
     .maybeSingle()
   if (existing) {
-    return NextResponse.json(
-      { error: "An account with this email already exists. Sign in instead." },
-      { status: 409 },
-    )
+    // Same status/body as any other provisioning failure; burn comparable time.
+    await hashPassword(password)
+    return NextResponse.json({ error: SIGNUP_FAILED }, { status: 400 })
   }
 
   const { data: plan, error: planErr } = await supabaseAdmin

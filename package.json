@@ -108,7 +108,7 @@
     "journey:mfa-step-up-live": "node scripts/mfa-step-up-live-journey.mjs",
     "journey:referral-live": "node scripts/referral-live-journey.mjs",
     "journey:facility-onboarding-live": "tsx scripts/facility-onboarding-live.ts",
-    "test:pharmacy-concurrency": "node --test scripts/db-tests/pharmacy-concurrency.local.test.mjs"
+    "test:pharmacy-concurrency": "node --test scripts/db-tests/pharmacy-concurrency.local.test.mjs scripts/db-tests/auth-rate-limit.local.test.mjs"
   },
   "devDependencies": {
     "ajv6": "npm:ajv@6.12.6",
