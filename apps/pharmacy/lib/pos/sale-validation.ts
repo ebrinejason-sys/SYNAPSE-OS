@@ -150,7 +150,11 @@ export function friendlySaleError(message: string): string {
   if (message.includes("APPEND_ONLY")) {
     return "Completed sales cannot be edited."
   }
-  return message
+  // Only domain errors raised by our RPCs ("CODE: human text") are safe to show.
+  // Anything else is raw Postgres/PostgREST text (table, constraint, type names).
+  const domain = message.match(/^[A-Z][A-Z_]+:\s*([\s\S]+)$/)
+  if (domain) return domain[1].trim().slice(0, 300)
+  return "Sale could not be completed. Please retry or contact support."
 }
 
 export function saleErrorHttpStatus(message: string): number {

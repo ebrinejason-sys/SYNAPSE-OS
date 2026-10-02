@@ -295,4 +295,23 @@ describe("POST /api/admin/pos/complete-sale", () => {
       expect(rpc).not.toHaveBeenCalled()
     })
   })
+
+  it("rejects a non-UUID cartId with 400 before calling the RPC", async () => {
+    const res = await POST(
+      makeRequest({ items: [{ productId: "p1", quantity: 1, unitPrice: 1000 }], paymentMethod: "cash", cartId: "not-a-uuid" }),
+    )
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe("INVALID_CART_ID")
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it("does not echo raw database error text to the client", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'relation "pharmacy_pos_sales" violates constraint xyz_internal' } })
+    const res = await POST(
+      makeRequest({ items: [{ productId: "p1", quantity: 1, unitPrice: 1000 }], paymentMethod: "cash", amountPaid: 1000 }),
+    )
+    expect(res.status).toBe(500)
+    const text = JSON.stringify(await res.json())
+    expect(text).not.toMatch(/relation|constraint|xyz_internal/)
+  })
 })

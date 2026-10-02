@@ -57,6 +57,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  for (const [field, code] of [["cartId", "INVALID_CART_ID"], ["patientId", "INVALID_PATIENT_ID"]] as const) {
+    const v = (body as Record<string, unknown>)[field]
+    if (v != null && v !== "" && (typeof v !== "string" || !UUID_RE.test(v))) {
+      return NextResponse.json({ error: `${field} must be a UUID`, code }, { status: 400 })
+    }
+  }
+
   const itemsIn = Array.isArray(body.items) ? (body.items as SaleLineInput[]) : []
   if (itemsIn.length === 0) {
     return NextResponse.json({ error: "Cart is empty" }, { status: 400 })
@@ -200,11 +208,11 @@ export async function POST(request: NextRequest) {
     p_items: rpcItems,
     p_payment_method: paymentMethod,
     p_session_id: till.sessionId,
-    p_cart_id: body.cartId ?? null,
+    p_cart_id: body.cartId || null,
     p_payment_ref: paymentRef,
     p_discount_total: 0,
     p_tax_amount: taxAmount,
-    p_patient_id: body.patientId ?? null,
+    p_patient_id: body.patientId || null,
     p_confirmed_by: session.userId,
     // Always named: an older 11-argument overload still exists, so omitting it is ambiguous.
     p_idempotency_key: idempotencyKey ?? null,

@@ -167,6 +167,8 @@ describe("sale error mapping", () => {
     expect(saleErrorHttpStatus("EXPIRED_BATCH_BLOCKED: x")).toBe(409)
     expect(saleErrorHttpStatus("INSUFFICIENT_STOCK: x")).toBe(409)
     expect(friendlySaleError("EXPIRED_BATCH_BLOCKED: x")).toMatch(/expired/i)
+    expect(friendlySaleError('invalid input syntax for type uuid: "x"')).not.toMatch(/uuid|syntax/)
+    expect(friendlySaleError("TILL_CLOSED: open a till first")).toBe("open a till first")
     expect(extractSaleErrorCode("INSUFFICIENT_STOCK: out")).toBe("INSUFFICIENT_STOCK")
   })
 })
