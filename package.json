@@ -106,7 +106,8 @@
     "test:sha-alignment": "vitest run apps/web/src/lib/platform/sha-alignment.test.ts",
     "journey:mfa-step-up-live": "node scripts/mfa-step-up-live-journey.mjs",
     "journey:referral-live": "node scripts/referral-live-journey.mjs",
-    "journey:facility-onboarding-live": "tsx scripts/facility-onboarding-live.ts"
+    "journey:facility-onboarding-live": "tsx scripts/facility-onboarding-live.ts",
+    "test:pharmacy-concurrency": "node --test scripts/db-tests/pharmacy-concurrency.local.test.mjs"
   },
   "devDependencies": {
     "ajv6": "npm:ajv@6.12.6",
