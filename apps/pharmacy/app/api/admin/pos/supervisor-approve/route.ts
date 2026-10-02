@@ -110,8 +110,8 @@ export async function POST(request: NextRequest) {
 
   if (!usable) return fail("supervisor_not_found_or_inactive")
   if (!elevated) return fail("not_authorised_to_approve")
-  if (!profile.password_hash) return fail("no_password_set")
-  if (!passwordOk) return fail("wrong_password")
+  if (!profile.password_hash) return fail("no_credential_set")
+  if (!passwordOk) return fail("credential_mismatch")
 
   let approvalToken: string
   try {

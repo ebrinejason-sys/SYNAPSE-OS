@@ -116,7 +116,7 @@ describe("POST /api/admin/pos/supervisor-approve", () => {
     }
     expect(JSON.stringify(outcomes)).not.toMatch(/not found|incorrect|cannot approve|password set/i)
     expect(s.audit.map((a) => a.details.reason)).toEqual([
-      "wrong_password",
+      "credential_mismatch",
       "supervisor_not_found_or_inactive",
       "not_authorised_to_approve",
       "not_authorised_to_approve",
