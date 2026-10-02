@@ -4,6 +4,7 @@ import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail } from "@/lib/email"
 import { pharmacyUrl } from "@/lib/app-url"
+import { escapeHtml } from "@/lib/html"
 
 // GET - List all inquiries (admin only)
 export async function GET(request: NextRequest) {
@@ -89,18 +90,18 @@ export async function POST(request: NextRequest) {
             <h1>New User Inquiry</h1>
           </div>
           <div class="content">
-            <p><span class="badge badge-yellow">${typeLabels[type] ?? type}</span></p>
+            <p><span class="badge badge-yellow">${escapeHtml(typeLabels[type] ?? type)}</span></p>
 
             <div class="info-box">
-              <p><strong>From:</strong> ${userName}</p>
-              <p><strong>Email:</strong> ${userEmail}</p>
-              <p><strong>Subject:</strong> ${subject}</p>
+              <p><strong>From:</strong> ${escapeHtml(userName)}</p>
+              <p><strong>Email:</strong> ${escapeHtml(userEmail)}</p>
+              <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
               <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
             </div>
 
             <h3>Message:</h3>
             <div style="background-color: white; padding: 15px; border-radius: 5px;">
-              <p>${message}</p>
+              <p>${escapeHtml(message)}</p>
             </div>
 
             <p style="margin-top: 30px;">
@@ -196,12 +197,12 @@ export async function PATCH(request: NextRequest) {
               <h1>Your Inquiry Has Been Resolved</h1>
             </div>
             <div class="content">
-              <h2>Hello ${inquiry.user_name},</h2>
-              <p>Your inquiry regarding "<strong>${inquiry.subject}</strong>" has been reviewed and resolved.</p>
+              <h2>Hello ${escapeHtml(inquiry.user_name)},</h2>
+              <p>Your inquiry regarding "<strong>${escapeHtml(inquiry.subject)}</strong>" has been reviewed and resolved.</p>
 
               <div class="response-box">
                 <h3 style="margin-top: 0; color: #10B981;">Admin Response:</h3>
-                <p>${adminResponse}</p>
+                <p>${escapeHtml(adminResponse)}</p>
               </div>
 
               <p>If you have any further questions, please don't hesitate to reach out.</p>

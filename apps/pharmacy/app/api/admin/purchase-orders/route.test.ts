@@ -14,12 +14,12 @@ vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin: { from: mocks.from } }))
 vi.mock('@/lib/email', () => ({ sendEmail: mocks.sendEmail }))
 vi.mock('@synapse/db/pharmacy-purchases', () => ({ receivePharmacyPurchase: vi.fn() }))
 
-async function create() {
+async function create(extra: Record<string, unknown> = {}, productName = 'Test item') {
   const { POST } = await import('./route')
   return POST(new Request('https://example.test/api/admin/purchase-orders', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ supplierId: 'supplier', sendEmailToSupplier: true,
-      items: [{ productName: 'Test item', quantity: 2, unitPrice: 10 }] }),
+      items: [{ productName, quantity: 2, unitPrice: 10 }], ...extra }),
   }) as any)
 }
 
@@ -78,5 +78,14 @@ describe('purchase order email status persistence', () => {
     expect(body.purchaseOrder.status).toBe('DRAFT')
     expect(body.warning).toContain('could not be delivered')
     expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('HTML-escapes product names and notes in the supplier email', async () => {
+    await create({ notes: '<img src=x onerror=alert(1)>' }, '<script>alert("po")</script>')
+    const html = String(mocks.sendEmail.mock.calls[0][0].html)
+    expect(html).not.toContain('<script>')
+    expect(html).not.toContain('<img src=x')
+    expect(html).toContain('&lt;script&gt;alert(&quot;po&quot;)&lt;/script&gt;')
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
   })
 })

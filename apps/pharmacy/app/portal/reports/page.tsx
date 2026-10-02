@@ -1,5 +1,6 @@
 ﻿"use client"
 
+import { csvCell } from "@/lib/csv"
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -205,94 +206,94 @@ export default function ReportsPage() {
     
     if (report.type === "sales") {
       csvContent = "SALES REPORT\n"
-      csvContent += `Period: ${period}\n\n`
+      csvContent += `Period: ${csvCell(period)}\n\n`
       csvContent += "SUMMARY\n"
       csvContent += "Total Sales,Total Discount,Total Tax,Transactions,Average\n"
-      csvContent += `${(report as SalesReport).summary.totalSales},${(report as SalesReport).summary.totalDiscount},${(report as SalesReport).summary.totalTax},${(report as SalesReport).summary.transactionCount},${(report as SalesReport).summary.averageTransaction}\n\n`
+      csvContent += `${csvCell((report as SalesReport).summary.totalSales)},${csvCell((report as SalesReport).summary.totalDiscount)},${csvCell((report as SalesReport).summary.totalTax)},${csvCell((report as SalesReport).summary.transactionCount)},${csvCell((report as SalesReport).summary.averageTransaction)}\n\n`
 
       csvContent += "DAILY SALES\n"
       csvContent += "Date,Total,Count\n"
       ;((report as SalesReport).salesByDay ?? []).forEach(d => {
-        csvContent += `${d.date},${d.total},${d.count}\n`
+        csvContent += `${csvCell(d.date)},${csvCell(d.total)},${csvCell(d.count)}\n`
       })
 
       csvContent += "\nSALES BY CATEGORY\n"
       csvContent += "Category,Total,Count\n"
       ;((report as SalesReport).salesByCategory ?? []).forEach(c => {
-        csvContent += `${c.category},${c.total},${c.count}\n`
+        csvContent += `${csvCell(c.category)},${csvCell(c.total)},${csvCell(c.count)}\n`
       })
 
       csvContent += "\nTOP PRODUCTS\n"
       csvContent += "Product,Quantity,Revenue\n"
       ;((report as SalesReport).topProducts ?? []).forEach(p => {
-        csvContent += `${p.product?.name || 'Unknown'},${p._sum?.quantity ?? (p as { quantity?: number }).quantity ?? 0},${p._sum?.totalPrice ?? (p as { total?: number }).total ?? 0}\n`
+        csvContent += `${csvCell(p.product?.name || 'Unknown')},${csvCell(p._sum?.quantity ?? (p as { quantity?: number }).quantity ?? 0)},${csvCell(p._sum?.totalPrice ?? (p as { total?: number }).total ?? 0)}\n`
       })
     } else if (report.type === "inventory") {
       csvContent = "INVENTORY REPORT\n"
       csvContent += "SUMMARY\n"
       csvContent += "Total Products,Total Units,Value (Cost),Value (Retail),Potential Profit\n"
-      csvContent += `${(report as InventoryReport).summary.totalProducts},${(report as InventoryReport).summary.totalUnits},${(report as InventoryReport).summary.inventoryValueAtCost},${(report as InventoryReport).summary.inventoryValueAtRetail},${(report as InventoryReport).summary.potentialProfit}\n\n`
+      csvContent += `${csvCell((report as InventoryReport).summary.totalProducts)},${csvCell((report as InventoryReport).summary.totalUnits)},${csvCell((report as InventoryReport).summary.inventoryValueAtCost)},${csvCell((report as InventoryReport).summary.inventoryValueAtRetail)},${csvCell((report as InventoryReport).summary.potentialProfit)}\n\n`
 
       csvContent += "LOW STOCK PRODUCTS\n"
       csvContent += "Product,SKU,Quantity,Status\n"
       ;((report as InventoryReport).lowStockProducts ?? []).forEach(p => {
-        csvContent += `${p.name},${p.sku},${p.quantity},Low Stock\n`
+        csvContent += `${csvCell(p.name)},${csvCell(p.sku)},${csvCell(p.quantity)},Low Stock\n`
       })
 
       csvContent += "\nOUT OF STOCK PRODUCTS\n"
       csvContent += "Product,SKU,Quantity\n"
       ;((report as InventoryReport).outOfStockProducts ?? []).forEach(p => {
-        csvContent += `${p.name},${p.sku},${p.quantity}\n`
+        csvContent += `${csvCell(p.name)},${csvCell(p.sku)},${csvCell(p.quantity)}\n`
       })
 
       csvContent += "\nEXPIRING PRODUCTS\n"
       csvContent += "Product,Expiry Date,Quantity\n"
       ;((report as InventoryReport).expiringProducts ?? []).forEach(p => {
-        csvContent += `${p.name},${new Date(p.expiryDate).toLocaleDateString()},${p.quantity}\n`
+        csvContent += `${csvCell(p.name)},${csvCell(new Date(p.expiryDate).toLocaleDateString())},${csvCell(p.quantity)}\n`
       })
     } else if (report.type === "profit") {
       csvContent = "PROFIT REPORT\n"
       csvContent += "SUMMARY\n"
       csvContent += "Total Revenue,Total Cost,Gross Profit,Margin (%)\n"
-      csvContent += `${(report as ProfitReport).summary.totalRevenue},${(report as ProfitReport).summary.totalCost},${(report as ProfitReport).summary.grossProfit},${(report as ProfitReport).summary.profitMargin.toFixed(2)}\n\n`
+      csvContent += `${csvCell((report as ProfitReport).summary.totalRevenue)},${csvCell((report as ProfitReport).summary.totalCost)},${csvCell((report as ProfitReport).summary.grossProfit)},${csvCell((report as ProfitReport).summary.profitMargin.toFixed(2))}\n\n`
 
       csvContent += "PROFIT BY PRODUCT\n"
       csvContent += "Product,Quantity,Revenue,Cost,Profit,Margin (%)\n"
       ;((report as ProfitReport).profitByProduct ?? []).forEach(p => {
         const margin = p.revenue > 0 ? ((p.profit / p.revenue) * 100).toFixed(2) : 0
-        csvContent += `${p.name},${p.quantity},${p.revenue},${p.cost},${p.profit},${margin}\n`
+        csvContent += `${csvCell(p.name)},${csvCell(p.quantity)},${csvCell(p.revenue)},${csvCell(p.cost)},${csvCell(p.profit)},${csvCell(margin)}\n`
       })
 
       csvContent += "\nPROFIT BY CATEGORY\n"
       csvContent += "Category,Revenue,Cost,Profit,Margin (%)\n"
       ;((report as ProfitReport).profitByCategory ?? []).forEach(c => {
         const margin = c.revenue > 0 ? ((c.profit / c.revenue) * 100).toFixed(2) : 0
-        csvContent += `${c.category},${c.revenue},${c.cost},${c.profit},${margin}\n`
+        csvContent += `${csvCell(c.category)},${csvCell(c.revenue)},${csvCell(c.cost)},${csvCell(c.profit)},${csvCell(margin)}\n`
       })
     } else if (report.type === "purchases") {
       const purchases = report as PurchasesReport
       csvContent = "PURCHASES REPORT\n"
-      csvContent += `Period: ${period}\n\n`
+      csvContent += `Period: ${csvCell(period)}\n\n`
       csvContent += "SUMMARY\n"
       csvContent += "Purchases,Purchase Value,Paid,Outstanding\n"
-      csvContent += `${purchases.summary.purchaseCount},${purchases.summary.purchaseValue},${purchases.summary.amountPaid},${purchases.summary.outstanding}\n\n`
+      csvContent += `${csvCell(purchases.summary.purchaseCount)},${csvCell(purchases.summary.purchaseValue)},${csvCell(purchases.summary.amountPaid)},${csvCell(purchases.summary.outstanding)}\n\n`
 
       csvContent += "BY SUPPLIER\n"
       csvContent += "Supplier,Purchases,Value,Paid,Balance\n"
       ;(purchases.purchasesBySupplier ?? []).forEach((row) => {
-        csvContent += `${row.supplier},${row.count},${row.total},${row.paid},${row.balance}\n`
+        csvContent += `${csvCell(row.supplier)},${csvCell(row.count)},${csvCell(row.total)},${csvCell(row.paid)},${csvCell(row.balance)}\n`
       })
 
       csvContent += "\nBY PRODUCT\n"
       csvContent += "Product,Quantity,Cost\n"
       ;(purchases.purchasesByProduct ?? []).forEach((row) => {
-        csvContent += `${row.product},${row.quantity},${row.cost}\n`
+        csvContent += `${csvCell(row.product)},${csvCell(row.quantity)},${csvCell(row.cost)}\n`
       })
 
       csvContent += "\nPURCHASES\n"
       csvContent += "Date,Purchase No,Supplier,Total,Payment Status,Status\n"
       ;(purchases.rows ?? []).forEach((row) => {
-        csvContent += `${row.date},${row.purchaseNo},${row.supplier},${row.total},${row.paymentStatus},${row.status}\n`
+        csvContent += `${csvCell(row.date)},${csvCell(row.purchaseNo)},${csvCell(row.supplier)},${csvCell(row.total)},${csvCell(row.paymentStatus)},${csvCell(row.status)}\n`
       })
     }
 

@@ -1,5 +1,6 @@
 ﻿"use client"
 
+import { csvCell } from "@/lib/csv"
 import { useEffect, useState } from "react"
 import { usePharmacySession } from "@/hooks/use-pharmacy-session"
 
@@ -137,7 +138,7 @@ export default function ActivityLogPage() {
         log.action,
         log.entity,
         log.details || ""
-      ].map(field => `"${field}"`).join(","))
+      ].map(csvCell).join(","))
     ].join("\n")
 
     const blob = new Blob([csvContent], { type: "text/csv" })

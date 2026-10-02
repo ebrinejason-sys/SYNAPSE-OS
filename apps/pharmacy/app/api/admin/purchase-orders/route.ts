@@ -4,6 +4,7 @@ import { requirePharmacyPermission } from "@/lib/api-auth"
 import { mapPurchaseOrder } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { sendEmail } from "@/lib/email"
+import { escapeHtml } from "@/lib/html"
 import { receivePharmacyPurchase } from "@synapse/db/pharmacy-purchases"
 
 function generatePurchaseOrderNo(): string {
@@ -172,7 +173,7 @@ export async function POST(request: NextRequest) {
         .map(
           (item) =>
             `<tr>
-          <td style="padding: 10px; border: 1px solid #ddd;">${item.product_name}</td>
+          <td style="padding: 10px; border: 1px solid #ddd;">${escapeHtml(item.product_name)}</td>
           <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${item.quantity}</td>
           <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">USh ${item.unit_price.toLocaleString()}</td>
           <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">USh ${item.total_price.toLocaleString()}</td>
@@ -188,10 +189,10 @@ export async function POST(request: NextRequest) {
           </div>
           <div style="padding: 30px; background: #f9fafb;">
             <div style="background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
-              <p>Dear ${supplier.contact_person ?? supplier.name},</p>
+              <p>Dear ${escapeHtml(supplier.contact_person ?? supplier.name)},</p>
               <p>We would like to place the following order:</p>
               <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 0;"><strong>Order Number:</strong> ${orderNo}</p>
+                <p style="margin: 0;"><strong>Order Number:</strong> ${escapeHtml(orderNo)}</p>
                 <p style="margin: 10px 0 0;"><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
                 ${expectedDate ? `<p style="margin: 10px 0 0;"><strong>Expected Delivery:</strong> ${new Date(expectedDate).toLocaleDateString()}</p>` : ""}
               </div>
@@ -212,7 +213,7 @@ export async function POST(request: NextRequest) {
                   </tr>
                 </tfoot>
               </table>
-              ${notes ? `<div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0;"><p style="margin: 0;"><strong>Notes:</strong></p><p style="margin: 5px 0 0;">${notes}</p></div>` : ""}
+              ${notes ? `<div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0;"><p style="margin: 0;"><strong>Notes:</strong></p><p style="margin: 5px 0 0;">${escapeHtml(notes)}</p></div>` : ""}
               <p>Please confirm receipt of this order and provide an estimated delivery date.</p>
               <p>Thank you for your continued partnership.</p>
               <p>Best regards,<br><strong>SYNAPSE Pharm</strong></p>
@@ -456,7 +457,7 @@ export async function PATCH(request: NextRequest) {
         .map(
           (item) =>
             `<tr>
-          <td style="padding: 10px; border: 1px solid #ddd;">${item.product_name}</td>
+          <td style="padding: 10px; border: 1px solid #ddd;">${escapeHtml(item.product_name)}</td>
           <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${item.quantity}</td>
           <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">USh ${item.unit_price.toLocaleString()}</td>
           <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">USh ${item.total_price.toLocaleString()}</td>
@@ -470,9 +471,9 @@ export async function PATCH(request: NextRequest) {
             <h1 style="color: white; margin: 0;">Purchase Order</h1>
           </div>
           <div style="padding: 30px;">
-            <p>Dear ${supplier.contact_person ?? supplier.name},</p>
+            <p>Dear ${escapeHtml(supplier.contact_person ?? supplier.name)},</p>
             <p>Please find our purchase order details below:</p>
-            <p><strong>Order Number:</strong> ${purchaseOrder.order_no}</p>
+            <p><strong>Order Number:</strong> ${escapeHtml(purchaseOrder.order_no)}</p>
             <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
               <thead>
                 <tr style="background: #7c3aed; color: white;">
