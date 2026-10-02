@@ -64,6 +64,7 @@
     "seed:pharmacy-pilot:reset": "node scripts/pharmacy-pilot-seed.mjs --reset-inventory",
     "postinstall": "node scripts/patch-expo-metro-file-store.mjs || true; node scripts/nest-eslint-ajv6.mjs || true",
     "test:xlsx-audit": "node --test scripts/xlsx-version-audit.test.mjs",
+    "test:vercel-config": "node --test scripts/vercel-crons.test.mjs",
     "test:control-plane": "vitest run apps/web/src/lib/tenant-routing.test.ts packages/db/src/facility-provision.integration.test.ts packages/db/src/facility-invite-token.test.ts apps/web/src/lib/control-plane-security.test.ts apps/web/src/lib/platform/require-admin-api.test.ts apps/web/src/app/api/platform/facilities/[id]/staff/route.test.ts apps/web/src/app/api/platform/simulation/route.test.ts apps/web/src/lib/platform/facility-invitations.server.test.ts apps/web/src/lib/platform/facility-invitations.integration.test.ts apps/web/src/app/api/platform/mfa/step-up/route.test.ts apps/web/src/lib/platform/sha-alignment.test.ts apps/web/src/lib/platform/rc1-pulse.test.ts apps/web/src/app/api/hospital/sync/apply/route.test.ts apps/web/src/app/api/opd/prescriptions/route.test.ts apps/web/src/app/api/hospital/pharmacy/dispense/route.test.ts apps/web/src/app/api/opd/encounters/[id]/close/route.test.ts apps/web/src/app/api/opd/triage/route.test.ts",
     "health:smoke": "node scripts/health-smoke.mjs",
     "readiness:report": "node scripts/readiness-report.mjs",
@@ -108,7 +109,7 @@
     "journey:mfa-step-up-live": "node scripts/mfa-step-up-live-journey.mjs",
     "journey:referral-live": "node scripts/referral-live-journey.mjs",
     "journey:facility-onboarding-live": "tsx scripts/facility-onboarding-live.ts",
-    "test:pharmacy-concurrency": "node --test scripts/db-tests/pharmacy-concurrency.local.test.mjs scripts/db-tests/auth-rate-limit.local.test.mjs"
+    "test:pharmacy-concurrency": "node --test scripts/db-tests/pharmacy-concurrency.local.test.mjs scripts/db-tests/auth-rate-limit.local.test.mjs scripts/db-tests/billing-expiry.local.test.mjs"
   },
   "devDependencies": {
     "ajv6": "npm:ajv@6.12.6",
