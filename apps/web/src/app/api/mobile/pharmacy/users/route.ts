@@ -35,7 +35,8 @@ function generateTempPassword(): string {
   let out = ''
   while (out.length < 14) {
     globalThis.crypto.getRandomValues(buf)
-    if (buf[0] < limit) out += chars[buf[0] % chars.length]
+    const b = buf[0] ?? 255
+    if (b < limit) out += chars.charAt(b % chars.length)
   }
   return `${out}!2`
 }
