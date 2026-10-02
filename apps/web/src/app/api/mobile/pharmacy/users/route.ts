@@ -27,8 +27,16 @@ const ROLE_MAP: Record<string, string> = {
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+  // CSPRNG with rejection sampling (Math.random is predictable).
+  // SECURITY_FOLLOWUP: the mobile contract still returns this temp password to the
+  // admin for handover; replace with the pharmacy set-password link flow.
+  const limit = 256 - (256 % chars.length)
+  const buf = new Uint8Array(1)
   let out = ''
-  for (let i = 0; i < 10; i += 1) out += chars[Math.floor(Math.random() * chars.length)]
+  while (out.length < 14) {
+    globalThis.crypto.getRandomValues(buf)
+    if (buf[0] < limit) out += chars[buf[0] % chars.length]
+  }
   return `${out}!2`
 }
 
