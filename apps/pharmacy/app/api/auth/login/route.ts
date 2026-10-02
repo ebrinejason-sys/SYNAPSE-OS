@@ -189,9 +189,17 @@ export async function POST(req: NextRequest) {
 
   const { data: settings } = await db
     .from('pharmacy_user_settings')
-    .select('pharmacy_role, two_factor_enabled')
+    .select('pharmacy_role, two_factor_enabled, is_active')
     .eq('profile_id', profile.id)
     .maybeSingle()
+
+  // Password already proven, so naming the state does not enable enumeration.
+  if (settings && (settings as { is_active?: boolean | null }).is_active === false) {
+    return NextResponse.json(
+      { error: 'This account has been deactivated. Contact your pharmacy administrator.', code: 'ACCOUNT_INACTIVE' },
+      { status: 403 },
+    )
+  }
 
   const pharmacyRole = (settings?.pharmacy_role as string | null) ?? null
   const twoFactorEnabled = (settings?.two_factor_enabled as boolean | null) ?? null

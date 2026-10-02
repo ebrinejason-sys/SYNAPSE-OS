@@ -540,6 +540,11 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
     }
 
+    // Deactivation must end access now, not when the current session expires.
+    if (isActive === false) {
+      await db.from("synapse_sessions").delete().eq("user_id", id)
+    }
+
     if (name) {
       await db
         .from("profiles")

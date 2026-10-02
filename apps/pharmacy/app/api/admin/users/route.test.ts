@@ -327,3 +327,18 @@ describe('Secure invite/reset: no plaintext passwords leave the server', () => {
     expect(writesTo('synapse_sessions').map((w) => w.op)).toContain('delete')
   })
 })
+
+describe('Deactivation revokes access', () => {
+  it('PATCH isActive=false revokes every session of that user', async () => {
+    const r = await patch({ id: 'staff-9', isActive: false })
+    expect(r.status).toBe(200)
+    const sess = writesTo('synapse_sessions')
+    expect(sess.map((w) => w.op)).toContain('delete')
+  })
+
+  it('PATCH that only renames does not revoke sessions', async () => {
+    const r = await patch({ id: 'staff-9', name: 'Renamed' })
+    expect(r.status).toBe(200)
+    expect(writesTo('synapse_sessions')).toEqual([])
+  })
+})
