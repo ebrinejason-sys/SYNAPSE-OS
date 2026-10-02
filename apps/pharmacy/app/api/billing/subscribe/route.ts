@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requirePharmacyAdmin } from "@/lib/api-auth"
 import { initiateSubscriptionPayment } from '@synapse/auth/billing'
+import { pharmacyAppUrl } from '@/lib/app-url'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     const planSlug = body.planSlug?.trim()
     if (!planSlug) return NextResponse.json({ error: 'planSlug is required' }, { status: 400 })
 
-    const base = process.env.NEXT_PUBLIC_PHARMACY_APP_URL ?? req.nextUrl.origin
+    const base = pharmacyAppUrl()
     const result = await initiateSubscriptionPayment({
       tenantId: session.tenantId,
       planSlug,

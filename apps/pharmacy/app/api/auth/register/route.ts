@@ -10,6 +10,7 @@ import { SESSION_COOKIE, SESSION_DURATION_DAYS, UGANDA_DISTRICTS } from "@synaps
 import { CANONICAL_PLAN_SLUGS } from "@synapse/db/commercial-pricing"
 import { sendWelcome } from "@synapse/email"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { pharmacyUrl } from "@/lib/app-url"
 
 export const runtime = "nodejs"
 
@@ -285,7 +286,7 @@ export async function POST(req: NextRequest) {
       to: email,
       name: fullName,
       product: "Synapse Pharm",
-      ctaUrl: "https://pharm.synapseos.tech/portal/dashboard",
+      ctaUrl: pharmacyUrl("/portal/dashboard"),
       ctaLabel: "Open pharmacy dashboard →",
     })
   } catch (emailErr) {

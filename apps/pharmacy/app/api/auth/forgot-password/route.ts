@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { sendPasswordReset } from '@synapse/email'
+import { pharmacyUrl } from '@/lib/app-url'
 
 async function sha256Hex(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value)
@@ -51,13 +52,8 @@ export async function POST(request: NextRequest) {
       })
 
     if (!insertError) {
-      const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL ??
-        (request.headers.get('x-forwarded-host')
-          ? `https://${request.headers.get('x-forwarded-host')}`
-          : `https://${request.headers.get('host') ?? 'pharm.synapseos.tech'}`)
-
-      const resetUrl = `${appUrl}/reset-password/${token}`
+      
+      const resetUrl = pharmacyUrl(`/reset-password/${token}`)
 
       await sendPasswordReset({
         to: profile.email as string,

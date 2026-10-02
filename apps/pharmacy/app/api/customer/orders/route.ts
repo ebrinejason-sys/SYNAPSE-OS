@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { customerFromRequest } from "@/lib/customer-session"
 import { sendEmail } from "@/lib/email"
+import { pharmacyUrl } from "@/lib/app-url"
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-UG", {
@@ -340,7 +341,7 @@ function generateNewOrderEmail(
             </thead>
             <tbody>${itemsHtml}</tbody>
           </table>
-          <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ""}/portal/orders" style="display: inline-block; padding: 12px 30px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">View &amp; Claim Order</a>
+          <a href="${pharmacyUrl("/portal/orders")}" style="display: inline-block; padding: 12px 30px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">View &amp; Claim Order</a>
           <p style="margin-top: 30px; font-size: 12px; color: #666;">
             This order will be assigned to the first staff member who claims it.
           </p>

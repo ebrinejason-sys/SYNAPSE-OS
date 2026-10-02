@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
 import { randomBytes } from 'crypto'
+import { pharmacyUrl } from "./app-url"
 
 // Lazy instance --- avoids throwing at module load time when key is absent
 let _resend: Resend | null = null
@@ -70,7 +71,7 @@ export function generateWelcomeEmail(name: string, email: string, password: stri
           
           <p><strong>Important:</strong> For security reasons, you will be required to change your password upon first login.</p>
           
-          <a href="${process.env.NEXT_PUBLIC_APP_URL}/login" class="button">Login to Your Account</a>
+          <a href="${pharmacyUrl("/login")}" class="button">Login to Your Account</a>
           
           <p style="margin-top: 30px;">If you have any questions or need assistance, please contact your administrator.</p>
         </div>
@@ -153,7 +154,7 @@ function generatePharmacyInviteEmailHtml({
   adminName: string
   inviteToken: string
 }): string {
-  const pharmacyAppUrl = process.env.NEXT_PUBLIC_PHARMACY_APP_URL ?? "https://pharm.synapseos.tech"
+  const pharmacyAppUrl = pharmacyUrl("/").replace(/\/$/, "")
   const inviteUrl = `${pharmacyAppUrl.replace(/\/$/, "")}/invite/${inviteToken}`
 
   return `
@@ -474,7 +475,7 @@ function generateStaffWelcomeEmailHtml({
             <p>You must change your temporary password immediately upon first login. Use a strong, unique password that you haven't used elsewhere.</p>
           </div>
 
-          <a href="https://pharm.synapseos.tech/login" class="button">Log In to Synapse Pharmacy</a>
+          <a href="${pharmacyUrl("/login")}" class="button">Log In to Synapse Pharmacy</a>
 
           <div class="footer">
             <p>Synapse Health Technologies Limited</p>
