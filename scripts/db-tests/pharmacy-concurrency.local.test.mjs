@@ -204,4 +204,23 @@ describe("pharmacy concurrency (local Postgres)", { skip }, () => {
     const { data: ev } = await db.from("pharmacy_till_cash_events").select("id").eq("session_id", sid)
     assert.equal(ev.length, 0)
   })
+
+  it("duplicate Flutterwave confirmation (webhook + redirect, concurrent): one activation, one event", async () => {
+    const { data: plan } = await db.from("subscription_plans").select("id").eq("slug", "synapse_pharmacy_annual").maybeSingle()
+    const periodEnd = new Date(Date.now() + 365 * 864e5).toISOString()
+    const { data: pay, error } = await db.from("subscription_payments").insert({
+      tenant_id: tenantId, plan_id: plan?.id ?? null, amount_ugx: 240000, provider_tx_ref: `ZZ-FLW-${randomUUID()}`,
+      status: "pending", period_start: new Date().toISOString(), period_end: periodEnd,
+    }).select("id").single()
+    if (error) throw error
+    const since = new Date(Date.now() - 1000).toISOString()
+    const results = await Promise.all(Array.from({ length: 4 }, () => db.rpc("activate_subscription_payment", { p_payment_id: pay.id, p_actor: "test" })))
+    for (const r of results) assert.equal(r.error, null)
+    assert.equal(results.filter((r) => r.data.ok && !r.data.idempotent).length, 1, "exactly one real activation")
+    assert.equal(results.filter((r) => r.data.idempotent).length, 3)
+    const { data: events } = await db.from("subscription_events").select("id, metadata").eq("tenant_id", tenantId).gte("created_at", since)
+    assert.equal((events ?? []).filter((e) => e.metadata?.payment_id === pay.id).length, 1)
+    const { data: sub } = await db.from("tenant_subscriptions").select("current_period_end").eq("tenant_id", tenantId).single()
+    assert.equal(new Date(sub.current_period_end).toISOString(), periodEnd)
+  })
 })

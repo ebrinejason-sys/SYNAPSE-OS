@@ -440,6 +440,9 @@ export async function confirmSubscriptionPayment(input: ConfirmPaymentInput): Pr
   })
   if (actErr) return { ok: false, reason: actErr.message }
   if (!result?.ok) return { ok: false, reason: result?.error ?? 'activation_failed' }
+  // A concurrent confirmation (webhook + redirect verify, or a retried webhook) already
+  // activated this payment inside the row-locked RPC: no second invoice or receipt.
+  if (result.idempotent) return { ok: true, idempotent: true, reason: 'already_activated' }
 
   const invoiceNo = await recordSubscriptionInvoice(payment).catch(() => null)
 
@@ -501,6 +504,14 @@ export async function recordSubscriptionInvoice(payment: PaymentRecord): Promise
       })
       if (!insErr) return invoiceNo
       if (insErr.code !== '23505') break // only retry unique-collision; else fall through
+      // One invoice per payment (subscription_invoices_payment_id_uidx): a concurrent
+      // confirmation won the race — return its number instead of minting another.
+      const { data: raced } = await db()
+        .from('subscription_invoices')
+        .select('invoice_no')
+        .eq('payment_id', payment.id)
+        .maybeSingle()
+      if (raced?.invoice_no) return raced.invoice_no
     }
   }
 

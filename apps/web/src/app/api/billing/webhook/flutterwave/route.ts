@@ -6,9 +6,18 @@ export const dynamic = 'force-dynamic'
 /**
  * Flutterwave webhook endpoint.
  *
+ * CANONICAL webhook for ALL Synapse subscription payments (OS, Lab and Pharmacy —
+ * pharmacy checkout tx_refs are created in apps/pharmacy but confirmed here; both
+ * apps share one database).
+ *
+ * Service: apps/web → Vercel project "synapse-os" (team synapse-os1).
+ * Required env on THAT project: FLUTTERWAVE_WEBHOOK_SECRET (dashboard "Secret hash",
+ * compared in constant time with the verif-hash header; the API secret key is never
+ * accepted) and FLUTTERWAVE_SECRET_KEY (server-side re-verification of every charge).
+ *
  * Dashboard setup (Flutterwave > Settings > Webhooks):
  *   URL:    https://synapseos.tech/api/billing/webhook/flutterwave
- *   Secret: same value as FLUTTERWAVE_WEBHOOK_SECRET (sent as verif-hash header)
+ *   Secret: same value as FLUTTERWAVE_WEBHOOK_SECRET on synapse-os
  *
  * Events to enable: charge.completed
  */
