@@ -82,7 +82,22 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     const currentBalance = Number(latest?.balance_after ?? 0)
-    const balanceAfter = type === "credit" ? currentBalance + amount : Math.max(currentBalance - amount, 0)
+    // A repayment may not exceed what is owed: clamping to 0 used to record money
+    // the pharmacy never had a claim to and hid the cashier's error.
+    if (type === "repayment" && amount > currentBalance) {
+      return NextResponse.json(
+        {
+          error:
+            currentBalance > 0
+              ? `Repayment exceeds the outstanding balance of ${currentBalance}.`
+              : "This customer has no outstanding balance.",
+          code: "OVERPAYMENT",
+          balance: currentBalance,
+        },
+        { status: 400 },
+      )
+    }
+    const balanceAfter = type === "credit" ? currentBalance + amount : currentBalance - amount
 
     const { data, error } = await supabaseAdmin
       .from("pharmacy_credit_ledger")
