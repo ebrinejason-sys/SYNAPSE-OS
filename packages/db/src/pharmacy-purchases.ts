@@ -356,7 +356,7 @@ export async function createPurchaseCatalogProduct(
 ): Promise<
   | { ok: true; product: CreatedPurchaseProduct; duplicateOverride: boolean }
   | { ok: false; code: "DUPLICATE_PRODUCT"; error: string; candidates: Array<CatalogProduct & { score: number }> }
-  | { ok: false; code: "NAME_REQUIRED" | "SKU_EXISTS" | "CATALOG_LOOKUP" | "PRODUCT_CREATE"; error: string }
+  | { ok: false; code: "NAME_REQUIRED" | "SKU_EXISTS" | "BARCODE_EXISTS" | "CATALOG_LOOKUP" | "PRODUCT_CREATE"; error: string }
 > {
   const name = String(input.name ?? "").trim()
   if (!name) return { ok: false, code: "NAME_REQUIRED", error: "Product name is required" }
@@ -394,6 +394,13 @@ export async function createPurchaseCatalogProduct(
       error: "A similar product already exists.",
       candidates,
     }
+  }
+
+  // A barcode identifies exactly one product per pharmacy; createAnyway may override a
+  // fuzzy name match but never an exact barcode match (scanning must be unambiguous).
+  const barcodeIn = String(input.barcode ?? "").trim()
+  if (barcodeIn && products.some((p) => String(p.barcode ?? "").trim() === barcodeIn)) {
+    return { ok: false, code: "BARCODE_EXISTS", error: "A product with this barcode already exists" }
   }
 
   const sku = String(input.sku ?? "").trim() || generateProductSku()

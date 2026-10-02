@@ -342,6 +342,35 @@ describe("pharmacy purchases domain", () => {
     assert.match(String(audit.details), /para/)
   })
 
+  it("blocks an exact barcode duplicate even with createAnyway", async () => {
+    const inserts: unknown[] = []
+    const existing = { id: "amx", name: "Amoxicillin 500 mg Capsules", sku: "AMX-500", barcode: "6001234567890" }
+    const client = {
+      rpc: async () => ({ data: null, error: null }),
+      from: (table: string) => {
+        const api: Record<string, unknown> = {}
+        const self = () => api
+        for (const m of ["select", "eq", "limit"]) api[m] = self
+        api.insert = (row: unknown) => (inserts.push(row), api)
+        api.maybeSingle = async () => ({ data: null, error: null })
+        api.single = async () => ({ data: { id: "new" }, error: null })
+        api.then = (resolve: (value: unknown) => unknown) =>
+          Promise.resolve(resolve({ data: table === "pharmacy_products" ? [existing] : [], error: null }))
+        return api
+      },
+    }
+    const res = await createPurchaseCatalogProduct(client as never, {
+      tenantId: "t1",
+      actorId: "u1",
+      name: "Totally Different Name",
+      barcode: " 6001234567890 ",
+      createAnyway: true,
+    })
+    assert.equal(res.ok, false)
+    if (!res.ok) assert.equal(res.code, "BARCODE_EXISTS")
+    assert.equal(inserts.filter((r) => (r as { tenant_id?: string }).tenant_id === "t1" && "sku" in (r as object)).length, 0)
+  })
+
   it("does not match another tenant's barcode or sku", () => {
     const tenantA = [
       { id: "para", name: "Paracetamol 500 mg Tablets", sku: "PARA-500", barcode: "1234567890123" },
