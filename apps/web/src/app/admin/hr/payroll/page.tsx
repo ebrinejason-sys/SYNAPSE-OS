@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import { createClient } from '../../../../lib/supabase/client'
 
 interface StaffMember {
   id: string
@@ -21,21 +20,12 @@ export default function AdminHRPayrollPage() {
   const [salaryInput, setSalaryInput] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Reads and writes go through server routes (service role, facility admin
+  // session + staff capability, tenant scoped). The browser never writes profiles.
   async function load() {
-    const supabase = createClient()
-    const meRes = await fetch('/api/auth/me')
-    const { user } = meRes.ok ? await meRes.json() : { user: null }
-    if (!user) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = supabase as any
-    const { data: profile } = await sb.from('profiles').select('hospital_id').eq('id', user.id).single() as { data: { hospital_id: string } | null }
-    if (!profile?.hospital_id) { setLoading(false); return }
-    const { data } = await sb.from('profiles')
-      .select('id, full_name, role, department, base_salary_ugx')
-      .eq('hospital_id', profile.hospital_id)
-      .neq('role', 'patient')
-      .order('full_name') as { data: StaffMember[] | null }
-    setStaff(data ?? [])
+    const res = await fetch('/api/hospital/admin/payroll', { cache: 'no-store' })
+    const data = res.ok ? await res.json().catch(() => null) : null
+    setStaff((data?.staff ?? []) as StaffMember[])
     setLoading(false)
   }
 
@@ -43,11 +33,13 @@ export default function AdminHRPayrollPage() {
 
   async function saveSalary(staffId: string) {
     const val = parseFloat(salaryInput.replace(/,/g, ''))
-    if (isNaN(val)) return
+    if (isNaN(val) || val < 0) return
     setSaving(true)
-    const supabase = createClient()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from('profiles').update({ base_salary_ugx: val }).eq('id', staffId)
+    await fetch(`/api/hospital/admin/payroll/${encodeURIComponent(staffId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base_salary_ugx: val }),
+    })
     setEditId(null)
     setSalaryInput('')
     setSaving(false)
