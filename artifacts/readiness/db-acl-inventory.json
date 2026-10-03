@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-29T08:47:10.795Z",
-  "security_definer_count": 41,
+  "generated_at": "2026-10-03T05:41:09.089Z",
+  "security_definer_count": 48,
   "public_or_anon_execute_grants": [],
   "unexpected_public_execute": [],
   "status": "PASS",
@@ -169,6 +169,34 @@
     {
       "file": "20260924120000_pharmacy_physical_stock_negative.sql",
       "fn": "public.complete_pharmacy_sale"
+    },
+    {
+      "file": "20261002120000_pharmacy_receive_stock_tenant_refs.sql",
+      "fn": "public.receive_pharmacy_stock"
+    },
+    {
+      "file": "20261002130000_pharmacy_sale_deny_negative_stock.sql",
+      "fn": "public.complete_pharmacy_sale"
+    },
+    {
+      "file": "20261002140000_pharmacy_atomic_credit_and_till.sql",
+      "fn": "public.post_pharmacy_credit_entry"
+    },
+    {
+      "file": "20261002140000_pharmacy_atomic_credit_and_till.sql",
+      "fn": "public.pharmacy_till_record_cash"
+    },
+    {
+      "file": "20261002160000_auth_rate_limit_buckets.sql",
+      "fn": "public.consume_auth_rate_limit"
+    },
+    {
+      "file": "20261002160000_auth_rate_limit_buckets.sql",
+      "fn": "public.auth_rate_limit_status"
+    },
+    {
+      "file": "20261002160000_auth_rate_limit_buckets.sql",
+      "fn": "public.reset_auth_rate_limit"
     }
   ]
 }

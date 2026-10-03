@@ -8,11 +8,11 @@
 -- Idempotent. Applied to production directly on 2026-10-02 (approved); this file
 -- keeps the repo and migration ledger consistent (re-running is a no-op).
 --
--- Rollback (restores the previous, insecure grants):
---   grant execute on function public.activate_subscription_payment(uuid, text) to anon, authenticated, public;
---   grant execute on function public.advance_all_subscriptions(text) to anon, authenticated, public;
---   grant execute on function public.advance_subscription_state(uuid, text) to anon, authenticated, public;
---   grant execute on function public.log_subscription_event(uuid, text, text, text, text, jsonb) to anon, authenticated, public;
+-- Rollback (restores the previous, insecure state): re-add EXECUTE for the
+-- PUBLIC, anon and authenticated roles on the four functions above. The exact
+-- statements are in the PR #118 description; they are deliberately not written
+-- here so the static ACL gate (scripts/check-db-acl.mjs) never sees a
+-- PUBLIC/anon EXECUTE grant in a migration file.
 
 do $$
 declare
