@@ -27,8 +27,16 @@ describe('profiles privileged-column guard migration', () => {
   it('signup triggers no longer read is_admin, role or department_id from user metadata', () => {
     const fns = sqlOnly.slice(sqlOnly.indexOf('create or replace function public.handle_new_user()'))
     expect(fns).not.toMatch(/raw_user_meta_data\s*->>\s*'(is_admin|role|department_id)'/)
-    expect(fns).toMatch(/new\.email,\s*false/)
-    expect(fns).toMatch(/'patient'/)
+    expect(fns).toMatch(/insert into public\.profiles \(id, full_name, email, role, is_admin\)\s*values \(\s*new\.id,[^;]*new\.email,\s*'patient',\s*false\s*\)/)
+    // On conflict the existing row's role and is_admin are never overwritten.
+    const conflict = fns.slice(fns.indexOf('on conflict (id) do update'), fns.indexOf('return new;'))
+    expect(conflict).not.toMatch(/\brole\b|is_admin/)
+    expect(fns).toMatch(/values \(\s*new\.id,[\s\S]*?'patient'\s*\)\s*on conflict \(id\) do nothing/)
+  })
+
+  it('makes patient the profiles.role default without rewriting existing rows', () => {
+    expect(sqlOnly).toMatch(/alter table public\.profiles alter column role set default 'patient'/)
+    expect(sqlOnly).not.toMatch(/update public\.profiles\s+set\s+role/i)
   })
 
   it('keeps payroll compensation service-role only', () => {

@@ -10,7 +10,8 @@
 --    for anon/authenticated, any change outside the self-service allow-list
 --    raises 42501. New columns are privileged by default.
 -- 3. Signup triggers no longer trust is_admin / role / department_id from
---    user-controlled raw_user_meta_data.
+--    user-controlled raw_user_meta_data; self-signups get role 'patient' and
+--    the profiles.role column default becomes 'patient' (existing rows unchanged).
 --
 -- service_role, postgres and SECURITY DEFINER functions are unaffected.
 
@@ -77,6 +78,10 @@ create trigger profiles_guard_privileged_columns
   for each row execute function public.profiles_guard_privileged_columns();
 
 -- 3. Signup triggers ----------------------------------------------------------
+-- Least-privilege column default. Every server-side insert sets role
+-- explicitly; existing rows are not modified (default change only).
+alter table public.profiles alter column role set default 'patient';
+
 -- Profiles created by self-service signup never receive admin rights from
 -- metadata; facility staff and admins are provisioned server-side.
 create or replace function public.handle_new_user()
@@ -86,11 +91,14 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, full_name, email, is_admin)
+  -- Self-service signups are patients. On conflict (row pre-provisioned
+  -- server-side) role and is_admin are left untouched.
+  insert into public.profiles (id, full_name, email, role, is_admin)
   values (
     new.id,
     new.raw_user_meta_data ->> 'full_name',
     new.email,
+    'patient',
     false
   )
   on conflict (id) do update
