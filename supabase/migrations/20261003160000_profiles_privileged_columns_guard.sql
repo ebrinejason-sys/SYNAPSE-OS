@@ -145,3 +145,14 @@ create index if not exists staff_compensation_tenant_idx on public.staff_compens
 alter table public.staff_compensation enable row level security;
 revoke all on table public.staff_compensation from public, anon, authenticated;
 grant select, insert, update, delete on table public.staff_compensation to service_role;
+
+
+-- 5. Close proven-exploitable PUBLIC policies on unused food-delivery leftovers
+--    (orders/products/restaurants) and the misnamed consult_queue open SELECT.
+--    App traffic uses pharmacy_products / clinical order tables, not these.
+--    Tables and demo rows are retained; policies only.
+drop policy if exists "Rider access" on public.orders;
+drop policy if exists "Rider update" on public.orders;
+drop policy if exists "queue_read_by_token" on public.consult_queue;
+drop policy if exists "Public read products" on public.products;
+drop policy if exists "Public read restaurants" on public.restaurants;

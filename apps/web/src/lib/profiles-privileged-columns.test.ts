@@ -39,7 +39,16 @@ describe('profiles privileged-column guard migration', () => {
     expect(sqlOnly).not.toMatch(/update public\.profiles\s+set\s+role/i)
   })
 
-  it('keeps payroll compensation service-role only', () => {
+  
+  it('closes food-delivery public policies (rider/consult/products/restaurants)', () => {
+    expect(sqlOnly).toMatch(/drop policy if exists "Rider access" on public\.orders/)
+    expect(sqlOnly).toMatch(/drop policy if exists "Rider update" on public\.orders/)
+    expect(sqlOnly).toMatch(/drop policy if exists "queue_read_by_token" on public\.consult_queue/)
+    expect(sqlOnly).toMatch(/drop policy if exists "Public read products" on public\.products/)
+    expect(sqlOnly).toMatch(/drop policy if exists "Public read restaurants" on public\.restaurants/)
+  })
+
+it('keeps payroll compensation service-role only', () => {
     expect(sqlOnly).toMatch(/alter table public\.staff_compensation enable row level security/)
     expect(sqlOnly).toMatch(/revoke all on table public\.staff_compensation from public, anon, authenticated/)
   })
