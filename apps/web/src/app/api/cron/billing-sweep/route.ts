@@ -17,7 +17,10 @@ export const maxDuration = 120
  * 3. G2 sweep: purges auth_otps older than 15 min and password_reset_tokens
  *    older than 60 min.
  * 4. Records the run in platform_billing_config (key 'billing_sweep_last_run')
- *    for the platform-health dashboard.
+ *    for the platform-health dashboard. Runs that actually did work (transitions,
+ *    reminders or email attempts) are also kept under 'billing_sweep_last_effective_run'
+ *    so a duplicate/no-op cron invocation cannot overwrite the evidence.
+ *    Recipient addresses are never persisted or returned — only type/tenant/ok.
  */
 
 const REMINDER_WINDOW_DAYS = 3
@@ -68,26 +71,32 @@ export async function GET(req: NextRequest) {
   }
 
   const runStartedAt = new Date().toISOString()
-  const emailLog: Array<{ type: string; tenant_id: string; to: string; ok: boolean }> = []
+  const emailLog: Array<{ type: string; tenant_id: string; ok: boolean }> = []
   let emailBudget = MAX_EMAILS_PER_RUN
 
   async function notify(
     type: string,
     tenantId: string,
     send: (to: AdminRecipient, pharmacy: string) => Promise<void>,
-  ): Promise<void> {
-    if (emailBudget <= 0) return
+  ): Promise<{ recipients: number; attempted: number; delivered: number; budgetExhausted: boolean }> {
+    const outcome = { recipients: 0, attempted: 0, delivered: 0, budgetExhausted: false }
+    if (emailBudget <= 0) return { ...outcome, budgetExhausted: true }
     const pharmacy = await tenantName(tenantId)
-    for (const admin of await tenantAdmins(tenantId)) {
-      if (emailBudget <= 0) return
+    const admins = await tenantAdmins(tenantId)
+    outcome.recipients = admins.length
+    for (const admin of admins) {
+      if (emailBudget <= 0) return { ...outcome, budgetExhausted: true }
       emailBudget -= 1
+      outcome.attempted += 1
       try {
         await send(admin, pharmacy)
-        emailLog.push({ type, tenant_id: tenantId, to: admin.email, ok: true })
+        outcome.delivered += 1
+        emailLog.push({ type, tenant_id: tenantId, ok: true })
       } catch {
-        emailLog.push({ type, tenant_id: tenantId, to: admin.email, ok: false })
+        emailLog.push({ type, tenant_id: tenantId, ok: false })
       }
     }
+    return outcome
   }
 
   // ── 1. State machine ────────────────────────────────────────────────────────
@@ -138,6 +147,7 @@ export async function GET(req: NextRequest) {
   const horizon = new Date(Date.now() + REMINDER_WINDOW_DAYS * 24 * 60 * 60_000).toISOString()
   const nowIso = new Date().toISOString()
   let remindersSent = 0
+  let remindersFailed = 0
 
   const remind = async (
     rows: Array<{ tenant_id: string; due: string; plan: { name?: string; price_ugx?: number } | null }>,
@@ -155,7 +165,7 @@ export async function GET(req: NextRequest) {
         .limit(1)
       if (already && already.length > 0) continue
 
-      await notify(reason, row.tenant_id, (admin, pharmacy) =>
+      const outcome = await notify(reason, row.tenant_id, (admin, pharmacy) =>
         sendRenewalReminder({
           to: admin.email,
           name: admin.full_name ?? '',
@@ -167,13 +177,20 @@ export async function GET(req: NextRequest) {
           kind,
         }),
       )
+      // Only mark the reminder as sent (dedupe event) when it actually went out,
+      // or when the tenant has no admin to notify. A Resend failure or an
+      // exhausted email budget leaves it unmarked so the next run retries.
+      if (outcome.budgetExhausted || (outcome.recipients > 0 && outcome.delivered === 0)) {
+        remindersFailed += 1
+        continue
+      }
       await db().from('subscription_events').insert({
         tenant_id: row.tenant_id,
         from_status: null,
         to_status: null,
         reason,
         actor: 'cron',
-        metadata: { due: row.due },
+        metadata: { due: row.due, recipients: outcome.recipients, delivered: outcome.delivered },
       })
       remindersSent += 1
     }
@@ -221,6 +238,9 @@ export async function GET(req: NextRequest) {
     state_machine: sweepResult,
     transitions: (transitions ?? []).length,
     reminders_sent: remindersSent,
+    reminders_failed: remindersFailed,
+    emails_attempted: emailLog.length,
+    emails_failed: emailLog.filter((e) => !e.ok).length,
     emails: emailLog,
     token_cleanup: {
       auth_otps: otps,
@@ -229,12 +249,23 @@ export async function GET(req: NextRequest) {
   }
 
   // ── 4. Record the run for the platform-health page ─────────────────────────
+  const recordedAt = new Date().toISOString()
   await db()
     .from('platform_billing_config')
     .upsert(
-      { key: 'billing_sweep_last_run', value: result, updated_at: new Date().toISOString() },
+      { key: 'billing_sweep_last_run', value: result, updated_at: recordedAt },
       { onConflict: 'key' },
     )
+  // Vercel cron may deliver the same schedule more than once; keep the last run
+  // that actually changed something so a later no-op run cannot erase it.
+  if (result.transitions > 0 || remindersSent > 0 || remindersFailed > 0 || emailLog.length > 0) {
+    await db()
+      .from('platform_billing_config')
+      .upsert(
+        { key: 'billing_sweep_last_effective_run', value: result, updated_at: recordedAt },
+        { onConflict: 'key' },
+      )
+  }
 
   return NextResponse.json(result)
 }
