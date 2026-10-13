@@ -628,6 +628,15 @@ export async function provisionHospital(
   {
     let created = 0
     const locations = input.facilityType === "laboratory" ? HOSPITAL_LOCATIONS.filter(loc => /lab|reception|billing/i.test(loc.code)) : HOSPITAL_LOCATIONS
+    const departmentNameByCode = new Map(HOSPITAL_DEPARTMENTS.map((department) => [department.code, department.name]))
+    const { data: departmentRows } = await db
+      .from("departments")
+      .select("id,name")
+      .eq("tenant_id", tenantId)
+    const departmentIdByName = new Map(
+      (departmentRows ?? []).map((department: { id: string; name: string }) => [department.name, department.id]),
+    )
+    const locationIdByCode = new Map<string, string>()
     for (const loc of locations) {
       const { data: existing } = await db
         .from("facility_locations")
@@ -635,10 +644,16 @@ export async function provisionHospital(
         .eq("tenant_id", tenantId)
         .eq("code", loc.code)
         .maybeSingle()
-      if (existing) continue
-      const { error } = await db.from("facility_locations").insert({
+      if (existing?.id) {
+        locationIdByCode.set(loc.code, existing.id as string)
+        continue
+      }
+      const departmentName = departmentNameByCode.get(loc.departmentCode)
+      const { data: inserted, error } = await db.from("facility_locations").insert({
         tenant_id: tenantId,
         hospital_id: hospitalId,
+        department_id: departmentName ? departmentIdByName.get(departmentName) ?? null : null,
+        parent_id: loc.parentCode ? locationIdByCode.get(loc.parentCode) ?? null : null,
         code: loc.code,
         name: loc.name,
         location_type: loc.locationType,
@@ -646,12 +661,13 @@ export async function provisionHospital(
         building: loc.building ?? null,
         is_active: true,
         is_synthetic: isSynthetic,
-      })
+      }).select("id").single()
       if (error) {
         await failStep(db, runId!, "locations", "LOCATION_INSERT", error.message)
         await failRun(db, runId!, "LOCATION_INSERT", "Location setup failed", tenantId)
         return failResult(runId!, slug, correlationId, "Location setup failed", tenantId, hospitalId, stepResults)
       }
+      if (inserted?.id) locationIdByCode.set(loc.code, inserted.id as string)
       created += 1
     }
     await completeStep(db, runId!, "locations", { created, total: HOSPITAL_LOCATIONS.length })
