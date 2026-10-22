@@ -121,7 +121,7 @@ describe("pharmacy purchases domain", () => {
       from: (table: string) => {
         const api: Record<string, unknown> = {}
         const self = () => api
-        for (const m of ["select", "insert", "update", "delete", "eq", "upsert"]) api[m] = self
+        for (const m of ["select", "insert", "update", "delete", "eq", "lte", "gte", "upsert"]) api[m] = self
         api.maybeSingle = async () =>
           table === "pharmacy_purchase_idempotency"
             ? { data: { purchase_id: "p1", response: prior }, error: null }
@@ -159,12 +159,20 @@ describe("pharmacy purchases domain", () => {
     const client = {
       rpc: async () => {
         rpcCalls += 1
-        return { data: { batch_id: "b2", product_id: "cet", received: 200 }, error: null }
+        return {
+          data: {
+            received: [
+              { productId: "para", batchId: "b1", quantity: 500, purchaseItemId: "i-para" },
+              { productId: "cet", batchId: "b2", quantity: 200, purchaseItemId: "i-cet" },
+            ],
+          },
+          error: null,
+        }
       },
       from: (table: string) => {
         const api: Record<string, unknown> = {}
         const self = () => api
-        for (const m of ["select", "insert", "update", "delete", "eq", "upsert"]) api[m] = self
+        for (const m of ["select", "insert", "update", "delete", "eq", "lte", "gte", "upsert"]) api[m] = self
         api.maybeSingle = async () => {
           if (table === "pharmacy_purchase_idempotency") {
             return {
@@ -181,6 +189,7 @@ describe("pharmacy purchases domain", () => {
           if (table === "pharmacy_suppliers") {
             return { data: { id: "s1", name: "Supplier A" }, error: null }
           }
+          if (table === "pharmacy_accounting_periods") return { data: null, error: null }
           return { data: { id: "b-existing", cost_price: 100 }, error: null }
         }
         api.single = async () => ({ data: { id: "p2", purchase_no: "PUR-2" }, error: null })
@@ -443,18 +452,22 @@ describe("pharmacy purchases domain", () => {
     let purchaseInserts = 0
     let itemInserts = 0
     const client = {
-      rpc: async (_fn: string, args: Record<string, unknown>) => {
-        rpcArgs.push(args)
-        const productId = String(args.p_product_id ?? args.product_id ?? "")
+      rpc: async (fn: string, args: Record<string, unknown>) => {
+        rpcArgs.push({ fn, ...args })
         return {
-          data: { batch_id: productId === "para" ? "b-para" : "b-cet", product_id: productId, received: args.p_quantity ?? args.quantity },
+          data: {
+            received: [
+              { productId: "para", batchId: "b-para", quantity: 500, purchaseItemId: "i-para" },
+              { productId: "cet-1", batchId: "b-cet", quantity: 200, purchaseItemId: "i-cet" },
+            ],
+          },
           error: null,
         }
       },
       from: (table: string) => {
         const api: Record<string, unknown> = {}
         const self = () => api
-        for (const m of ["select", "insert", "update", "delete", "eq", "upsert"]) api[m] = self
+        for (const m of ["select", "insert", "update", "delete", "eq", "lte", "gte", "upsert"]) api[m] = self
         api.insert = (row: unknown) => {
           if (table === "pharmacy_purchases") purchaseInserts += 1
           if (table === "pharmacy_purchase_items") {
@@ -530,6 +543,8 @@ describe("pharmacy purchases domain", () => {
           productName: "Cetirizine 10 mg Tablet",
           quantity: 200,
           unitCost: 350,
+          sellingPrice: 500,
+          updateSellingPrice: true,
           batchNumber: "CET-44",
           expiryDate: "2027-06-01",
         },
@@ -544,15 +559,94 @@ describe("pharmacy purchases domain", () => {
     }
     assert.equal(purchaseInserts, 1)
     assert.equal(itemInserts, 2)
-    assert.equal(rpcArgs.length, 2)
-    assert.deepEqual(
-      rpcArgs.map((args) => args.p_product_id),
-      ["para", "cet-1"],
-    )
-    assert.deepEqual(
-      rpcArgs.map((args) => args.p_quantity),
-      [500, 200],
-    )
+    assert.equal(rpcArgs.length, 1)
+    assert.equal(rpcArgs[0]?.fn, "receive_pharmacy_purchase_atomic")
+    assert.equal(rpcArgs[0]?.p_tenant_id, "t1")
+    assert.ok(rpcArgs[0]?.p_purchase_id)
+    assert.deepEqual(rpcArgs[0]?.p_line_settings, {
+      "i-cet": { updateSellingPrice: true, sellingPrice: 500 },
+    })
+  })
+
+  it("rejects a purchase in a closed accounting period through the atomic receipt", async () => {
+    let stockRpcCalls = 0
+    const client = {
+      rpc: async () => {
+        stockRpcCalls += 1
+        return { data: null, error: { message: "ACCOUNTING_PERIOD_CLOSED: 2026-10-20" } }
+      },
+      from: (table: string) => {
+        const api: Record<string, any> = {}
+        const self = () => api
+        for (const method of ["select", "insert", "update", "delete", "eq", "lte", "gte", "upsert"]) {
+          api[method] = self
+        }
+        api.maybeSingle = async () => {
+          if (table === "pharmacy_purchase_idempotency") {
+            return { data: { purchase_id: "p1", response: { ok: false } }, error: null }
+          }
+          if (table === "pharmacy_suppliers") return { data: { id: "s1", name: "Supplier" }, error: null }
+          if (table === "pharmacy_purchases") {
+            return { data: { id: "p1", purchase_no: "PUR-1", status: "PARTIALLY_RECEIVED", purchase_date: "2026-10-20" }, error: null }
+          }
+          if (table === "pharmacy_accounting_periods") return { data: null, error: null }
+          return { data: null, error: null }
+        }
+        api.single = async () => ({ data: { id: "p1", purchase_no: "PUR-1", purchase_date: "2026-10-20" }, error: null })
+        if (table === "pharmacy_purchase_items") {
+          api.then = (resolve: (value: unknown) => unknown) =>
+            Promise.resolve(resolve({
+              data: [{
+                id: "i1",
+                product_id: "para",
+                quantity: 10,
+                received_quantity: 0,
+                unit_cost: 100,
+                batch_number: "PAR-1",
+                expiry_date: "2027-01-01",
+                selling_price: null,
+                receipt_idempotency_key: "retry-1:para:PAR-1",
+                purchase_order_item_id: null,
+              }],
+              error: null,
+            }))
+        } else if (table === "pharmacy_purchases") {
+          api.update = (values: Record<string, unknown>) => {
+            api._update = values
+            return api
+          }
+          api.then = (resolve: (value: unknown) => unknown) =>
+            Promise.resolve(resolve({
+              error: (api._update as { status?: string } | undefined)?.status === "RECEIVED"
+                ? { message: "ACCOUNTING_PERIOD_CLOSED" }
+                : null,
+            }))
+        }
+        return api
+      },
+    }
+
+    const result = await receivePharmacyPurchase(client as never, {
+      tenantId: "t1",
+      actorId: "u1",
+      supplierId: "s1",
+      idempotencyKey: "retry-1",
+      lines: [{
+        productId: "para",
+        productName: "Paracetamol",
+        quantity: 10,
+        unitCost: 100,
+        batchNumber: "PAR-1",
+        expiryDate: "2027-01-01",
+      }],
+    })
+
+    assert.equal(result.ok, false)
+    if (!result.ok) {
+      assert.equal(result.code, "ACCOUNTING_PERIOD_CLOSED")
+      assert.equal(result.detail, "ACCOUNTING_PERIOD_CLOSED: 2026-10-20")
+    }
+    assert.equal(stockRpcCalls, 1)
   })
 
 

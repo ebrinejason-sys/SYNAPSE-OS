@@ -548,6 +548,21 @@ function asError(message: string, code = "INVALID"): { ok: false; error: string;
   return { ok: false, error: message, code }
 }
 
+function isReceivedPurchaseLine(
+  value: unknown,
+): value is ReceivePurchaseResult["received"][number] {
+  if (!value || typeof value !== "object") return false
+  const line = value as Record<string, unknown>
+  return (
+    typeof line.productId === "string" &&
+    typeof line.batchId === "string" &&
+    typeof line.purchaseItemId === "string" &&
+    typeof line.quantity === "number" &&
+    Number.isSafeInteger(line.quantity) &&
+    line.quantity > 0
+  )
+}
+
 export async function receivePharmacyPurchase(
   client: DbClient,
   input: ReceivePurchaseInput,
@@ -616,7 +631,7 @@ export async function receivePharmacyPurchase(
   const purchaseNo = generatePurchaseNo()
   const receiveNow = input.receiveNow !== false
 
-  let purchase: { id: string; purchase_no: string } | null = null
+  let purchase: { id: string; purchase_no: string; purchase_date?: string | null } | null = null
   let insertedItems: Array<{
     id: string
     product_id: string
@@ -633,12 +648,16 @@ export async function receivePharmacyPurchase(
   if (prior.data?.purchase_id) {
     const existing = await client
       .from("pharmacy_purchases")
-      .select("id, purchase_no, status")
+      .select("id, purchase_no, status, purchase_date")
       .eq("id", prior.data.purchase_id)
       .eq("tenant_id", tenantId)
       .maybeSingle()
     if (existing.data?.id) {
-      purchase = { id: existing.data.id, purchase_no: existing.data.purchase_no }
+      purchase = {
+        id: existing.data.id,
+        purchase_no: existing.data.purchase_no,
+        purchase_date: existing.data.purchase_date,
+      }
       const existingItems = await client
         .from("pharmacy_purchase_items")
         .select(
@@ -680,7 +699,7 @@ export async function receivePharmacyPurchase(
         created_by: actorId,
         received_by: receiveNow ? actorId : null,
       })
-      .select("id, purchase_no")
+      .select("id, purchase_no, purchase_date")
       .single()
 
     if (created.error || !created.data) {
@@ -752,84 +771,46 @@ export async function receivePharmacyPurchase(
 
   if (!insertedItems) return asError("Failed to create purchase items", "PURCHASE_ITEMS")
 
-  const received: ReceivePurchaseResult["received"] = []
+  let received: ReceivePurchaseResult["received"] = []
   if (receiveNow) {
-    for (let i = 0; i < insertedItems.length; i += 1) {
-      const item = insertedItems[i]!
-      const line = input.lines[i] ?? input.lines.find((candidate) => candidate.productId === item.product_id)
-      if (!line) continue
-      if (Number(item.received_quantity ?? 0) >= Number(item.quantity)) {
-        received.push({
-          productId: item.product_id,
-          batchId: "",
-          quantity: item.quantity,
-          purchaseItemId: item.id,
-        })
-        continue
+    const lineSettings = Object.fromEntries(
+      insertedItems.flatMap((item) => {
+        const line = input.lines.find(
+          (candidate) =>
+            candidate.productId === item.product_id &&
+            candidate.batchNumber.trim() === item.batch_number,
+        )
+        return line?.updateSellingPrice
+          ? [[item.id, { updateSellingPrice: true, sellingPrice: line.sellingPrice ?? null }]]
+          : []
+      }),
+    )
+    const { data, error } = await client.rpc("receive_pharmacy_purchase_atomic", {
+      p_tenant_id: tenantId,
+      p_purchase_id: purchase.id,
+      p_received_by: actorId,
+      p_line_settings: lineSettings,
+    })
+    if (error) {
+      const closedPeriod = error.message.includes("ACCOUNTING_PERIOD_CLOSED")
+      return {
+        ok: false,
+        error: closedPeriod
+          ? "Cannot receive this purchase because its accounting period is closed."
+          : "The stock receipt and accounting entry could not be finalized; no stock was committed. Retry with the same idempotency key after resolving the issue.",
+        code: closedPeriod ? "ACCOUNTING_PERIOD_CLOSED" : "PURCHASE_RECEIPT_ATOMIC",
+        detail: error.message,
       }
-      const existingBatch = await client
-        .from("pharmacy_product_batches")
-        .select("id, cost_price")
-        .eq("tenant_id", tenantId)
-        .eq("product_id", item.product_id)
-        .eq("batch_number", item.batch_number)
-        .eq("expiry_date", item.expiry_date)
-        .maybeSingle()
-
-      const preserveHistoricalCost =
-        existingBatch.data?.id &&
-        existingBatch.data.cost_price != null &&
-        Number(line.unitCost) !== Number(existingBatch.data.cost_price)
-
-      const { data, error } = await receivePharmacyStock(client, {
-        tenantId,
-        productId: item.product_id,
-        batchNumber: item.batch_number,
-        quantity: item.quantity,
-        expiryDate: item.expiry_date,
-        costPrice: preserveHistoricalCost ? null : line.unitCost,
-        sellingPrice: line.updateSellingPrice ? line.sellingPrice ?? null : null,
-        receivedBy: actorId,
-        supplierId: input.supplierId,
-        supplierRef: input.supplierInvoiceNo || purchase.purchase_no,
-        purchaseOrderId: input.purchaseOrderId ?? null,
-        storeId: input.storeId ?? null,
-        reason: `Purchase ${purchase.purchase_no}`,
-      })
-      if (error) {
-        await markPurchaseStatus(client, tenantId, purchase.id, received.length > 0 ? "PARTIALLY_RECEIVED" : "DRAFT")
-        return {
-          ok: false,
-          error: error.humanMessage,
-          code: error.code,
-          detail: error.message,
-        }
-      }
-      await client
-        .from("pharmacy_purchase_items")
-        .update({
-          received_quantity: item.quantity,
-          batch_id: data?.batchId ?? existingBatch.data?.id ?? null,
-        })
-        .eq("id", item.id)
-        .eq("tenant_id", tenantId)
-
-      if (item.purchase_order_item_id) {
-        await incrementPoItemReceived(client, tenantId, item.purchase_order_item_id, item.quantity)
-      }
-
-      received.push({
-        productId: item.product_id,
-        batchId: data?.batchId ?? "",
-        quantity: item.quantity,
-        purchaseItemId: item.id,
-      })
     }
 
-    await markPurchaseStatus(client, tenantId, purchase.id, "RECEIVED", actorId)
-    if (input.purchaseOrderId) {
-      await refreshPurchaseOrderStatus(client, tenantId, input.purchaseOrderId)
+    const receipt = data as { received?: unknown } | null
+    if (!receipt || !Array.isArray(receipt.received)) {
+      return asError("The stock receipt completed without a valid receipt result.", "PURCHASE_RECEIPT_RESULT")
     }
+    if (!receipt.received.every(isReceivedPurchaseLine)) {
+      return asError("The stock receipt returned an invalid line result.", "PURCHASE_RECEIPT_RESULT")
+    }
+    received = receipt.received
   }
 
   const result: ReceivePurchaseResult = {
@@ -871,65 +852,6 @@ export async function receivePharmacyPurchase(
   })
 
   return result
-}
-
-async function markPurchaseStatus(
-  client: DbClient,
-  tenantId: string,
-  purchaseId: string,
-  status: PurchaseStatus,
-  receivedBy?: string,
-) {
-  await client
-    .from("pharmacy_purchases")
-    .update({
-      status,
-      ...(receivedBy
-        ? { received_by: receivedBy, received_date: new Date().toISOString().slice(0, 10) }
-        : {}),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", purchaseId)
-    .eq("tenant_id", tenantId)
-}
-
-async function incrementPoItemReceived(
-  client: DbClient,
-  tenantId: string,
-  poItemId: string,
-  quantity: number,
-) {
-  const { data: item } = await client
-    .from("pharmacy_purchase_order_items")
-    .select("id, received_quantity")
-    .eq("id", poItemId)
-    .eq("tenant_id", tenantId)
-    .maybeSingle()
-  if (!item) return
-  await client
-    .from("pharmacy_purchase_order_items")
-    .update({ received_quantity: Number(item.received_quantity ?? 0) + quantity })
-    .eq("id", poItemId)
-    .eq("tenant_id", tenantId)
-}
-
-async function refreshPurchaseOrderStatus(client: DbClient, tenantId: string, purchaseOrderId: string) {
-  const { data: items } = await client
-    .from("pharmacy_purchase_order_items")
-    .select("quantity, received_quantity")
-    .eq("purchase_order_id", purchaseOrderId)
-    .eq("tenant_id", tenantId)
-  const ordered = (items ?? []).reduce((sum: number, row: { quantity?: number }) => sum + Number(row.quantity ?? 0), 0)
-  const received = (items ?? []).reduce(
-    (sum: number, row: { received_quantity?: number }) => sum + Number(row.received_quantity ?? 0),
-    0,
-  )
-  const mapped = mapPoStatusToExisting(poStatusFromReceived(ordered, received))
-  await client
-    .from("pharmacy_purchase_orders")
-    .update({ status: mapped, updated_at: new Date().toISOString() })
-    .eq("id", purchaseOrderId)
-    .eq("tenant_id", tenantId)
 }
 
 export type { PharmacyRpcError }
