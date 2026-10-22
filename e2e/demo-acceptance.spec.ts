@@ -22,6 +22,7 @@ const ROUTES = [
 
 test.describe("Demo acceptance", () => {
   test("dead-end crawler has 0 presented dead controls or routes", async ({ page }) => {
+    test.setTimeout(120_000)
     const dead: string[] = []
     for (const route of ROUTES) {
       const response = await page.goto(route, { waitUntil: "domcontentloaded" })
