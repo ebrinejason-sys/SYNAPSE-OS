@@ -13,7 +13,6 @@ import {
 } from "./hospital-seed"
 import { commercialPlanSlug } from "./commercial-entitlements"
 import {
-  CANONICAL_HOSPITAL_MODULES,
   FACILITY_LEVELS,
   FACILITY_OWNERSHIP,
   defaultModulesForLevel,
@@ -240,35 +239,6 @@ async function skipStep(db: DbClient, runId: string, step: ProvisionStepKey, rea
     completed_at: nowIso(),
     evidence: { reason },
   })
-}
-
-async function getStepStatus(
-  db: DbClient,
-  runId: string,
-  step: ProvisionStepKey,
-): Promise<ProvisionStepStatus | null> {
-  const { data } = await db
-    .from("facility_provisioning_steps")
-    .select("status")
-    .eq("run_id", runId)
-    .eq("step", step)
-    .maybeSingle()
-  return (data?.status as ProvisionStepStatus) ?? null
-}
-
-/** Skip re-running COMPLETE/SKIPPED steps during idempotent resume. */
-async function shouldSkipCompletedStep(
-  db: DbClient,
-  runId: string,
-  step: ProvisionStepKey,
-  stepResults: ProvisionStepResult[],
-): Promise<boolean> {
-  const status = await getStepStatus(db, runId, step)
-  if (status === "COMPLETE" || status === "SKIPPED") {
-    stepResults.push({ step, status })
-    return true
-  }
-  return false
 }
 
 async function setTenantLifecycle(
@@ -680,9 +650,9 @@ export async function provisionHospital(
           plan_id: planRow.id,
           status: "trialing",
           starts_at: nowIso(),
-          trial_ends: new Date(Date.now() + 30 * 86400000).toISOString(),
+          trial_ends: new Date(Date.now() + 7 * 86400000).toISOString(),
           current_period_start: nowIso(),
-          current_period_end: new Date(Date.now() + 30 * 86400000).toISOString(),
+          current_period_end: new Date(Date.now() + 7 * 86400000).toISOString(),
         },
         { onConflict: "tenant_id" },
       )
@@ -695,7 +665,7 @@ export async function provisionHospital(
         stepResults.push({ step: "subscription", status: "COMPLETE" })
       }
     } else {
-      const trialDays = (input.tier ?? "trial") === "trial" ? 30 : 14
+      const trialDays = (input.tier ?? "trial") === "trial" ? 7 : 14
       const trialEnd = new Date(Date.now() + trialDays * 86400000).toISOString()
       const { error } = await db.from("tenant_subscriptions").upsert(
         {

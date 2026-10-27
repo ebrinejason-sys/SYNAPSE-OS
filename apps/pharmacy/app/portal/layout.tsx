@@ -9,6 +9,7 @@ import {
   MessageSquare, Activity, Truck, FileText, BarChart3,
   RotateCcw, Wifi, WifiOff, CalendarClock, WalletCards, BrainCircuit,
   CreditCard, UserCircle, Building2, ShoppingBag,
+  BookOpen, FileSpreadsheet,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NotificationBell } from "@/components/ui/notification-bell"
@@ -16,7 +17,11 @@ import { IdleLogoutModal } from "@/components/idle-logout-modal"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { usePharmacySession } from "@/hooks/use-pharmacy-session"
+import { usePortalShortcuts } from "@/hooks/use-portal-shortcuts"
 import { sessionHasCapability } from "@/lib/capabilities"
+import { availableShortcuts, PORTAL_SHORTCUTS, type PortalShortcut } from "@/lib/shortcuts/registry"
+import { HelpOverlay } from "@/components/shortcuts/help-overlay"
+import { CommandPalette, type PaletteItem } from "@/components/shortcuts/command-palette"
 import { SkipLink, SynapseThemeToggle } from "@synapse/ui"
 import PortalProviders from "./providers"
 
@@ -34,6 +39,7 @@ const NAV_GROUPS = [
     items: [
       { name: 'Inventory',        href: '/portal/inventory',        icon: Package,      permission: 'MANAGE_INVENTORY' },
       { name: 'Import Assistant', href: '/portal/import-assistant', icon: BrainCircuit, permission: 'MANAGE_INVENTORY' },
+      { name: 'Tally Cut-over',   href: '/portal/tally-import',     icon: FileSpreadsheet, permission: 'MANAGE_INVENTORY' },
     ],
   },
   {
@@ -61,6 +67,7 @@ const NAV_GROUPS = [
       { name: 'Billing',         href: '/portal/billing',       icon: CreditCard,    adminOnly: true },
       { name: 'Transactions',  href: '/portal/transactions',  icon: DollarSign,  permission: 'VIEW_TRANSACTIONS' },
       { name: 'Credit Ledger', href: '/portal/credit-ledger', icon: WalletCards, permission: 'VIEW_TRANSACTIONS' },
+      { name: 'Accounting', href: '/portal/accounting', icon: BookOpen, permission: 'reports.financial' },
       { name: 'Refunds',       href: '/portal/refunds',       icon: RotateCcw,   permission: 'MANAGE_TRANSACTIONS' },
       { name: 'Reports',       href: '/portal/reports',       icon: BarChart3,   permission: 'VIEW_REPORTS' },
     ],
@@ -99,6 +106,7 @@ function PortalShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
+  const [overlay, setOverlay] = useState<"help" | "palette" | null>(null)
   useEffect(() => {
     setIsOnline(navigator.onLine)
     const onOnline = () => setIsOnline(true)
@@ -126,6 +134,16 @@ function PortalShell({ children }: { children: React.ReactNode }) {
     )
   }
 
+  const canUseShortcut = (shortcut: PortalShortcut) =>
+    hasPermission(shortcut.capability, shortcut.adminOnly)
+
+  usePortalShortcuts({
+    enabled: overlay === null,
+    canUse: canUseShortcut,
+    onOpenHelp: () => setOverlay("help"),
+    onOpenPalette: () => setOverlay("palette"),
+  })
+
   const handleSignOut = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
     router.push("/login")
@@ -151,6 +169,26 @@ function PortalShell({ children }: { children: React.ReactNode }) {
 
   const displayName = user?.fullName ?? user?.email ?? "User"
   const roleLabel = user?.pharmacyRole?.replace("pharmacy_", "").toUpperCase() ?? "STAFF"
+
+  const paletteItems: PaletteItem[] = [
+    ...NAV_GROUPS.flatMap((group) =>
+      group.items
+        .filter((item) => {
+          const entry = item as { permission?: string; adminOnly?: boolean }
+          return hasPermission(entry.permission, entry.adminOnly)
+        })
+        .map((item) => ({ name: item.name, href: item.href, group: group.label })),
+    ),
+    ...PORTAL_SHORTCUTS.filter(
+      (shortcut): shortcut is PortalShortcut & { href: string } =>
+        shortcut.group === "Vouchers" && Boolean(shortcut.href) && canUseShortcut(shortcut),
+    ).map((shortcut) => ({
+      name: shortcut.label,
+      href: shortcut.href,
+      group: "Vouchers",
+      hint: shortcut.hint,
+    })),
+  ]
 
   const handleExitImpersonation = async () => {
     await fetch("/api/auth/impersonate/exit", { method: "POST" }).catch(() => {})
@@ -355,6 +393,17 @@ function PortalShell({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
       </div>
+
+      <HelpOverlay
+        open={overlay === "help"}
+        onOpenChange={(next) => setOverlay(next ? "help" : null)}
+        shortcuts={availableShortcuts(canUseShortcut)}
+      />
+      <CommandPalette
+        open={overlay === "palette"}
+        onOpenChange={(next) => setOverlay(next ? "palette" : null)}
+        items={paletteItems}
+      />
     </div>
   )
 }
