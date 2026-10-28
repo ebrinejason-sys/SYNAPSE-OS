@@ -1,95 +1,228 @@
 import { NextRequest, NextResponse } from "next/server"
+import { z } from "zod"
+import { supabaseAdmin } from "@synapse/db/admin"
 import { assertCallerCannotSupplyTenant } from "@synapse/interop"
-import { getCurrentUser } from "../../../../../lib/auth/getCurrentUser"
+import { requireHospitalStaffContext } from "@/lib/hospital-dept"
+import { isContextError, requireHospitalCapability } from "@/lib/hospital-shared"
 import {
   adviseClinical,
   buildClinicalContext,
   clinicalIntelligenceDisabledResponse,
+  isClinicalIntelligenceWave1Enabled,
   isClinicalIntelligenceWave1EnabledForTenant,
   recordClinicianOverride,
 } from "../../../../../lib/clinical-intelligence"
+import { loadEncounterScope, type EncounterScope } from "../../../../../lib/clinical-intelligence/encounter-scope"
+import { findAdviceEvent, recordAdviceEvent } from "../../../../../lib/clinical-intelligence/provenance"
+import { CLINICIAN_DECISIONS } from "../../../../../lib/clinical-intelligence/schemas"
 import { checkRateLimit, rateLimiters } from "../../../../../lib/rate-limit"
 
 export const dynamic = "force-dynamic"
 
+const shortText = z.string().trim().max(500)
+const vitalValue = z.union([z.number().finite(), z.string().max(40)])
+
+const overrideSchema = z.object({
+  recommendationId: z.string().trim().min(1).max(128),
+  decision: z.enum(CLINICIAN_DECISIONS),
+  reason: z.string().trim().max(2000).nullish(),
+  modifiedText: z.string().trim().max(4000).nullish(),
+})
+
+const adviseSchema = z.object({
+  tenantId: z.string().optional(),
+  encounterId: z.string().max(64).nullish(),
+  presentingComplaint: z.string().max(2000).optional(),
+  vitals: z.record(z.string().max(40), vitalValue.optional()).optional(),
+  laboratory: z
+    .array(z.object({ test: shortText, value: shortText, flag: z.string().max(40).optional() }))
+    .max(50)
+    .optional(),
+  history: z.array(shortText).max(50).optional(),
+  examination: z.array(shortText).max(50).optional(),
+  medications: z.array(shortText).max(50).optional(),
+  allergies: z.array(shortText).max(50).optional(),
+  previousDiagnoses: z.array(shortText).max(50).optional(),
+  demographics: z
+    .object({ age: z.number().int().min(0).max(130).nullish(), sex: z.string().max(20).nullish() })
+    .optional(),
+  task: z.enum(["clinical_copilot", "pathway_copilot", "coding_copilot"]).optional(),
+  forceMock: z.boolean().optional(),
+  override: overrideSchema.optional(),
+})
+
+/** Mock output may only be requested where explicitly allowed and never on production. */
+function forceMockAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.CLINICAL_INTELLIGENCE_ALLOW_FORCE_MOCK === "1" && env.VERCEL_ENV !== "production"
+}
+
 /**
  * Clinical Intelligence Wave 1 advise endpoint.
- * Feature-flagged OFF by default. Advisory only — never activates pathways or places orders.
- * The gate is the shared helper: global env flag for staging, or the tenant's
- * feature_flags row for a production allowlist.
+ * Feature-flagged OFF by default. Advisory only — never activates pathways,
+ * places orders, signs diagnoses or writes clinician documentation.
  */
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized", advisory: true }, { status: 401 })
-  if (!user.tenantId) {
-    return NextResponse.json({ error: "Tenant context required", advisory: true }, { status: 403 })
-  }
-
-  if (!(await isClinicalIntelligenceWave1EnabledForTenant(user.tenantId))) {
+  // Flag check first: when OFF nothing else runs (no auth, DB or provider calls).
+  if (!isClinicalIntelligenceWave1Enabled()) {
     return NextResponse.json(clinicalIntelligenceDisabledResponse(), { status: 503 })
   }
 
-  const ip = req.headers.get("x-forwarded-for") ?? "unknown"
-  const { success } = await checkRateLimit(rateLimiters.ai, ip)
-  if (!success) return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 })
+  const ctx = await requireHospitalStaffContext()
+  if (isContextError(ctx)) return ctx
+  const cap = await requireHospitalCapability(ctx, "encounter", "create", "opd")
+  if (cap) return cap
 
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
+  // Tenant allowlist: the shared helper checks the global flag first, so a
+  // production tenant still needs its own feature_flags row to open the gate.
+  if (!(await isClinicalIntelligenceWave1EnabledForTenant(ctx.tenantId))) {
+    return NextResponse.json(clinicalIntelligenceDisabledResponse(), { status: 503 })
+  }
+
+  const { success } = await checkRateLimit(rateLimiters.ai, `clinical-intelligence:${ctx.userId}`)
+  if (!success) return NextResponse.json({ error: "Rate limit exceeded", advisory: true }, { status: 429 })
+
+  const parsedBody = adviseSchema.safeParse(await req.json().catch(() => null))
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: "Invalid request", advisory: true }, { status: 400 })
+  }
+  const body = parsedBody.data
+
   try {
-    assertCallerCannotSupplyTenant(
-      typeof body.tenantId === "string" ? body.tenantId : undefined,
-      user.tenantId,
-    )
+    assertCallerCannotSupplyTenant(body.tenantId, ctx.tenantId)
   } catch {
     return NextResponse.json({ error: "Caller-supplied tenantId is not accepted" }, { status: 403 })
   }
 
-  if (body.override && typeof body.override === "object") {
-    const o = body.override as Record<string, unknown>
-    const record = recordClinicianOverride({
-      recommendationId: String(o.recommendationId ?? ""),
-      decision: (o.decision as "ACCEPT" | "MODIFY" | "REJECT" | "DEFER") ?? "DEFER",
-      clinicianId: user.id,
-      reason: typeof o.reason === "string" ? o.reason : null,
-      modifiedText: typeof o.modifiedText === "string" ? o.modifiedText : null,
-    })
-    return NextResponse.json({ ok: true, advisory: true, override: record })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabaseAdmin as any
+
+  let encounter: EncounterScope | null = null
+  if (body.encounterId) {
+    const loaded = await loadEncounterScope(db, ctx.tenantId, body.encounterId)
+    if (loaded.error) {
+      return NextResponse.json({ error: "Encounter lookup failed", advisory: true }, { status: 500 })
+    }
+    if (!loaded.scope) return NextResponse.json({ error: "Encounter not found" }, { status: 404 })
+    encounter = loaded.scope
   }
 
-  const complaint = typeof body.presentingComplaint === "string" ? body.presentingComplaint : ""
-  if (!complaint.trim()) {
-    return NextResponse.json({ error: "presentingComplaint is required" }, { status: 400 })
+  if (body.override) {
+    // A decision must refer to advice issued inside this tenant (and, when the
+    // advice was encounter-scoped, to the same encounter). Unknown or foreign ids
+    // are indistinguishable "not found". When the audit table is not deployed
+    // there is nothing to link against; the decision is returned unpersisted.
+    const linked = await findAdviceEvent(db, ctx.tenantId, body.override.recommendationId)
+    if (linked.status === "error") {
+      return NextResponse.json({ error: "Recommendation lookup failed", advisory: true }, { status: 500 })
+    }
+    if (linked.status === "not_found") {
+      return NextResponse.json({ error: "Recommendation not found" }, { status: 404 })
+    }
+    if (linked.status === "found") {
+      if (linked.event.encounterId && linked.event.encounterId !== (encounter?.encounterId ?? null)) {
+        return NextResponse.json({ error: "Recommendation not found" }, { status: 404 })
+      }
+      if (linked.event.availability === "unavailable") {
+        return NextResponse.json(
+          { error: "No AI recommendation was produced for this request; there is nothing to accept or reject." },
+          { status: 409 },
+        )
+      }
+    }
+    const record = recordClinicianOverride({
+      recommendationId: body.override.recommendationId,
+      decision: body.override.decision,
+      clinicianId: ctx.userId,
+      reason: body.override.reason ?? null,
+      modifiedText: body.override.modifiedText ?? null,
+    })
+    const provenance = await recordAdviceEvent(db, {
+      tenantId: ctx.tenantId,
+      clinicianId: ctx.userId,
+      eventType: "override",
+      patientId: encounter?.patientId ?? null,
+      encounterId: encounter?.encounterId ?? null,
+      recommendationId: record.recommendationId,
+      task: body.task ?? "clinical_copilot",
+      provider: linked.status === "found" ? linked.event.provider : null,
+      model: linked.status === "found" ? linked.event.model : null,
+      decision: record.decision,
+      payload: {
+        reason: record.reason,
+        modifiedText: record.modifiedText,
+        at: record.at,
+        adviceLinked: linked.status === "found",
+      },
+    })
+    return NextResponse.json({
+      ok: true,
+      advisory: true,
+      override: record,
+      provenancePersisted: provenance.persisted,
+    })
+  }
+
+  // Encounter-scoped context: the chief complaint recorded on the encounter is the
+  // default; an explicit complaint from the clinician takes precedence.
+  const complaint = ((body.presentingComplaint ?? "").trim() || encounter?.chiefComplaint || "").trim()
+  if (!complaint) {
+    return NextResponse.json({ error: "presentingComplaint is required", advisory: true }, { status: 400 })
   }
 
   try {
     const packet = buildClinicalContext({
-      tenantId: user.tenantId,
-      clinicianId: user.id,
-      patientId: typeof body.patientId === "string" ? body.patientId : undefined,
-      encounterId: typeof body.encounterId === "string" ? body.encounterId : null,
-      facilityId: typeof body.facilityId === "string" ? body.facilityId : null,
+      tenantId: ctx.tenantId,
+      clinicianId: ctx.userId,
+      patientId: encounter?.patientId ?? undefined,
+      encounterId: encounter?.encounterId ?? null,
+      facilityId: ctx.hospitalId ?? null,
       presentingComplaint: complaint,
-      vitals: (body.vitals as Record<string, number | string | undefined>) ?? undefined,
-      laboratory: body.laboratory as
-        | Array<{ test: string; value: string; flag?: string }>
-        | undefined,
-      history: Array.isArray(body.history) ? body.history.map(String) : undefined,
-      examination: Array.isArray(body.examination) ? body.examination.map(String) : undefined,
-      medications: Array.isArray(body.medications) ? body.medications.map(String) : undefined,
-      allergies: Array.isArray(body.allergies) ? body.allergies.map(String) : undefined,
-      previousDiagnoses: Array.isArray(body.previousDiagnoses)
-        ? body.previousDiagnoses.map(String)
-        : undefined,
-      demographics: body.demographics as { age?: number | null; sex?: string | null } | undefined,
+      vitals: body.vitals,
+      laboratory: body.laboratory,
+      history: body.history ?? (encounter?.history.length ? encounter.history : undefined),
+      examination: body.examination ?? (encounter?.examination.length ? encounter.examination : undefined),
+      medications: body.medications,
+      allergies: body.allergies,
+      previousDiagnoses: body.previousDiagnoses,
+      demographics: body.demographics,
     })
 
     const advice = await adviseClinical({
       packet,
-      task: body.task === "pathway_copilot" || body.task === "coding_copilot" ? body.task : "clinical_copilot",
-      forceMock: body.forceMock === true,
+      task: body.task ?? "clinical_copilot",
+      forceMock: body.forceMock === true && forceMockAllowed(),
     })
-    return NextResponse.json(advice)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Advice failed"
-    return NextResponse.json({ error: message, advisory: true }, { status: 400 })
+
+    const provenance = await recordAdviceEvent(db, {
+      tenantId: ctx.tenantId,
+      clinicianId: ctx.userId,
+      eventType: "advice",
+      patientId: encounter?.patientId ?? null,
+      encounterId: encounter?.encounterId ?? null,
+      // An unavailable result has no recommendation; the event still records
+      // that advice was requested and why none was produced.
+      recommendationId: advice.recommendation?.id ?? crypto.randomUUID(),
+      task: body.task ?? "clinical_copilot",
+      provider: advice.provider,
+      model: advice.model,
+      decision: null,
+      payload: {
+        availability: advice.availability,
+        synthetic: advice.synthetic,
+        recommendation: advice.recommendation?.recommendation ?? null,
+        confidence: advice.recommendation?.confidence ?? null,
+        degraded: advice.degraded,
+        degradedReason: advice.degradedReason,
+        icd11Candidates: advice.icd11Candidates.map((c) => c.stemCode),
+        suggestedPathwayId: advice.recommendation?.suggestedPathwayId ?? null,
+        ruleBasedPathwayIds: advice.suggestedPathwayIds,
+        promptVersion: advice.provenance.promptVersion,
+        toolVersion: advice.provenance.toolVersion,
+      },
+    })
+
+    return NextResponse.json({ ...advice, provenancePersisted: provenance.persisted })
+  } catch {
+    return NextResponse.json({ error: "Advice could not be generated", advisory: true }, { status: 400 })
   }
 }

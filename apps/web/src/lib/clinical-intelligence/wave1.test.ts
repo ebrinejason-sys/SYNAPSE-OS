@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  summarizeContextForPrompt,
   CLINICAL_INTELLIGENCE_WAVE1_FLAG,
   adviseClinical,
   buildClinicalContext,
@@ -43,8 +44,10 @@ describe("Clinical Intelligence Wave 1", () => {
     expect(advice.safety.canActivatePathway).toBe(false)
     expect(advice.safety.canPlaceOrder).toBe(false)
     expect(advice.provider).toBe("mock")
-    expect(advice.suggestedPathwayIds.length + (advice.recommendation.suggestedPathwayId ? 1 : 0)).toBeGreaterThan(0)
-    expect(advice.recommendation.suggestedPathwayId === "pathway.adult-sepsis" || advice.suggestedPathwayIds.includes("pathway.adult-sepsis")).toBe(true)
+    expect(advice.availability).toBe("available")
+    expect(advice.recommendation).not.toBeNull()
+    expect(advice.suggestedPathwayIds.length + (advice.recommendation?.suggestedPathwayId ? 1 : 0)).toBeGreaterThan(0)
+    expect(advice.recommendation?.suggestedPathwayId === "pathway.adult-sepsis" || advice.suggestedPathwayIds.includes("pathway.adult-sepsis")).toBe(true)
   })
 
   it("records clinician override decisions", () => {
@@ -57,5 +60,18 @@ describe("Clinical Intelligence Wave 1", () => {
     expect(rec.decision).toBe("REJECT")
     expect(rec.recommendationId).toBe("r1")
     expect(rec.at).toBeTruthy()
+  })
+
+  it("history and examination free text are never included in the external provider prompt", () => {
+    const packet = buildClinicalContext({
+      tenantId: "t1",
+      clinicianId: "c1",
+      presentingComplaint: "fever",
+      history: ["lives at <home address>"],
+      examination: ["identifying exam note"],
+    })
+    const prompt = summarizeContextForPrompt(packet)
+    expect(prompt).not.toMatch(/home address|identifying exam note/)
+    expect(prompt).not.toMatch(/"tenantId"|"clinicianId"|"patientId"/)
   })
 })

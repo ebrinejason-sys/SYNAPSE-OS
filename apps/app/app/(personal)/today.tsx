@@ -8,12 +8,18 @@ import { Card, SectionHeader } from '@/components/ui/Card'
 import { Screen } from '@/components/ui/Screen'
 import { useAuth } from '@/lib/auth'
 import {
+  getMedicalId,
   listHabits,
+  listMedications,
+  listReminders,
   listVitals,
   weeklyActivityMinutes,
   type Habit,
+  type Medication,
+  type Reminder,
   type VitalsReading,
 } from '@/lib/personal-store'
+import { nextReminderLabel } from '@/lib/reminders'
 import { radii, spacing, typography, useTheme } from '@/lib/theme'
 
 function formatWhen(iso: string): string {
@@ -38,6 +44,9 @@ export default function PersonalTodayScreen() {
   const [bp, setBp] = useState<VitalsReading | undefined>()
   const [glucose, setGlucose] = useState<VitalsReading | undefined>()
   const [habits, setHabits] = useState<Habit[]>([])
+  const [medications, setMedications] = useState<Medication[]>([])
+  const [reminders, setReminders] = useState<Reminder[]>([])
+  const [medicalIdReady, setMedicalIdReady] = useState(false)
   const [minutes, setMinutes] = useState(0)
   const [signingOut, setSigningOut] = useState(false)
 
@@ -49,17 +58,31 @@ export default function PersonalTodayScreen() {
       if (!userId) return
       ;(async () => {
         try {
-          const [recentBp, recentGlucose, habitList, weeklyMinutes] = await Promise.all([
+          const [
+            recentBp,
+            recentGlucose,
+            habitList,
+            weeklyMinutes,
+            medicationList,
+            reminderList,
+            medicalId,
+          ] = await Promise.all([
             listVitals(userId, 'blood_pressure', 1),
             listVitals(userId, 'glucose', 1),
             listHabits(userId),
             weeklyActivityMinutes(userId),
+            listMedications(userId),
+            listReminders(userId),
+            getMedicalId(userId),
           ])
           if (!active) return
           setBp(recentBp[0])
           setGlucose(recentGlucose[0])
           setHabits(habitList)
           setMinutes(weeklyMinutes)
+          setMedications(medicationList)
+          setReminders(reminderList)
+          setMedicalIdReady(Boolean(medicalId.emergencyName || medicalId.emergencyPhone))
         } catch {
           // A read failure leaves the summary cards blank rather than blocking the screen.
         }
@@ -71,6 +94,10 @@ export default function PersonalTodayScreen() {
   )
 
   const habitsToday = habits.filter((habit) => habit.loggedToday).length
+  const medicationCount = medications.length
+  const medicationTaken = medications.filter((medication) => medication.takenToday).length
+  const remindersOn = reminders.filter((reminder) => reminder.enabled).length
+  const nextReminder = nextReminderLabel(reminders)
   const firstName = user?.fullName?.split(' ')[0] ?? 'there'
 
   const signOut = async () => {
@@ -130,6 +157,25 @@ export default function PersonalTodayScreen() {
             when="last 7 days"
             onPress={() => router.push('/(personal)/activity' as never)}
           />
+          <SummaryCard
+            label="Medicines today"
+            value={medicationCount ? `${medicationTaken}/${medicationCount}` : '—'}
+            when={medicationCount ? 'ticked off' : 'Nothing added'}
+            onPress={() => router.push('/(personal)/medications' as never)}
+          />
+          <SummaryCard
+            label="Health profile"
+            value={medicalIdReady ? 'Ready' : '—'}
+            when={medicalIdReady ? 'emergency contact saved' : 'Not filled in'}
+            onPress={() => router.push('/(personal)/medical-id' as never)}
+          />
+          <SummaryCard
+            label="Reminders"
+            value={remindersOn ? String(remindersOn) : '—'}
+            unit={remindersOn ? 'on' : undefined}
+            when={nextReminder ?? 'Nothing set'}
+            onPress={() => router.push('/(personal)/reminders' as never)}
+          />
         </View>
 
         <SectionHeader title="Quick add" style={styles.spacer} />
@@ -145,6 +191,26 @@ export default function PersonalTodayScreen() {
           <QuickAction
             label="Log a period"
             onPress={() => router.push('/(personal)/cycle' as never)}
+          />
+          <QuickAction
+            label="Tick a medicine"
+            onPress={() => router.push('/(personal)/medications' as never)}
+          />
+          <QuickAction
+            label="How I feel"
+            onPress={() => router.push('/(personal)/journal' as never)}
+          />
+          <QuickAction
+            label="Health profile"
+            onPress={() => router.push('/(personal)/medical-id' as never)}
+          />
+          <QuickAction
+            label="Set a reminder"
+            onPress={() => router.push('/(personal)/reminders' as never)}
+          />
+          <QuickAction
+            label="Ask the coach"
+            onPress={() => router.push('/(personal)/coach' as never)}
           />
         </View>
 
