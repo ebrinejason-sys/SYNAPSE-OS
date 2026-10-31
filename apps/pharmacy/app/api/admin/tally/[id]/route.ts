@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireTallyPermission } from "@/lib/tally/auth"
+import { requireTallyAdmin } from "@/lib/tally/auth"
+import {
+  CUTOVER_ALREADY_COMPLETE,
+  findCompletedCutover,
+  findTallyCutoverOwner,
+} from "@/lib/tally/cutover"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import type { TallyApplyProgress } from "@/lib/tally/apply"
 import type { TallyPlanSummary } from "@/lib/tally/types"
@@ -13,7 +18,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireTallyPermission(request, "inventory.read")
+  const auth = await requireTallyAdmin(request, "inventory.read")
   if (!auth.ok) return auth.response
   const { tenantId } = auth
   const { id } = await params
@@ -62,10 +67,15 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireTallyPermission(request, "inventory.write")
+  const auth = await requireTallyAdmin(request, "inventory.write")
   if (!auth.ok) return auth.response
   const { tenantId } = auth
   const { id } = await params
+
+  // One-shot: nothing to discard once the cut-over has landed.
+  if (await findCompletedCutover(tenantId)) {
+    return NextResponse.json(CUTOVER_ALREADY_COMPLETE, { status: 409 })
+  }
 
   const { data: session, error } = await db()
     .from("pharmacy_import_sessions")
@@ -76,6 +86,16 @@ export async function DELETE(
 
   if (error || !session) {
     return NextResponse.json({ error: "Import session not found" }, { status: 404 })
+  }
+  const cutoverOwner = await findTallyCutoverOwner(tenantId)
+  if (cutoverOwner === id) {
+    return NextResponse.json(
+      {
+        error: "This Tally cut-over has started and cannot be discarded. Resume the existing session.",
+        code: "TALLY_CUTOVER_IN_PROGRESS",
+      },
+      { status: 409 },
+    )
   }
   if (session.status === "importing" || session.status === "complete") {
     return NextResponse.json(
