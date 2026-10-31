@@ -11,7 +11,9 @@ const {
   settingsMaybeSingle,
   attachSaleToTill,
   recordTillSale,
+  batchRows,
 } = vi.hoisted(() => ({
+  batchRows: { current: [] as Record<string, unknown>[] },
   attachSaleToTill: vi.fn(),
   recordTillSale: vi.fn(),
   requirePharmacyPermission: vi.fn(),
@@ -57,6 +59,18 @@ vi.mock("@/lib/supabase/admin", () => ({
           }),
         }
       }
+      if (table === "patients") {
+        const filters: Record<string, unknown> = {}
+        const q: any = {
+          select: () => q,
+          eq: (k: string, v: unknown) => ((filters[k] = v), q),
+          maybeSingle: async () => ({
+            data: filters.id === "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa" && filters.tenant_id === "tenant-1" ? { id: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa" } : null,
+            error: null,
+          }),
+        }
+        return q
+      }
       if (table === "pharmacy_customers") {
         const filters: Record<string, unknown> = {}
         const q: any = {
@@ -83,6 +97,19 @@ vi.mock("@/lib/supabase/admin", () => ({
             },
           }),
         }
+      }
+      if (table === "pharmacy_product_batches") {
+        const q: any = {
+          select: () => q,
+          eq: () => q,
+          gt: () => q,
+          then: (resolve: (value: unknown) => unknown) =>
+            Promise.resolve({
+              data: batchRows.current,
+              error: null,
+            }).then(resolve),
+        }
+        return q
       }
       return {
         select: () => ({
@@ -170,6 +197,17 @@ describe("POST /api/admin/pos/complete-sale", () => {
     })
     findSaleIdempotency.mockResolvedValue(null)
     storeSaleIdempotency.mockResolvedValue(undefined)
+    batchRows.current = [{
+      id: "batch-1",
+      batch_number: "BATCH-1",
+      quantity: 100,
+      expiry_date: "2099-12-31",
+      cost_price: 500,
+      selling_price: 1000,
+      manufacturer: null,
+      is_active: true,
+      status: "active",
+    }]
   })
 
   it("rejects empty cart", async () => {
@@ -249,6 +287,73 @@ describe("POST /api/admin/pos/complete-sale", () => {
     expect(res.status).toBe(409)
     const body = await res.json()
     expect(body.code).toBe("INSUFFICIENT_STOCK")
+  })
+
+  it("sells an out-of-stock product through the overdraft line", async () => {
+    batchRows.current = []
+    rpc.mockResolvedValue({ data: { id: "sale-1", receipt_number: "R-1" }, error: null })
+
+    const res = await POST(
+      makeRequest({
+        items: [{ productId: "p1", quantity: 2, unitPrice: 1000 }],
+        paymentMethod: "cash",
+        amountPaid: 2000,
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(rpc).toHaveBeenCalledWith(
+      "complete_pharmacy_sale",
+      expect.objectContaining({
+        p_items: [
+          expect.objectContaining({
+            product_id: "p1",
+            quantity: 2,
+            unit_price: 1000,
+            batch_id: null,
+            allow_overdraft: true,
+          }),
+        ],
+      }),
+    )
+  })
+
+  it("charges the shortfall at the catalog price when a batch runs out", async () => {
+    batchRows.current = [{
+      id: "batch-1",
+      batch_number: "BATCH-1",
+      quantity: 1,
+      expiry_date: "2099-12-31",
+      cost_price: 500,
+      selling_price: 1200,
+      manufacturer: null,
+      is_active: true,
+      status: "active",
+    }]
+    rpc.mockResolvedValue({ data: { id: "sale-1", receipt_number: "R-1" }, error: null })
+
+    const res = await POST(
+      makeRequest({
+        items: [{ productId: "p1", quantity: 3 }],
+        paymentMethod: "cash",
+        amountPaid: 5000,
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(rpc).toHaveBeenCalledWith(
+      "complete_pharmacy_sale",
+      expect.objectContaining({
+        p_items: [
+          expect.objectContaining({
+            quantity: 3,
+            batch_id: null,
+            allow_overdraft: true,
+            unit_price: expect.closeTo(1066.67, 2),
+          }),
+        ],
+      }),
+    )
   })
 
   it("forbids cashiers without pos.sell", async () => {
@@ -367,5 +472,36 @@ describe("POST /api/admin/pos/complete-sale", () => {
     expect(res.status).toBe(200)
     const credit = rpc.mock.calls.find((c) => c[0] === "post_pharmacy_credit_entry")
     expect(credit?.[1]).toMatchObject({ p_idempotency_key: "pos-sale:s2", p_type: "credit", p_amount: 3000 })
+  })
+
+  describe("patient reference (cross-tenant)", () => {
+    it("rejects a patientId that does not belong to the caller's tenant", async () => {
+      const res = await POST(
+        makeRequest({
+          items: [{ productId: "p1", quantity: 1, unitPrice: 1000 }],
+          paymentMethod: "cash",
+          patientId: "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb",
+        }),
+      )
+      expect(res.status).toBe(404)
+      expect((await res.json()).code).toBe("PATIENT_NOT_FOUND")
+      expect(rpc).not.toHaveBeenCalled()
+    })
+
+    it("passes an owned patientId through to the sale RPC", async () => {
+      rpc.mockResolvedValue({ data: { sale_id: "s3", receipt_number: "R-3" }, error: null })
+      const res = await POST(
+        makeRequest({
+          items: [{ productId: "p1", quantity: 1, unitPrice: 1000 }],
+          paymentMethod: "cash",
+          patientId: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
+        }),
+      )
+      expect(res.status).toBe(200)
+      expect(rpc).toHaveBeenCalledWith(
+        "complete_pharmacy_sale",
+        expect.objectContaining({ p_patient_id: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa" }),
+      )
+    })
   })
 })

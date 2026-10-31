@@ -1,0 +1,69 @@
+{
+  "timestamp": "2026-10-31T20:21:16.143Z",
+  "git": {
+    "branch": "feat/clinical-intelligence-land",
+    "head": "63fb422e5d6a64fbcd3f2ce3be325722722e33a5"
+  },
+  "migrationCount": {
+    "count": 202,
+    "exitCode": 0
+  },
+  "suites": {
+    "rls-tenant-isolation": {
+      "tests": 21,
+      "pass": 21,
+      "fail": 0,
+      "exitCode": 0
+    },
+    "security-gates": {
+      "tests": 41,
+      "pass": 41,
+      "fail": 0,
+      "banner": "SECURITY GATES PASS cutoff=20261003160000 migrations=15 failures=0",
+      "exitCode": 0
+    },
+    "hardening": {
+      "files": 6,
+      "filesTotal": 6,
+      "tests": 74,
+      "testsTotal": 74,
+      "exitCode": 0
+    },
+    "tenancy": {
+      "files": 6,
+      "filesTotal": 6,
+      "tests": 59,
+      "testsTotal": 59,
+      "exitCode": 0
+    },
+    "workflow-safety": {
+      "tests": 60,
+      "pass": 60,
+      "fail": 0,
+      "exitCode": 0
+    },
+    "rls-matrix": {
+      "tests": 10,
+      "pass": 10,
+      "fail": 0,
+      "exitCode": 0
+    }
+  },
+  "dbAcl": {
+    "definerFunctions": 74,
+    "publicGrants": 0,
+    "possibleImplicitPublic": 21,
+    "liveCheck": "SKIPPED_NO_DATABASE_ACL_URL",
+    "exitCode": 0
+  },
+  "routeIntegrity": {
+    "pages": 289,
+    "navLinks": 73,
+    "roadmap": 77,
+    "exitCode": 0
+  },
+  "disposableDb": {
+    "result": "not_provided",
+    "note": "set SYNAPSE_DISPOSABLE_RESULT to a JSON object documenting a disposable-DB run"
+  }
+}

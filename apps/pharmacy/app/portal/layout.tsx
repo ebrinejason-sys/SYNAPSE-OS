@@ -4,11 +4,8 @@ import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import {
-  LayoutDashboard, Users, Package, ShoppingCart, DollarSign,
-  Settings, LogOut, Menu, X, UserCheck, ClipboardList,
-  MessageSquare, Activity, Truck, FileText, BarChart3,
-  RotateCcw, Wifi, WifiOff, CalendarClock, WalletCards, BrainCircuit,
-  CreditCard, UserCircle, Building2, ShoppingBag,
+  LayoutDashboard, Package, ShoppingCart, ClipboardList,
+  Wifi, WalletCards, LogOut, Menu, X, WifiOff, UserCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NotificationBell } from "@/components/ui/notification-bell"
@@ -16,74 +13,19 @@ import { IdleLogoutModal } from "@/components/idle-logout-modal"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { usePharmacySession } from "@/hooks/use-pharmacy-session"
-import { sessionHasCapability } from "@/lib/capabilities"
+import { usePortalShortcuts } from "@/hooks/use-portal-shortcuts"
+import { BOTTOM_TABS, NAV_GROUPS, canOpenNavItem } from "@/lib/portal-nav"
+import { availableShortcuts, PORTAL_SHORTCUTS, type PortalShortcut } from "@/lib/shortcuts/registry"
+import { HelpOverlay } from "@/components/shortcuts/help-overlay"
+import { CommandPalette, type PaletteItem } from "@/components/shortcuts/command-palette"
 import { SkipLink, SynapseThemeToggle } from "@synapse/ui"
 import PortalProviders from "./providers"
 
 export const dynamic = "force-dynamic"
 
-const NAV_GROUPS = [
-  {
-    label: 'Main',
-    items: [
-      { name: 'Dashboard', href: '/portal/dashboard', icon: LayoutDashboard },
-    ],
-  },
-  {
-    label: 'Inventory',
-    items: [
-      { name: 'Inventory',        href: '/portal/inventory',        icon: Package,      permission: 'MANAGE_INVENTORY' },
-      { name: 'Import Assistant', href: '/portal/import-assistant', icon: BrainCircuit, permission: 'MANAGE_INVENTORY' },
-    ],
-  },
-  {
-    label: 'Purchases',
-    items: [
-      { name: 'Purchases',        href: '/portal/purchases',        icon: ShoppingBag,  permission: 'MANAGE_INVENTORY' },
-      { name: 'Purchase Orders',  href: '/portal/purchase-orders',  icon: FileText,     permission: 'MANAGE_INVENTORY' },
-      { name: 'Suppliers',        href: '/portal/suppliers',        icon: Truck,        permission: 'MANAGE_INVENTORY' },
-    ],
-  },
-  {
-    label: 'Sales',
-    items: [
-      { name: 'POS',       href: '/portal/pos',       icon: ShoppingCart,  permission: 'MANAGE_POS' },
-      { name: 'Till',      href: '/portal/till',      icon: WalletCards,   permission: 'MANAGE_POS' },
-      { name: 'Orders',    href: '/portal/orders',    icon: ClipboardList, permission: 'MANAGE_POS' },
-      { name: 'Clinical Rx', href: '/portal/clinical-prescriptions', icon: ClipboardList, permission: 'MANAGE_POS' },
-      { name: 'Customers', href: '/portal/customers', icon: UserCheck,     permission: 'MANAGE_POS' },
-      { name: 'Refills',   href: '/portal/refills',   icon: CalendarClock, permission: 'MANAGE_POS' },
-    ],
-  },
-  {
-    label: 'Finance',
-    items: [
-      { name: 'Billing',         href: '/portal/billing',       icon: CreditCard,    adminOnly: true },
-      { name: 'Transactions',  href: '/portal/transactions',  icon: DollarSign,  permission: 'VIEW_TRANSACTIONS' },
-      { name: 'Credit Ledger', href: '/portal/credit-ledger', icon: WalletCards, permission: 'VIEW_TRANSACTIONS' },
-      { name: 'Refunds',       href: '/portal/refunds',       icon: RotateCcw,   permission: 'MANAGE_TRANSACTIONS' },
-      { name: 'Reports',       href: '/portal/reports',       icon: BarChart3,   permission: 'VIEW_REPORTS' },
-    ],
-  },
-  {
-    label: 'Admin',
-    items: [
-      { name: 'Users',        href: '/portal/users',        icon: Users,         permission: 'MANAGE_USERS' },
-      { name: 'Branches',     href: '/portal/branches',     icon: Building2,     permission: 'MANAGE_SETTINGS' },
-      { name: 'Network',      href: '/portal/network',      icon: Wifi,          permission: 'MANAGE_SETTINGS' },
-      { name: 'Inquiries',    href: '/portal/inquiries',    icon: MessageSquare, adminOnly: true },
-      { name: 'Activity Log', href: '/portal/activity-log', icon: Activity,      adminOnly: true },
-      { name: 'Settings',     href: '/portal/settings',     icon: Settings,      permission: 'MANAGE_SETTINGS' },
-    ],
-  },
-]
+// Navigation lives in lib/portal-nav so the users page can describe access
+// from the same table the sidebar filters.
 
-const BOTTOM_TABS = [
-  { name: 'Dashboard', href: '/portal/dashboard',  icon: LayoutDashboard },
-  { name: 'Inventory', href: '/portal/inventory',  icon: Package },
-  { name: 'POS',       href: '/portal/pos',        icon: ShoppingCart },
-  { name: 'Orders',    href: '/portal/orders',     icon: ClipboardList },
-]
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -93,12 +35,47 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   )
 }
 
+/**
+ * Item count for the header cart. The POS page owns the cart and persists it to
+ * localStorage on every change, so the header reads that key instead of
+ * duplicating cart state. `pos-cart-changed` covers the same tab (storage events
+ * only fire in other tabs).
+ */
+function usePosCartCount(enabled: boolean) {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    if (!enabled) return
+    const read = () => {
+      try {
+        const raw = window.localStorage.getItem('pos-cart')
+        const items = raw ? (JSON.parse(raw) as Array<{ cartQuantity?: number }>) : []
+        setCount(
+          Array.isArray(items)
+            ? items.reduce((total, item) => total + (Number(item.cartQuantity) || 0), 0)
+            : 0,
+        )
+      } catch {
+        setCount(0)
+      }
+    }
+    read()
+    window.addEventListener('pos-cart-changed', read)
+    window.addEventListener('storage', read)
+    return () => {
+      window.removeEventListener('pos-cart-changed', read)
+      window.removeEventListener('storage', read)
+    }
+  }, [enabled])
+  return count
+}
+
 function PortalShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = usePharmacySession()
   const pathname = usePathname()
   const router = useRouter()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
+  const [overlay, setOverlay] = useState<"help" | "palette" | null>(null)
   useEffect(() => {
     setIsOnline(navigator.onLine)
     const onOnline = () => setIsOnline(true)
@@ -108,23 +85,25 @@ function PortalShell({ children }: { children: React.ReactNode }) {
     return () => { window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline) }
   }, [])
 
-  const hasPermission = (permission?: string, adminOnly?: boolean) => {
-    if (!user) return false
-    const isAdminRole =
-      user.pharmacyRole === "pharmacy_admin" ||
-      user.pharmacyRole === "pharmacy_ceo" ||
-      user.isAdmin
-    if (adminOnly) return isAdminRole
-    if (!permission) return true
-    return sessionHasCapability(
-      {
-        isAdmin: user.isAdmin,
-        pharmacyRole: user.pharmacyRole,
-        permissions: user.permissions,
-      },
-      permission,
-    )
-  }
+  const session = user
+    ? { isAdmin: user.isAdmin, pharmacyRole: user.pharmacyRole, permissions: user.permissions }
+    : null
+
+  const hasPermission = (permission?: string, adminOnly?: boolean) =>
+    canOpenNavItem(session, { permission, adminOnly })
+
+  const showPosCart = hasPermission('MANAGE_POS')
+  const posCartCount = usePosCartCount(showPosCart)
+
+  const canUseShortcut = (shortcut: PortalShortcut) =>
+    hasPermission(shortcut.capability, shortcut.adminOnly)
+
+  usePortalShortcuts({
+    enabled: overlay === null,
+    canUse: canUseShortcut,
+    onOpenHelp: () => setOverlay("help"),
+    onOpenPalette: () => setOverlay("palette"),
+  })
 
   const handleSignOut = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
@@ -151,6 +130,26 @@ function PortalShell({ children }: { children: React.ReactNode }) {
 
   const displayName = user?.fullName ?? user?.email ?? "User"
   const roleLabel = user?.pharmacyRole?.replace("pharmacy_", "").toUpperCase() ?? "STAFF"
+
+  const paletteItems: PaletteItem[] = [
+    ...NAV_GROUPS.flatMap((group) =>
+      group.items
+        .filter((item) => {
+          const entry = item as { permission?: string; adminOnly?: boolean }
+          return hasPermission(entry.permission, entry.adminOnly)
+        })
+        .map((item) => ({ name: item.name, href: item.href, group: group.label })),
+    ),
+    ...PORTAL_SHORTCUTS.filter(
+      (shortcut): shortcut is PortalShortcut & { href: string } =>
+        shortcut.group === "Vouchers" && Boolean(shortcut.href) && canUseShortcut(shortcut),
+    ).map((shortcut) => ({
+      name: shortcut.label,
+      href: shortcut.href,
+      group: "Vouchers",
+      hint: shortcut.hint,
+    })),
+  ]
 
   const handleExitImpersonation = async () => {
     await fetch("/api/auth/impersonate/exit", { method: "POST" }).catch(() => {})
@@ -309,6 +308,26 @@ function PortalShell({ children }: { children: React.ReactNode }) {
               {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
               <span>{isOnline ? "Online" : "Offline"}</span>
             </div>
+            {showPosCart && (
+              <Link
+                href="/portal/pos"
+                aria-label={
+                  posCartCount > 0
+                    ? `Open POS, ${posCartCount} item${posCartCount === 1 ? "" : "s"} in cart`
+                    : "Open POS"
+                }
+                title="Open POS"
+                className="relative inline-flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                <span className="hidden xl:inline">POS</span>
+                {posCartCount > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {posCartCount > 99 ? "99+" : posCartCount}
+                  </span>
+                )}
+              </Link>
+            )}
             <SynapseThemeToggle variant="segmented" size="sm" />
             <NotificationBell />
             <div className="hidden md:flex flex-col items-end">
@@ -355,6 +374,17 @@ function PortalShell({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
       </div>
+
+      <HelpOverlay
+        open={overlay === "help"}
+        onOpenChange={(next) => setOverlay(next ? "help" : null)}
+        shortcuts={availableShortcuts(canUseShortcut)}
+      />
+      <CommandPalette
+        open={overlay === "palette"}
+        onOpenChange={(next) => setOverlay(next ? "palette" : null)}
+        items={paletteItems}
+      />
     </div>
   )
 }

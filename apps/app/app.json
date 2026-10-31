@@ -2,16 +2,11 @@
   "expo": {
     "name": "Synapse",
     "slug": "synapse-app",
-    "version": "1.2.2",
+    "version": "1.2.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "synapse",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#07070A"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "tech.synapseos.app",
@@ -22,7 +17,7 @@
     },
     "android": {
       "package": "tech.synapseos.app",
-      "versionCode": 6,
+      "versionCode": 7,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#07070A"
@@ -42,13 +37,28 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
-            "buildToolsVersion": "35.0.0"
+            "compileSdkVersion": 37,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "37.0.0",
+            "enableMinifyInReleaseBuilds": false,
+            "enableShrinkResourcesInReleaseBuilds": false,
+            "buildArchs": [
+              "arm64-v8a",
+              "armeabi-v7a"
+            ]
           }
         }
       ],
       "expo-asset",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 100,
+          "resizeMode": "contain",
+          "backgroundColor": "#07070A"
+        }
+      ],
       "expo-secure-store",
       "expo-font",
       [
@@ -76,6 +86,7 @@
       "supabaseUrl": "https://qfqakzmjatszisuqjwon.supabase.co",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmcWFrem1qYXRzemlzdXFqd29uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NTQzODksImV4cCI6MjA5MTEzMDM4OX0.iFCseUE1uVvCuz_wP37agvzulXya17aGG9s49Lnz92o",
       "webAppUrl": "https://www.synapseos.tech",
+      "pharmacyAppUrl": "https://pharm.synapseos.tech",
       "router": {
         "origin": false
       },

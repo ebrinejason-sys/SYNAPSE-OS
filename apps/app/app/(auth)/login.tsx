@@ -16,23 +16,25 @@ import { Screen } from '@/components/ui/Screen'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { TextField } from '@/components/ui/TextField'
-import { useAuth } from '@/lib/auth'
+import { useAuth, type WorkspaceOption } from '@/lib/auth'
 import { colors, radii, spacing, typography } from '@/lib/theme'
 
-type Step = 'credentials' | 'otp'
+type Step = 'credentials' | 'workspace' | 'otp'
 
 export default function LoginScreen() {
   const [step, setStep] = useState<Step>('credentials')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [otp, setOtp] = useState('')
+  const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([])
+  const [tenantId, setTenantId] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { login, verifyLoginOtp } = useAuth()
   const router = useRouter()
   const insets = useSafeAreaInsets()
 
-  const handleCredentials = async () => {
+  const submitCredentials = async (chosenTenantId?: string) => {
     if (!email.trim() || !password) {
       setError('Email and password are required.')
       return
@@ -40,13 +42,23 @@ export default function LoginScreen() {
     setIsLoading(true)
     setError(null)
     try {
-      await login(email.trim().toLowerCase(), password)
+      const result = await login(email.trim().toLowerCase(), password, chosenTenantId)
+      if (result.requiresWorkspace) {
+        setWorkspaces(result.workspaces)
+        setStep('workspace')
+        return
+      }
+      setTenantId(result.tenantId)
       setStep('otp')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Sign in failed. Try again.')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleCredentials = () => {
+    void submitCredentials()
   }
 
   const handleOtp = async () => {
@@ -57,8 +69,9 @@ export default function LoginScreen() {
     setIsLoading(true)
     setError(null)
     try {
-      await verifyLoginOtp(email.trim().toLowerCase(), otp)
-      router.replace('/(main)/home')
+      await verifyLoginOtp(email.trim().toLowerCase(), otp, tenantId || undefined)
+      // The root gate picks the area for this account (clinical, pharmacy or personal).
+      router.replace('/')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Verification failed.')
     } finally {
@@ -82,7 +95,13 @@ export default function LoginScreen() {
         >
           <BrandWordmark
             logoSize="xl"
-            subtitle={step === 'credentials' ? 'Sign in to your workspace' : 'Enter verification code'}
+            subtitle={
+              step === 'credentials'
+                ? 'Sign in to your workspace'
+                : step === 'workspace'
+                  ? 'Choose your workplace'
+                  : 'Enter verification code'
+            }
           />
 
           <Card style={styles.formCard} padded={false}>
@@ -116,6 +135,25 @@ export default function LoginScreen() {
                     <Text style={styles.forgotText}>Forgot password?</Text>
                   </Pressable>
                 </>
+              ) : step === 'workspace' ? (
+                <View style={styles.workspaceList}>
+                  <Text style={styles.otpLabel}>Where are you signing in?</Text>
+                  {workspaces.map((workspace) => (
+                    <Pressable
+                      key={workspace.tenantId}
+                      onPress={() => void submitCredentials(workspace.tenantId)}
+                      disabled={isLoading}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Sign in to ${workspace.name}`}
+                      style={styles.workspaceRow}
+                    >
+                      <Text style={styles.workspaceName}>{workspace.name}</Text>
+                      {workspace.slug ? (
+                        <Text style={styles.workspaceSlug}>{workspace.slug}</Text>
+                      ) : null}
+                    </Pressable>
+                  ))}
+                </View>
               ) : (
                 <View>
                   <Text style={styles.otpLabel}>Email code</Text>
@@ -140,22 +178,43 @@ export default function LoginScreen() {
                 </View>
               ) : null}
 
-              <Button
-                label={step === 'credentials' ? 'Continue' : 'Verify and sign in'}
-                onPress={step === 'credentials' ? handleCredentials : handleOtp}
-                loading={isLoading}
-              />
+              {step === 'workspace' ? null : (
+                <Button
+                  label={step === 'credentials' ? 'Continue' : 'Verify and sign in'}
+                  onPress={step === 'credentials' ? handleCredentials : handleOtp}
+                  loading={isLoading}
+                />
+              )}
 
-              {step === 'otp' ? (
+              {step === 'credentials' ? null : (
                 <Pressable
-                  onPress={() => { setStep('credentials'); setOtp(''); setError(null) }}
+                  onPress={() => {
+                    setStep('credentials')
+                    setOtp('')
+                    setWorkspaces([])
+                    setTenantId('')
+                    setError(null)
+                  }}
                   style={styles.backBtn}
                 >
                   <Text style={styles.backText}>Back</Text>
                 </Pressable>
-              ) : null}
+              )}
             </View>
           </Card>
+
+          {step === 'credentials' ? (
+            <Pressable
+              onPress={() => router.push('/(auth)/signup' as never)}
+              style={styles.createBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Create an account"
+            >
+              <Text style={styles.createText}>
+                New to Synapse? <Text style={styles.createLink}>Create an account</Text>
+              </Text>
+            </Pressable>
+          ) : null}
 
           <Text style={styles.footer}>Synapse Health Technologies</Text>
         </ScrollView>
@@ -205,6 +264,26 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     textAlign: 'center',
   },
+  workspaceList: { gap: spacing.sm },
+  workspaceRow: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  workspaceName: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontFamily: 'DMSans_500Medium',
+  },
+  workspaceSlug: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontFamily: 'DMSans_400Regular',
+    marginTop: 2,
+  },
   errorBox: {
     backgroundColor: colors.errorBg,
     borderRadius: radii.sm,
@@ -222,6 +301,16 @@ const styles = StyleSheet.create({
   backBtn: { marginTop: spacing.lg, alignItems: 'center' },
   backText: {
     ...typography.bodyMedium,
+    color: colors.primary,
+    fontFamily: 'DMSans_500Medium',
+  },
+  createBtn: { alignItems: 'center' },
+  createText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_400Regular',
+  },
+  createLink: {
     color: colors.primary,
     fontFamily: 'DMSans_500Medium',
   },

@@ -70,10 +70,8 @@ export default function DashboardScreen() {
     try {
       await fetchFresh()
     } catch (err) {
-      if (isSubscriptionLocked(err)) {
-        router.replace({ pathname: '/billing-locked', params: { message: err.message } })
-        return
-      }
+      // The API layer already navigates to the billing screen on a 402.
+      if (isSubscriptionLocked(err)) return
       setError(err instanceof Error ? err.message : 'Failed to load dashboard')
     } finally {
       setLoading(false)
@@ -166,6 +164,24 @@ export default function DashboardScreen() {
           <Text style={styles.tenant}>{data?.tenantName || user?.tenantName}</Text>
         </View>
       ) : null}
+
+      {/* One login spans the ecosystem: staff accounts still own a personal
+          health record, so it is reachable from their workspace. */}
+      <Pressable
+        style={({ pressed }) => [styles.personalCard, pressed && styles.actionPressed]}
+        onPress={() => router.push('/(personal)/today' as never)}
+        accessibilityRole="button"
+        accessibilityLabel="Open my health"
+      >
+        <View style={styles.actionIcon}>
+          <Ionicons name="heart-outline" size={16} color={colors.primary} />
+        </View>
+        <View style={styles.listBody}>
+          <Text style={styles.actionText}>My health</Text>
+          <Text style={styles.listSubtitle}>Reminders, medicines and your coach</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      </Pressable>
 
       {loading ? (
         <LoadingBlock message="Loading your dashboard…" />
@@ -302,6 +318,18 @@ const styles = StyleSheet.create({
     fontFamily: 'DMSans_500Medium',
   },
 
+  personalCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    marginTop: spacing.lg,
+  },
   errorCard: { marginTop: spacing.xxl, alignItems: 'center' },
   errorText: {
     ...typography.body,

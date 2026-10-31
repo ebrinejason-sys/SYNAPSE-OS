@@ -11,7 +11,9 @@ import {
 import {
   extractSaleErrorCode,
   friendlySaleError,
+  isValidSaleQuantity,
   saleErrorHttpStatus,
+  splitBatchSaleLine,
   validateSaleLine,
   type SaleLineInput,
 } from "@/lib/pos/sale-validation"
@@ -25,6 +27,7 @@ import { findOrCreateCreditCustomer, postCreditLedgerEntry } from "@/lib/credit-
 import { encodePaymentRef, settlePayment } from "@/lib/pos/partial-payment"
 import { verifyDiscountApproval } from "@/lib/pos/discount-approval"
 import { tenantOwnsRecord } from "@/lib/tenant-ownership"
+import { allocateFefoBatches, kampalaToday } from "@/lib/pos/fefo"
 
 /**
  * Complete a POS sale via live `complete_pharmacy_sale` RPC.
@@ -63,6 +66,18 @@ export async function POST(request: NextRequest) {
     if (v != null && v !== "" && (typeof v !== "string" || !UUID_RE.test(v))) {
       return NextResponse.json({ error: `${field} must be a UUID`, code }, { status: 400 })
     }
+  }
+
+  // A client-supplied patient id is a foreign key written under the service
+  // role, so it must be proven to belong to this tenant before the sale
+  // references it. Reported as not-found so other tenants' ids cannot be probed.
+  const patientId =
+    typeof body.patientId === "string" && body.patientId.length > 0 ? body.patientId : null
+  if (patientId && !(await tenantOwnsRecord("patients", tenantId, patientId))) {
+    return NextResponse.json(
+      { error: "Patient not found", code: "PATIENT_NOT_FOUND" },
+      { status: 404 },
+    )
   }
 
   const itemsIn = Array.isArray(body.items) ? (body.items as SaleLineInput[]) : []
@@ -124,11 +139,125 @@ export async function POST(request: NextRequest) {
       .eq("tenant_id", tenantId)
       .maybeSingle()
 
+    if (!product || product.is_active === false) {
+      const missing = validateSaleLine({
+        raw,
+        product: null,
+        thresholdPct: threshold,
+        isAdmin: isPharmacyAdmin(session),
+        actorUserId: session.userId,
+        approvedBy,
+      })
+      if (!missing.ok) {
+        return NextResponse.json({ error: missing.error }, { status: missing.status })
+      }
+      return NextResponse.json({ error: `Product not found: ${productId}` }, { status: 404 })
+    }
+
+    const quantity = Number(raw.quantity)
+    if (!isValidSaleQuantity(quantity)) {
+      const invalid = validateSaleLine({
+        raw,
+        product: { id: product.id, price: Number(product.price ?? 0), is_active: product.is_active },
+        thresholdPct: threshold,
+        isAdmin: isPharmacyAdmin(session),
+        actorUserId: session.userId,
+        approvedBy,
+      })
+      if (!invalid.ok) return NextResponse.json({ error: invalid.error }, { status: invalid.status })
+      return NextResponse.json({ error: "Invalid cart item quantity" }, { status: 400 })
+    }
+
+    const { data: batchRows, error: batchError } = await db
+      .from("pharmacy_product_batches")
+      .select("id, batch_number, quantity, expiry_date, cost_price, selling_price, manufacturer, is_active, status")
+      .eq("tenant_id", tenantId)
+      .eq("product_id", product.id)
+      .eq("is_active", true)
+      .gt("quantity", 0)
+
+    if (batchError) {
+      console.error("[pos] batch price lookup failed:", batchError)
+      return NextResponse.json({ error: "Could not verify batch prices" }, { status: 500 })
+    }
+
+    const basePrice = Number(product.price ?? 0)
+    const sellableRows = (batchRows ?? []).filter(
+      (batch: { status?: string | null }) => (batch.status ?? "active") === "active",
+    )
+    const allocations = allocateFefoBatches(
+      sellableRows.map((batch: Record<string, unknown>) => ({
+        id: String(batch.id),
+        batchNumber: String(batch.batch_number ?? ""),
+        quantity: Number(batch.quantity ?? 0),
+        expiryDate: batch.expiry_date ? String(batch.expiry_date).slice(0, 10) : null,
+        manufacturer: typeof batch.manufacturer === "string" ? batch.manufacturer : null,
+        costPrice: batch.cost_price == null ? null : Number(batch.cost_price),
+        sellingPrice:
+          batch.selling_price == null ? basePrice : Number(batch.selling_price),
+      })),
+      quantity,
+      kampalaToday(),
+    )
+    const allocatedQuantity = allocations.reduce((sum, allocation) => sum + allocation.quantity, 0)
+    // Stock may go negative on a sale. The shortfall is charged at the catalog
+    // price and carried by the RPC's NEG-STOCK overdraft batch, so an empty
+    // shelf no longer blocks the till.
+    const shortfall = Math.max(0, quantity - allocatedQuantity)
+
+    const listTotal =
+      allocations.reduce(
+        (sum, allocation) => sum + allocation.quantity * Number(allocation.sellingPrice ?? basePrice),
+        0,
+      ) + shortfall * basePrice
+    const weightedUnitPrice = listTotal / quantity
+    // A line that already outran its batches cannot match the snapshot the cart
+    // took; server-side FEFO is authoritative for it.
+    const snapshot = shortfall > 0 ? undefined : raw.batchAllocations
+    if (snapshot !== undefined) {
+      const incoming = Array.isArray(snapshot) ? snapshot : []
+      if (incoming.some((allocation) => !allocation || typeof allocation !== "object")) {
+        return NextResponse.json(
+          { error: "Batch allocation changed. Refresh the cart and retry.", code: "BATCH_ALLOCATION_CHANGED" },
+          { status: 409 },
+        )
+      }
+      const currentById = new Map(allocations.map((allocation) => [allocation.batchId, allocation]))
+      const allocationMatches =
+        incoming.length === allocations.length &&
+        incoming.every((allocation) => {
+          const current = currentById.get(String(allocation.batchId))
+          return current?.quantity === Number(allocation.quantity)
+        })
+      if (!allocationMatches) {
+        return NextResponse.json(
+          { error: "Batch allocation changed. Refresh the cart and retry.", code: "BATCH_ALLOCATION_CHANGED" },
+          { status: 409 },
+        )
+      }
+      const priceMatches = incoming.every((allocation) => {
+        const current = currentById.get(String(allocation.batchId))
+        return (
+          current != null &&
+          Number.isFinite(Number(allocation.sellingPrice)) &&
+          Math.abs(Number(allocation.sellingPrice) - Number(current.sellingPrice ?? basePrice)) < 0.005
+        )
+      })
+      if (!priceMatches || !Number.isFinite(Number(raw.listPrice)) ||
+        Math.abs(Number(raw.listPrice) - weightedUnitPrice) >= 0.005) {
+        return NextResponse.json(
+          { error: "A batch selling price changed. Refresh the cart and retry.", code: "BATCH_PRICE_CHANGED" },
+          { status: 409 },
+        )
+      }
+    }
+
     const validated = validateSaleLine({
-      raw,
-      product: product
-        ? { id: product.id, price: Number(product.price ?? 0), is_active: product.is_active }
-        : null,
+      raw: {
+        ...raw,
+        unitPrice: snapshot === undefined ? weightedUnitPrice : raw.unitPrice,
+      },
+      product: { id: product.id, price: weightedUnitPrice, is_active: product.is_active },
       thresholdPct: threshold,
       isAdmin: isPharmacyAdmin(session),
       actorUserId: session.userId,
@@ -146,7 +275,42 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    rpcItems.push(validated.rpcItem)
+    if (shortfall > 0) {
+      // One line at the blended price; the RPC walks FEFO itself and takes only
+      // the remainder negative.
+      rpcItems.push({
+        ...validated.rpcItem,
+        batch_id: null,
+        unit_price: weightedUnitPrice,
+        list_price: weightedUnitPrice,
+        allow_overdraft: true,
+      })
+    } else {
+      const splitItems = splitBatchSaleLine(
+        allocations.map((allocation) => ({
+          batchId: allocation.batchId,
+          quantity: allocation.quantity,
+          listPrice: Number(allocation.sellingPrice ?? basePrice),
+        })),
+        validated.rpcItem.discount_amount,
+      )
+      if (splitItems.length !== allocations.length) {
+        return NextResponse.json(
+          { error: "Discount exceeds the batch-priced line total", code: "INVALID_DISCOUNT" },
+          { status: 400 },
+        )
+      }
+      for (const item of splitItems) {
+        rpcItems.push({
+          ...validated.rpcItem,
+          batch_id: item.batch_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          list_price: item.unit_price,
+          discount_amount: item.discount_amount,
+        })
+      }
+    }
   }
 
   const saleAmount = rpcItems.reduce(
@@ -177,14 +341,16 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Validate the open till (and get its session id) without crediting cash yet;
-  // cash is recorded only after the sale RPC commits (see recordTillSale below).
+  // The till is optional: a sale completes without one and simply has no cash to
+  // reconcile. When a till is open its session id is captured here, and cash is
+  // credited only after the sale RPC commits (see recordTillSale below).
   const till = await attachSaleToTill({
     tenantId,
     cashierId,
     paymentMethod,
     amount: 0,
     kind: "sale",
+    required: false,
   })
   if (!till.ok) {
     return NextResponse.json(till.error, { status: httpStatusForPharmacyError(till.error.code) })
@@ -214,7 +380,7 @@ export async function POST(request: NextRequest) {
     p_payment_ref: paymentRef,
     p_discount_total: 0,
     p_tax_amount: taxAmount,
-    p_patient_id: body.patientId || null,
+    p_patient_id: patientId,
     p_confirmed_by: session.userId,
     // Always named: an older 11-argument overload still exists, so omitting it is ambiguous.
     p_idempotency_key: idempotencyKey ?? null,
@@ -255,6 +421,7 @@ export async function POST(request: NextRequest) {
   // Persist balance due on credit ledger + audit for monitoring shortfalls.
   let creditCustomerId: string | null = customerIdBody || null
   let balanceAfter: number | null = null
+  let creditWarning: string | null = null
   if (settlement.balanceDue > 0 || isCreditSale) {
     try {
       if (!creditCustomerId) {
@@ -304,7 +471,10 @@ export async function POST(request: NextRequest) {
       }
     } catch (creditErr) {
       console.error("[pos] credit ledger / underpayment audit failed:", creditErr)
-      // Sale already completed — surface warning but do not roll back stock.
+      // Sale already completed — do not roll back stock, but the receivable was
+      // not recorded, so the cashier must be told instead of losing it silently.
+      creditWarning =
+        "Sale completed, but the credit balance could not be recorded. Post it from the credit ledger."
     }
   }
 
@@ -319,6 +489,7 @@ export async function POST(request: NextRequest) {
       customerId: creditCustomerId,
       balanceAfter,
     },
+    ...(creditWarning ? { creditWarning } : {}),
   }
   if (idempotencyKey) {
     await storeSaleIdempotency({

@@ -15,11 +15,15 @@
     "./billing/manual-activation": "./src/billing/manual-activation.ts",
     "./mfa":        "./src/mfa.ts",
     "./account-suspension": "./src/account-suspension.ts",
+    "./workspaces": "./src/workspaces.ts",
     "./mutation-origin": "./src/mutation-origin.ts",
     "./password":   "./src/password.ts",
     "./redirects":  "./src/redirects.ts",
     "./tenant-guard": "./src/tenant-guard.server.ts",
     "./mobile-push": "./src/mobile-push.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
     "@synapse/config": "*",

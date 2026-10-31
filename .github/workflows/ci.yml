@@ -65,6 +65,9 @@ jobs:
       - name: Consolidation security regressions
         run: npm run test:consolidation
 
+      - name: Clinical Intelligence Wave 1 (flag-OFF, mocked providers)
+        run: npm run test:clinical-intelligence
+
       - name: Platform admin guard audit
         run: node scripts/check-platform-admin-guards.mjs
 
@@ -79,6 +82,9 @@ jobs:
 
       - name: Pharmacy verification
         run: npm run verify:pharmacy
+
+      - name: Tally import parsers
+        run: npm run test:tally
 
       - name: Control-plane tests
         run: npm run test:control-plane
@@ -132,6 +138,15 @@ jobs:
       - name: Route and link integrity
         run: npm run test:routes
 
+      - name: Forward-looking security gates (RLS, EXECUTE grants, profiles columns, browser writes)
+        run: npm run test:security-gates
+
+      - name: Evidence drift guard
+        run: npm run test:evidence-drift
+
+      - name: Hardening regressions (import authz, telemedicine intake, insurance scoping, lab notify, POS patient scoping)
+        run: npm run test:hardening
+
       - name: Database ACL static inventory
         run: npm run test:db-acl
 
@@ -147,6 +162,9 @@ jobs:
       - name: ICD-11 outage survival
         run: npm run test:icd11
 
+      - name: CodeQL high-severity remediation regressions (XSS, ReDoS, randomness, bridge hashing)
+        run: npm run test:security-remediation
+
       - name: Clinical AI policy
         run: npm run test:ai-governance
 
@@ -155,6 +173,9 @@ jobs:
 
       - name: Secret scan
         run: npm run test:secrets
+
+      - name: Email credential safety (no plaintext passwords; secure invite/setup links)
+        run: npm run test:email-credential-safety
 
       - name: Dependency audit evidence
         run: |
@@ -173,14 +194,28 @@ jobs:
       - name: Readiness evidence gate behavioral tests
         run: npm run test:readiness-report
 
+  tally-bridge-windows:
+    name: Tally bridge (Windows / Node 22)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run Windows bridge tests
+        run: npm test --workspace @synapse/tally-bridge
+
   required:
-    needs: verify
+    needs: [verify, tally-bridge-windows]
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Fail if any required gate failed
         run: |
-          if [ "${{ needs.verify.result }}" != "success" ]; then
+          if [ "${{ needs.verify.result }}" != "success" ] || [ "${{ needs['tally-bridge-windows'].result }}" != "success" ]; then
             echo "CI / required failed"
             exit 1
           fi
