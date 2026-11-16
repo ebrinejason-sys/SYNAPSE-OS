@@ -33,10 +33,17 @@
     Run it by right-clicking the file and choosing "Run with PowerShell", or:
         powershell -ExecutionPolicy Bypass -File .\tally-export-history.ps1
 
+    -MastersOnly writes the masters file and nothing else. Use it when the
+    voucher files already exist or are already staged on the portal and only
+    the masters are missing, so the day books do not have to be read again.
+    Give it the same -From and -To as the voucher files so the masters file
+    declares the period the cut-over covers.
+
     Examples:
         .\tally-export-history.ps1
         .\tally-export-history.ps1 -Company "Nakawa Pharmacy"
         .\tally-export-history.ps1 -Company "Nakawa Pharmacy" -From 20200401
+        .\tally-export-history.ps1 -Company "SADIO PHARMACY" -MastersOnly -From 20251017 -To 20261031
         .\tally-export-history.ps1 -Port 9005 -NoExplorer
 #>
 
@@ -50,6 +57,9 @@ param(
     # the importer accepts, so the run needs no splitting.
     [int]$MonthsPerFile = 1,
     [string]$OutDir = "$env:USERPROFILE\Desktop\SynapseTallyExport",
+    # Masters only: the voucher register is not read, so a cut-over whose day
+    # books are already staged can be completed without exporting them again.
+    [switch]$MastersOnly,
     [switch]$NoExplorer
 )
 
@@ -493,9 +503,18 @@ if (-not $From.Trim()) {
     $From = $startDate.ToString("yyyyMMdd")
 }
 
+# The first day of the company's financial year ("Financial year beginning
+# from"). Tally's default costing method, Average Cost, restarts every
+# financial year, so the portal cannot compare a closing stock value without
+# knowing where the years divide. It is recorded, never guessed: when Tally
+# does not say, the file simply omits it and the portal reports those values
+# as not comparable.
+$financialYearStart = Get-CompanyPeriod $Company "StartingFrom"
+
 Say ""
 Say "  Company : $Company"
 Say "  Period  : $From to $To"
+if ($financialYearStart) { Say ("  FY from : {0}" -f $financialYearStart.ToString("yyyy-MM-dd")) }
 Say "  Slices  : $MonthsPerFile month(s) per file"
 Say "  Folder  : $OutDir"
 Say ""
@@ -515,11 +534,13 @@ $mastersFile = Join-Path $OutDir "2-masters-$From-$To.xml"
 # know one of the newer ones: Tally answers an unknown method with an empty
 # collection rather than an error, and losing bills is better than losing every
 # ledger. Bills carry what is still owed to a supplier or by a customer, and
-# batches carry the expiry the till needs, so both are asked for.
+# batches carry the expiry the till needs, so both are asked for. A stock item's
+# Standard Selling Price and Standard Cost lists give the import the price the
+# pharmacy set; without them it falls back to the latest sale and purchase rate.
 $masterPlan = @(
     @{ Type = "Ledger"; Methods = @("Name", "Parent", "OpeningBalance", "ClosingBalance", "BillWise", "BillAllocations", "Email", "Phone", "Mobile", "Address"); Fallback = @("Name", "Parent", "OpeningBalance", "ClosingBalance") },
     @{ Type = "Group"; Methods = @("Name", "Parent"); Fallback = @("Name", "Parent") },
-    @{ Type = "StockItem"; Methods = @("Name", "Parent", "BaseUnits", "OpeningBalance", "OpeningRate", "OpeningValue", "ClosingBalance", "ClosingValue", "BatchWise", "BatchAllocations"); Fallback = @("Name", "Parent", "BaseUnits", "OpeningBalance", "OpeningRate", "OpeningValue", "ClosingBalance", "ClosingValue") },
+    @{ Type = "StockItem"; Methods = @("Name", "Parent", "BaseUnits", "OpeningBalance", "OpeningRate", "OpeningValue", "ClosingBalance", "ClosingValue", "CostingMethod", "BatchWise", "BatchAllocations", "StandardPriceList", "StandardCostList"); Fallback = @("Name", "Parent", "BaseUnits", "OpeningBalance", "OpeningRate", "OpeningValue", "ClosingBalance", "ClosingValue") },
     @{ Type = "StockGroup"; Methods = @("Name", "Parent"); Fallback = @("Name", "Parent") },
     @{ Type = "Unit"; Methods = @("Name", "Symbol"); Fallback = @("Name", "Symbol") },
     @{ Type = "Godown"; Methods = @("Name", "Parent"); Fallback = @("Name", "Parent") }
@@ -567,7 +588,9 @@ if ($masterRecords.Count -eq 0) {
     # what Tally already reported. Without it the file cannot be staged at all:
     # nothing in the folder would say which company the cut-over is for.
     $companyRecord = '<COMPANY NAME="' + (Escape-Xml $Company) + '"><COMPANYNAME>' + (Escape-Xml $Company) +
-        '</COMPANYNAME><SVFROMDATE>' + $From + '</SVFROMDATE><SVTODATE>' + $To + '</SVTODATE></COMPANY>'
+        '</COMPANYNAME><SVFROMDATE>' + $From + '</SVFROMDATE><SVTODATE>' + $To + '</SVTODATE>' +
+        $(if ($financialYearStart) { '<STARTINGFROM>' + $financialYearStart.ToString("yyyyMMdd") + '</STARTINGFROM>' } else { '' }) +
+        '</COMPANY>'
     $document = '<ENVELOPE><BODY><DATA>' + $companyRecord + $masterXml + '</DATA></BODY></ENVELOPE>'
     [System.IO.File]::WriteAllText($mastersFile, $document, (New-Object System.Text.UTF8Encoding $false))
     $mastersBytes = (Get-Item -LiteralPath $mastersFile).Length
@@ -595,7 +618,11 @@ while ($cursor -le $endDate) {
     $cursor = $sliceEnd.AddDays(1)
 }
 
-Say ("  Writing the voucher register in {0} file(s) ..." -f $slices.Count)
+if ($MastersOnly) {
+    Say "  Skipping the voucher register (-MastersOnly)."
+} else {
+    Say ("  Writing the voucher register in {0} file(s) ..." -f $slices.Count)
+}
 
 # Every calendar month inside a range, used when a slice is too big to import.
 function Get-MonthRanges([datetime]$from, [datetime]$to) {
@@ -689,14 +716,14 @@ function Export-Vouchers([datetime]$sliceFrom, [datetime]$sliceTo, [int]$depth) 
     }
 }
 
-foreach ($slice in $slices) { Export-Vouchers $slice.From $slice.To 0 }
+if (-not $MastersOnly) { foreach ($slice in $slices) { Export-Vouchers $slice.From $slice.To 0 } }
 
 # ---------------------------------------------------------------- coverage
 # The import needs the slices to cover the period end to end. A file that
 # failed, or one left too big, would leave a hole; it is reported here rather
 # than discovered at upload time.
 $daybook = @($written | Where-Object { $_.From } | Sort-Object { $_.From })
-if ($daybook.Count -gt 0) {
+if (-not $MastersOnly -and $daybook.Count -gt 0) {
     $expected = $startDate
     foreach ($entry in $daybook) {
         $entryFrom = Parse-Day $entry.From "slice"
@@ -777,9 +804,14 @@ if ($problems.Count -gt 0) {
 }
 
 Say ""
-Say "  Next: open the portal on this computer, go to the Tally cut-over import, and"
-Say "  add every file named 2-* and 3-* in the folder above, then Upload and review."
-Say "  The period fields can stay empty: each file's own dates are read from its name."
+if ($MastersOnly) {
+    Say "  Next: open the portal on this computer, go to the cut-over session that already"
+    Say "  holds your voucher files, add the 2-masters-* file above, then Upload and review."
+} else {
+    Say "  Next: open the portal on this computer, go to the Tally cut-over import, and"
+    Say "  add every file named 2-* and 3-* in the folder above, then Upload and review."
+    Say "  The period fields can stay empty: each file's own dates are read from its name."
+}
 Say ""
 
 Say ""

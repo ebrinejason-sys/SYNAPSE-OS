@@ -85,9 +85,12 @@ export async function ensureTallyBucket(db: TallyStorageClient): Promise<void> {
     // The normalised plan is stored as JSON beside the XML sources, so a bucket
     // restricted to the export types alone accepts the upload and then refuses
     // to save the plan — every preview fails after the file was already read.
+    // A zipped package is sent by the browser as application/zip, so a bucket
+    // created before packages were supported refuses it before it is read.
     const allowed = bucket?.allowed_mime_types
-    if (Array.isArray(allowed) && allowed.length > 0 && !allowed.includes("application/json")) {
-      raise.allowedMimeTypes = [...allowed, "application/json"]
+    if (Array.isArray(allowed) && allowed.length > 0) {
+      const missing = ["application/json", "application/zip"].filter((type) => !allowed.includes(type))
+      if (missing.length > 0) raise.allowedMimeTypes = [...allowed, ...missing]
     }
     if (Object.keys(raise).length > 0) {
       // A project-wide Storage limit can refuse the raise. That must not fail the
@@ -161,6 +164,15 @@ export async function writeTallySourceBytes(
   })
   if (error) throw new Error(`TALLY_CHUNK_WRITE_FAILED: ${error.message}`)
   return bytes.byteLength
+}
+
+/**
+ * Deletes a staged copy the manifest no longer refers to. A failure here is not
+ * fatal: apply reads the manifest, and an orphaned object in a private bucket
+ * costs storage but is never read again.
+ */
+export async function removeTallySource(db: TallyStorageClient, path: string): Promise<void> {
+  await db.storage.from(TALLY_BUCKET).remove([path])
 }
 
 export async function writeTallySourceText(

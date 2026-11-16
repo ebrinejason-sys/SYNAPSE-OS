@@ -41,6 +41,12 @@ import {
 } from "@/lib/tally/http"
 import type { TallyStorageClient } from "@/lib/tally/storage"
 
+// A customer-scale history is applied one stage step per request; a step of
+// 250 replayed movements takes ~8 s against a loopback database, so the
+// platform default (10-15 s on legacy Vercel functions) leaves no headroom.
+// 60 s is accepted on every Vercel plan.
+export const maxDuration = 60
+
 const db = () => supabaseAdmin as any
 const applyDb = () => db() as TallyApplyDb
 const storage = () => ({ storage: db().storage }) as TallyStorageClient
@@ -199,7 +205,10 @@ async function applySessionStep(input: {
         chunk: loaded.chunk,
         totalChunks: loaded.totalChunks,
         replay: loaded.summary.mode === "replay",
-        movementTotalChunks: loaded.summary.replay?.movementChunkCount ?? 0,
+        movementTotalChunks:
+          loaded.summary.replay?.movementChunkCount ??
+          loaded.summary.stockAdjustments?.movementChunkCount ??
+          0,
         replayTarget: loaded.replay,
         continuation: continuation ?? null,
       })
@@ -320,7 +329,10 @@ async function applySessionStep(input: {
       progress,
       reconcile: reconcile ?? mapping.reconcile ?? null,
       totalChunks: summaryForRequest?.chunkCount ?? null,
-      movementTotalChunks: summaryForRequest?.replay?.movementChunkCount ?? null,
+      movementTotalChunks:
+        summaryForRequest?.replay?.movementChunkCount ??
+        summaryForRequest?.stockAdjustments?.movementChunkCount ??
+        null,
       nextOffset:
         progress.stage === "journals" || progress.stage === "stock-history"
           ? progress.offset

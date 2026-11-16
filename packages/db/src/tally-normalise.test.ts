@@ -2,6 +2,7 @@ import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 
 import { normaliseTallyDocument } from "./tally-normalise.ts"
+import { simulateReplay } from "./tally-replay.ts"
 import { parseTallyXmlRows, TALLY_XML_ROW_LIMITS } from "./tally-xml-rows.ts"
 
 function tallyExport(inner: string): string {
@@ -300,6 +301,89 @@ describe("normaliseTallyDocument", () => {
     assert.ok(reported)
     assert.match(reported!.message, /Savlon 200mls/)
     assert.match(reported!.message, /10500\.00/)
+  })
+
+  it("keeps the full bill of a purchase whose line states no quantity", () => {
+    const result = plan(`
+      ${balancedMasters}
+      <VOUCHER VCHTYPE="Purchase" ACTION="Create">
+        <GUID>purchase-mixed-guid</GUID>
+        <DATE>20260120</DATE>
+        <VOUCHERNUMBER>7</VOUCHERNUMBER>
+        <PARTYLEDGERNAME>Cash</PARTYLEDGERNAME>
+        <ALLLEDGERENTRIES.LIST>
+          <LEDGERNAME>Cash</LEDGERNAME>
+          <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+          <AMOUNT>36500.00</AMOUNT>
+        </ALLLEDGERENTRIES.LIST>
+        <ALLLEDGERENTRIES.LIST>
+          <LEDGERNAME>Test Supplier A</LEDGERNAME>
+          <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+          <AMOUNT>-36500.00</AMOUNT>
+          <INVENTORYALLOCATIONS.LIST>
+            <STOCKITEMNAME>Test Item A</STOCKITEMNAME>
+            <ACTUALQTY>100 ea</ACTUALQTY>
+            <BILLEDQTY>100 ea</BILLEDQTY>
+            <RATE>165.00/ea</RATE>
+            <AMOUNT>-16500.00</AMOUNT>
+          </INVENTORYALLOCATIONS.LIST>
+          <INVENTORYALLOCATIONS.LIST>
+            <STOCKITEMNAME>Test Item B</STOCKITEMNAME>
+            <ACTUALQTY></ACTUALQTY>
+            <BILLEDQTY></BILLEDQTY>
+            <AMOUNT>-20000.00</AMOUNT>
+          </INVENTORYALLOCATIONS.LIST>
+        </ALLLEDGERENTRIES.LIST>
+      </VOUCHER>
+    `)
+
+    assert.equal(result.purchases.length, 1)
+    const [purchase] = result.purchases
+    assert.equal(purchase.total, 36500)
+    assert.deepEqual(
+      purchase.items.map((item) => [item.stockItemName, item.quantity, item.lineTotal]),
+      [["Test Item A", 100, 16500]],
+    )
+    const reported = result.exceptions.find((entry) => entry.code === "STOCK_LINE_WITHOUT_QUANTITY")
+    assert.ok(reported)
+    assert.match(reported!.message, /Test Item B/)
+    assert.match(reported!.message, /20000\.00/)
+    assert.match(reported!.message, /purchase total/)
+  })
+
+  it("still posts a purchase whose only stock line states no quantity", () => {
+    const result = plan(`
+      ${balancedMasters}
+      <VOUCHER VCHTYPE="Purchase" ACTION="Create">
+        <GUID>purchase-quantityless-guid</GUID>
+        <DATE>20260120</DATE>
+        <VOUCHERNUMBER>8</VOUCHERNUMBER>
+        <PARTYLEDGERNAME>Cash</PARTYLEDGERNAME>
+        <ALLLEDGERENTRIES.LIST>
+          <LEDGERNAME>Cash</LEDGERNAME>
+          <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+          <AMOUNT>10500.00</AMOUNT>
+        </ALLLEDGERENTRIES.LIST>
+        <ALLLEDGERENTRIES.LIST>
+          <LEDGERNAME>Test Supplier A</LEDGERNAME>
+          <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+          <AMOUNT>-10500.00</AMOUNT>
+          <INVENTORYALLOCATIONS.LIST>
+            <STOCKITEMNAME>Savlon 200mls</STOCKITEMNAME>
+            <ACTUALQTY></ACTUALQTY>
+            <BILLEDQTY></BILLEDQTY>
+            <AMOUNT>-10500.00</AMOUNT>
+          </INVENTORYALLOCATIONS.LIST>
+        </ALLLEDGERENTRIES.LIST>
+      </VOUCHER>
+    `)
+
+    assert.equal(result.purchases.length, 1)
+    assert.equal(result.purchases[0].total, 10500)
+    assert.deepEqual(result.purchases[0].items, [])
+    assert.ok(
+      result.exceptions.some((entry) => entry.code === "STOCK_LINE_WITHOUT_QUANTITY"),
+    )
   })
 
   it("never plugs an unbalanced opening", () => {
@@ -878,6 +962,106 @@ describe("normaliseTallyDocument", () => {
   })
 })
 
+describe("normaliseTallyDocument — opening stock adjustments", () => {
+  const physicalCount = (guid: string, date: string, quantity: number) => `
+    <VOUCHER VCHTYPE="Physical Stock" ACTION="Create">
+      <GUID>${guid}</GUID>
+      <DATE>${date}</DATE>
+      <INVENTORYENTRIES.LIST>
+        <STOCKITEMNAME>Test Item A</STOCKITEMNAME>
+        <ACTUALQTY>${quantity} Strip</ACTUALQTY>
+        <AMOUNT>${quantity * 100}.00</AMOUNT>
+        <BATCHALLOCATIONS.LIST>
+          <BATCHNAME>B-001</BATCHNAME>
+          <EXPIRYDATE>20270228</EXPIRYDATE>
+          <ACTUALQTY>${quantity} Strip</ACTUALQTY>
+          <AMOUNT>${quantity * 100}.00</AMOUNT>
+        </BATCHALLOCATIONS.LIST>
+      </INVENTORYENTRIES.LIST>
+    </VOUCHER>
+  `
+
+  it("applies a physical stock voucher as a dated adjustment instead of skipping it", () => {
+    const result = plan(`${balancedMasters}${physicalCount("physical-guid", "20260125", 9)}`)
+
+    assert.deepEqual(
+      (result.movements ?? []).map((entry) => [
+        entry.movementKind,
+        entry.quantityDelta,
+        entry.batchNumber,
+        entry.date,
+      ]),
+      [["physical_adjust", 9, "B-001", "2026-01-25"]],
+    )
+    assert.equal(result.counts.adjustedVouchers, 1)
+    assert.equal(result.counts.skippedVouchers, 0)
+    // It posts nothing to the ledger, so it is not among the posted vouchers.
+    assert.equal(result.counts.postedVouchers, result.vouchers.length)
+    assert.equal(result.exceptionCounts?.VOUCHER_TYPE_UNSUPPORTED, undefined)
+    assert.deepEqual(
+      result.exceptions.filter((entry) => entry.severity === "blocking"),
+      [],
+    )
+  })
+
+  it("orders the counts by their own date, not the order the exporter wrote them", () => {
+    // The later count is exported first; applying it first would let the
+    // earlier one overwrite it.
+    const result = plan(
+      `${balancedMasters}${physicalCount("late-guid", "20260220", 4)}${physicalCount("early-guid", "20260210", 11)}`,
+    )
+
+    assert.deepEqual(
+      (result.movements ?? []).map((entry) => [entry.date, entry.quantityDelta]),
+      [
+        ["2026-02-10", 11],
+        ["2026-02-20", 4],
+      ],
+    )
+  })
+
+  it("leaves the trade history to the mirror rather than rebuilding it", () => {
+    const sale = `
+      <VOUCHER VCHTYPE="Sales" ACTION="Create">
+        <GUID>sale-guid</GUID>
+        <DATE>20260120</DATE>
+        <VOUCHERNUMBER>S-010</VOUCHERNUMBER>
+        <ALLLEDGERENTRIES.LIST>
+          <LEDGERNAME>Cash</LEDGERNAME>
+          <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+          <AMOUNT>300.00</AMOUNT>
+        </ALLLEDGERENTRIES.LIST>
+        <ALLLEDGERENTRIES.LIST>
+          <LEDGERNAME>Sales</LEDGERNAME>
+          <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+          <AMOUNT>-300.00</AMOUNT>
+        </ALLLEDGERENTRIES.LIST>
+        <ALLINVENTORYENTRIES.LIST>
+          <STOCKITEMNAME>Test Item A</STOCKITEMNAME>
+          <ACTUALQTY>3 Strip</ACTUALQTY>
+          <RATE>100.00/Strip</RATE>
+          <AMOUNT>300.00</AMOUNT>
+        </ALLINVENTORYENTRIES.LIST>
+      </VOUCHER>
+    `
+    const result = plan(`${balancedMasters}${sale}`)
+
+    assert.equal(result.movements, undefined)
+    assert.equal(result.counts.adjustedVouchers, 0)
+    assert.equal(result.vouchers.length, 1)
+  })
+
+  it("still refuses a stock-only voucher in closing mode", () => {
+    const result = plan(`${balancedMasters}${physicalCount("physical-guid", "20260125", 9)}`, {
+      mode: "closing",
+    })
+
+    assert.equal(result.movements, undefined)
+    assert.equal(result.counts.skippedVouchers, 1)
+    assert.equal(result.exceptionCounts?.VOUCHER_TYPE_UNSUPPORTED, 1)
+  })
+})
+
 describe("normaliseTallyDocument — replay", () => {
   const purchase = `
     <VOUCHER VCHTYPE="Purchase" ACTION="Create">
@@ -1378,6 +1562,60 @@ describe("normaliseTallyDocument — replay", () => {
       0,
     )
     assert.equal(result.movements?.[0]?.expiryDate, "2027-03-31")
+  })
+
+  describe("opening stock with no expiry, when the operator states the export has none", () => {
+    const openingMasters = (batches: string) => `
+      <LEDGER NAME="Cash"><PARENT>Cash-in-hand</PARENT><OPENINGBALANCE>500.00</OPENINGBALANCE></LEDGER>
+      <LEDGER NAME="Inventory"><PARENT>Current Assets</PARENT><OPENINGBALANCE>500.00</OPENINGBALANCE></LEDGER>
+      <LEDGER NAME="Capital"><PARENT>Capital Account</PARENT><OPENINGBALANCE>-1000.00</OPENINGBALANCE></LEDGER>
+      <STOCKITEM NAME="Test Item A">
+        <OPENINGBALANCE>5 Strip</OPENINGBALANCE>
+        <OPENINGRATE>100.00</OPENINGRATE>
+        <OPENINGVALUE>500.00</OPENINGVALUE>
+        ${batches}
+      </STOCKITEM>
+    `
+    const namedBatch = `<BATCHALLOCATIONS.LIST><BATCHNAME>Primary Batch</BATCHNAME><OPENINGBALANCE>5 Strip</OPENINGBALANCE></BATCHALLOCATIONS.LIST>`
+
+    it("keeps refusing it by default, so the absence is never assumed", () => {
+      const result = plan(openingMasters(namedBatch), { mode: "replay" })
+      assert.equal(result.stockItems[0]?.batches.some((batch) => batch.receivable), false)
+      assert.ok(result.exceptions.some((entry) => entry.code === "OPENING_STOCK_WITHOUT_EXPIRY"))
+      assert.equal(simulateReplay(result).state.items.length, 0)
+    })
+
+    it("replays Tally's named opening batch without a date", () => {
+      const result = plan(openingMasters(namedBatch), { mode: "replay", batchExpiry: "not-supplied" })
+      assert.deepEqual(result.stockItems[0]?.batches, [
+        { batchName: "Primary Batch", expiryDate: undefined, quantity: 5, receivable: true },
+      ])
+      assert.ok(!result.exceptions.some((entry) => entry.code === "OPENING_STOCK_WITHOUT_EXPIRY"))
+      const aggregate = result.exceptions.filter((entry) => entry.code === "REPLAY_BATCH_EXPIRY_NOT_SUPPLIED")
+      assert.equal(aggregate.length, 1)
+      assert.match(aggregate[0]?.message ?? "", /^1 opening stock position states no batch expiry/)
+
+      // The replay starts from Tally's opening position instead of from nothing.
+      const item = simulateReplay(result).state.items.find((entry) => entry.stockItemName === "Test Item A")
+      assert.equal(item?.quantity, 5)
+      assert.equal(item?.value, 500)
+      assert.equal(item?.batches[0]?.batchNumber, "Primary Batch")
+    })
+
+    it("opens an item Tally keeps without batches as one unnamed batch", () => {
+      const result = plan(openingMasters(""), { mode: "replay", batchExpiry: "not-supplied" })
+      assert.deepEqual(result.stockItems[0]?.batches, [{ quantity: 5, receivable: true }])
+      assert.equal(
+        simulateReplay(result).state.items.find((entry) => entry.stockItemName === "Test Item A")?.quantity,
+        5,
+      )
+    })
+
+    it("does not change an opening-balance cut-over, whose receiving path needs an expiry", () => {
+      const result = plan(openingMasters(namedBatch), { batchExpiry: "not-supplied" })
+      assert.equal(result.stockItems[0]?.batches.some((batch) => batch.receivable), false)
+      assert.ok(result.exceptions.some((entry) => entry.code === "OPENING_STOCK_WITHOUT_EXPIRY"))
+    })
   })
 
   it("blocks a cutoff that is not the period the export closes on", () => {

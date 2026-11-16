@@ -31,6 +31,7 @@ import type {
   TallyInventoryLine,
   TallyLedger,
   TallyLedgerLine,
+  TallyStockItem,
   TallyVoucher,
   TallyXmlDocument,
   TallyXmlRowWarning,
@@ -75,6 +76,7 @@ export type TallyExceptionCode =
   | "STOCK_LINE_WITHOUT_QUANTITY"
   | "CREDIT_SALE_NOT_MIRRORED"
   | "COST_UNKNOWN"
+  | "PRICE_FROM_COST"
   | "PURCHASE_LINE_SKIPPED"
   | "REPLAY_PERIOD_REQUIRED"
   | "REPLAY_PERIOD_INVALID"
@@ -162,7 +164,28 @@ export type TallyCutoverStockItem = {
   /** Exported closing figures: posted in closing mode, shown only in opening mode. */
   closingQuantity?: number
   closingValue?: number
+  /** Tally's costing method, as the master states it. Decides how closing value is compared. */
+  costingMethod?: string
+  /**
+   * What the item sells for: Tally's Standard Selling Price when the master
+   * states one, else the rate on its latest sales voucher line. Absent when
+   * neither exists, and never filled with cost.
+   */
+  sellingPrice?: TallyCutoverPrice
+  /**
+   * What the item last cost: Tally's Standard Cost when stated, else the rate
+   * on its latest purchase voucher line.
+   */
+  purchaseCost?: TallyCutoverPrice
   batches: TallyCutoverStockBatch[]
+}
+
+/** A price and where it came from, so the review can say how it was set. */
+export type TallyCutoverPrice = {
+  amount: number
+  source: "standard-price" | "standard-cost" | "last-sale" | "last-purchase"
+  /** The voucher date or the list entry's effective date. */
+  date?: string
 }
 
 /**
@@ -289,6 +312,11 @@ export type TallyCutoverPlan = {
   conversionDate: string
   /** Replay only: the last date the replayed history covers. */
   cutoffDate?: string
+  /**
+   * First day of a financial year of the company, when the export states it.
+   * Tally's Average Cost restarts each financial year; see tally-replay.ts.
+   */
+  financialYearStart?: string
   /** Replay only: how same-day vouchers were ordered. Absent, never guessed. */
   ordering?: "date-then-export-order"
   /**
@@ -307,8 +335,11 @@ export type TallyCutoverPlan = {
   sales: TallyCutoverSale[]
   purchases: TallyCutoverPurchase[]
   /**
-   * Replay only. Opening stock is not repeated here: it is carried by
-   * `stockItems` and applied by its own stage.
+   * Stock movements. A replay carries every voucher's movement in
+   * `(date, export order)`; an opening cut-over carries only the physical
+   * stock and stock journal adjustments, dated as the export dates them.
+   * Opening stock is not repeated here: it is carried by `stockItems` and
+   * applied by its own stage.
    */
   movements?: TallyCutoverMovement[]
   exceptions: TallyException[]
@@ -323,6 +354,8 @@ export type TallyCutoverPlan = {
     stockItems: number
     vouchers: number
     postedVouchers: number
+    /** Stock-only vouchers applied as dated stock adjustments. */
+    adjustedVouchers: number
     skippedVouchers: number
     sales: number
     purchases: number
@@ -971,6 +1004,92 @@ function dateThenExportOrder(
   }
 }
 
+/**
+ * Opening stock positions with a whole positive quantity and no batch expiry:
+ * the ones a replay accepting absent expiry receives without a date.
+ */
+function countOpeningWithoutExpiry(items: readonly TallyStockItem[]): number {
+  const seen = new Set<string>()
+  let count = 0
+  for (const item of items) {
+    const key = normaliseTallyKey(item.name)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    const quantity = item.openingQuantity
+    if (quantity === undefined || quantity <= 0 || !Number.isInteger(quantity)) continue
+    if (item.batches.length === 0) {
+      count += 1
+      continue
+    }
+    if (item.batches.some((batch) => !batch.expiryDate && (batch.quantity ?? 0) > 0)) count += 1
+  }
+  return count
+}
+
+/**
+ * Gives each stock item its selling price and purchase cost.
+ *
+ * Tally's own Standard Selling Price and Standard Cost win when the master
+ * states them: they are what the pharmacy set. Otherwise the latest voucher
+ * line is the price the pharmacy actually charged or paid. "Latest" is by
+ * voucher date, and on the same date the later line in the export, which is
+ * Tally's own order. Nothing here invents a price: an item with neither keeps
+ * none, and the import flags it instead of copying cost into price.
+ */
+function attachPrices(
+  items: TallyCutoverStockItem[],
+  masters: readonly TallyStockItem[],
+  sales: readonly TallyCutoverSale[],
+  purchases: readonly TallyCutoverPurchase[],
+): void {
+  const latest = (
+    rows: ReadonlyArray<{ date: string; items: ReadonlyArray<{ stockItemName: string; rate: number }> }>,
+  ) => {
+    const found = new Map<string, { amount: number; date: string }>()
+    for (const row of rows) {
+      for (const line of row.items) {
+        if (!(line.rate > 0)) continue
+        const key = normaliseTallyKey(line.stockItemName)
+        const current = found.get(key)
+        if (!current || row.date >= current.date) found.set(key, { amount: round2(line.rate), date: row.date })
+      }
+    }
+    return found
+  }
+  const lastSale = latest(
+    sales.map((sale) => ({
+      date: sale.date,
+      items: sale.items.map((item) => ({ stockItemName: item.stockItemName, rate: item.unitPrice })),
+    })),
+  )
+  const lastPurchase = latest(
+    purchases.map((purchase) => ({
+      date: purchase.date,
+      items: purchase.items.map((item) => ({ stockItemName: item.stockItemName, rate: item.unitCost })),
+    })),
+  )
+  const master = new Map(masters.map((item) => [normaliseTallyKey(item.name), item]))
+
+  for (const item of items) {
+    const key = normaliseTallyKey(item.sourceName)
+    const stated = master.get(key)
+    const sale = lastSale.get(key)
+    const purchase = lastPurchase.get(key)
+    const sellingPrice: TallyCutoverPrice | undefined = stated?.standardPrice
+      ? { amount: round2(stated.standardPrice.rate), source: "standard-price", ...(stated.standardPrice.date ? { date: stated.standardPrice.date } : {}) }
+      : sale
+        ? { amount: sale.amount, source: "last-sale", date: sale.date }
+        : undefined
+    const purchaseCost: TallyCutoverPrice | undefined = stated?.standardCost
+      ? { amount: round2(stated.standardCost.rate), source: "standard-cost", ...(stated.standardCost.date ? { date: stated.standardCost.date } : {}) }
+      : purchase
+        ? { amount: purchase.amount, source: "last-purchase", date: purchase.date }
+        : undefined
+    if (sellingPrice) item.sellingPrice = sellingPrice
+    if (purchaseCost) item.purchaseCost = purchaseCost
+  }
+}
+
 export function normaliseTallyDocument(
   document: TallyXmlDocument,
   options: TallyNormaliseOptions = {},
@@ -1178,12 +1297,14 @@ export function normaliseTallyDocument(
   // ledger payload is withheld below.
   const sourceVouchers = document.vouchers
   let skippedVouchers = 0
+  // Stock-only vouchers that became dated adjustments instead of ledger posts.
+  let adjustedVouchers = 0
   const usedSourceIds = new Set<string>()
-  // Replay: stock movements, their position in the export, and batch numbers
-  // already seen with an expiry so one number cannot quietly carry two.
+  // Stock movements, their position in the export, and batch numbers already
+  // seen with an expiry so one number cannot quietly carry two.
   const replayMovements: TallyCutoverMovement[] = []
   const batchIdentities =
-    mode === "replay"
+    mode !== "closing"
       ? collectReplayBatchIdentities(sourceVouchers, conversionDate, cutoffDate)
       : null
   const batchExpiry: TallyBatchExpiry =
@@ -1282,12 +1403,16 @@ export function normaliseTallyDocument(
   for (const [sourceOrder, voucher] of sourceVouchers.entries()) {
     const kind = classifyTallyVoucherType(voucher.type)
     const sourceType = tallyVoucherSourceType(kind)
-    // Replay also reads the vouchers that carry stock but post nothing to the
-    // ledger; every other mode keeps rejecting them.
+    // A physical stock or stock journal voucher posts nothing to the ledger:
+    // its inventory list is the whole voucher. Opening mode applies it as a
+    // dated adjustment to the stock it just opened; replay folds it into the
+    // rebuilt movement history. Closing mode posts no history at all.
+    const stockAdjustmentVoucher = kind === "stock_journal" && mode !== "closing"
+    // Replay also reads the single-sided notes and orders so it can say why
+    // they are not replayed; every other mode keeps rejecting them.
     const replayStockVoucher =
-      mode === "replay" &&
-      (kind === "stock_journal" || kind === "inventory_note" || kind === "order")
-    if (!sourceType && !replayStockVoucher) {
+      mode === "replay" && (kind === "inventory_note" || kind === "order")
+    if (!sourceType && !stockAdjustmentVoucher && !replayStockVoucher) {
       skippedVouchers += 1
       addException(
         "VOUCHER_TYPE_UNSUPPORTED",
@@ -1347,8 +1472,8 @@ export function normaliseTallyDocument(
     }
 
     if (!sourceType) {
-      // Only a replay stock voucher reaches here; every part of it is handled
-      // in this branch, and nothing below it posts to the ledger.
+      // A stock-only or replay-only voucher reaches here; every part of it is
+      // handled in this branch, and nothing below it posts to the ledger.
       if (kind === "order") {
         skippedVouchers += 1
         addException(
@@ -1378,6 +1503,7 @@ export function normaliseTallyDocument(
       usedSourceIds.add(sourceId)
       sourceOrderById.set(sourceId, sourceOrder)
 
+      const before = replayMovements.length
       captureReplayMovements({
         voucher,
         kind,
@@ -1390,6 +1516,9 @@ export function normaliseTallyDocument(
         missingExpiry,
         movements: replayMovements,
       })
+      // A voucher whose lines could not be read produces no movement; it is
+      // already named by a blocking exception and must not count as adjusted.
+      if (replayMovements.length > before) adjustedVouchers += 1
       continue
     }
 
@@ -1483,11 +1612,28 @@ export function normaliseTallyDocument(
     }
   }
 
-  if (batchExpiry === "not-supplied" && missingExpiry.receipts > 0) {
+  // Opening stock is held in the masters, not the vouchers. Under the same
+  // accepted absence it is replayed the same way, so it is counted into the
+  // same disclosure here, before the per-item findings can fill the list.
+  const openingWithoutExpiry =
+    mode === "replay" && batchExpiry === "not-supplied"
+      ? countOpeningWithoutExpiry(document.stockItems)
+      : 0
+  if (batchExpiry === "not-supplied" && (missingExpiry.receipts > 0 || openingWithoutExpiry > 0)) {
     const itemCount = missingExpiry.items.size
+    const receipts =
+      missingExpiry.receipts > 0
+        ? `${missingExpiry.receipts.toLocaleString("en-GB")} stock receipt${missingExpiry.receipts === 1 ? "" : "s"} across ${itemCount.toLocaleString("en-GB")} product${itemCount === 1 ? "" : "s"}`
+        : ""
+    const openings =
+      openingWithoutExpiry > 0
+        ? `${openingWithoutExpiry.toLocaleString("en-GB")} opening stock position${openingWithoutExpiry === 1 ? "" : "s"}`
+        : ""
+    const subject = [receipts, openings].filter(Boolean).join(" and ")
+    const plural = missingExpiry.receipts + openingWithoutExpiry !== 1
     addException(
       "REPLAY_BATCH_EXPIRY_NOT_SUPPLIED",
-      `${missingExpiry.receipts.toLocaleString("en-GB")} stock receipt${missingExpiry.receipts === 1 ? "" : "s"} across ${itemCount.toLocaleString("en-GB")} product${itemCount === 1 ? "" : "s"} state no batch expiry date. This import was prepared accepting that: each receipt keeps the batch name Tally states and is stored with no expiry, so imported stock cannot be expiry-tracked, allocated by expiry or recalled by batch expiry. Stock received after the cut-over is unaffected. No date was invented to fill the field.`,
+      `${subject} state${plural ? "" : "s"} no batch expiry date. This import was prepared accepting that: each keeps the batch name Tally states and is stored with no expiry, so imported stock cannot be expiry-tracked, allocated by expiry or recalled by batch expiry. Stock received after the cut-over is unaffected. No date was invented to fill the field.`,
       undefined,
       "warning",
     )
@@ -1503,6 +1649,11 @@ export function normaliseTallyDocument(
         { date: b.voucher.date ?? "", sourceId: b.sourceId },
       ),
     )
+  }
+  // A physical count sets the quantity at its own date, so applying the
+  // adjustments out of order would leave the newest count overwritten by an
+  // older one.
+  if (replayMovements.length > 1) {
     replayMovements.sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? -1 : 1
       if (a.sourceOrder !== b.sourceOrder) return a.sourceOrder - b.sourceOrder
@@ -1656,12 +1807,15 @@ export function normaliseTallyDocument(
     const rate =
       (mode === "closing" ? undefined : item.openingRate) ??
       (quantity && quantity !== 0 && value !== undefined ? round2(value / quantity) : undefined)
+    // A replay prepared accepting that Tally holds no expiry replays opening
+    // stock without one, exactly as it does the receipts that follow; the
+    // batch keeps Tally's name and the database records the absence.
+    const acceptNoExpiry = mode === "replay" && batchExpiry === "not-supplied"
     let batches: TallyCutoverStockBatch[] = item.batches.map((batch) => {
       const expiryDate = batch.expiryDate
       const batchQuantity = batch.quantity
       const receivable =
-        Boolean(expiryDate) &&
-        Boolean(expiryDate && expiryDate >= expiryFloor) &&
+        (expiryDate ? expiryDate >= expiryFloor : acceptNoExpiry) &&
         batchQuantity !== undefined &&
         batchQuantity > 0 &&
         Number.isInteger(batchQuantity)
@@ -1691,11 +1845,23 @@ export function normaliseTallyDocument(
       batches = []
     }
 
+    // An item kept without batches in Tally opens as one unnamed batch, which
+    // Apply names deterministically, so the replay starts where Tally did.
+    if (
+      acceptNoExpiry &&
+      batches.length === 0 &&
+      quantity !== undefined &&
+      quantity > 0 &&
+      Number.isInteger(quantity)
+    ) {
+      batches = [{ quantity, receivable: true }]
+    }
+
     if (quantity !== undefined && quantity > 0) {
       const period = mode === "closing" ? "closing" : "opening"
       const hasExpiry = batches.some((batch) => batch.expiryDate)
       const expired = batches.filter((batch) => batch.expiryDate && batch.expiryDate < expiryFloor)
-      if (!hasExpiry) {
+      if (!hasExpiry && !acceptNoExpiry) {
         addException(
           "OPENING_STOCK_WITHOUT_EXPIRY",
           `Stock item "${item.name}" has ${period} quantity ${quantity} but no batch expiry. Its value stays in the ledger; no stock batch is created.`,
@@ -1750,6 +1916,7 @@ export function normaliseTallyDocument(
       value: value === undefined ? undefined : round2(value),
       closingQuantity: item.closingQuantity,
       closingValue: closingValue === undefined ? undefined : round2(closingValue),
+      ...(item.costingMethod ? { costingMethod: trimText(item.costingMethod, 40) } : {}),
       batches,
     })
   }
@@ -1791,8 +1958,9 @@ export function normaliseTallyDocument(
       continue
     }
     // A stock line Tally exported without a quantity is still a line the
-    // voucher carries. It cannot become a sales or purchase line, but dropping
-    // it without a word would understate the voucher, so it is named here.
+    // voucher carries. It cannot become a stock line — the schema keeps a
+    // purchase item at a positive quantity — but its money is the bill's money,
+    // so a purchase still counts it in the total and says here that it did.
     const quantityless = amountLines.filter(
       (line) => line.quantity === undefined || !Number.isFinite(line.quantity) || line.quantity <= 0,
     )
@@ -1803,16 +1971,20 @@ export function normaliseTallyDocument(
         `Voucher "${voucherLabel(voucher)}" has ${quantityless.length} stock line${quantityless.length === 1 ? "" : "s"} worth ${money(total)} with no positive quantity (${quantityless
           .slice(0, 5)
           .map((line) => line.stockItemName)
-          .join(", ")}${quantityless.length > 5 ? ", …" : ""}). Those lines are in the ledger but not the ${
-          kind === "sales" ? "sales" : "purchases"
-        } report.`,
+          .join(", ")}${quantityless.length > 5 ? ", …" : ""}). ${
+          kind === "sales"
+            ? "A sale posts the lines it lists, so this value is not in its total."
+            : "Its value is in the purchase total, but with no quantity it adds no stock line."
+        }`,
         sourceId,
       )
     }
     const inventoryLines = amountLines.filter(
       (line) => line.quantity !== undefined && Number.isFinite(line.quantity) && line.quantity > 0,
     )
-    if (inventoryLines.length === 0) continue
+    // A supplier bill exists whether or not Tally recorded quantities for it;
+    // a till transaction does not, because a sale without items cannot post.
+    if (inventoryLines.length === 0 && kind === "sales") continue
 
     const cashLines =
       kind === "sales"
@@ -1872,9 +2044,15 @@ export function normaliseTallyDocument(
     const usable = itemLines.filter(
       (item) => item.whole && item.quantity > 0 && item.lineTotal > 0,
     )
-    if (usable.length === 0) continue
+    if (usable.length === 0 && kind === "sales") continue
 
-    const total = round2(usable.reduce((sum, item) => sum + cents(item.lineTotal), 0) / 100)
+    // A purchase total is every stock line the bill values, so a line with no
+    // quantity still reaches the purchases report. A sale total stays the lines
+    // it lists, so the receipt and the till agree.
+    const total =
+      kind === "purchase"
+        ? round2(amountLines.reduce((sum, line) => sum + cents(line.amount), 0) / 100)
+        : round2(usable.reduce((sum, item) => sum + cents(item.lineTotal), 0) / 100)
     const tax = round2(
       voucher.ledgerLines
         .filter((line) => {
@@ -1955,18 +2133,37 @@ export function normaliseTallyDocument(
     }
   }
 
+  attachPrices(stockItems, document.stockItems, sales, purchases)
+  const unpriced = stockItems.filter((item) => !item.sellingPrice)
+  if (unpriced.length > 0) {
+    addException(
+      "PRICE_FROM_COST",
+      `${unpriced.length.toLocaleString("en-GB")} of ${stockItems.length.toLocaleString("en-GB")} stock item${stockItems.length === 1 ? "" : "s"} have no Standard Selling Price in Tally and no sale in the exported history (${unpriced
+        .slice(0, 5)
+        .map((item) => item.name)
+        .join(", ")}${unpriced.length > 5 ? ", …" : ""}). They are imported selling at their cost so nothing is sold below cost; set their selling price after the import.`,
+      undefined,
+      "warning",
+    )
+  }
+
   return {
     company,
     companyKey,
     currency,
     conversionDate,
+    ...(document.financialYearStart ? { financialYearStart: document.financialYearStart } : {}),
+    // Replay carries every movement; opening carries only the dated stock
+    // adjustments and leaves the trade history to the mirror.
     ...(mode === "replay"
       ? {
           cutoffDate,
           ordering: "date-then-export-order" as const,
           movements: replayMovements,
         }
-      : {}),
+      : replayMovements.length > 0
+        ? { movements: replayMovements }
+        : {}),
     batchExpiry,
     mode,
     accounts: cutoverAccounts,
@@ -1992,6 +2189,7 @@ export function normaliseTallyDocument(
       stockItems: document.stockItems.length,
       vouchers: sourceVouchers.length,
       postedVouchers: vouchers.length,
+      adjustedVouchers,
       skippedVouchers,
       sales: sales.length,
       purchases: purchases.length,

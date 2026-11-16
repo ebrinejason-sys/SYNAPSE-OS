@@ -18,6 +18,7 @@ import {
   replaceChunkResult,
   splitChunk,
   splitPeriod,
+  tallyModeFor,
   summariseExtraction,
   voucherChunkId,
   voucherDatesOutsidePeriod,
@@ -70,6 +71,27 @@ describe("createOpenManifest", () => {
     expect(codes(open)).toEqual(
       expect.arrayContaining(["TALLY_CHUNK_MISSING", "TALLY_CHUNK_INCOMPLETE"]),
     )
+  })
+})
+
+describe("manifestProblems by mode", () => {
+  function mastersOnly(mode: TallyMigrationManifest["mode"]): TallyMigrationManifest {
+    const open = createOpenManifest({
+      sessionId: "session-1",
+      company: "Demo Pharma",
+      mode,
+      period: TEN_DAYS,
+      updatedAt: AT,
+    })
+    return recordChunkResult(open, MASTERS_CHUNK_ID, { status: "complete", recordsRead: 3 }, AT)
+  }
+
+  it("does not ask a closing cut-over to tile the period with vouchers", () => {
+    expect(manifestProblems(mastersOnly("closing"))).toEqual([])
+  })
+
+  it("still requires voucher ranges when history will be posted", () => {
+    expect(codes(mastersOnly("opening"))).toContain("TALLY_CHUNK_MISSING")
   })
 })
 
@@ -194,6 +216,22 @@ describe("replaceChunkResult", () => {
   })
 })
 
+describe("tallyModeFor", () => {
+  it("replays a history export where the deployment allows replay", () => {
+    expect(tallyModeFor(true, true)).toBe("replay")
+  })
+
+  it("reads a history export as opening balances and history when replay is off", () => {
+    expect(tallyModeFor(true, false)).toBe("opening")
+    expect(tallyModeFor(true)).toBe("opening")
+  })
+
+  it("reads a masters-only export as its closing balances either way", () => {
+    expect(tallyModeFor(false, true)).toBe("closing")
+    expect(tallyModeFor(false, false)).toBe("closing")
+  })
+})
+
 describe("parseTallyIsoDate", () => {
   it("accepts real calendar days", () => {
     expect(parseTallyIsoDate("2026-01-01")).toBe(Date.UTC(2026, 0, 1))
@@ -306,6 +344,28 @@ describe("manifestProblems", () => {
 
   it("blocks while any chunk is unfinished", () => {
     expect(codes(build(2))).toContain("TALLY_CHUNK_INCOMPLETE")
+  })
+
+  it("says which file is missing when a chunk was never supplied", () => {
+    // Nothing has been read: the operator is missing a file, not waiting on
+    // one. That is the case a voucher-only upload lands in.
+    const missing = manifestProblems(build(2)).filter(
+      (entry) => entry.code === "TALLY_CHUNK_INCOMPLETE",
+    )
+    expect(missing.map((entry) => entry.message)).toContain(
+      "No All Masters export has been added. The vouchers name ledgers, parties and stock items that only the masters define, so nothing can be posted until that file is staged.",
+    )
+
+    // A chunk that has started reading keeps the neutral wording.
+    const running = recordChunkResult(
+      build(2),
+      MASTERS_CHUNK_ID,
+      { status: "running", recordsRead: 5 },
+      AT,
+    )
+    expect(manifestProblems(running).map((entry) => entry.message)).toContain(
+      "Chunk masters has not been read yet or is still running.",
+    )
   })
 
   it("blocks a failed chunk and keeps the failure reason", () => {
