@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-20T19:24:57.731Z",
+  "generated_at": "2026-11-20T20:06:12.383Z",
   "routes": [
     {
       "route": "/",
@@ -815,6 +815,16 @@
       "route": "/os/[slug]",
       "source_file": "apps/web/src/app/os/[slug]/page.tsx",
       "classification": "REDIRECT"
+    },
+    {
+      "route": "/os/[slug]/admissions",
+      "source_file": "apps/web/src/app/os/[slug]/admissions/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/os/[slug]/billing",
+      "source_file": "apps/web/src/app/os/[slug]/billing/page.tsx",
+      "classification": "ACTIVE"
     },
     {
       "route": "/os/[slug]/clinical",
