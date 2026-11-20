@@ -11,23 +11,74 @@ import {
   catalogueQuantityPatchForbidden,
   catalogueBatchMutationForbidden,
 } from "@/lib/inventory/catalogue-write"
+import {
+  catalogProductFromRow,
+  resolveImportCatalogMatch,
+  sameMedicineIdentity,
+} from "@synapse/db/pharmacy-purchases"
+
+/** Mirrors the `chk_vat_category` constraint; anything unknown stays exempt. */
+function vatCategoryFrom(value: unknown): "standard" | "exempt" | "zero_rated" {
+  const raw = String(value ?? "").toLowerCase()
+  return raw === "standard" || raw === "zero_rated" ? raw : "exempt"
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** A cart is a handful of lines; anything larger is not a sale refresh. */
+const MAX_IDS = 200
+
+function medicineNameSearchPattern(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part.replace(/[\\%_]/g, "\\$&"))
+    .join("%")
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requirePharmacyPermission(["inventory.read", "pos.sell"])
+    // purchasing.manage is included because the supplier and purchase-order
+    // pages need the product list to build an order.
+    const auth = await requirePharmacyPermission(["inventory.read", "pos.sell", "purchasing.manage"])
     if (!auth.ok) return auth.response
     const { session, tenantId } = auth
 
-    const { data: products, error } = await (supabaseAdmin as any)
+    // `?ids=` narrows the response to the products the till just sold, so a
+    // completed sale can refresh its own lines instead of re-downloading the
+    // whole catalogue. An ids parameter that yields nothing valid returns an
+    // empty list rather than silently falling back to the full catalogue.
+    const idsParam = request.nextUrl.searchParams.get("ids")
+    let ids: string[] | null = null
+    if (idsParam !== null) {
+      ids = Array.from(
+        new Set(
+          idsParam
+            .split(",")
+            .map((id) => id.trim())
+            .filter((id) => UUID_RE.test(id)),
+        ),
+      ).slice(0, MAX_IDS)
+      if (ids.length === 0) return NextResponse.json([])
+    }
+
+    let query = (supabaseAdmin as any)
       .from("pharmacy_products")
       .select(`
-        *,
-        pharmacy_product_packages(*),
-        pharmacy_product_batches(*)
+        id, tenant_id, name, sku, barcode, price, cost_price, quantity, unit_of_measure,
+        strength, dosage_form, active_ingredient, generic_name, requires_prescription,
+        category, vat_category,
+        supplier_id, expiry_date, batch_number, is_active, created_at, updated_at,
+        pharmacy_product_packages(id, name, units_per_package, price, is_default),
+        pharmacy_product_batches(id, batch_number, quantity, expiry_date, cost_price,
+          selling_price, manufacturer, status, is_active)
       `)
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
-      .order("created_at", { ascending: false })
+
+    if (ids) query = query.in("id", ids)
+
+    const { data: products, error } = await query.order("created_at", { ascending: false })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -61,6 +112,8 @@ export async function GET(request: NextRequest) {
       activeIngredient:     product.active_ingredient ?? null,
       genericName:          product.generic_name ?? null,
       requiresPrescription: product.requires_prescription ?? false,
+      category:             product.category ?? "General",
+      vatCategory:          product.vat_category ?? "exempt",
       supplierId:           product.supplier_id ?? null,
       expiryDate:           product.expiry_date ?? null,
       batchNumber:          product.batch_number ?? null,
@@ -86,6 +139,7 @@ export async function GET(request: NextRequest) {
           quantity:    batch.quantity,
           expiryDate:  batch.expiry_date,
           costPrice:   batch.cost_price != null ? Number(batch.cost_price) : null,
+          sellingPrice: Number(batch.selling_price ?? product.price ?? 0),
           manufacturer: batch.manufacturer ?? null,
         })),
       }
@@ -111,8 +165,6 @@ export async function POST(request: NextRequest) {
     if (foreignRef) return foreignRef
 
     const barcode = normalizeBarcode(data.barcode)
-    const dupBarcode = await duplicateBarcodeResponse(tenantId, barcode)
-    if (dupBarcode) return dupBarcode
 
     // Check if SKU already exists (scoped to tenant)
     const { data: existingProduct } = await (supabaseAdmin as any)
@@ -126,12 +178,164 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Product with this SKU already exists" }, { status: 400 })
     }
 
+    const name = String(data.name ?? "").trim()
+    const { data: identityRows, error: identityError } = await (supabaseAdmin as any)
+      .from("pharmacy_products")
+      .select("id, name, sku, barcode, strength, dosage_form, active_ingredient, generic_name")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .ilike("name", medicineNameSearchPattern(name))
+
+    if (identityError) {
+      console.error("[inventory] medicine identity lookup failed:", identityError)
+      return NextResponse.json({ error: "Could not check existing medicine identity" }, { status: 500 })
+    }
+
+    const identityMatch = resolveImportCatalogMatch(
+      {
+        name,
+        strength: typeof data.strength === "string" ? data.strength : null,
+        dosageForm: typeof data.dosageForm === "string" ? data.dosageForm : null,
+        activeIngredient: typeof data.activeIngredient === "string" ? data.activeIngredient : null,
+      },
+      (identityRows ?? []).map(catalogProductFromRow),
+    )
+
+    if (
+      identityMatch.kind === "ambiguous_name" &&
+      identityMatch.candidates.some((candidate) =>
+        sameMedicineIdentity(
+          {
+            name,
+            strength: typeof data.strength === "string" ? data.strength : null,
+            dosageForm: typeof data.dosageForm === "string" ? data.dosageForm : null,
+            activeIngredient: typeof data.activeIngredient === "string" ? data.activeIngredient : null,
+          },
+          candidate,
+        ),
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error: "Multiple products have this exact medicine identity. Review the catalog and choose the correct product before receiving stock.",
+          code: "AMBIGUOUS_MEDICINE_IDENTITY",
+        },
+        { status: 409 },
+      )
+    }
+
+    if (identityMatch.kind === "match" && identityMatch.via === "name") {
+      const { data: existingBarcode } = barcode
+        ? await (supabaseAdmin as any)
+            .from("pharmacy_products")
+            .select("id")
+            .eq("tenant_id", tenantId)
+            .eq("barcode", barcode)
+            .maybeSingle()
+        : { data: null }
+
+      if (existingBarcode && existingBarcode.id !== identityMatch.product.id) {
+        const duplicate = await duplicateBarcodeResponse(tenantId, barcode)
+        if (duplicate) return duplicate
+      }
+
+      const batches = Array.isArray(data.batches)
+        ? (data.batches as Array<Record<string, unknown>>)
+        : []
+      if (batches.length === 0) {
+        return NextResponse.json(
+          {
+            error: "This exact medicine already exists. Add its new batch to the existing product instead of creating a duplicate.",
+            code: "DUPLICATE_MEDICINE",
+            productId: identityMatch.product.id,
+          },
+          { status: 409 },
+        )
+      }
+
+      const validatedBatches = batches.map((batch) => ({
+        batch,
+        quantity: Number(batch.quantity ?? 0),
+        batchNumber: String(batch.batchNumber ?? "").trim(),
+        expiryDate: String(batch.expiryDate ?? "").slice(0, 10),
+      }))
+      const invalidBatch = validatedBatches.find(
+        ({ quantity, batchNumber, expiryDate }) => quantity <= 0 || !batchNumber || !expiryDate,
+      )
+      if (invalidBatch) {
+        const err = pharmacyDomainError(
+          "REQUIRES_BATCH",
+          "Every opening batch requires a genuine batch number, future expiry, and positive quantity.",
+        )
+        return NextResponse.json(err, { status: httpStatusForPharmacyError(err.code) })
+      }
+
+      for (const { batch, quantity, batchNumber, expiryDate } of validatedBatches) {
+        const received = await receivePharmacyStock(supabaseAdmin as any, {
+          tenantId,
+          productId: identityMatch.product.id,
+          batchNumber,
+          quantity,
+          expiryDate,
+          costPrice: (batch.costPrice as number | null) ?? (data.costPrice as number | null) ?? null,
+          sellingPrice:
+            (batch.sellingPrice as number | null) ?? (data.price as number | null) ?? null,
+          receivedBy: session.user.id,
+          reason: "Product create matched exact medicine identity",
+        })
+        if (received.error) {
+          return NextResponse.json(
+            pharmacyDomainError(received.error.code, received.error.humanMessage),
+            { status: httpStatusForPharmacyError(received.error.code) },
+          )
+        }
+      }
+
+      const packages = data.packages as Array<Record<string, unknown>> | undefined
+      if (Array.isArray(packages) && packages.length > 0) {
+        const { error: packagesError } = await supabaseAdmin
+          .from("pharmacy_product_packages")
+          .upsert(
+            packages.map((pkg) => ({
+              tenant_id: tenantId,
+              product_id: identityMatch.product.id,
+              name: pkg.name as string,
+              units_per_package: pkg.unitsPerPackage as number,
+              price: pkg.price as number,
+              is_default: (pkg.isDefault as boolean) || false,
+            })),
+            { onConflict: "product_id,name", ignoreDuplicates: true },
+          )
+        if (packagesError) {
+          console.error("[inventory] matched product packages could not be saved:", packagesError)
+          return NextResponse.json({ error: "Stock received but package options were not saved" }, { status: 500 })
+        }
+      }
+
+      await supabaseAdmin.from("pharmacy_audit_logs").insert({
+        tenant_id: tenantId,
+        profile_id: session.user.id,
+        action: "RECEIVE_BATCHES_ON_MATCHED_PRODUCT",
+        entity: "PRODUCT",
+        entity_id: identityMatch.product.id,
+        details: `Received ${batches.length} batch(es) on exact medicine identity match`,
+      })
+      return NextResponse.json({
+        ...identityMatch.product,
+        matchedExisting: true,
+        batchesReceived: batches.length,
+      })
+    }
+
+    const dupBarcode = await duplicateBarcodeResponse(tenantId, barcode)
+    if (dupBarcode) return dupBarcode
+
     // Create the product
     const { data: product, error: productError } = await supabaseAdmin
       .from("pharmacy_products")
       .insert({
         tenant_id: tenantId,
-        name: data.name as string,
+        name,
         sku: data.sku as string,
         barcode,
         category: (data.category as string) || "General",
@@ -146,6 +350,9 @@ export async function POST(request: NextRequest) {
         dosage_form: (data.dosageForm as string) || null,
         active_ingredient: (data.activeIngredient as string) || null,
         requires_prescription: (data.requiresPrescription as boolean) || false,
+        // Defaults to exempt, matching the column: a product is not taxed until
+        // someone says it is.
+        vat_category: vatCategoryFrom(data.vatCategory),
         generic_name: (data.genericName as string) || null,
         side_effects: (data.sideEffects as string) || null,
         storage_instructions: (data.storageInstructions as string) || null,
@@ -201,7 +408,9 @@ export async function POST(request: NextRequest) {
           batchNumber,
           quantity: qty,
           expiryDate,
-          costPrice: (batch.costPrice as number) || (data.costPrice as number) || null,
+          costPrice: (batch.costPrice as number | null) ?? (data.costPrice as number | null) ?? null,
+          sellingPrice:
+            (batch.sellingPrice as number | null) ?? (data.price as number | null) ?? null,
           receivedBy: session.user.id,
           reason: "Product create opening batch",
         })
@@ -287,6 +496,11 @@ export async function PATCH(request: NextRequest) {
         dosage_form: (data.dosageForm as string) || null,
         active_ingredient: (data.activeIngredient as string) || null,
         requires_prescription: data.requiresPrescription as boolean,
+        // Only touched when the caller sends it: an edit that does not mention
+        // tax must not silently reclassify a product.
+        ...(data.vatCategory !== undefined
+          ? { vat_category: vatCategoryFrom(data.vatCategory) }
+          : {}),
         generic_name: (data.genericName as string) || null,
         side_effects: (data.sideEffects as string) || null,
         storage_instructions: (data.storageInstructions as string) || null,

@@ -2,31 +2,49 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { Mail } from "lucide-react"
+import { Eye, EyeOff, Mail } from "lucide-react"
 
-type LoginStep = "credentials" | "otp"
+type LoginStep = "credentials" | "choose" | "otp"
+
+type WorkspaceOption = { tenantId: string; name: string; slug: string }
 
 export default function LoginPage() {
   const [step, setStep] = useState<LoginStep>("credentials")
   const [identifier, setIdentifier] = useState("")
   const [resolvedEmail, setResolvedEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [otp, setOtp] = useState("")
+  const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([])
+  const [tenantId, setTenantId] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resendMsg, setResendMsg] = useState<string | null>(null)
 
-  const handleCredentials = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // One identity can work at several pharmacies, so the facility is chosen before
+  // a session is issued. Re-submitting the credentials with the chosen tenantId
+  // is what tells the server which one.
+  const submitCredentials = async (chosenTenantId?: string) => {
     setIsLoading(true)
     setError(null)
 
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, password }),
+      body: JSON.stringify({
+        identifier,
+        password,
+        ...(chosenTenantId ? { tenantId: chosenTenantId } : {}),
+      }),
     })
-    const data = await res.json()
+    const data = await res.json().catch(() => ({}))
+
+    if (data.chooseWorkspace && Array.isArray(data.workspaces)) {
+      setWorkspaces(data.workspaces as WorkspaceOption[])
+      setStep("choose")
+      setIsLoading(false)
+      return
+    }
 
     if (!res.ok) {
       setError(data.error ?? 'Invalid email/username or password.')
@@ -43,9 +61,15 @@ export default function LoginPage() {
       return
     }
 
+    setTenantId(typeof data.tenantId === 'string' ? data.tenantId : chosenTenantId ?? '')
     setResolvedEmail(typeof data.email === 'string' ? data.email : identifier.trim().toLowerCase())
     setStep("otp")
     setIsLoading(false)
+  }
+
+  const handleCredentials = (e: React.FormEvent) => {
+    e.preventDefault()
+    void submitCredentials()
   }
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
@@ -57,7 +81,7 @@ export default function LoginPage() {
     const res = await fetch('/api/auth/otp-verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: emailForOtp, otp }),
+      body: JSON.stringify({ email: emailForOtp, otp, ...(tenantId ? { tenantId } : {}) }),
     })
     const data = await res.json()
 
@@ -102,7 +126,9 @@ export default function LoginPage() {
           <p className="font-mono text-xs mt-1 uppercase tracking-wider text-zinc-400">
             {step === "credentials"
               ? "Staff & Admin Portal"
-              : `Code sent to ${resolvedEmail || identifier}`}
+              : step === "choose"
+                ? "Choose your pharmacy"
+                : `Code sent to ${resolvedEmail || identifier}`}
           </p>
         </div>
 
@@ -137,17 +163,29 @@ export default function LoginPage() {
                 >
                   Password
                 </label>
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  className="synapse-input"
-                />
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={isLoading}
+                    className="synapse-input pr-10"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    title={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
 
               {error && (
@@ -170,6 +208,48 @@ export default function LoginPage() {
                 </Link>
               </div>
             </form>
+          )}
+
+          {step === "choose" && (
+            <div className="space-y-4">
+              <p className="text-sm text-zinc-400">
+                This account works at more than one pharmacy. Pick the one you are signing into.
+              </p>
+
+              {error && (
+                <p className="text-sm rounded-lg px-3 py-2 text-red-400 bg-red-500/10">
+                  {error}
+                </p>
+              )}
+
+              <div className="space-y-2">
+                {workspaces.map((workspace) => (
+                  <button
+                    key={workspace.tenantId}
+                    type="button"
+                    onClick={() => void submitCredentials(workspace.tenantId)}
+                    disabled={isLoading}
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900/50 px-4 py-3 text-left hover:border-[#1FA6A6] disabled:opacity-60"
+                  >
+                    <span className="block text-sm font-medium text-white">{workspace.name}</span>
+                    {workspace.slug ? (
+                      <span className="block text-xs text-zinc-500">{workspace.slug}</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("credentials")
+                  setError(null)
+                }}
+                className="text-xs text-zinc-600 hover:text-zinc-300"
+              >
+                ← Back
+              </button>
+            </div>
           )}
 
           {step === "otp" && (

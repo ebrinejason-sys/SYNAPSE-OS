@@ -93,8 +93,16 @@ describe("hospital BFF tenant filter (service_role defence-in-depth)", () => {
     const ingest = readFileSync(join(root, "apps/web/src/app/api/lab/instrument-ingest/route.ts"), "utf8")
     const pharmacy = readFileSync(join(root, "apps/web/src/app/api/hospital/pharmacy/dispense/route.ts"), "utf8")
     const purchases = readFileSync(join(root, "apps/web/src/app/api/hospital/pharmacy/purchases/route.ts"), "utf8")
-    assert.match(search, /\.eq\('tenant_id', ctx\.tenantId\)/)
-    assert.match(billing, /\.eq\('tenant_id', ctx\.tenantId\)/)
+    // Search goes through hospital_search_patients (WHERE p.tenant_id = p_tenant_id),
+    // with the tenant taken from the session; the pre-migration fallback filters inline.
+    assert.match(search, /p_tenant_id: ctx\.tenantId/)
+    assert.match(search, /legacySearch\(db, ctx\.tenantId,/)
+    assert.match(search, /\.eq\('tenant_id', tenantId\)/)
+    // Billing reads go through lib/hospital-billing with the session tenant.
+    const billingLib = readFileSync(join(root, "apps/web/src/lib/hospital-billing.ts"), "utf8")
+    assert.match(billing, /loadInvoice\(db, ctx\.tenantId,/)
+    assert.match(billing, /loadInvoiceLinesAndPayments\(db, ctx\.tenantId,/)
+    assert.equal((billingLib.match(/\.eq\('tenant_id', tenantId\)/g) ?? []).length >= 3, true, "billing helpers filter every read by tenant")
     assert.match(lab, /\.eq\('tenant_id', ctx\.tenantId\)/)
     assert.match(ingest, /\.eq\("tenant_id", bridge\.tenant_id\)/)
     assert.match(pharmacy, /\.eq\('tenant_id', ctx\.tenantId\)/)

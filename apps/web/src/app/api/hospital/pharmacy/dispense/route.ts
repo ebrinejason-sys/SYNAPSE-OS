@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@synapse/db/admin'
+import { allocateFefo, summarizeInventory, type BatchInput } from '@synapse/db/inventory'
 import { ExchangeOutbox } from '@synapse/db/exchange'
 import { verifyPrescription, dispensePrescription } from '@synapse/db/prescription-bridge'
 import { rowToClinicalPrescription, persistClinicalPrescriptionBestEffort } from '@synapse/db/prescription-persist'
@@ -10,6 +11,7 @@ import { medicationDispensedTimelineEvent, publishClinicalTimelineBestEffort } f
 import { publishTimelineEvent } from '@synapse/db/identity-persist'
 import { isContextError, requireHospitalCapability, gateHospitalModule, logHospitalAudit } from '@/lib/hospital-shared'
 import { requireHospitalStaffContext, hospitalDispenseSchema } from '@/lib/hospital-dept'
+import { runClinicalSafetyCheck } from '@/lib/clinical-safety'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +31,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { prescription_id, product_id, pharmacy_tenant_id, payment_method } = parsed.data
+  const { prescription_id, product_id, pharmacy_tenant_id, payment_method, safety_override_reason } =
+    parsed.data
 
   // Hospital dispensing draws on the facility's own stock; cross-tenant network dispensing is not enabled.
   if (pharmacy_tenant_id !== ctx.tenantId) {
@@ -60,7 +63,10 @@ export async function POST(req: NextRequest) {
 
   const { data: product, error: productError } = await db
     .from('pharmacy_products')
-    .select('id, price, name, is_active')
+    // `generic_name` and `active_ingredient` are read for the safety check: the
+    // product name alone is a brand string and is the least reliable of the
+    // three for matching against a drug catalogue.
+    .select('id, price, name, generic_name, active_ingredient, is_active')
     .eq('id', product_id)
     .eq('tenant_id', pharmacy_tenant_id)
     .maybeSingle()
@@ -70,18 +76,60 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Product not found or inactive' }, { status: 400 })
   }
 
+  // Safety runs against the product actually being handed over, not against the
+  // prescription's free text: at this point the drug is a real catalogue entry.
+  const safety = await runClinicalSafetyCheck({
+    db,
+    tenantId: ctx.tenantId,
+    hospitalId: ctx.hospitalId,
+    patientId: current.patientId,
+    encounterId: current.encounterId,
+    actorId: ctx.userId,
+    stage: 'dispense',
+    newDrugs: [
+      {
+        label: product.name,
+        aliases: [product.generic_name, product.active_ingredient, current.medicationDisplay].filter(
+          (value: string | null): value is string => typeof value === 'string' && value.trim().length > 0,
+        ),
+        productId: product.id,
+        role: 'new',
+      },
+    ],
+    overrideReason: safety_override_reason ?? null,
+  })
+
+  if (safety.decision.decision === 'block') {
+    const overridden = typeof safety_override_reason === 'string' && safety_override_reason.trim().length > 0
+    if (!overridden) {
+      return NextResponse.json(
+        {
+          error: 'clinical_safety_block',
+          message:
+            'This dispense was stopped by a clinical safety check. Supply safety_override_reason to proceed deliberately.',
+          safety: safety.payload,
+          safetyAuditRecordId: safety.auditRecordId ?? null,
+        },
+        { status: 409 },
+      )
+    }
+  }
+
   // Authoritative on-hand qty lives on pharmacy_product_batches (not a pharmacy_stock table).
-  const { data: stockRows } = await db
+  const { data: stockRows, error: stockError } = await db
     .from('pharmacy_product_batches')
-    .select('quantity')
+    .select('id, quantity, expiry_date, status, is_active, selling_price')
     .eq('tenant_id', pharmacy_tenant_id)
     .eq('product_id', product_id)
-    .eq('is_active', true)
+  if (stockError) {
+    return NextResponse.json({ error: stockError.message }, { status: 500 })
+  }
 
-  const availableStock = (stockRows ?? []).reduce(
-    (sum: number, row: { quantity?: number }) => sum + Number(row.quantity ?? 0),
-    0,
+  const inventory = summarizeInventory(
+    { id: product.id, name: product.name, is_active: product.is_active },
+    (stockRows ?? []) as BatchInput[],
   )
+  const availableStock = inventory.sellableQuantity
 
   try {
     const verified =
@@ -96,18 +144,43 @@ export async function POST(req: NextRequest) {
       availableStock,
     })
 
+    const allocations = allocateFefo(
+      (stockRows ?? []) as BatchInput[],
+      dispensed.rx.quantity,
+    )
+    if (
+      allocations.reduce((sum, allocation) => sum + allocation.quantity, 0) !== dispensed.rx.quantity ||
+      allocations.some((allocation) => !allocation.batchId)
+    ) {
+      return NextResponse.json({ error: 'Batch stock changed. Refresh and retry.' }, { status: 409 })
+    }
+
+    const batchesById = new Map<string, Record<string, unknown>>(
+      (stockRows ?? []).map(
+        (batch: Record<string, unknown>) => [String(batch.id), batch] as const,
+      ),
+    )
+    const saleItems = allocations.map((allocation) => {
+      const batch = batchesById.get(String(allocation.batchId))
+      const unitPrice = Number(batch?.selling_price ?? product.price ?? 0)
+      return {
+        product_id,
+        batch_id: allocation.batchId,
+        quantity: allocation.quantity,
+        unit_price: unitPrice,
+        discount_amount: 0,
+      }
+    })
+    if (saleItems.some((item) => !Number.isFinite(item.unit_price) || item.unit_price < 0)) {
+      console.error('[hospital dispense] invalid batch selling price:', { productId: product_id })
+      return NextResponse.json({ error: 'Could not verify batch selling price' }, { status: 500 })
+    }
+
     const idempotencyKey = `clinical_prescriptions:${prescription_id}`
     const { data: sale, error: saleError } = await db.rpc('complete_pharmacy_sale', {
       p_tenant_id: pharmacy_tenant_id,
       p_cashier_id: ctx.userId,
-      p_items: [
-        {
-          product_id,
-          quantity: dispensed.rx.quantity,
-          unit_price: Number(product.price ?? 0),
-          discount_amount: 0,
-        },
-      ],
+      p_items: saleItems,
       p_payment_method: payment_method,
       p_session_id: null,
       p_cart_id: null,
@@ -120,7 +193,13 @@ export async function POST(req: NextRequest) {
     })
 
     if (saleError) {
-      return NextResponse.json({ error: saleError.message }, { status: 400 })
+      const code = ['INSUFFICIENT_STOCK', 'BATCH_PRICE_CHANGED', 'EXPIRED_BATCH_BLOCKED'].find(
+        (candidate) => saleError.message?.includes(candidate),
+      )
+      return NextResponse.json(
+        { error: saleError.message, ...(code ? { code } : {}) },
+        { status: code ? 409 : 400 },
+      )
     }
 
     const saleId =
@@ -203,70 +282,74 @@ export async function POST(req: NextRequest) {
 
     await persistDomainEventsBestEffort(db, outbox.list({ correlationId: dispensed.rx.correlationId }))
 
-    const unitPrice = product.price == null ? null : Number(product.price)
-    if (unitPrice == null || !Number.isFinite(unitPrice)) {
-      // Missing catalog price is not a zero charge.
-    } else {
+    let dispenseCharge: { invoiceId: string; created: boolean; totalAmount: number } | null = null
+    let invoiceCreated = false
+    for (const item of saleItems) {
       const charge = await appendClinicalChargeBestEffort(db, {
         tenantId: ctx.tenantId,
         patientId: dispensed.rx.patientId,
         encounterId: dispensed.rx.encounterId,
         itemName: `Dispense · ${dispensed.rx.medicationDisplay}`,
-        unitPrice,
-        qty: dispensed.rx.quantity,
+        unitPrice: item.unit_price,
+        qty: item.quantity,
         sourceTable: 'pharmacy_dispense',
-        sourceId: prescription_id,
+        sourceId: `${prescription_id}:${item.batch_id}`,
       })
-      if (charge.ok && charge.result.created) {
+      if (charge.ok) {
+        dispenseCharge = charge.result
+        invoiceCreated ||= charge.result.created
+      }
+    }
+
+    if (dispenseCharge) {
+      if (invoiceCreated) {
         const invoiceOutbox = recordInvoiceCreatedEvent({
           tenantId: ctx.tenantId,
           hospitalId: ctx.hospitalId,
           patientId: dispensed.rx.patientId,
           encounterId: dispensed.rx.encounterId,
-          invoiceId: charge.result.invoiceId,
-          totalAmount: charge.result.totalAmount,
+          invoiceId: dispenseCharge.invoiceId,
+          totalAmount: dispenseCharge.totalAmount,
           actorId: ctx.userId,
         })
         await persistDomainEventsBestEffort(db, invoiceOutbox.list({ correlationId: dispensed.rx.correlationId }))
       }
 
-      if (charge.ok) {
-        const { data: invoice } = await db
-          .from('billing_invoices')
-          .select('id, total_amount, paid_amount, status')
-          .eq('id', charge.result.invoiceId)
-          .eq('tenant_id', ctx.tenantId)
-          .maybeSingle()
-        const balanceDue = Math.max(0, Number(invoice?.total_amount ?? 0) - Number(invoice?.paid_amount ?? 0))
-        if (balanceDue > 0 && invoice?.status !== 'paid') {
-          const queue = new WorkQueue()
-          const billingTask = queue.create({
-            tenantId: ctx.tenantId,
-            facilityId: ctx.hospitalId,
-            hospitalId: ctx.hospitalId,
-            patientId: dispensed.rx.patientId,
-            encounterId: dispensed.rx.encounterId,
-            requesterId: ctx.userId,
-            ownerDepartment: 'billing',
-            ownerRole: 'cashier',
-            taskType: 'billing',
-            priority: 'ROUTINE',
-            title: 'Payment required',
-            description: `Invoice balance due: ${balanceDue}`,
-            sourceResource: 'billing_invoices',
-            sourceId: charge.result.invoiceId,
-            correlationId: dispensed.rx.correlationId,
-            idempotencyKey: `billing_invoices:${charge.result.invoiceId}:payment`,
-            suppressDomainEvent: true,
+      const { data: invoice } = await db
+        .from('billing_invoices')
+        .select('id, total_amount, paid_amount, status')
+        .eq('id', dispenseCharge.invoiceId)
+        .eq('tenant_id', ctx.tenantId)
+        .maybeSingle()
+      const balanceDue = Math.max(0, Number(invoice?.total_amount ?? 0) - Number(invoice?.paid_amount ?? 0))
+      if (balanceDue > 0 && invoice?.status !== 'paid') {
+        const queue = new WorkQueue()
+        const billingTask = queue.create({
+          tenantId: ctx.tenantId,
+          facilityId: ctx.hospitalId,
+          hospitalId: ctx.hospitalId,
+          patientId: dispensed.rx.patientId,
+          encounterId: dispensed.rx.encounterId,
+          requesterId: ctx.userId,
+          ownerDepartment: 'billing',
+          ownerRole: 'cashier',
+          taskType: 'billing',
+          priority: 'ROUTINE',
+          title: 'Payment required',
+          description: `Invoice balance due: ${balanceDue}`,
+          sourceResource: 'billing_invoices',
+          sourceId: dispenseCharge.invoiceId,
+          correlationId: dispensed.rx.correlationId,
+          idempotencyKey: `billing_invoices:${dispenseCharge.invoiceId}:payment`,
+          suppressDomainEvent: true,
+        })
+        if (billingTask.ok) {
+          const billingPersist = await persistWorkQueueArtifactsBestEffort(db, {
+            tasks: [billingTask.task],
+            events: [],
           })
-          if (billingTask.ok) {
-            const billingPersist = await persistWorkQueueArtifactsBestEffort(db, {
-              tasks: [billingTask.task],
-              events: [],
-            })
-            if (billingPersist.errors.length) {
-              console.warn('[hospital/dispense] billing handoff persist partial', billingPersist.errors)
-            }
+          if (billingPersist.errors.length) {
+            console.warn('[hospital/dispense] billing handoff persist partial', billingPersist.errors)
           }
         }
       }
@@ -299,6 +382,9 @@ export async function POST(req: NextRequest) {
       prescription: updatedRx,
       sale,
       remainingStock: dispensed.remainingStock,
+      safety: safety.payload,
+      safetyAuditRecordId: safety.auditRecordId ?? null,
+      safetyAuditError: safety.auditError ?? null,
     })
   } catch (error) {
     return NextResponse.json(

@@ -4,6 +4,9 @@ import { mapRefund } from "@/lib/api-serialize"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { reversePharmacySale } from "@synapse/db/inventory-rpc"
 import { attachSaleToTill } from "@/lib/pos/till-service"
+import { decodePaidAmount } from "@/lib/pos/partial-payment"
+import { allocateRefundAmount } from "@/lib/pos/refund-amount"
+import { isTallyMirrorNote } from "@/lib/tally/types"
 
 const db = () => supabaseAdmin as any
 
@@ -19,7 +22,7 @@ export async function GET(_request: NextRequest) {
         .from("pharmacy_pos_sales")
         .select(
           `
-          id, receipt_number, total_amount, payment_method, cashier_id, status,
+          id, receipt_number, total_amount, payment_method, payment_ref, cashier_id, status,
           voided_reason, voided_at, updated_at, created_at,
           items:pharmacy_pos_sale_items (
             id, quantity, unit_price, product_id, product:pharmacy_products ( name, sku )
@@ -72,11 +75,17 @@ export async function GET(_request: NextRequest) {
       }
     }
 
+    // The refund list reports money handed back, which for a credit sale is
+    // only what the customer had actually paid — not the sale total.
     const mappedPos = (posVoids ?? []).map((s: Record<string, unknown>) =>
       mapRefund({
         ...s,
         transaction_no: s.receipt_number,
-        net_amount: s.total_amount,
+        net_amount: decodePaidAmount({
+          paymentRef: s.payment_ref as string | null,
+          total: s.total_amount as number | null,
+          method: s.payment_method as string | null,
+        }),
         notes: s.voided_reason,
         created_at: s.voided_at ?? s.updated_at ?? s.created_at,
         status: "REFUNDED",
@@ -113,16 +122,25 @@ async function refundPosSale(params: {
 
   if (error) {
     if (error.code === "ALREADY_REFUNDED") return { already: true as const, error }
-    if (error.code === "PRODUCT_NOT_FOUND") return { notFound: true as const, error }
+    // Only a sale that does not exist may be looked up in the older transaction
+    // table. A missing product line is a POS sale this route cannot refund.
+    if (error.code === "SALE_NOT_FOUND") return { notFound: true as const, error }
+    if (error.code === "PRODUCT_NOT_FOUND") return { lineMissing: true as const, error }
     if (error.code === "SALE_NOT_REFUNDABLE") {
       return { badStatus: true as const, error }
     }
     return { rpcFailed: true as const, error }
   }
 
+  const result = (data ?? {}) as Record<string, unknown>
   return {
     ok: true as const,
-    refundAmount: Number((data as any)?.refund_amount ?? 0),
+    refundAmount: Number(result.refund_amount ?? 0),
+    receivableReversal: Number(result.receivable_reversal ?? 0),
+    creditBalanceAfter:
+      result.credit_balance_after == null ? null : Number(result.credit_balance_after),
+    receivableUnreversed: Number(result.receivable_unreversed ?? 0),
+    receivableUnposted: result.receivable_unposted === true,
     sale: data,
   }
 }
@@ -183,6 +201,16 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       )
     }
+    if ("lineMissing" in posResult && posResult.lineMissing) {
+      return NextResponse.json(
+        {
+          error:
+            "A product on this sale no longer exists in the catalogue, so its stock cannot be restored. Recreate the product before refunding.",
+          code: "PRODUCT_NOT_FOUND",
+        },
+        { status: 409 },
+      )
+    }
     if ("rpcFailed" in posResult && posResult.rpcFailed) {
       return NextResponse.json(
         {
@@ -211,6 +239,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         refundAmount: posResult.refundAmount,
+        receivableReversal: posResult.receivableReversal,
+        creditBalanceAfter: posResult.creditBalanceAfter,
+        receivableUnreversed: posResult.receivableUnreversed,
+        receivableUnposted: posResult.receivableUnposted,
         transaction: posResult.sale,
         source: "pos",
       })
@@ -244,6 +276,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // The Tally mirror reports a sale whose ledger entry came from the Tally
+    // voucher. Marking it refunded here would move the portal's copy and post
+    // nothing, so refuse before any stock or balance changes.
+    if (isTallyMirrorNote((transaction as { notes?: string | null }).notes)) {
+      return NextResponse.json(
+        {
+          error: "This sale was imported from Tally and is read-only in the portal.",
+          code: "TALLY_MIRROR_READ_ONLY",
+        },
+        { status: 409 },
+      )
+    }
+
     interface RefundItemInput {
       id: string
       quantity: number
@@ -257,32 +302,53 @@ export async function POST(request: NextRequest) {
       product: { id: string; name: string; quantity: number } | null
     }
 
+    const transactionLines = transaction.items as TransactionItemRow[]
     const itemsToRefund: RefundItemInput[] =
       items && items.length > 0
         ? (items as RefundItemInput[])
-        : (transaction.items as TransactionItemRow[]).map((i) => ({
+        : transactionLines.map((i) => ({
             id: i.id,
             quantity: i.quantity,
           }))
 
-    let refundAmount = 0
-
-    for (const refundItem of itemsToRefund) {
-      const originalItem = (transaction.items as TransactionItemRow[]).find(
-        (i) => i.id === refundItem.id,
-      )
-      if (!originalItem) continue
-
-      const refundQty = Math.min(refundItem.quantity, originalItem.quantity)
-      refundAmount += originalItem.unit_price * refundQty
-
-      if (!originalItem.product_id) continue
-
-      // Legacy order txs are not POS sales. Do not bump product.quantity and
-      // do not fabricate batches. Returned units stay non-sellable until a
-      // pharmacist receives/quarantines them through inventory RPCs.
-      void refundQty
+    // This path sets the whole transaction to REFUNDED and records no per-line
+    // refund, so a partial request would mark the sale fully refunded while
+    // only part of the money went back — and the remainder could never be
+    // refunded. Refuse it instead of producing that state.
+    const requestedByLine = new Map<string, number>()
+    for (const item of itemsToRefund) {
+      requestedByLine.set(item.id, (requestedByLine.get(item.id) ?? 0) + Number(item.quantity ?? 0))
     }
+    const coversWholeSale =
+      requestedByLine.size === transactionLines.length &&
+      transactionLines.every((line) => requestedByLine.get(line.id) === Number(line.quantity ?? 0))
+    if (!coversWholeSale) {
+      return NextResponse.json(
+        {
+          error:
+            "Partial refunds are not supported for order transactions. Refund the whole transaction.",
+          code: "PARTIAL_REFUND_UNSUPPORTED",
+        },
+        { status: 400 },
+      )
+    }
+
+    // What the customer actually paid is the header figure, not the sum of
+    // line prices: lines exclude the tax added on top and the discount taken
+    // off. Legacy order txs are not POS sales, so no stock is moved here —
+    // returned units stay non-sellable until a pharmacist receives or
+    // quarantines them through the inventory RPCs.
+    const transactionHeader = transaction as { discount?: number | null; tax?: number | null }
+    const refundAmount = allocateRefundAmount({
+      lines: (transaction.items as TransactionItemRow[]).map((item) => ({
+        id: item.id,
+        quantity: Number(item.quantity ?? 0),
+        unit_price: Number(item.unit_price ?? 0),
+      })),
+      refunded: itemsToRefund,
+      discount: transactionHeader.discount,
+      tax: transactionHeader.tax,
+    })
 
     const existingNotes = (transaction as { notes: string | null }).notes ?? ""
     const { data: updatedTransaction, error: updateError } = await supabaseAdmin
@@ -323,7 +389,7 @@ export async function POST(request: NextRequest) {
       transaction: updatedTransaction,
       source: "order",
       warning:
-        "Legacy order refund restored product quantity only. Units are not sellable until received onto a genuine batch.",
+        "Order refund recorded. No stock was moved: returned units are not sellable until a pharmacist receives them onto a genuine batch.",
     })
   } catch (error) {
     console.error("Process refund error:", error)

@@ -4,6 +4,11 @@ node_modules/
 build/
 dist/
 coverage/
+
+# Playwright run output. Traces, screenshots and videos captured during
+# acceptance show a signed-in operator and the tenant's sales — never commit them.
+/test-results/
+/playwright-report/
 /public/synapse-logo.jpg
 /public/synapse-logo.png
 /public/team/
@@ -12,6 +17,13 @@ coverage/
 *.tsbuildinfo
 .env*
 !.env.example
+
+# Google Play service-account key referenced by apps/app/eas.json submit config.
+# A private key; must never enter the repo.
+apps/app/google-service-account.json
+apps/app/google-services.json
+apps/app/*.keystore
+apps/app/*.jks
 
 .supabase/
 supabase/.temp/
@@ -31,6 +43,7 @@ supabase/.temp/
 !/artifacts/readiness/web-route-manifest.json
 !/artifacts/readiness/route-integrity.json
 !/artifacts/readiness/db-acl-inventory.json
+!/artifacts/readiness/evidence.json
 !/artifacts/readiness/PRODUCTION_DB_RECONCILIATION.json
 !/artifacts/readiness/CORE_OS_GREEN.json
 !/artifacts/readiness/FINAL_GREEN_RELEASE.json
@@ -53,3 +66,19 @@ scripts/_tmp_*
 # Foglamp scan lock (editToken is a secret)
 .foglamp/
 
+# Personal shell configuration and local tool state — never part of the product
+.bash_profile
+.bashrc
+.zprofile
+.zshrc
+.profile
+.ripgreprc
+.gitconfig
+.idea
+.freebuff/
+supabase/.branches/
+
+
+# Tally captures converted from a client's real books — synthetic names, but
+# never a candidate for a commit. See apps/tally-bridge/scripts/probe-to-fixtures.mjs
+apps/tally-bridge/fixtures/captured/

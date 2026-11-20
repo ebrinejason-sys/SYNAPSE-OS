@@ -3,11 +3,16 @@
   "outputDirectory": "apps/web/.next",
   "installCommand": "npm install",
   "framework": "nextjs",
+  "regions": ["dub1"],
   "ignoreCommand": "node scripts/vercel-build-gate.mjs web",
   "crons": [
     {
       "path": "/api/cron/billing-sweep",
       "schedule": "15 21 * * *"
+    },
+    {
+      "path": "/api/cron/dhis2-export",
+      "schedule": "0 23 * * *"
     }
   ],
   "redirects": [

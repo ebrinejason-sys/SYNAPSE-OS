@@ -1,69 +1,51 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, CheckCircle, Send } from 'lucide-react'
-import { createClient } from '../../../../lib/supabase/client'
 
-const ROLES = ['doctor', 'nurse', 'pharmacist', 'lab_technician', 'admin', 'clinician', 'radiologist', 'physiotherapist']
+// Must match FACILITY_STAFF_ROLES in lib/hospital-admin/schemas.ts.
+const ROLES = ['doctor', 'nurse', 'pharmacist', 'lab_technician', 'admin', 'clinician', 'radiologist', 'physiotherapist', 'receptionist']
 
 export default function AdminStaffInvitePage() {
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [hospitalId, setHospitalId] = useState<string | null>(null)
   const [form, setForm] = useState({
-    full_name: '', email: '', role: '', phone: '', specialty: '',
+    full_name: '', email: '', role: '', phone: '',
   })
-
-  useEffect(() => {
-    async function load() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: profile } = await (supabase as any).from('profiles').select('hospital_id').eq('id', user.id).single() as { data: { hospital_id: string } | null }
-      setHospitalId(profile?.hospital_id ?? null)
-    }
-    load()
-  }, [])
 
   function set(k: keyof typeof form, v: string) {
     setForm(prev => ({ ...prev, [k]: v }))
   }
 
+  // Staff accounts are provisioned server-side (service role, facility admin
+  // session + staff:write capability). The browser never writes profiles.
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!hospitalId) { setError('Could not determine your hospital. Please sign in again.'); return }
     setLoading(true)
     setError('')
-    const supabase = createClient()
-
-    const tempPassword = Math.random().toString(36).slice(2, 10) + 'Aa1!'
-    // Identity creation only. Hospital authorization still requires a SYNAPSE
-    // facility session (synapse_session + membership), not this Auth JWT.
-    const { data, error: authError } = await supabase.auth.signUp({
-      email: form.email,
-      password: tempPassword,
-      options: { data: { full_name: form.full_name, role: form.role } },
-    })
-    if (authError) { setError(authError.message); setLoading(false); return }
-
-    if (data.user) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from('profiles').upsert({
-        id: data.user.id,
-        full_name: form.full_name,
-        email: form.email,
-        phone: form.phone || null,
-        role: form.role,
-        specialty_confirmed: form.specialty || null,
-        hospital_id: hospitalId,
-        verification_status: 'verified',
-        onboarding_complete: false,
+    try {
+      const res = await fetch('/api/hospital/admin/staff/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: form.full_name,
+          email: form.email,
+          role: form.role,
+          phone: form.phone || null,
+        }),
       })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof data.error === 'string' ? data.error : 'Could not create the staff account.')
+        return
+      }
+      setSent(true)
+    } catch {
+      setError('Could not reach the server. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    setSent(true)
-    setLoading(false)
   }
 
   const inp = 'w-full rounded-xl px-4 py-3 text-sm outline-none transition-all'
@@ -77,12 +59,12 @@ export default function AdminStaffInvitePage() {
         </div>
         <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Staff Account Created</h2>
         <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
-          {form.full_name} can now sign in with {form.email}. They should reset their password on first login.
+          {form.full_name} will receive a secure invitation at {form.email} to set their password.
         </p>
         <div className="flex gap-3">
           <button
             type="button"
-            onClick={() => { setSent(false); setForm({ full_name: '', email: '', role: '', phone: '', specialty: '' }) }}
+            onClick={() => { setSent(false); setForm({ full_name: '', email: '', role: '', phone: '' }) }}
             className="btn-secondary"
           >
             Add Another
@@ -124,12 +106,8 @@ export default function AdminStaffInvitePage() {
             {ROLES.map(r => <option key={r} value={r}>{r.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>)}
           </select>
         </div>
-        <div>
-          <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>Specialty (optional)</label>
-          <input value={form.specialty} onChange={e => set('specialty', e.target.value)} placeholder="e.g. Paediatrics, Cardiology" className={inp} style={inpStyle} />
-        </div>
         {error && <p className="text-sm" style={{ color: '#EF4444' }}>{error}</p>}
-        <button type="submit" disabled={loading || !hospitalId} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50">
+        <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50">
           <Send className="h-4 w-4" />
           {loading ? 'Creating account…' : 'Create Staff Account'}
         </button>

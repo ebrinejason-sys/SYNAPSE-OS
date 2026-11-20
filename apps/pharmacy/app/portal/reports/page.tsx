@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import { csvCell } from "@/lib/csv"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,7 +19,8 @@ import {
   AlertTriangle,
   Clock,
   PieChart as PieChartIcon,
-  Truck
+  Truck,
+  Undo2
 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import {
@@ -42,7 +43,7 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-type ReportType = "sales" | "inventory" | "profit" | "purchases"
+type ReportType = "sales" | "inventory" | "profit" | "purchases" | "refunds"
 type Period = "today" | "yesterday" | "week" | "month" | "year" | "custom"
 
 interface SalesReport {
@@ -73,6 +74,23 @@ interface SalesReport {
     _count: number
     user: { id: string; name: string }
   }>
+  /** Built from the tax frozen on each sale line; absent before 20261102110000. */
+  tax?: TaxBreakdown
+  taxReconciliation?: { headerTax: number; lineTax: number; difference: number }
+}
+
+interface TaxBreakdown {
+  source: string | null
+  standardTaxable: number
+  standardTax: number
+  exemptSales: number
+  zeroRatedSales: number
+  legacySales: number
+  legacyTax: number
+  untaxedSales: number
+  lineTaxTotal: number
+  linesRecorded: number
+  linesMissingTaxData: number
 }
 
 interface InventoryReport {
@@ -146,7 +164,31 @@ interface ProfitReport {
   }>
 }
 
-type Report = SalesReport | InventoryReport | ProfitReport | PurchasesReport
+type Report = SalesReport | InventoryReport | ProfitReport | PurchasesReport | RefundsReport
+
+interface RefundsReport {
+  type: "refunds"
+  summary: {
+    refundCount: number
+    cashRefunded: number
+    receivableReversed: number
+    refundedValue: number
+    unpostedReceivables: number
+    excludedOrderRefunds: number | null
+  }
+  rows: Array<{
+    saleId: string
+    receiptNumber: string
+    date: string | null
+    cashier: string
+    paymentMethod: string
+    saleTotal: number
+    cashRefunded: number
+    receivableReversed: number
+    receivableUnposted: boolean
+    reason: string | null
+  }>
+}
 
 interface PurchasesReport {
   type: "purchases"
@@ -169,12 +211,17 @@ export default function ReportsPage() {
   const [report, setReport] = useState<Report | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
+  // A slower, superseded request must not overwrite the report the operator
+  // asked for last — switching period and then applying a custom range can
+  // leave the first answer in flight.
+  const requestSeq = useRef(0)
 
   useEffect(() => {
     fetchReport()
   }, [reportType, period])
 
   const fetchReport = async () => {
+    const seq = ++requestSeq.current
     setIsLoading(true)
     try {
       const params = new URLSearchParams({
@@ -183,19 +230,21 @@ export default function ReportsPage() {
         ...(period === "custom" && startDate && { startDate }),
         ...(period === "custom" && endDate && { endDate }),
       })
-      
+
       const response = await fetch(`/api/admin/reports?${params}`)
       if (!response.ok) throw new Error("Failed to fetch report")
       const data = await response.json()
+      if (seq !== requestSeq.current) return
       setReport(data)
     } catch (error) {
+      if (seq !== requestSeq.current) return
       toast({
         title: "Error",
         description: "Failed to load report",
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      if (seq === requestSeq.current) setIsLoading(false)
     }
   }
 
@@ -295,6 +344,18 @@ export default function ReportsPage() {
       ;(purchases.rows ?? []).forEach((row) => {
         csvContent += `${csvCell(row.date)},${csvCell(row.purchaseNo)},${csvCell(row.supplier)},${csvCell(row.total)},${csvCell(row.paymentStatus)},${csvCell(row.status)}\n`
       })
+    } else if (report.type === "refunds") {
+      const refunds = report as RefundsReport
+      csvContent = "REFUNDS REPORT\n"
+      csvContent += `Period: ${csvCell(period)}\n\n`
+      csvContent += "SUMMARY\n"
+      csvContent += "Refunds,Cash Refunded,Credit Reversed,Total Reversed Value,Unposted Receivables\n"
+      csvContent += `${csvCell(refunds.summary.refundCount)},${csvCell(refunds.summary.cashRefunded)},${csvCell(refunds.summary.receivableReversed)},${csvCell(refunds.summary.refundedValue)},${csvCell(refunds.summary.unpostedReceivables)}\n\n`
+      csvContent += "REFUNDS\n"
+      csvContent += "Date,Receipt,Cashier,Method,Sale Total,Cash Refunded,Credit Reversed,Unposted,Reason\n"
+      ;(refunds.rows ?? []).forEach((row) => {
+        csvContent += `${csvCell(row.date ?? "")},${csvCell(row.receiptNumber)},${csvCell(row.cashier)},${csvCell(row.paymentMethod)},${csvCell(row.saleTotal)},${csvCell(row.cashRefunded)},${csvCell(row.receivableReversed)},${csvCell(row.receivableUnposted ? "yes" : "no")},${csvCell(row.reason ?? "")}\n`
+      })
     }
 
     const blob = new Blob([csvContent], { type: "text/csv" })
@@ -334,6 +395,7 @@ export default function ReportsPage() {
                   { value: "inventory", label: "Inventory", icon: Package },
                   { value: "profit", label: "Profit", icon: TrendingUp },
                   { value: "purchases", label: "Purchases", icon: Truck },
+                  { value: "refunds", label: "Refunds", icon: Undo2 },
                 ].map((type) => (
                   <Button
                     key={type.value}
@@ -470,6 +532,50 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Tax breakdown, as recorded on each sale line */}
+          {(report as SalesReport).tax && (report as SalesReport).tax!.linesRecorded > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Tax Summary</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  {(report as SalesReport).tax!.source === "vat"
+                    ? "VAT, split by product tax classification"
+                    : (report as SalesReport).tax!.source === "legacy"
+                      ? "Flat rate applied to every sale line"
+                      : (report as SalesReport).tax!.source === "mixed"
+                        ? "This period spans a change in tax settings"
+                        : "No tax configured for this period"}
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                {[
+                  ["Standard-rated sales", (report as SalesReport).tax!.standardTaxable],
+                  ["VAT charged", (report as SalesReport).tax!.standardTax],
+                  ["Zero-rated sales", (report as SalesReport).tax!.zeroRatedSales],
+                  ["Exempt sales", (report as SalesReport).tax!.exemptSales],
+                  ["Taxed at the flat rate", (report as SalesReport).tax!.legacySales],
+                  ["Flat-rate tax charged", (report as SalesReport).tax!.legacyTax],
+                  ["Untaxed sales", (report as SalesReport).tax!.untaxedSales],
+                ]
+                  .filter(([, value]) => Number(value) > 0)
+                  .map(([label, value]) => (
+                    <div key={String(label)} className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{label}</span>
+                      <span className="font-medium">{formatCurrency(Number(value))}</span>
+                    </div>
+                  ))}
+                {((report as SalesReport).taxReconciliation?.difference ?? 0) !== 0 && (
+                  <p className="pt-2 text-xs text-amber-600">
+                    Sale headers record {formatCurrency((report as SalesReport).taxReconciliation!.headerTax)} of tax,
+                    but the lines account for {formatCurrency((report as SalesReport).taxReconciliation!.lineTax)}.
+                    {(report as SalesReport).tax!.linesMissingTaxData > 0 &&
+                      ` ${(report as SalesReport).tax!.linesMissingTaxData} line(s) predate line-level tax.`}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Charts Row 1: Sales Trend */}
           <Card>
@@ -1151,6 +1257,85 @@ export default function ReportsPage() {
                       <TableCell className="text-right">{formatCurrency(row.cost)}</TableCell>
                     </TableRow>
                   ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {!isLoading && report?.type === "refunds" && (
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Refunds</CardTitle></CardHeader>
+              <CardContent><div className="text-2xl font-bold">{(report as RefundsReport).summary.refundCount}</div></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Cash refunded</CardTitle></CardHeader>
+              <CardContent><div className="text-2xl font-bold">{formatCurrency((report as RefundsReport).summary.cashRefunded)}</div></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Credit reversed</CardTitle></CardHeader>
+              <CardContent><div className="text-2xl font-bold">{formatCurrency((report as RefundsReport).summary.receivableReversed)}</div></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Unposted receivables</CardTitle></CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{(report as RefundsReport).summary.unpostedReceivables}</div>
+                <p className="text-xs text-muted-foreground mt-1">Balance not on the credit ledger</p>
+              </CardContent>
+            </Card>
+          </div>
+          {(report as RefundsReport).summary.excludedOrderRefunds ? (
+            <p className="text-sm text-muted-foreground">
+              {(report as RefundsReport).summary.excludedOrderRefunds} order refund
+              {(report as RefundsReport).summary.excludedOrderRefunds === 1 ? "" : "s"} recorded outside the POS
+              till are listed on the Refunds page but not counted above.
+            </p>
+          ) : null}
+          <Card>
+            <CardHeader><CardTitle>Refunded sales</CardTitle></CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Receipt</TableHead>
+                    <TableHead>Cashier</TableHead>
+                    <TableHead className="text-right">Sale total</TableHead>
+                    <TableHead className="text-right">Cash refunded</TableHead>
+                    <TableHead className="text-right">Credit reversed</TableHead>
+                    <TableHead>Reason</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {((report as RefundsReport).rows ?? []).map((row) => (
+                    <TableRow key={row.saleId}>
+                      <TableCell>{row.date ? new Date(row.date).toLocaleDateString("en-GB") : "-"}</TableCell>
+                      <TableCell>{row.receiptNumber}</TableCell>
+                      <TableCell>{row.cashier}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.saleTotal)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.cashRefunded)}</TableCell>
+                      <TableCell className="text-right">
+                        {row.receivableUnposted ? (
+                          <span className="inline-flex items-center gap-1 text-[#E8B84B]">
+                            <AlertTriangle className="h-3 w-3" /> not posted
+                          </span>
+                        ) : (
+                          formatCurrency(row.receivableReversed)
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-[240px] truncate">{row.reason ?? "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                  {((report as RefundsReport).rows ?? []).length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                        No refunds in this period
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

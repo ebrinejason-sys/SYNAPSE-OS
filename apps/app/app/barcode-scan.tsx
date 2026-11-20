@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/Button'
 import { TextField } from '@/components/ui/TextField'
 import { useAuth } from '@/lib/auth'
 import { ApiError, searchPosProducts } from '@/lib/api'
-import { colors, radii, spacing, typography } from '@/lib/theme'
+import { radii, spacing, typography, makeStyles, useTheme } from '@/lib/theme'
 
 type ProductHit = {
   id: string
@@ -26,6 +26,8 @@ type ProductHit = {
 }
 
 export default function BarcodeScanScreen() {
+  const styles = useStyles()
+  const { colors } = useTheme()
   const { token } = useAuth()
   const router = useRouter()
   const insets = useSafeAreaInsets()
@@ -44,12 +46,15 @@ export default function BarcodeScanScreen() {
       setError(null)
       try {
         const data = await searchPosProducts(token, code.trim())
-        const exact =
-          data.products.find(
-            (p) =>
-              String(p.barcode ?? '').toLowerCase() === code.trim().toLowerCase() ||
-              String(p.sku ?? '').toLowerCase() === code.trim().toLowerCase(),
-          ) ?? data.products[0]
+        // A scan must match the code exactly. The search endpoint is a
+        // substring match, so falling back to its first hit offered whatever
+        // product happened to contain the digits — and "Add to sale" then rang
+        // up the wrong item.
+        const exact = data.products.find(
+          (p) =>
+            String(p.barcode ?? '').toLowerCase() === code.trim().toLowerCase() ||
+            String(p.sku ?? '').toLowerCase() === code.trim().toLowerCase(),
+        )
         if (!exact) {
           setResult(null)
           setError(`No product found for “${code.trim()}”`)
@@ -183,7 +188,7 @@ export default function BarcodeScanScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
@@ -242,4 +247,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   actions: { marginTop: spacing.lg, gap: spacing.sm },
-})
+}))

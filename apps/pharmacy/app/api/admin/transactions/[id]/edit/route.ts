@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requirePharmacyTenant } from "@/lib/api-auth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { isTallyMirrorNote } from "@/lib/tally/types"
+import { roundMoney } from "@synapse/db/pos-tax"
+import { netAmountFor } from "@/lib/pos/net-amount"
 
 interface EditItemRequest {
   id: string
@@ -77,6 +80,18 @@ export async function PUT(
       return NextResponse.json({ error: "Transaction not found" }, { status: 404 })
     }
 
+    // A Tally mirror reports history already posted in Tally. Editing it here
+    // would make the portal disagree with the voucher it was imported from.
+    if (isTallyMirrorNote((existingTransaction as { notes?: string | null }).notes)) {
+      return NextResponse.json(
+        {
+          error: "This sale was imported from Tally and is read-only in the portal.",
+          code: "TALLY_MIRROR_READ_ONLY",
+        },
+        { status: 409 },
+      )
+    }
+
     // Quantity edits are forbidden. Reverse via refund/void so batches stay authoritative.
     if (body.items.some((item) => {
       const existing = (existingTransaction.items ?? []).find(
@@ -93,8 +108,30 @@ export async function PUT(
       )
     }
 
-    // Tax defaulted to 0 (no settings table in schema)
-    const taxRate = 0
+    // Preserve the tax this record already carries. The old code hardcoded a
+    // rate of 0 with the comment "no settings table in schema" — `pharmacy_settings`
+    // has existed for a long time, and writing tax = 0 rewrote the sale's tax and
+    // therefore every report that sums net_amount.
+    //
+    // An edit changes unit prices, not which lines were taxable, so the record's
+    // own effective rate (tax over the discounted base) is the right factor to
+    // re-apply. It is derived from the row, not from current settings: settings
+    // may have changed since the sale and must not retroactively re-rate it.
+    const previousTotal = Number((existingTransaction as { total_amount?: number }).total_amount ?? 0)
+    const previousDiscount = Number((existingTransaction as { discount?: number }).discount ?? 0)
+    const previousTax = Number((existingTransaction as { tax?: number }).tax ?? 0)
+    const previousBase = previousTotal - previousDiscount
+    if (previousBase <= 0 && previousTax !== 0) {
+      return NextResponse.json(
+        {
+          error:
+            "This transaction carries tax but no positive taxable base, so an edit cannot preserve it. Correct the record or reverse it instead.",
+          code: "TAX_BASE_MISSING",
+        },
+        { status: 409 },
+      )
+    }
+    const effectiveTaxRate = previousBase > 0 ? previousTax / previousBase : 0
     const previousData = existingTransaction as unknown as Record<string, unknown>
     let newTotalAmount = 0
     const updatedItems: Array<{
@@ -117,12 +154,32 @@ export async function PUT(
       body.discount !== undefined
         ? body.discount
         : (existingTransaction as { discount: number }).discount ?? 0
-    const newTax = (newTotalAmount - discount) * (taxRate / 100)
-    const newNetAmount = newTotalAmount - discount + newTax
+    const newTax = roundMoney((newTotalAmount - discount) * effectiveTaxRate)
+
+    // Every submitted line must belong to this transaction. Matching on the
+    // item id alone let a crafted request rewrite the prices of another
+    // transaction in the same tenant while billing this one.
+    const lineIds = new Set(
+      (existingTransaction.items ?? []).map((row: { id: string }) => row.id),
+    )
+    const submittedIds = new Set(body.items.map((item) => item.id))
+    if (
+      submittedIds.size !== lineIds.size ||
+      body.items.length !== lineIds.size ||
+      !body.items.every((item) => lineIds.has(item.id))
+    ) {
+      return NextResponse.json(
+        {
+          error: "Items do not match this transaction. Reload it and try again.",
+          code: "ITEMS_MISMATCH",
+        },
+        { status: 400 },
+      )
+    }
 
     // Update transaction items
     for (const item of updatedItems) {
-      await supabaseAdmin
+      const { error: itemError } = await supabaseAdmin
         .from("pharmacy_transaction_items")
         .update({
           quantity: item.quantity,
@@ -130,7 +187,12 @@ export async function PUT(
           total_price: item.total_price,
         })
         .eq("id", item.id)
+        .eq("transaction_id", id)
         .eq("tenant_id", tenantId)
+      if (itemError) {
+        console.error("Update transaction item error:", itemError)
+        return NextResponse.json({ error: "Failed to update transaction" }, { status: 500 })
+      }
     }
 
     // Update transaction
@@ -140,7 +202,7 @@ export async function PUT(
         total_amount: newTotalAmount,
         discount,
         tax: newTax,
-        net_amount: newNetAmount,
+        net_amount: netAmountFor({ totalAmount: newTotalAmount, discount, tax: newTax }),
         payment_method: body.paymentMethod,
         is_edited: true,
         updated_at: new Date().toISOString(),

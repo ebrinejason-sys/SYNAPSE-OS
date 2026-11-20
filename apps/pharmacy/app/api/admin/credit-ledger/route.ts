@@ -19,18 +19,26 @@ export async function GET() {
     if (error) throw error
 
     const rows = data ?? []
-    const latestByCustomer = new Map<string, { balance_after: number; due_date?: string | null }>()
+    const latestByCustomer = new Map<string, { balance_after: number; due_date: string | null }>()
     for (const row of rows) {
       const customerId = row.customer_id as string | null
-      if (customerId && !latestByCustomer.has(customerId)) {
+      if (!customerId) continue
+      const existing = latestByCustomer.get(customerId)
+      if (!existing) {
         latestByCustomer.set(customerId, {
           balance_after: Number(row.balance_after ?? 0),
-          due_date: row.due_date,
+          due_date: row.due_date ?? null,
         })
+      } else if (!existing.due_date && row.due_date) {
+        // A repayment or adjustment row carries no due date, but the debt it
+        // settles still does. Reading the date from the newest row alone made
+        // overdue credit vanish the moment a customer paid part of it.
+        existing.due_date = row.due_date
       }
     }
 
-    const today = new Date().toISOString().slice(0, 10)
+    // The ledger dates entries by the Africa/Kampala business day.
+    const today = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10)
     const balances = Array.from(latestByCustomer.values())
     const totalOutstanding = balances.reduce((sum, row) => sum + Math.max(row.balance_after, 0), 0)
     const overdueOutstanding = balances
@@ -62,9 +70,14 @@ export async function POST(request: NextRequest) {
     const customerId = String(body.customerId ?? "").trim()
     const type = String(body.type ?? "").trim()
     const amount = Number(body.amount ?? 0)
+    const paymentMethod = String(body.paymentMethod ?? "cash").trim().toLowerCase()
 
-    if (!customerId || !["credit", "repayment"].includes(type) || !Number.isFinite(amount) || amount <= 0) {
+    if (!customerId || !["credit", "repayment"].includes(type) || !Number.isFinite(amount) || amount <= 0 ||
+      Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001) {
       return NextResponse.json({ error: "Customer, entry type, and positive amount are required" }, { status: 400 })
+    }
+    if (!["cash", "card", "mobile_money", "mobile money", "bank_transfer", "bank transfer"].includes(paymentMethod)) {
+      return NextResponse.json({ error: "Choose a supported payment method." }, { status: 400 })
     }
     if (!(await tenantOwnsRecord("pharmacy_customers", tenantId, customerId))) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 })
@@ -77,6 +90,9 @@ export async function POST(request: NextRequest) {
       request.headers.get("idempotency-key")?.trim().slice(0, 128) ||
       (typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim().slice(0, 128) : "") ||
       null
+    if (type === "repayment" && !idempotencyKey) {
+      return NextResponse.json({ error: "An idempotency key is required for customer repayments." }, { status: 400 })
+    }
 
     let data: Awaited<ReturnType<typeof postCreditLedgerEntry>>
     try {
@@ -91,6 +107,7 @@ export async function POST(request: NextRequest) {
         notes: body.notes || null,
         createdBy: session.user.id,
         idempotencyKey,
+        paymentMethod,
       })
     } catch (err) {
       if (err instanceof CreditLedgerError && err.code === "OVERPAYMENT") {
@@ -109,6 +126,9 @@ export async function POST(request: NextRequest) {
       }
       if (err instanceof CreditLedgerError && err.code === "CUSTOMER_NOT_FOUND") {
         return NextResponse.json({ error: "Customer not found" }, { status: 404 })
+      }
+      if (err instanceof CreditLedgerError && err.code === "IDEMPOTENCY_CONFLICT") {
+        return NextResponse.json({ error: err.message }, { status: 409 })
       }
       throw err
     }

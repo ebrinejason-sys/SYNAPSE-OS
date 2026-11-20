@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Bot, Send, User } from 'lucide-react'
-import { createClient } from '../../../lib/supabase/client'
+import { renderInlineBold } from '../../../lib/safe-text/inline-bold'
 
 interface Message {
   role: 'user' | 'bot'
@@ -49,24 +49,33 @@ export default function TeleIntakePage() {
     setLoading(true)
 
     try {
-      const supabase = createClient()
-      const meRes = await fetch('/api/auth/me')
-      const { user } = meRes.ok ? await meRes.json() : { user: null }
-
+      // The server derives the caller's identity from the session cookie; the
+      // browser never asserts who it is.
       const res = await fetch('/api/tele/intake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: newMessages,
-          userId: user?.id,
-          caseId,
-        }),
+        body: JSON.stringify({ messages: newMessages, caseId }),
       })
-      const data = await res.json() as { reply: string; triage?: TriageResult; caseId?: string; done?: boolean }
+      const data = await res.json() as {
+        reply?: string
+        triage?: TriageResult
+        caseId?: string
+        done?: boolean
+        error?: string
+      }
+
+      if (!res.ok || !data.reply) {
+        setMessages(prev => [
+          ...prev,
+          { role: 'bot', content: data.error ?? 'Sorry, I had trouble connecting. Please try again.' },
+        ])
+        setLoading(false)
+        return
+      }
 
       if (data.caseId) setCaseId(data.caseId)
 
-      setMessages(prev => [...prev, { role: 'bot', content: data.reply }])
+      setMessages(prev => [...prev, { role: 'bot', content: data.reply as string }])
 
       if (data.done && data.triage) {
         setTriage(data.triage)
@@ -127,10 +136,9 @@ export default function TeleIntakePage() {
                 border: m.role === 'bot' ? '1px solid var(--border-edge)' : 'none',
                 whiteSpace: 'pre-wrap',
               }}
-              dangerouslySetInnerHTML={{
-                __html: m.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'),
-              }}
-            />
+            >
+              {renderInlineBold(m.content)}
+            </div>
             {m.role === 'user' && (
               <div
                 className="flex h-7 w-7 items-center justify-center rounded-full shrink-0 mt-1"

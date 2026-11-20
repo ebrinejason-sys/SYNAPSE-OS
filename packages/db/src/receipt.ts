@@ -48,6 +48,20 @@ export interface ReceiptLineInput {
   prescriptionRef?: string | null;
 }
 
+/**
+ * Composition of the sale's tax, taken from the figures persisted on its lines.
+ * Absent for sales completed before line-level tax existed — those receipts keep
+ * the header "Tax/VAT" row alone rather than having a breakdown invented for them.
+ */
+export interface ReceiptTaxBreakdown {
+  source: "vat" | "legacy" | "none";
+  /** Percentage applied to `taxableAmount`; null when the source is not VAT. */
+  ratePct?: number | null;
+  taxableAmount?: number | null;
+  exemptAmount?: number | null;
+  zeroRatedAmount?: number | null;
+}
+
 export type EfrisStatus = "accepted" | "pending" | "rejected" | "none";
 
 export interface ReceiptEfris {
@@ -76,6 +90,7 @@ export interface ReceiptSaleInput {
   subtotal: number;
   discountTotal?: number | null;
   taxAmount?: number | null;
+  tax?: ReceiptTaxBreakdown | null;
   totalAmount: number;
   lines: ReceiptLineInput[];
   efris?: ReceiptEfris | null;
@@ -125,6 +140,13 @@ export interface ReceiptSnapshot {
   readonly subtotal: number;
   readonly discountTotal: number;
   readonly taxAmount: number;
+  readonly tax: {
+    readonly source: "vat" | "legacy" | "none";
+    readonly ratePct: number | null;
+    readonly taxableAmount: number;
+    readonly exemptAmount: number;
+    readonly zeroRatedAmount: number;
+  } | null;
   readonly totalAmount: number;
   readonly payment: {
     readonly method: string;
@@ -231,6 +253,17 @@ export function buildReceiptSnapshot(
 
   const lines = sale.lines.map(normaliseLine);
 
+  const taxInput = sale.tax;
+  const tax: ReceiptSnapshot["tax"] = taxInput
+    ? Object.freeze({
+        source: taxInput.source,
+        ratePct: taxInput.ratePct == null ? null : num(taxInput.ratePct),
+        taxableAmount: num(taxInput.taxableAmount),
+        exemptAmount: num(taxInput.exemptAmount),
+        zeroRatedAmount: num(taxInput.zeroRatedAmount),
+      })
+    : null;
+
   const snapshot: ReceiptSnapshot = {
     version: 1,
     saleId: sale.saleId,
@@ -266,6 +299,7 @@ export function buildReceiptSnapshot(
     subtotal: num(sale.subtotal),
     discountTotal: num(sale.discountTotal),
     taxAmount: num(sale.taxAmount),
+    tax,
     totalAmount: num(sale.totalAmount),
     payment: Object.freeze({
       method: String(sale.paymentMethod ?? "").trim() || "CASH",
@@ -289,6 +323,12 @@ export function buildReceiptSnapshot(
 // ---------------------------------------------------------------------------
 // Renderers
 // ---------------------------------------------------------------------------
+
+/** "18" for a whole rate, "18.5" otherwise — never "18.0000". */
+export function formatTaxRate(ratePct: number): string {
+  const n = num(ratePct);
+  return Number.isInteger(n) ? String(n) : n.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+}
 
 export function formatMoney(amount: number, currency: string): string {
   const n = num(amount);
@@ -350,7 +390,15 @@ export function renderReceiptText(snapshot: ReceiptSnapshot, width = 42): string
   out.push(rule);
   out.push(kv("Subtotal:", formatMoney(snapshot.subtotal, c)));
   if (snapshot.discountTotal > 0) out.push(kv("Discount:", `-${formatMoney(snapshot.discountTotal, c)}`));
-  if (snapshot.taxAmount > 0) out.push(kv("Tax/VAT:", formatMoney(snapshot.taxAmount, c)));
+  if (snapshot.tax && snapshot.tax.source === "vat") {
+    const suffix = snapshot.tax.ratePct == null ? "" : ` (${formatTaxRate(snapshot.tax.ratePct)}%)`;
+    if (snapshot.tax.taxableAmount > 0) out.push(kv(`Taxable${suffix}:`, formatMoney(snapshot.tax.taxableAmount, c)));
+    if (snapshot.taxAmount > 0) out.push(kv(`VAT${suffix}:`, formatMoney(snapshot.taxAmount, c)));
+    if (snapshot.tax.zeroRatedAmount > 0) out.push(kv("Zero-rated:", formatMoney(snapshot.tax.zeroRatedAmount, c)));
+    if (snapshot.tax.exemptAmount > 0) out.push(kv("Exempt:", formatMoney(snapshot.tax.exemptAmount, c)));
+  } else if (snapshot.taxAmount > 0) {
+    out.push(kv("Tax/VAT:", formatMoney(snapshot.taxAmount, c)));
+  }
   out.push(kv("TOTAL:", formatMoney(snapshot.totalAmount, c)));
   out.push(kv("Payment:", snapshot.payment.method));
   if (snapshot.payment.reference) out.push(kv("Ref:", snapshot.payment.reference));
@@ -415,14 +463,15 @@ export function renderReceiptHtml(
 
   return `<!doctype html><html><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
   * { box-sizing: border-box; }
   @page { margin: 6mm; }
+  /* Tahoma is the pharmacy default. The stack falls through to faces that ship
+     with Windows, macOS, Android and Linux so a receipt never waits on a web
+     font — printing has to work when the till is offline. */
+  :root { --receipt-font: Tahoma, Verdana, "Segoe UI", "DejaVu Sans", "Noto Sans", Arial, sans-serif; }
   body {
-    font-family: "IBM Plex Mono", "Courier New", ui-monospace, monospace;
+    font-family: var(--receipt-font);
     color:#0b0b0d;
     margin:0;
     padding:12px;
@@ -436,21 +485,20 @@ export function renderReceiptHtml(
   .receipt.paper-80 { --receipt-width: 300px; }
   .receipt.paper-a4 { --receipt-width: 640px; }
   .center { text-align:center; }
-  .muted { color:#555; font-size:0.92em; font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif; }
+  .muted { color:#555; font-size:0.92em; }
   h1 {
-    font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
     font-size:1.35em;
     margin:0;
     letter-spacing: 0.02em;
     font-weight: 700;
   }
-  .label { font-weight:700; letter-spacing:1px; margin:8px 0; font-family: "IBM Plex Sans", sans-serif; }
+  .label { font-weight:700; letter-spacing:1px; margin:8px 0; }
   .nonfiscal { color:#b45309; }
   table { width:100%; border-collapse:collapse; font-size:1em; }
   td { padding:4px 0; vertical-align:top; }
   td.c { text-align:center; white-space:nowrap; padding-left:6px; }
   td.r { text-align:right; white-space:nowrap; padding-left:6px; font-variant-numeric: tabular-nums; }
-  .sub { color:#666; font-size:0.85em; font-family: "IBM Plex Sans", sans-serif; }
+  .sub { color:#666; font-size:0.85em; }
   hr { border:none; border-top:1px dashed #999; margin:8px 0; }
   .totals td { font-size:1.05em; }
   .totals .tot { font-weight:700; font-size:1.2em; }
@@ -458,7 +506,6 @@ export function renderReceiptHtml(
     position:absolute; inset:20% 0 auto; text-align:center;
     font-size:2.4em; color:rgba(180,83,9,0.18); font-weight:700;
     transform: rotate(-18deg); pointer-events:none;
-    font-family: "IBM Plex Sans", sans-serif;
   }
   .foot { margin-top:10px; font-size:0.92em; }
   @media print {
@@ -493,7 +540,12 @@ export function renderReceiptHtml(
   <table class="totals"><tbody>
     <tr><td>Subtotal</td><td class="r">${money(snapshot.subtotal)}</td></tr>
     ${snapshot.discountTotal > 0 ? `<tr><td>Discount</td><td class="r">-${money(snapshot.discountTotal)}</td></tr>` : ""}
-    ${snapshot.taxAmount > 0 ? `<tr><td>Tax/VAT</td><td class="r">${money(snapshot.taxAmount)}</td></tr>` : ""}
+    ${snapshot.tax && snapshot.tax.source === "vat"
+      ? `${snapshot.tax.taxableAmount > 0 ? `<tr><td>Taxable${snapshot.tax.ratePct == null ? "" : ` (${formatTaxRate(snapshot.tax.ratePct)}%)`}</td><td class="r">${money(snapshot.tax.taxableAmount)}</td></tr>` : ""}
+    ${snapshot.taxAmount > 0 ? `<tr><td>VAT${snapshot.tax.ratePct == null ? "" : ` (${formatTaxRate(snapshot.tax.ratePct)}%)`}</td><td class="r">${money(snapshot.taxAmount)}</td></tr>` : ""}
+    ${snapshot.tax.zeroRatedAmount > 0 ? `<tr><td>Zero-rated</td><td class="r">${money(snapshot.tax.zeroRatedAmount)}</td></tr>` : ""}
+    ${snapshot.tax.exemptAmount > 0 ? `<tr><td>Exempt</td><td class="r">${money(snapshot.tax.exemptAmount)}</td></tr>` : ""}`
+      : snapshot.taxAmount > 0 ? `<tr><td>Tax/VAT</td><td class="r">${money(snapshot.taxAmount)}</td></tr>` : ""}
     <tr><td class="tot">TOTAL</td><td class="r tot">${money(snapshot.totalAmount)}</td></tr>
     <tr><td>Payment</td><td class="r">${esc(snapshot.payment.method)}</td></tr>
     ${snapshot.payment.reference ? `<tr><td>Ref</td><td class="r">${esc(snapshot.payment.reference)}</td></tr>` : ""}

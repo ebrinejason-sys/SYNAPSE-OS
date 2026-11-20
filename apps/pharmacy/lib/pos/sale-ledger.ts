@@ -4,6 +4,7 @@
  * pharmacy_transactions remains order/legacy until migrated.
  */
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { readAllRows } from "@/lib/supabase/read-all"
 
 export type LedgerSaleRow = {
   id: string
@@ -15,18 +16,28 @@ export type LedgerSaleRow = {
   discount: number
   tax: number
   paymentMethod: string | null
+  /** POS only: the settlement tag, so callers can separate cash paid from balance due. */
+  paymentRef?: string | null
   cashierId: string | null
   cashierName: string | null
   createdAt: string
   clientName: string | null
   notes: string | null
+  /** POS only: the cashier recorded that the receipt did not print. */
+  printFailed: boolean
   items: Array<{
     id: string
     quantity: number
     unitPrice: number
     costPrice: number | null
     totalPrice: number
-    product: { id: string; name: string; sku: string | null; cost_price?: number | null } | null
+    product: {
+      id: string
+      name: string
+      sku: string | null
+      cost_price?: number | null
+      category?: string | null
+    } | null
     batch: { batch_number: string | null; expiry_date: string | null } | null
   }>
 }
@@ -45,15 +56,19 @@ export async function sumCompletedRevenue(params: {
   includeOrderTxs?: boolean
 }): Promise<{ amount: number; count: number }> {
   const db = admin()
-  let posQ = db
-    .from("pharmacy_pos_sales")
-    .select("total_amount")
-    .eq("tenant_id", params.tenantId)
-    .eq("status", "completed")
-  if (params.cashierId) posQ = posQ.eq("cashier_id", params.cashierId)
-  if (params.fromIso) posQ = posQ.gte("created_at", params.fromIso)
+  const posQuery = () => {
+    let posQ = db
+      .from("pharmacy_pos_sales")
+      .select("total_amount")
+      .eq("tenant_id", params.tenantId)
+      .eq("status", "completed")
+    if (params.cashierId) posQ = posQ.eq("cashier_id", params.cashierId)
+    if (params.fromIso) posQ = posQ.gte("created_at", params.fromIso)
+    return posQ
+  }
 
-  const { data: posRows } = await posQ
+  // A sum over an un-ranged read stops at PostgREST's first thousand rows.
+  const { data: posRows } = await readAllRows<{ total_amount: number | null }>(posQuery)
   let amount = (posRows ?? []).reduce(
     (s: number, r: { total_amount: number | null }) => s + Number(r.total_amount ?? 0),
     0,
@@ -63,14 +78,17 @@ export async function sumCompletedRevenue(params: {
   // Future financial truth is pharmacy_pos_sales. Legacy order txs are opt-in
   // so reports cannot double-count the same business sale.
   if (params.includeOrderTxs === true) {
-    let txQ = db
-      .from("pharmacy_transactions")
-      .select("net_amount")
-      .eq("tenant_id", params.tenantId)
-      .eq("status", "COMPLETED")
-    if (params.cashierId) txQ = txQ.eq("cashier_id", params.cashierId)
-    if (params.fromIso) txQ = txQ.gte("created_at", params.fromIso)
-    const { data: txRows } = await txQ
+    const txQuery = () => {
+      let txQ = db
+        .from("pharmacy_transactions")
+        .select("net_amount")
+        .eq("tenant_id", params.tenantId)
+        .eq("status", "COMPLETED")
+      if (params.cashierId) txQ = txQ.eq("cashier_id", params.cashierId)
+      if (params.fromIso) txQ = txQ.gte("created_at", params.fromIso)
+      return txQ
+    }
+    const { data: txRows } = await readAllRows<{ net_amount: number | null }>(txQuery)
     amount += (txRows ?? []).reduce(
       (s: number, r: { net_amount: number | null }) => s + Number(r.net_amount ?? 0),
       0,
@@ -153,16 +171,24 @@ export async function listLedgerSalesForHistory(params: {
   limit?: number
   fromIso?: string
   toIso?: string
+  /** Case-insensitive receipt / transaction number fragment. */
+  search?: string
 }): Promise<LedgerSaleRow[]> {
   const db = admin()
   const limit = params.limit ?? 100
+  // Backslash is LIKE's escape character in PostgREST; an unescaped % or _
+  // from the search box would widen the filter instead of matching it.
+  const pattern = params.search
+    ? `%${params.search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+    : null
 
+  const posQuery = () => {
   let posQ = db
     .from("pharmacy_pos_sales")
     .select(
       `
       id, receipt_number, status, subtotal, discount_total, tax_amount, total_amount,
-      payment_method, cashier_id, created_at, confirmed_at,
+      payment_method, payment_ref, cashier_id, created_at, confirmed_at, print_failed,
       items:pharmacy_pos_sale_items (
         id, quantity, unit_price, discount_amount, line_total, batch_id, product_id,
         batch:pharmacy_product_batches ( batch_number, expiry_date, cost_price ),
@@ -173,11 +199,14 @@ export async function listLedgerSalesForHistory(params: {
     .eq("tenant_id", params.tenantId)
     .in("status", ["completed", "voided"])
     .order("created_at", { ascending: false })
-    .limit(limit)
   if (params.fromIso) posQ = posQ.gte("created_at", params.fromIso)
   if (params.toIso) posQ = posQ.lte("created_at", params.toIso)
+  if (pattern) posQ = posQ.ilike("receipt_number", pattern)
+  return posQ
+  }
 
-  const { data: posSales, error: posErr } = await posQ
+  // `.limit()` above a thousand is silently capped by PostgREST; page instead.
+  const { data: posSales, error: posErr } = await readAllRows<any>(posQuery, { limit })
 
   if (posErr) {
     console.error("[sale-ledger] pos list failed:", posErr.message)
@@ -207,11 +236,13 @@ export async function listLedgerSalesForHistory(params: {
     discount: Number(s.discount_total ?? 0),
     tax: Number(s.tax_amount ?? 0),
     paymentMethod: s.payment_method,
+    paymentRef: s.payment_ref ?? null,
     cashierId: s.cashier_id,
     cashierName: s.cashier_id ? cashierNames.get(s.cashier_id) ?? null : null,
     createdAt: s.created_at,
     clientName: null,
     notes: null,
+    printFailed: s.print_failed === true,
     items: (s.items ?? []).map((i: any) => ({
       id: i.id,
       quantity: Number(i.quantity ?? 0),
@@ -239,6 +270,7 @@ export async function listLedgerSalesForHistory(params: {
     })),
   }))
 
+  const orderQuery = () => {
   let orderQ = db
     .from("pharmacy_transactions")
     .select(
@@ -257,13 +289,15 @@ export async function listLedgerSalesForHistory(params: {
     .eq("tenant_id", params.tenantId)
     .eq("status", "COMPLETED")
     .order("created_at", { ascending: false })
-    .limit(limit)
   if (params.fromIso) orderQ = orderQ.gte("created_at", params.fromIso)
   if (params.toIso) orderQ = orderQ.lte("created_at", params.toIso)
+  if (pattern) orderQ = orderQ.ilike("transaction_no", pattern)
+  return orderQ
+  }
 
   // pharmacy_transactions has total_amount (pre-discount), not subtotal. Selecting a
   // missing column made PostgREST fail and every order sale vanished from history.
-  const { data: orderTxs, error: orderErr } = await orderQ
+  const { data: orderTxs, error: orderErr } = await readAllRows<any>(orderQuery, { limit })
   if (orderErr) console.error("[sale-ledger] order list failed:", orderErr.message)
 
   const orderMapped: LedgerSaleRow[] = (orderTxs ?? []).map((s: any) => ({
@@ -281,6 +315,7 @@ export async function listLedgerSalesForHistory(params: {
     createdAt: s.created_at,
     clientName: s.client_name ?? null,
     notes: s.notes ?? null,
+    printFailed: false,
     items: (s.items ?? []).map((i: any) => ({
       id: i.id,
       quantity: Number(i.quantity ?? 0),

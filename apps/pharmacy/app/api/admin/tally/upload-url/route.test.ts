@@ -1,0 +1,360 @@
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { NextRequest, NextResponse } from "next/server"
+import { fakeSupabase, filtersOf, type FakeOperation, type FakeResult } from "@/lib/tally/test-db"
+import { TALLY_SOURCE_LIMIT } from "@/lib/tally/storage"
+
+const m = vi.hoisted(() => ({
+  auth: null as unknown,
+  db: null as unknown as { client: unknown; operations: FakeOperation[] },
+  uploadFails: false,
+  targets: [] as Array<{
+    tenantId: string
+    sessionId: string
+    uploadId: string
+    extension: string
+  }>,
+}))
+
+vi.mock("@/lib/api-auth", () => ({
+  requirePharmacyPermission: vi.fn(async () => m.auth),
+}))
+vi.mock("@/lib/supabase/admin", () => ({
+  get supabaseAdmin() {
+    return m.db.client
+  },
+}))
+vi.mock("@/lib/tally/storage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/tally/storage")>()
+  return {
+    ...actual,
+    createTallyStagedUploadTarget: vi.fn(
+      async (
+        _storage: unknown,
+        args: { tenantId: string; sessionId: string; uploadId: string; extension: string },
+      ) => {
+        if (m.uploadFails) throw new Error("Bucket unavailable")
+        m.targets.push(args)
+        return {
+          bucket: "pharmacy-imports",
+          path: `tenants/${args.tenantId}/imports/${args.sessionId}/uploads/${args.uploadId}.${args.extension}`,
+          signedUrl: "https://storage.test/signed",
+          token: "signed-token",
+        }
+      },
+    ),
+  }
+})
+
+import { POST } from "./route"
+
+const AUTHORISED = {
+  ok: true,
+  tenantId: "tenant-1",
+  session: {
+    user: { id: "user-1" },
+    role: "pharmacy_admin",
+    pharmacyRole: "pharmacy_admin",
+    permissions: [],
+    isAdmin: false,
+  },
+}
+
+function setup(resolve: (operation: FakeOperation) => FakeResult = () => ({ data: null, error: null })) {
+  m.db = fakeSupabase(resolve)
+}
+
+function sessions(overrides: { insert?: FakeResult } = {}) {
+  return (operation: FakeOperation): FakeResult => {
+    if (operation.action === "insert") {
+      return overrides.insert ?? { data: { id: "session-1" }, error: null }
+    }
+    return { data: null, error: null }
+  }
+}
+
+/**
+ * Answers the session-scoped lookup by id, and leaves the cut-over status
+ * queries empty so the request reaches it.
+ */
+function sessionLookup(session: { id: string; status: string }) {
+  return (operation: FakeOperation): FakeResult => {
+    const filters = filtersOf(operation)
+    if (
+      operation.action === "select" &&
+      operation.table === "pharmacy_import_sessions" &&
+      filters.status === undefined
+    ) {
+      return { data: session, error: null }
+    }
+    return { data: null, error: null }
+  }
+}
+
+const post = (body: unknown) =>
+  POST(
+    new NextRequest("http://localhost/api/admin/tally/upload-url", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  )
+
+describe("POST /api/admin/tally/upload-url", () => {
+  beforeEach(() => {
+    m.auth = AUTHORISED
+    m.uploadFails = false
+    m.targets = []
+    setup()
+  })
+
+  it("refuses a session without inventory.write before touching the database", async () => {
+    m.auth = {
+      ok: false,
+      response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    }
+
+    const res = await post({ fileName: "tally.xml" })
+
+    expect(res.status).toBe(403)
+    expect(m.db.operations).toHaveLength(0)
+  })
+
+  it("refuses a file type no parser can read", async () => {
+    const res = await post({ fileName: "tally.txt" })
+
+    expect(res.status).toBe(415)
+    expect(m.db.operations.some((operation) => operation.action === "insert")).toBe(false)
+  })
+
+  it("rejects an empty or oversized file before creating a session", async () => {
+    expect((await post({ fileName: "tally.xml", fileSize: 0 })).status).toBe(413)
+    expect((await post({ fileName: "tally.xml", fileSize: TALLY_SOURCE_LIMIT + 1 })).status).toBe(413)
+    expect(m.db.operations.some((operation) => operation.action === "insert")).toBe(false)
+  })
+
+  it("does not create another session after the pharmacy cut-over is complete", async () => {
+    setup((operation) =>
+      filtersOf(operation).source_system === "Tally"
+        ? { data: { id: "completed-session", completed_at: "2026-10-30T12:00:00.000Z" }, error: null }
+        : { data: null, error: null },
+    )
+
+    const res = await post({ fileName: "tally.xml" })
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ code: "TALLY_CUTOVER_COMPLETE" })
+    expect(m.db.operations.some((operation) => operation.action === "insert")).toBe(false)
+  })
+
+  it("does not create an import after a cut-over session has started applying", async () => {
+    setup((operation) =>
+      operation.table === "pharmacy_tally_cutover_locks"
+        ? { data: { session_id: "active-session" }, error: null }
+        : { data: null, error: null },
+    )
+
+    const res = await post({ fileName: "tally.xml" })
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({
+      code: "TALLY_CUTOVER_IN_PROGRESS",
+      sessionId: "active-session",
+    })
+    expect(m.db.operations.some((operation) => operation.action === "insert")).toBe(false)
+  })
+
+  it("lets a new import start once the session holding the lock was rolled back", async () => {
+    const base = sessions()
+    setup((operation) => {
+      if (operation.table === "pharmacy_tally_cutover_locks") {
+        return { data: { session_id: "rolled-back-session" }, error: null }
+      }
+      if (
+        operation.action === "select" &&
+        operation.table === "pharmacy_import_sessions" &&
+        filtersOf(operation).id === "rolled-back-session"
+      ) {
+        return { data: { reversed_at: "2026-11-15T10:00:00.000Z" }, error: null }
+      }
+      return base(operation)
+    })
+
+    const res = await post({ fileName: "tally.xml" })
+
+    expect(res.status).toBe(200)
+    expect((await res.json()).sessionId).toBe("session-1")
+  })
+
+  it("creates a pending session and returns a signed upload target", async () => {
+    setup(sessions())
+
+    const res = await post({ fileName: "  my\u0000export.xml ", fileSize: 1_024 })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body).toMatchObject({
+      sessionId: "session-1",
+      bucket: "pharmacy-imports",
+      token: "signed-token",
+    })
+    // Each upload waits on a path of its own until the file is parsed.
+    expect(body.path).toBe(
+      `tenants/tenant-1/imports/session-1/uploads/${body.uploadId}.xml`,
+    )
+
+    const insert = m.db.operations.find((operation) => operation.action === "insert")
+    expect(insert?.payload).toMatchObject({
+      tenant_id: "tenant-1",
+      source_system: "Tally",
+      file_name: "my export.xml",
+      status: "pending",
+      created_by: "user-1",
+    })
+    expect(m.targets).toEqual([
+      {
+        tenantId: "tenant-1",
+        sessionId: "session-1",
+        uploadId: body.uploadId,
+        extension: "xml",
+      },
+    ])
+
+    const update = m.db.operations.find((operation) => operation.action === "update")
+    expect(update?.payload).toMatchObject({ file_url: body.path })
+    expect(filtersOf(update!)).toEqual({ id: "session-1", tenant_id: "tenant-1" })
+  })
+
+  it("starts a live extraction session with no upload target of its own", async () => {
+    setup(sessions())
+
+    const res = await post({ source: "bridge" })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    // No signed URL and no path: each chunk gets its own target later.
+    expect(body).toEqual({ sessionId: "session-1" })
+    expect(m.targets).toEqual([])
+    expect(m.db.operations.some((operation) => operation.action === "update")).toBe(false)
+
+    const insert = m.db.operations.find((operation) => operation.action === "insert")
+    expect(insert?.payload).toMatchObject({
+      tenant_id: "tenant-1",
+      source_system: "Tally",
+      file_name: "Tally live extraction",
+      status: "pending",
+      created_by: "user-1",
+      ai_mapping: { format: "xml", source: "bridge", path: null },
+    })
+  })
+
+  it("refuses an unknown source instead of guessing", async () => {
+    setup(sessions())
+
+    const res = await post({ source: "api", fileName: "tally.xml" })
+
+    expect(res.status).toBe(400)
+    expect(m.db.operations.some((operation) => operation.action === "insert")).toBe(false)
+  })
+
+  it("will not start a live extraction after the cut-over has begun applying", async () => {
+    setup((operation) =>
+      operation.table === "pharmacy_tally_cutover_locks"
+        ? { data: { session_id: "active-session" }, error: null }
+        : { data: null, error: null },
+    )
+
+    const res = await post({ source: "bridge" })
+
+    expect(res.status).toBe(409)
+    expect((await res.json()).code).toBe("TALLY_CUTOVER_IN_PROGRESS")
+    expect(m.db.operations.some((operation) => operation.action === "insert")).toBe(false)
+  })
+
+  it("accepts legacy .xls workbook uploads", async () => {
+    setup(sessions())
+
+    const res = await post({ fileName: "tally-template.xls", fileSize: 1_024 })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.path).toBe(
+      `tenants/tenant-1/imports/session-1/uploads/${body.uploadId}.xls`,
+    )
+    expect(m.targets).toEqual([
+      {
+        tenantId: "tenant-1",
+        sessionId: "session-1",
+        uploadId: body.uploadId,
+        extension: "xls",
+      },
+    ])
+  })
+
+  it("signs a staged target for a later file without creating a session", async () => {
+    setup(sessionLookup({ id: "session-1", status: "pending" }))
+
+    const res = await post({ fileName: "day-book.xml", fileSize: 1_024, sessionId: "session-1" })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.sessionId).toBe("session-1")
+    expect(body.path).toBe(`tenants/tenant-1/imports/session-1/uploads/${body.uploadId}.xml`)
+    // The extra uploads join the session the first file created; nothing is inserted.
+    expect(m.db.operations.some((operation) => operation.action === "insert")).toBe(false)
+    expect(m.db.operations.some((operation) => operation.action === "update")).toBe(false)
+  })
+
+  it("refuses to add a file to a session that has already been applied", async () => {
+    setup(sessionLookup({ id: "session-1", status: "complete" }))
+
+    const res = await post({ fileName: "day-book.xml", sessionId: "session-1" })
+
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toMatch(/already been applied/)
+    expect(m.targets).toEqual([])
+    expect(m.db.operations.some((operation) => operation.action === "insert")).toBe(false)
+  })
+
+  it("refuses a session that does not belong to this pharmacy", async () => {
+    setup()
+
+    const res = await post({ fileName: "day-book.xml", sessionId: "someone-else" })
+
+    expect(res.status).toBe(404)
+    expect(m.targets).toEqual([])
+  })
+
+  it("fails the request when the upload path cannot be stored", async () => {
+    let updates = 0
+    setup((operation) => {
+      if (operation.action === "insert") return { data: { id: "session-1" }, error: null }
+      if (operation.action === "update") {
+        updates += 1
+        if (updates === 1) return { data: null, error: { message: "write failed" } }
+      }
+      return { data: null, error: null }
+    })
+
+    const res = await post({ fileName: "tally.xml" })
+    const body = await res.json()
+
+    expect(res.status).toBe(500)
+    expect(body).toMatchObject({ error: "write failed", sessionId: "session-1" })
+    expect(body.token).toBeUndefined()
+
+    const lastUpdate = m.db.operations.filter((operation) => operation.action === "update").at(-1)
+    expect(lastUpdate?.payload).toMatchObject({ status: "failed", error_message: "write failed" })
+  })
+
+  it("marks the session failed when a signed URL cannot be created", async () => {
+    setup(sessions())
+    m.uploadFails = true
+
+    const res = await post({ fileName: "tally.csv" })
+
+    expect(res.status).toBe(500)
+    expect(await res.json()).toMatchObject({ error: "Bucket unavailable", sessionId: "session-1" })
+
+    const update = m.db.operations.find((operation) => operation.action === "update")
+    expect(update?.payload).toMatchObject({ status: "failed", error_message: "Bucket unavailable" })
+  })
+})

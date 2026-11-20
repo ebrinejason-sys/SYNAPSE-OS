@@ -3,6 +3,7 @@ import {
   Alert,
   FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -32,9 +33,15 @@ import {
   syncPharmacySales,
 } from '@/lib/offline-store'
 import { SyncPayloadConflictError } from '../../../packages/db/src/sync-runtime'
-import { colors, radii, spacing, typography, TONE_COLORS } from '@/lib/theme'
+import { computePharmacySaleTax } from '../../../packages/db/src/pos-tax'
+import type { PharmacyTaxSettings } from '../../../packages/db/src/pos-tax'
+import { allocateCartDiscount, roundMoney } from '@/lib/pos-pricing'
+import { shouldOpenReceiptAfterSale } from '@/lib/printer-config'
+import { loadPrinterConfig } from '@/lib/printer-store'
+import { colors, radii, spacing, typography, TONE_COLORS, makeStyles, useTheme } from '@/lib/theme'
 
 const CART_DRAFT_KEY = 'synapse.pharmacy.pos.draft.v1'
+const TAX_SETTINGS_KEY = 'synapse.pharmacy.pos.tax.v1'
 
 type PosProduct = {
   id: string
@@ -43,8 +50,10 @@ type PosProduct = {
   barcode: string | null
   price: number
   quantity: number
+  sellableQuantity?: number
   unit: string
   requiresPrescription: boolean
+  vatCategory?: string | null
   packages: Array<{
     id: string
     name: string
@@ -57,6 +66,7 @@ type PosProduct = {
     batchNumber: string
     quantity: number
     expiryDate: string
+    sellingPrice?: number
   }>
 }
 
@@ -71,6 +81,8 @@ type CartLine = {
   packageLabel: string | null
   discountAmount: number
   unitsPerPackage: number
+  /** `pharmacy_products.vat_category`; null on a draft written before VAT preview. */
+  vatCategory?: string | null
 }
 
 type SaleResult = {
@@ -85,6 +97,18 @@ type LowStockItem = {
   name: string
   quantity: number
   reorderLevel: number
+}
+
+type PickerOption = {
+  label: string
+  detail?: string
+  onPress: () => void
+}
+
+type PickerSheet = {
+  title: string
+  message?: string
+  options: PickerOption[]
 }
 
 const PAYMENTS = [
@@ -114,7 +138,39 @@ function syncBannerLabel(
   }
 }
 
+/**
+ * Re-price restored cart lines against the catalogue the server just returned.
+ * A line whose chosen batch is gone keeps its quantity and falls back to FEFO
+ * allocation, because the server rejects a batch id it can no longer honour.
+ */
+function repriceCartLines(lines: CartLine[], products: PosProduct[]): CartLine[] {
+  const byId = new Map(products.map((product) => [product.id, product]))
+  return lines.map((line) => {
+    const product = byId.get(line.productId)
+    if (!product) return line
+    const batch = line.batchId
+      ? (product.batches.find((b) => b.id === line.batchId) ?? null)
+      : null
+    return {
+      ...line,
+      unitPrice: batch ? (batch.sellingPrice ?? product.price) : product.price,
+      batchId: batch?.id ?? null,
+      batchLabel: batch?.batchNumber ?? null,
+    }
+  })
+}
+
+function sellableQuantityFromCatalogue(product: {
+  sellableQuantity?: number
+  batches?: Array<{ quantity: number }>
+}): number {
+  if (Number.isFinite(product.sellableQuantity)) return Number(product.sellableQuantity)
+  return (product.batches ?? []).reduce((sum, batch) => sum + Math.max(0, batch.quantity), 0)
+}
+
 export default function PosScreen() {
+  const styles = useStyles()
+  const { colors } = useTheme()
   const { token, user } = useAuth()
   const router = useRouter()
   const params = useLocalSearchParams<{ barcode?: string }>()
@@ -128,9 +184,16 @@ export default function PosScreen() {
   const [cart, setCart] = useState<CartLine[]>([])
   const [payment, setPayment] = useState<(typeof PAYMENTS)[number]['key']>('CASH')
   const [autoPrintReceipt, setAutoPrintReceipt] = useState(false)
+  // Matches the database default (true): until settings load, a sale must
+  // still end in an explicit print decision rather than a silent skip.
+  const [mandatoryReceiptPrint, setMandatoryReceiptPrint] = useState(true)
+  // null until the settings have been read at least once; a sale is blocked
+  // rather than quoted at zero tax when the device cannot know the rate.
+  const [taxSettings, setTaxSettings] = useState<PharmacyTaxSettings | null>(null)
   const [cartDiscount, setCartDiscount] = useState('')
   const [discountReason, setDiscountReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [picker, setPicker] = useState<PickerSheet | null>(null)
   const [lastSale, setLastSale] = useState<SaleResult | null>(null)
   const [lowStock, setLowStock] = useState<LowStockItem[]>([])
   const idempotencyRef = useRef(newCommandId())
@@ -203,19 +266,43 @@ export default function PosScreen() {
     void AsyncStorage.setItem(CART_DRAFT_KEY, JSON.stringify(payload))
   }, [cart, payment, cartDiscount, discountReason, draftRestored])
 
-  // Load pharmacy printer preference once for auto-print after sale.
+  // Load pharmacy preferences once: receipt printing, and the tax settings the
+  // till needs to quote the same VAT the server will charge. The tax settings
+  // are cached so an offline sale still quotes the right total.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       if (!token) return
       try {
-        const data = await apiRequest<{ settings?: { autoPrintReceipt?: boolean } }>(
-          '/api/mobile/pharmacy/settings',
-          { token },
-        )
-        if (!cancelled) setAutoPrintReceipt(Boolean(data.settings?.autoPrintReceipt))
+        const data = await apiRequest<{
+          settings?: {
+            autoPrintReceipt?: boolean
+            mandatoryReceiptPrint?: boolean
+            vatEnabled?: boolean
+            vatRate?: number
+            taxRate?: number
+          }
+        }>('/api/mobile/pharmacy/settings', { token })
+        if (cancelled) return
+        setAutoPrintReceipt(Boolean(data.settings?.autoPrintReceipt))
+        setMandatoryReceiptPrint(data.settings?.mandatoryReceiptPrint !== false)
+        const tax: PharmacyTaxSettings = {
+          vatEnabled: Boolean(data.settings?.vatEnabled),
+          vatRate: data.settings?.vatRate ?? null,
+          taxRate: data.settings?.taxRate ?? null,
+        }
+        setTaxSettings(tax)
+        void AsyncStorage.setItem(TAX_SETTINGS_KEY, JSON.stringify(tax))
       } catch {
-        /* non-fatal */
+        // Offline or transient failure: fall back to the last known settings
+        // rather than quoting a total the server will change.
+        const cached = await AsyncStorage.getItem(TAX_SETTINGS_KEY).catch(() => null)
+        if (cancelled || !cached) return
+        try {
+          setTaxSettings(JSON.parse(cached) as PharmacyTaxSettings)
+        } catch {
+          /* corrupt cache: leave null and block the sale */
+        }
       }
     })()
     return () => {
@@ -243,7 +330,7 @@ export default function PosScreen() {
       setProducts((current) =>
         current.map((product) => ({
           ...product,
-          quantity: remaining.get(product.id) ?? product.quantity,
+          quantity: remaining.get(product.id) ?? sellableQuantityFromCatalogue(product),
         })),
       )
       const status = await getPharmacySyncStatus(user.tenantId)
@@ -268,7 +355,7 @@ export default function PosScreen() {
             })
             .map((product) => ({
               ...product,
-              quantity: remaining.get(product.id) ?? product.quantity,
+              quantity: remaining.get(product.id) ?? sellableQuantityFromCatalogue(product),
               unit: product.unit ?? 'unit',
               requiresPrescription: product.requiresPrescription ?? false,
               packages: product.packages ?? [],
@@ -291,12 +378,73 @@ export default function PosScreen() {
     load()
   }, [load])
 
+  // `persistSale` refuses to record a sale without a stock snapshot under four
+  // hours old, and `load` only refreshed it while the search box was empty — so
+  // a cashier searching for products could reach a point where every sale was
+  // rejected as "cached stock is stale" while the phone was still online.
+  const refreshStockSnapshot = useCallback(async (): Promise<PosProduct[] | null> => {
+    if (!token || !user?.tenantId) return null
+    try {
+      const data = await apiRequest<{ products: PosProduct[] }>(
+        '/api/mobile/pharmacy/pos/products?limit=150',
+        { token },
+      )
+      await cachePharmacyCatalogue(user.tenantId, data.products)
+      return data.products
+    } catch {
+      return null
+    }
+  }, [token, user?.tenantId])
+
+  // Keep each cart line's VAT classification in step with the catalogue. This
+  // repairs a draft restored from a build that did not record it, and picks up
+  // a reclassification without the cashier re-adding the product.
+  useEffect(() => {
+    if (products.length === 0) return
+    const categoryOf = new Map(products.map((product) => [product.id, product.vatCategory ?? null]))
+    setCart((prev) => {
+      let changed = false
+      const next = prev.map((line) => {
+        const category = categoryOf.get(line.productId)
+        if (!category || category === line.vatCategory) return line
+        changed = true
+        return { ...line, vatCategory: category }
+      })
+      return changed ? next : prev
+    })
+  }, [products])
+
   const subtotal = useMemo(
     () => cart.reduce((s, line) => s + line.unitPrice * line.quantity, 0),
     [cart],
   )
   const discountN = Math.max(0, Number(cartDiscount) || 0)
-  const total = Math.max(0, subtotal - discountN)
+  // Per-line net after the cart discount, allocated in proportion to value so
+  // the taxable base does not depend on which line the cashier added first.
+  const lineNets = useMemo(
+    () => cart.map((line) => roundMoney(line.unitPrice * line.quantity)),
+    [cart],
+  )
+  const discountAllocation = useMemo(
+    () => allocateCartDiscount(lineNets, discountN),
+    [lineNets, discountN],
+  )
+  const total = Math.max(0, roundMoney(subtotal - discountN))
+  // The same function the sale route and `complete_pharmacy_sale` use, so the
+  // figure quoted here is the figure the server stores.
+  const saleTax = useMemo(
+    () =>
+      computePharmacySaleTax(
+        taxSettings,
+        cart.map((line, idx) => ({
+          netAmount: roundMoney((lineNets[idx] ?? 0) - (discountAllocation[idx] ?? 0)),
+          vatCategory: line.vatCategory,
+        })),
+      ),
+    [taxSettings, cart, lineNets, discountAllocation],
+  )
+  const taxAmount = saleTax.ok ? saleTax.taxAmount : 0
+  const grandTotal = roundMoney(total + taxAmount)
 
   const pushLine = (line: Omit<CartLine, 'key' | 'discountAmount'>) => {
     setLastSale(null)
@@ -312,65 +460,68 @@ export default function PosScreen() {
 
   const chooseBatchThenAdd = (
     p: PosProduct,
-    opts: { units: number; unitPrice: number; packageLabel: string | null },
+    opts: { units: number; packageLabel: string | null },
   ) => {
     const batches = p.batches
     const finish = (batchId: string | null, batchLabel: string | null) => {
+      const selectedBatch = batches.find((batch) => batch.id === batchId)
       pushLine({
         productId: p.id,
         name: p.name,
-        unitPrice: opts.unitPrice,
+        unitPrice: selectedBatch?.sellingPrice ?? p.price,
         quantity: opts.units,
         batchId,
         batchLabel,
         packageLabel: opts.packageLabel,
         unitsPerPackage: opts.packageLabel ? opts.units : 1,
+        vatCategory: p.vatCategory ?? null,
       })
     }
     if (batches.length <= 1) {
       finish(batches[0]?.id ?? null, batches[0] ? `${batches[0].batchNumber}` : null)
       return
     }
-    Alert.alert(
-      'Pick FEFO batch',
-      'Batches are sorted earliest expiry first.',
-      [
-        ...batches.slice(0, 5).map((b) => ({
-          text: `${b.batchNumber} · ${b.quantity} · exp ${String(b.expiryDate).slice(0, 10)}`,
-          onPress: () => finish(b.id, b.batchNumber),
-        })),
-        { text: 'Cancel', style: 'cancel' as const },
-      ],
-    )
+    // Android's Alert keeps only three buttons (buttons.slice(0, 3)), which
+    // dropped Cancel and every batch past the third. The sheet keeps them all.
+    setPicker({
+      title: 'Pick FEFO batch',
+      message: 'Batches are sorted earliest expiry first.',
+      options: batches.map((b) => ({
+        label: b.batchNumber,
+        detail: `${b.quantity} @ UGX ${(b.sellingPrice ?? p.price).toLocaleString()} · exp ${String(b.expiryDate).slice(0, 10)}`,
+        onPress: () => finish(b.id, b.batchNumber),
+      })),
+    })
   }
 
   const addProduct = (p: PosProduct) => {
-    if (p.quantity <= 0) {
-      Alert.alert('Out of stock', `${p.name} has no sellable quantity.`)
-      return
-    }
     const pkgs = p.packages.filter((x) => x.unitsPerPackage > 0 && x.price >= 0)
     if (pkgs.length === 0) {
-      chooseBatchThenAdd(p, { units: 1, unitPrice: p.price, packageLabel: null })
+      chooseBatchThenAdd(p, { units: 1, packageLabel: null })
       return
     }
-    Alert.alert('Sell as', p.name, [
-      {
-        text: `Unit · UGX ${p.price.toLocaleString()}`,
-        onPress: () =>
-          chooseBatchThenAdd(p, { units: 1, unitPrice: p.price, packageLabel: null }),
-      },
-      ...pkgs.slice(0, 4).map((pkg) => ({
-        text: `${pkg.name} (${pkg.unitsPerPackage}) · UGX ${pkg.price.toLocaleString()}`,
-        onPress: () =>
-          chooseBatchThenAdd(p, {
-            units: pkg.unitsPerPackage,
-            unitPrice: pkg.price / pkg.unitsPerPackage,
-            packageLabel: pkg.name,
-          }),
-      })),
-      { text: 'Cancel', style: 'cancel' as const },
-    ])
+    const fefoUnitPrice = p.batches[0]?.sellingPrice ?? p.price
+    // Out of stock is not a blocker: the sale takes the balance negative.
+    setPicker({
+      title: p.quantity <= 0 ? 'Sell below zero stock' : 'Sell as',
+      message: p.name,
+      options: [
+        {
+          label: 'Unit',
+          detail: `from UGX ${fefoUnitPrice.toLocaleString()}`,
+          onPress: () => chooseBatchThenAdd(p, { units: 1, packageLabel: null }),
+        },
+        ...pkgs.map((pkg) => ({
+          label: `${pkg.name} (${pkg.unitsPerPackage})`,
+          detail: `from UGX ${(fefoUnitPrice * pkg.unitsPerPackage).toLocaleString()}`,
+          onPress: () =>
+            chooseBatchThenAdd(p, {
+              units: pkg.unitsPerPackage,
+              packageLabel: pkg.name,
+            }),
+        })),
+      ],
+    })
   }
 
   const bumpQty = (key: string, delta: number) => {
@@ -395,28 +546,53 @@ export default function PosScreen() {
   }
 
   const completeSale = async () => {
-    if (!token || !user?.id || !user.tenantId || cart.length === 0) return
+    if (!token || !user?.id || !user.tenantId || cart.length === 0 || submitting) return
     if (discountN > 0 && !discountReason.trim()) {
       Alert.alert('Discount reason', 'Enter a reason when applying a cart discount.')
       return
     }
-    if (catalogueStale) {
+    if (!taxSettings) {
       Alert.alert(
-        'Stock cache stale',
-        'Reconnect and refresh inventory before selling. Offline sales are blocked when the snapshot is older than 4 hours.',
+        'Tax settings unavailable',
+        "Reconnect once so the till can read this pharmacy's tax settings. Selling without them could quote a total the server will not accept.",
       )
+      return
+    }
+    if (!saleTax.ok) {
+      Alert.alert('Tax settings invalid', saleTax.detail)
       return
     }
     setSubmitting(true)
     try {
+      // The offline guard needs a snapshot under four hours old. If this phone
+      // still has a connection, refresh it here rather than turning the cashier
+      // away; only a failed refresh means the sale really has to wait.
+      const cached = await loadCachedPharmacyCatalogue(user.tenantId)
+      if (catalogueStale || !cached || cached.stale) {
+        const refreshed = await refreshStockSnapshot()
+        if (!refreshed) {
+          setSyncBanner('stale')
+          setCatalogueStale(true)
+          Alert.alert(
+            'Stock cache stale',
+            'Reconnect and refresh inventory before selling. Offline sales are blocked when the snapshot is older than 4 hours.',
+          )
+          return
+        }
+        setCatalogueStale(false)
+        setSyncBanner(null)
+      }
       const items = cart.map((l, idx) => ({
         productId: l.productId,
         quantity: l.quantity,
         unitPrice: l.unitPrice,
-        discountAmount: idx === 0 ? discountN : 0,
-        discountReason: idx === 0 && discountN > 0 ? discountReason.trim() : undefined,
+        discountAmount: discountAllocation[idx] ?? 0,
+        discountReason: (discountAllocation[idx] ?? 0) > 0 ? discountReason.trim() : undefined,
         batchId: l.batchId,
       }))
+      const soldCart = cart
+      const soldDiscount = cartDiscount
+      const soldReason = discountReason
       const command = await commitPharmacySale({
         tenantId: user.tenantId,
         actorId: user.id,
@@ -424,7 +600,7 @@ export default function PosScreen() {
         payload: {
           paymentMethod: payment,
           paymentStatus: payment === 'CASH' ? 'captured' : 'offline_unverified',
-          taxAmount: 0,
+          taxAmount,
           items,
         },
       })
@@ -437,7 +613,7 @@ export default function PosScreen() {
       setLastSale({
         receipt_number: 'PENDING SYNC',
         status: 'pending',
-        total_amount: total,
+        total_amount: grandTotal,
       })
 
       const summary = await syncPharmacySales(user.tenantId, token)
@@ -452,8 +628,24 @@ export default function PosScreen() {
         setSyncBanner(null)
         load()
         const saleId = sale.sale_id
-        if (autoPrintReceipt && saleId) {
-          router.push(`/receipt/${saleId}?autoprint=1` as never)
+        // A mandatory print opens the receipt with its print decision bar;
+        // that screen keeps a failure exit ("printer unavailable") after the
+        // print attempt, so auto-opening the print sheet cannot strand the
+        // cashier the way it would on the web till.
+        // This phone's own printer may print every receipt even when the
+        // pharmacy leaves auto-print off (Printer setup → Print automatically).
+        const devicePrinter = await loadPrinterConfig().catch(() => null)
+        if (
+          saleId &&
+          shouldOpenReceiptAfterSale({
+            mandatoryReceiptPrint,
+            pharmacyAutoPrint: autoPrintReceipt,
+            deviceAutoPrint: devicePrinter?.autoPrint === true,
+          })
+        ) {
+          router.push(
+            `/receipt/${saleId}?autoprint=1${mandatoryReceiptPrint ? '&mandatory=1' : ''}` as never,
+          )
         } else if ((result?.lowStock ?? []).length > 0) {
           const names = result!.lowStock!.slice(0, 3).map((p) => p.name).join(', ')
           Alert.alert(
@@ -472,10 +664,19 @@ export default function PosScreen() {
         return
       }
       if (item?.outcome === 'rejected') {
+        // The server refused it and took no stock, so give the cart back
+        // instead of making the cashier ring the whole sale up again. A price
+        // or allocation change rejects the same prices again, so re-price the
+        // lines from the catalogue before handing them back.
+        const fresh = await refreshStockSnapshot()
+        setCart(fresh ? repriceCartLines(soldCart, fresh) : soldCart)
+        setCartDiscount(soldDiscount)
+        setDiscountReason(soldReason)
+        setLastSale(null)
         setSyncBanner('rejected')
         Alert.alert(
           'Sale rejected',
-          item.error ?? 'The server refused this sale. Stock was not taken. Open Sync status.',
+          `${item.error ?? 'The server refused this sale. Stock was not taken.'}\nThe items are back in the cart${fresh ? ' at current prices' : ''}.`,
         )
         return
       }
@@ -518,7 +719,7 @@ export default function PosScreen() {
     if (cart.length === 0) return
     Alert.alert(
       'Complete sale?',
-      `UGX ${total.toLocaleString()} · ${PAYMENTS.find((p) => p.key === payment)?.label}${
+      `UGX ${grandTotal.toLocaleString()} · ${PAYMENTS.find((p) => p.key === payment)?.label}${
         discountN > 0 ? ` · discount ${discountN.toLocaleString()}` : ''
       }`,
       [
@@ -554,6 +755,14 @@ export default function PosScreen() {
             accessibilityLabel="Open till session"
           >
             <Ionicons name="wallet-outline" size={22} color={colors.primary} />
+          </Pressable>
+          <Pressable
+            onPress={() => router.push('/printer-setup' as never)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Receipt printer setup"
+          >
+            <Ionicons name="print-outline" size={22} color={colors.primary} />
           </Pressable>
           <Pressable
             onPress={() => router.push('/barcode-scan?returnTo=pos' as never)}
@@ -784,11 +993,21 @@ export default function PosScreen() {
               ))}
             </View>
 
+            {taxAmount > 0 ? (
+              <View style={styles.taxRow}>
+                <Text style={styles.taxLabel}>
+                  VAT{saleTax.ok && saleTax.ratePct > 0 ? ` (${saleTax.ratePct}%)` : ''}
+                  {saleTax.ok && saleTax.taxableBase < total ? ' on taxable items' : ''}
+                </Text>
+                <Text style={styles.taxValue}>UGX {taxAmount.toLocaleString()}</Text>
+              </View>
+            ) : null}
+
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>
                 {discountN > 0 ? `Total (−${discountN.toLocaleString()})` : 'Total'}
               </Text>
-              <Text style={styles.totalValue}>UGX {total.toLocaleString()}</Text>
+              <Text style={styles.totalValue}>UGX {grandTotal.toLocaleString()}</Text>
             </View>
 
             <Button
@@ -800,11 +1019,58 @@ export default function PosScreen() {
           </>
         )}
       </View>
+
+      <Modal
+        visible={picker !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPicker(null)}
+      >
+        <Pressable
+          style={styles.sheetBackdrop}
+          onPress={() => setPicker(null)}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss"
+        >
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.sheetTitle} accessibilityRole="header">
+              {picker?.title}
+            </Text>
+            {picker?.message ? <Text style={styles.sheetMessage}>{picker.message}</Text> : null}
+            <ScrollView style={styles.sheetList} keyboardShouldPersistTaps="handled">
+              {picker?.options.map((opt, i) => (
+                <Pressable
+                  key={`${opt.label}-${i}`}
+                  style={styles.sheetOption}
+                  onPress={() => {
+                    const run = opt.onPress
+                    setPicker(null)
+                    run()
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={opt.detail ? `${opt.label}, ${opt.detail}` : opt.label}
+                >
+                  <Text style={styles.sheetOptionLabel}>{opt.label}</Text>
+                  {opt.detail ? <Text style={styles.sheetOptionDetail}>{opt.detail}</Text> : null}
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Pressable
+              style={styles.sheetCancel}
+              onPress={() => setPicker(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
+            >
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   )
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
@@ -1021,6 +1287,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   payChipTextOn: { color: colors.primary },
+  taxRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+    gap: spacing.sm,
+  },
+  taxLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_500Medium',
+  },
+  taxValue: {
+    ...typography.mono,
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontFamily: 'IBMPlexMono_500Medium',
+    flexShrink: 1,
+  },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1040,4 +1325,58 @@ const styles = StyleSheet.create({
     fontFamily: 'IBMPlexMono_500Medium',
     flexShrink: 1,
   },
-})
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
+    maxHeight: '80%',
+  },
+  sheetTitle: {
+    ...typography.bodyMedium,
+    fontSize: 17,
+    color: colors.text,
+    fontFamily: 'DMSans_600SemiBold',
+  },
+  sheetMessage: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  sheetList: { marginTop: spacing.sm },
+  sheetOption: {
+    paddingVertical: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  sheetOptionLabel: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontFamily: 'DMSans_500Medium',
+  },
+  sheetOptionDetail: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontFamily: 'IBMPlexMono_400Regular',
+    marginTop: 1,
+  },
+  sheetCancel: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    borderRadius: radii.md,
+    backgroundColor: colors.bgSubtle,
+  },
+  sheetCancelText: {
+    ...typography.bodyMedium,
+    color: colors.textSecondary,
+    fontFamily: 'DMSans_500Medium',
+  },
+}))

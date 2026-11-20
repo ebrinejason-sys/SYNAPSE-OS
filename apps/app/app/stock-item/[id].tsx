@@ -14,7 +14,7 @@ import { TextField } from '@/components/ui/TextField'
 import { LoadingBlock } from '@/components/ui/LoadingBlock'
 import { useAuth } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
-import { colors, radii, spacing, typography, TONE_COLORS } from '@/lib/theme'
+import { radii, spacing, typography, TONE_COLORS, makeStyles, useTheme } from '@/lib/theme'
 
 interface StockItemDetail {
   id: string
@@ -41,10 +41,10 @@ interface StockItemDetail {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  ok: TONE_COLORS.green,
-  low: TONE_COLORS.red,
-  expiring: TONE_COLORS.warning,
-  expired: TONE_COLORS.red,
+  get ok() { return TONE_COLORS.green },
+  get low() { return TONE_COLORS.red },
+  get expiring() { return TONE_COLORS.warning },
+  get expired() { return TONE_COLORS.red },
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -55,6 +55,8 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 export default function StockItemDetailScreen() {
+  const styles = useStyles()
+  const { colors } = useTheme()
   const { id } = useLocalSearchParams<{ id: string }>()
   const { token } = useAuth()
   const router = useRouter()
@@ -112,7 +114,7 @@ export default function StockItemDetailScreen() {
   }, [load])
 
   const save = async () => {
-    if (!token || !id) return
+    if (!token || !id || !item) return
     const quantity = Number(qtyText)
     const reorderLevel = Number(reorderText)
     const price = Number(priceText)
@@ -134,6 +136,11 @@ export default function StockItemDetailScreen() {
     }
     setSaving(true)
     try {
+      // The server refuses any quantity it cannot tie to a genuine batch, so
+      // send it only when it actually changed. Sending the unchanged count
+      // made editing the name or price of a catalogue-only product fail with
+      // REQUIRES_BATCH.
+      const quantityChanged = Math.floor(quantity) !== Number(item.quantity)
       await apiRequest(`/api/mobile/inventory/${id}`, {
         method: 'PATCH',
         token,
@@ -144,11 +151,15 @@ export default function StockItemDetailScreen() {
           unit: unitText.trim() || undefined,
           price,
           costPrice: costText.trim() ? Number(costText) : undefined,
-          quantity: Math.floor(quantity),
           reorderLevel: Math.floor(reorderLevel),
-          batchNumber: batchText.trim() || null,
-          expiryDate: expiryText.trim() || null,
           reason: reason.trim() || undefined,
+          ...(quantityChanged
+            ? {
+                quantity: Math.floor(quantity),
+                batchNumber: batchText.trim() || null,
+                expiryDate: expiryText.trim() || null,
+              }
+            : {}),
         },
       })
       setEditing(false)
@@ -331,6 +342,7 @@ export default function StockItemDetailScreen() {
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
+  const styles = useStyles()
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
@@ -350,6 +362,7 @@ function StatCard({
   unit: string
   color: string
 }) {
+  const styles = useStyles()
   return (
     <View style={styles.statCard}>
       <Text style={[styles.statValue, { color }]} numberOfLines={1}>
@@ -361,7 +374,7 @@ function StatCard({
   )
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, paddingBottom: spacing.xxxl * 2 },
   center: {
@@ -454,4 +467,4 @@ const styles = StyleSheet.create({
   ctaBtn: { marginTop: spacing.sm },
   editActions: { flexDirection: 'row', gap: spacing.sm },
   editBtn: { flex: 1 },
-})
+}))

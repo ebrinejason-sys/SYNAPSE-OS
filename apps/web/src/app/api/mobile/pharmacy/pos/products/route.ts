@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@synapse/db/admin'
 import { summarizeInventory, kampalaToday, normaliseBatch, isSellableBatch } from '@synapse/db/inventory'
 import {
   isMobileAuth,
+  mobileHasPharmacyCapability,
   requireMobilePharmacyAuth,
 } from '../../../../../../lib/mobile-pharmacy-auth'
 
@@ -16,6 +17,14 @@ const db = () => supabaseAdmin as any
 export async function GET(req: NextRequest) {
   const auth = await requireMobilePharmacyAuth(req)
   if (!isMobileAuth(auth)) return auth
+  // Every pharmacy role may sign in to the app, but only selling roles reach
+  // the till (an inventory officer counts stock; it does not take money).
+  if (!mobileHasPharmacyCapability(auth, 'pos.sell')) {
+    return NextResponse.json(
+      { error: 'pos.sell capability required', code: 'FORBIDDEN' },
+      { status: 403 },
+    )
+  }
 
   const gate = await gateFeature(auth.tenantId, 'pos.sell')
   if (gate) return gate
@@ -28,9 +37,9 @@ export async function GET(req: NextRequest) {
     .select(
       `
       id, name, sku, barcode, price, cost_price, quantity, unit_of_measure,
-      requires_prescription, is_active,
+      requires_prescription, is_active, vat_category,
       pharmacy_product_packages(id, name, units_per_package, price, is_default),
-      pharmacy_product_batches(id, batch_number, quantity, expiry_date, cost_price, is_active, manufacturer)
+      pharmacy_product_batches(id, batch_number, quantity, expiry_date, cost_price, selling_price, is_active, status, manufacturer)
     `,
     )
     .eq('tenant_id', auth.tenantId)
@@ -85,6 +94,9 @@ export async function GET(req: NextRequest) {
         hasPhantomStock: summary.hasPhantomStock,
         unit: product.unit_of_measure ?? 'unit',
         requiresPrescription: Boolean(product.requires_prescription),
+        // The phone computes the same VAT preview the server will charge, so
+        // the amount quoted to the customer cannot move at sync time.
+        vatCategory: (product.vat_category as string | null | undefined) ?? null,
         packages: packages
           .sort(
             (a, b) =>
@@ -109,6 +121,7 @@ export async function GET(req: NextRequest) {
             batchNumber: batch.batch_number,
             quantity: Number(batch.quantity ?? 0),
             expiryDate: batch.expiry_date,
+            sellingPrice: Number(batch.selling_price ?? product.price ?? 0),
             costPrice: batch.cost_price != null ? Number(batch.cost_price) : null,
           })),
       }

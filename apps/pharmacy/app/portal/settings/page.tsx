@@ -1,7 +1,6 @@
 ﻿"use client"
 
 import { useEffect, useState } from "react"
-import { usePharmacySession } from "@/hooks/use-pharmacy-session"
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -11,8 +10,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, Upload, X, Trash2, AlertTriangle, Printer } from "lucide-react"
+import { usePharmacySession } from "@/hooks/use-pharmacy-session"
+import { AlertTriangle, Loader2, Upload, X, Printer } from "lucide-react"
 import Image from "next/image"
+import { escapeHtml, safeImageSrc } from "@/lib/html"
 
 interface Settings {
   pharmacyName: string
@@ -22,15 +23,17 @@ interface Settings {
   footerText: string
   currency: string
   taxRate: number
+  vatEnabled: boolean
+  vatRate: number
   logo?: string
   printerType: string
   receiptPaperWidth: "58" | "80" | "a4"
   receiptFontScale: number
   autoPrintReceipt: boolean
+  mandatoryReceiptPrint: boolean
 }
 
 export default function SettingsPage() {
-  const { user } = usePharmacySession()
   const [settings, setSettings] = useState<Settings>({
     pharmacyName: "",
     location: "",
@@ -39,18 +42,25 @@ export default function SettingsPage() {
     footerText: "",
     currency: "UGX",
     taxRate: 0,
+    vatEnabled: false,
+    vatRate: 18,
     logo: "",
     printerType: "default",
     receiptPaperWidth: "80",
     receiptFontScale: 1,
     autoPrintReceipt: false,
+    mandatoryReceiptPrint: true,
   })
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [isResettingSales, setIsResettingSales] = useState(false)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string>("")
+  const [resetName, setResetName] = useState("")
+  const [resetPreview, setResetPreview] = useState<Record<string, number> | null>(null)
+  const [isPreviewing, setIsPreviewing] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
   const { toast } = useToast()
+  const { user } = usePharmacySession()
 
   useEffect(() => {
     fetchSettings()
@@ -81,11 +91,14 @@ export default function SettingsPage() {
             footerText: data.footer_text ?? data.footerText ?? "",
             currency: data.currency ?? "UGX",
             taxRate: Number(data.tax_rate ?? data.taxRate ?? 0),
+            vatEnabled: Boolean(data.vat_enabled ?? data.vatEnabled),
+            vatRate: Number(data.vat_rate ?? data.vatRate ?? 18),
             logo: data.logo ?? "",
             printerType,
             receiptPaperWidth,
             receiptFontScale: Number(data.receipt_font_scale ?? data.receiptFontScale ?? 1) || 1,
             autoPrintReceipt: Boolean(data.auto_print_receipt ?? data.autoPrintReceipt),
+            mandatoryReceiptPrint: (data.mandatory_receipt_print ?? data.mandatoryReceiptPrint) !== false,
           })
           if (data.logo) setLogoPreview(data.logo)
         }
@@ -117,56 +130,6 @@ export default function SettingsPage() {
     setSettings({ ...settings, logo: "" })
   }
 
-  const handleResetSales = async () => {
-    if (!confirm("⚠️ WARNING: This will permanently delete ALL sales transactions and cannot be undone. Are you absolutely sure you want to reset all sales to zero?")) {
-      return
-    }
-    
-    if (!confirm("This is your final confirmation. Type 'RESET' in the next prompt to confirm.")) {
-      return
-    }
-
-    const confirmation = prompt("Type 'RESET' to confirm:")
-    if (confirmation !== "RESET") {
-      toast({
-        variant: "destructive",
-        title: "Cancelled",
-        description: "Reset sales was cancelled.",
-      })
-      return
-    }
-
-    setIsResettingSales(true)
-    try {
-      const response = await fetch("/api/admin/transactions", {
-        method: "DELETE",
-      })
-      
-      const data = await response.json()
-      
-      if (response.ok) {
-        toast({
-          title: "Success",
-          description: data.message || "All sales have been reset to zero.",
-        })
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: data.error || "Failed to reset sales",
-        })
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "An error occurred while resetting sales",
-      })
-    } finally {
-      setIsResettingSales(false)
-    }
-  }
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSaving(true)
@@ -192,10 +155,12 @@ export default function SettingsPage() {
         })
         setLogoFile(null)
       } else {
+        const problem = await response.json().catch(() => null)
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to save settings",
+          description:
+            typeof problem?.error === "string" ? problem.error : "Failed to save settings",
         })
       }
     } catch (error) {
@@ -206,6 +171,78 @@ export default function SettingsPage() {
       })
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const pharmacyName = settings.pharmacyName.trim()
+  const isResetConfirmed = pharmacyName !== "" && resetName.trim() === pharmacyName
+  // The route is admin-only (requirePharmacyAdmin); staff who can manage settings
+  // should not be shown a control that would answer 403.
+  const canReset =
+    Boolean(user?.isAdmin) ||
+    user?.pharmacyRole === "pharmacy_admin" ||
+    user?.pharmacyRole === "pharmacy_ceo"
+
+  const requestReset = async (dryRun: boolean) => {
+    const response = await fetch("/api/admin/reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmName: dryRun ? "" : resetName.trim(), dryRun }),
+    })
+    const body = await response.json().catch(() => null)
+    if (!response.ok) {
+      throw new Error(
+        typeof body?.error === "string" ? body.error : "The reset request failed",
+      )
+    }
+    return body as { totalRows?: number; counts?: Record<string, number> }
+  }
+
+  const handlePreviewReset = async () => {
+    setIsPreviewing(true)
+    try {
+      const body = await requestReset(true)
+      setResetPreview(body.counts ?? {})
+      toast({
+        title: "Nothing was deleted",
+        description: `${Number(body.totalRows ?? 0).toLocaleString()} records would be erased.`,
+      })
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Preview failed",
+        description: error instanceof Error ? error.message : "An error occurred",
+      })
+    } finally {
+      setIsPreviewing(false)
+    }
+  }
+
+  const handleReset = async () => {
+    if (!isResetConfirmed) return
+    const confirmed = window.confirm(
+      `Erase every product, sale, purchase, customer and imported record in ${pharmacyName}?\n\nThis cannot be undone. Staff logins and the pharmacy account are kept.`,
+    )
+    if (!confirmed) return
+
+    setIsResetting(true)
+    try {
+      const body = await requestReset(false)
+      setResetPreview(null)
+      setResetName("")
+      toast({
+        title: "Pharmacy data erased",
+        description: `${Number(body.totalRows ?? 0).toLocaleString()} records removed. Reloading the portal.`,
+      })
+      window.setTimeout(() => window.location.reload(), 1200)
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Reset failed",
+        description: error instanceof Error ? error.message : "An error occurred",
+      })
+    } finally {
+      setIsResetting(false)
     }
   }
 
@@ -329,13 +366,49 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="taxRate">Tax Rate (%)</Label>
+                <Label htmlFor="taxRate">Legacy Tax Rate (%)</Label>
                 <Input
                   id="taxRate"
                   type="number"
                   step="0.01"
+                  min="0"
+                  max="100"
                   value={settings.taxRate}
                   onChange={(e) => setSettings({ ...settings, taxRate: parseFloat(e.target.value) })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  A percentage: 18 means 18%, not 0.18. Applied to every line only while
+                  VAT is off. Leave at 0 to charge no tax.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
+              <label className="flex items-start gap-3 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={settings.vatEnabled}
+                  onChange={(e) => setSettings({ ...settings, vatEnabled: e.target.checked })}
+                />
+                <span>
+                  <span className="font-medium">Charge VAT</span>
+                  <span className="block text-xs text-muted-foreground mt-0.5">
+                    Adds VAT to products marked standard-rated. Exempt and zero-rated
+                    products are never taxed, and sales are refused while the rate is
+                    invalid.</span>
+                </span>
+              </label>
+              <div className="space-y-2">
+                <Label htmlFor="vatRate">VAT Rate (%)</Label>
+                <Input
+                  id="vatRate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  disabled={!settings.vatEnabled}
+                  value={settings.vatRate}
+                  onChange={(e) => setSettings({ ...settings, vatRate: parseFloat(e.target.value) })}
                 />
               </div>
             </div>
@@ -431,13 +504,34 @@ export default function SettingsPage() {
               <input
                 type="checkbox"
                 className="mt-1"
+                checked={settings.mandatoryReceiptPrint}
+                onChange={(e) =>
+                  setSettings({ ...settings, mandatoryReceiptPrint: e.target.checked })
+                }
+              />
+              <span>
+                <span className="font-medium">Ask about the receipt after every sale</span>
+                <span className="block text-xs text-muted-foreground mt-0.5">
+                  The till stops after each sale until the cashier prints the receipt or
+                  records that the printer was unavailable, so a failed print is visible.
+                  Turn this off to let sales finish without that step.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 text-sm text-foreground">
+              <input
+                type="checkbox"
+                className="mt-1"
+                disabled={settings.mandatoryReceiptPrint}
                 checked={settings.autoPrintReceipt}
                 onChange={(e) => setSettings({ ...settings, autoPrintReceipt: e.target.checked })}
               />
               <span>
                 <span className="font-medium">Auto-print after sale</span>
                 <span className="block text-xs text-muted-foreground mt-0.5">
-                  Opens the print dialog immediately when a POS sale completes (no “Print receipt?” prompt).
+                  {settings.mandatoryReceiptPrint
+                    ? "Needs “Ask about the receipt after every sale” turned off: the automatic print cannot ask the cashier anything, so there would be nowhere to report a broken printer."
+                    : "Opens the print dialog immediately when a POS sale completes, with no “Print receipt?” prompt."}
                 </span>
               </span>
             </label>
@@ -454,8 +548,9 @@ export default function SettingsPage() {
                   })
                   return
                 }
-                const logoHtml = logoPreview
-                  ? `<img src="${logoPreview}" alt="" style="max-height:64px;max-width:70%;display:block;margin:0 auto 8px;" />`
+                const logoSrc = safeImageSrc(logoPreview)
+                const logoHtml = logoSrc
+                  ? `<img src="${logoSrc}" alt="" style="max-height:64px;max-width:70%;display:block;margin:0 auto 8px;" />`
                   : ""
                 win.document.write(`<!doctype html><html><head><title>Receipt test</title>
                   <style>
@@ -465,13 +560,13 @@ export default function SettingsPage() {
                     hr{border:none;border-top:1px dashed #000;margin:8px 0}
                   </style></head><body><div class="w">
                   ${logoHtml}
-                  <div class="c b">${settings.pharmacyName || "Pharmacy"}</div>
-                  <div class="c">${settings.location || ""}</div>
-                  <div class="c">${settings.contact || ""}</div>
+                  <div class="c b">${escapeHtml(settings.pharmacyName || "Pharmacy")}</div>
+                  <div class="c">${escapeHtml(settings.location || "")}</div>
+                  <div class="c">${escapeHtml(settings.contact || "")}</div>
                   <hr/><div class="c b">*** TEST RECEIPT ***</div><hr/>
                   <div class="row"><span>Item</span><span>1,000</span></div>
                   <div class="row b"><span>TOTAL</span><span>1,000</span></div>
-                  <hr/><div class="c">${settings.footerText || "Thank you for your purchase!"}</div>
+                  <hr/><div class="c">${escapeHtml(settings.footerText || "Thank you for your purchase!")}</div>
                   </div>
                   <script>window.onload=function(){window.print()}</script>
                   </body></html>`)
@@ -492,40 +587,6 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {(user?.pharmacyRole === "pharmacy_admin" || user?.pharmacyRole === "pharmacy_ceo") && (
-          <Card className="border-red-200 bg-red-50">
-            <CardHeader>
-              <CardTitle className="flex items-center text-red-800">
-                <AlertTriangle className="h-5 w-5 mr-2" />
-                Danger Zone
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium text-red-800">Reset All Sales Data</h4>
-                  <p className="text-sm text-destructive">
-                    Permanently delete all transaction records. This action cannot be undone.
-                  </p>
-                </div>
-                <Button 
-                  type="button"
-                  variant="destructive" 
-                  onClick={handleResetSales}
-                  disabled={isResettingSales}
-                >
-                  {isResettingSales ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4 mr-2" />
-                  )}
-                  Reset Sales
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         <div className="flex justify-end">
           <Button type="submit" disabled={isSaving}>
             {isSaving ? (
@@ -539,6 +600,92 @@ export default function SettingsPage() {
           </Button>
         </div>
       </form>
+
+      {canReset && (
+        <Card className="mt-6 border-destructive/40">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Reset pharmacy data
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Erases every product, batch, stock record, sale, purchase, customer, supplier,
+              accounting entry, setting and Tally import in this pharmacy, so an import can be
+              run again from the start. Staff logins and the pharmacy account are kept.
+              <strong className="block mt-1 text-destructive">This cannot be undone.</strong>
+            </p>
+
+            <div className="space-y-2">
+              <Label htmlFor="resetName">
+                Type the pharmacy name to confirm: <strong>{pharmacyName || "—"}</strong>
+              </Label>
+              <Input
+                id="resetName"
+                value={resetName}
+                onChange={(e) => setResetName(e.target.value)}
+                placeholder={pharmacyName}
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handlePreviewReset}
+                disabled={isPreviewing || isResetting}
+              >
+                {isPreviewing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Counting...
+                  </>
+                ) : (
+                  "Preview what will be deleted"
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleReset}
+                disabled={!isResetConfirmed || isResetting || isPreviewing}
+              >
+                {isResetting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Erasing...
+                  </>
+                ) : (
+                  "Erase all pharmacy data"
+                )}
+              </Button>
+            </div>
+
+            {resetPreview && (
+              <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                {Object.entries(resetPreview)
+                  .filter(([, count]) => count > 0)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([table, count]) => (
+                    <div key={table} className="flex justify-between gap-4">
+                      <span className="capitalize text-muted-foreground">
+                        {table.replace(/^pharmacy_/, "").replace(/_/g, " ")}
+                      </span>
+                      <span className="tabular-nums text-foreground">
+                        {count.toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                {Object.values(resetPreview).every((count) => count === 0) && (
+                  <p className="text-muted-foreground">There is nothing to delete.</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

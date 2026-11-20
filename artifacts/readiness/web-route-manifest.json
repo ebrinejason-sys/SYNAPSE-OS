@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-29T08:47:10.579Z",
+  "generated_at": "2026-11-20T20:06:12.383Z",
   "routes": [
     {
       "route": "/",
@@ -427,6 +427,11 @@
       "classification": "ACTIVE"
     },
     {
+      "route": "/encounter/[id]/ai",
+      "source_file": "apps/web/src/app/encounter/[id]/ai/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
       "route": "/encounter/[id]/disposition",
       "source_file": "apps/web/src/app/encounter/[id]/disposition/page.tsx",
       "classification": "ACTIVE"
@@ -612,6 +617,16 @@
       "classification": "ACTIVE"
     },
     {
+      "route": "/lab/catalog",
+      "source_file": "apps/web/src/app/lab/catalog/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/lab/critical",
+      "source_file": "apps/web/src/app/lab/critical/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
       "route": "/lab/instruments",
       "source_file": "apps/web/src/app/lab/instruments/page.tsx",
       "classification": "ACTIVE"
@@ -654,6 +669,11 @@
     {
       "route": "/lab/verify",
       "source_file": "apps/web/src/app/lab/verify/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/lab/walk-in",
+      "source_file": "apps/web/src/app/lab/walk-in/page.tsx",
       "classification": "ACTIVE"
     },
     {
@@ -795,6 +815,16 @@
       "route": "/os/[slug]",
       "source_file": "apps/web/src/app/os/[slug]/page.tsx",
       "classification": "REDIRECT"
+    },
+    {
+      "route": "/os/[slug]/admissions",
+      "source_file": "apps/web/src/app/os/[slug]/admissions/page.tsx",
+      "classification": "ACTIVE"
+    },
+    {
+      "route": "/os/[slug]/billing",
+      "source_file": "apps/web/src/app/os/[slug]/billing/page.tsx",
+      "classification": "ACTIVE"
     },
     {
       "route": "/os/[slug]/clinical",
@@ -1249,7 +1279,7 @@
     {
       "route": "/platform/tenants",
       "source_file": "apps/web/src/app/platform/tenants/page.tsx",
-      "classification": "REDIRECT"
+      "classification": "FEATURE_GATED"
     },
     {
       "route": "/platform/tenants/[id]",

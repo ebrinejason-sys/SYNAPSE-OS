@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken, validateSession, roleHasCapability, type PharmacyCapability } from '@synapse/auth'
+import {
+  verifyToken,
+  validateSession,
+  roleHasCapability,
+  isTenantEntitled,
+  type PharmacyCapability,
+} from '@synapse/auth'
 import { supabaseAdmin } from '@synapse/db/admin'
 
 const PHARMACY_ROLES = new Set([
@@ -21,6 +27,30 @@ export type MobileAuth = {
 }
 
 const ADMIN_ROLES = new Set(['pharmacy_admin', 'pharmacy_ceo', 'pharmacist'])
+
+const SUBSCRIPTION_WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+/**
+ * Prefixes a lapsed tenant may still POST to. Billing has to stay reachable so
+ * the tenant can pay, and the interaction checker is a POST that only reads.
+ */
+const SUSPENDED_WRITE_ALLOWED = [
+  '/api/mobile/pharmacy/billing',
+  '/api/mobile/pharmacy/interactions',
+]
+
+/**
+ * True when an unpaid tenant is attempting to change data. Reads stay open —
+ * the pharmacy portal degrades the same way, so historical and safety records
+ * remain available after a subscription lapses.
+ */
+function isSubscriptionWriteBlocked(req: NextRequest): boolean {
+  if (!SUBSCRIPTION_WRITE_METHODS.has(req.method.toUpperCase())) return false
+  const pathname = req.nextUrl?.pathname ?? ''
+  return !SUSPENDED_WRITE_ALLOWED.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  )
+}
 
 export function isMobilePharmacyAdmin(auth: MobileAuth): boolean {
   return ADMIN_ROLES.has(auth.role) || roleHasCapability(auth.role, 'settings.manage')
@@ -58,14 +88,42 @@ export async function requireMobilePharmacyAuth(
   }
 
   // Deactivated pharmacy staff are refused server-side even with a still-valid session.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: settings } = await (supabaseAdmin as any)
+  // tenant_id is part of the filter, not an optimisation: the row is unique on
+  // (tenant_id, profile_id), so a staff member who belongs to two pharmacies has
+  // two rows. Filtering by profile_id alone made maybeSingle() error, which the
+  // old code treated as "active" — deactivating them at one pharmacy let them
+  // through at the other. An error is still fail-open (a transient read must not
+  // lock every till out) but it is no longer silent.
+  const { data: settings, error: settingsError } = await (supabaseAdmin as any)
     .from('pharmacy_user_settings')
     .select('is_active')
     .eq('profile_id', payload.sub)
+    .eq('tenant_id', tenantId)
     .maybeSingle()
+  if (settingsError) {
+    console.error('Mobile pharmacy auth: activation lookup failed:', settingsError)
+  }
   if (settings?.is_active === false) {
     return NextResponse.json({ error: 'Account deactivated', code: 'ACCOUNT_INACTIVE' }, { status: 403 })
+  }
+
+  // Checked last so authentication failures keep their own status codes.
+  // isTenantEntitled fails open, and a tenant with no subscription row stays
+  // reachable, which is how the portal behaves too.
+  if (isSubscriptionWriteBlocked(req)) {
+    const entitlement = await isTenantEntitled(tenantId).catch(() => null)
+    if (entitlement && !entitlement.entitled) {
+      return NextResponse.json(
+        {
+          error: 'subscription_required',
+          message:
+            'This facility’s subscription is not active. Records stay readable; changes need a renewed subscription.',
+          subscription_status: entitlement.status,
+          reactivate_url: '/portal/billing',
+        },
+        { status: 402 },
+      )
+    }
   }
 
   return {

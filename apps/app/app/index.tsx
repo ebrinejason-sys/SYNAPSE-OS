@@ -4,13 +4,16 @@ import { Redirect } from 'expo-router'
 import { SynapseLogo } from '@/components/SynapseLogo'
 import { useAuth } from '@/lib/auth'
 import { apiRequest } from '@/lib/api'
-import { colors } from '@/lib/theme'
+import { makeStyles, useTheme } from '@/lib/theme'
 
 export default function Index() {
+  const styles = useStyles()
+  const { colors } = useTheme()
   const { user, isLoading, token } = useAuth()
   const [pharmTarget, setPharmTarget] = useState<string | null>(null)
 
   const isPharmacy = user?.dashboardKind === 'pharmacy'
+  const isPersonal = user?.dashboardKind === 'patient'
   const needsPasswordChange = Boolean(user?.mustChangePassword)
 
   useEffect(() => {
@@ -43,6 +46,8 @@ export default function Index() {
   if (!user) return <Redirect href="/(auth)/login" />
   if (needsPasswordChange) return <Redirect href="/change-password" />
 
+  if (isPersonal) return <Redirect href="/(personal)/today" />
+
   if (isPharmacy) {
     if (!pharmTarget) {
       return (
@@ -58,7 +63,7 @@ export default function Index() {
   return <Redirect href="/(main)/home" />
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   root: {
     flex: 1,
     justifyContent: 'center',
@@ -67,4 +72,4 @@ const styles = StyleSheet.create({
     gap: 24,
   },
   spinner: { marginTop: 8 },
-})
+}))

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { usePharmacySession } from "@/hooks/use-pharmacy-session"
 
 // Force dynamic rendering
@@ -17,8 +18,18 @@ import { Search, ShoppingCart, Trash2, Printer, Clock, Eye, Calculator, Package,
 import { getPendingActions, saveMetadata, getMetadata } from "@/lib/offlineStorage"
 import { LiveRegion } from "@synapse/ui"
 import { TillBanner } from "@/components/till-banner"
-import { usePosKeyboardShortcuts, POS_SHORTCUT_CHEATSHEET } from "@/lib/pos/keyboard"
+import {
+  resolvePosEnterAction,
+  usePosKeyboardShortcuts,
+  POS_SHORTCUT_CHEATSHEET,
+} from "@/lib/pos/keyboard"
 import { settlePayment } from "@/lib/pos/partial-payment"
+import {
+  PRINTER_UNAVAILABLE_MESSAGE,
+  resolveReceiptPrintPolicy,
+} from "@/lib/pos/receipt-print"
+import { computePharmacySaleTax } from "@synapse/db/pos-tax"
+import { paymentKind, track } from "@/lib/telemetry/events"
 import {
   allocateFefoBatches,
   DISCOUNT_REASONS,
@@ -59,7 +70,8 @@ interface ProductBatch {
   batchNumber: string
   quantity: number
   expiryDate: string
-  costPrice: number
+  costPrice: number | null
+  sellingPrice: number
   manufacturer?: string | null
 }
 
@@ -76,6 +88,8 @@ interface Product {
   activeIngredient?: string
   genericName?: string
   requiresPrescription?: boolean
+  /** `standard` lines carry VAT when the pharmacy has VAT enabled. */
+  vatCategory?: string | null
   supplierId?: string
   supplier?: { name: string }
   barcode?: string
@@ -89,9 +103,11 @@ interface CartItem extends Product {
   cartQuantity: number
   /** Catalog unit/package price — locked for cashiers */
   listPrice: number
+  unitListPrice: number
   costPrice: number
   /** Effective sold unit price after discount */
   sellingPrice: number
+  unitSellingPrice: number
   subtotal: number
   discountAmount: number
   discountReason: DiscountReasonValue | ""
@@ -145,9 +161,11 @@ function formatPaymentLabel(method: string) {
 }
 
 export default function POSPage() {
+  const router = useRouter()
   const { user } = usePharmacySession()
   const cashierCanEditPrice = Boolean(user?.isAdmin || user?.pharmacyRole === "pharmacy_admin")
   const [products, setProducts] = useState<Product[]>([])
+  const [productsLoaded, setProductsLoaded] = useState(false)
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [paymentMethod, setPaymentMethod] = useState<string>("CASH")
@@ -195,10 +213,18 @@ export default function POSPage() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const { toast } = useToast()
   const productSearchRef = useRef<HTMLInputElement>(null)
+  const firstProductResultRef = useRef<HTMLButtonElement>(null)
   const paymentRef = useRef<HTMLSelectElement>(null)
   const patientRef = useRef<HTMLInputElement>(null)
   const amountPaidRef = useRef<HTMLInputElement>(null)
+  const creditCustomerRef = useRef<HTMLSelectElement>(null)
+  const creditDueDateRef = useRef<HTMLInputElement>(null)
+  const completeSaleRef = useRef<HTMLButtonElement>(null)
+  // Read by the post-sale refresh, whose callback can outlive the render that
+  // created it.
+  const productsRef = useRef<Product[]>([])
   const [liveMessage, setLiveMessage] = useState("")
+  const receiptPrintPolicy = useMemo(() => resolveReceiptPrintPolicy(settings), [settings])
 
   // Debounce search query for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
@@ -259,6 +285,16 @@ export default function POSPage() {
     }
   }, [])
 
+  // Another till changes stock too, and a sale now refreshes only its own
+  // lines, so the full catalogue is pulled slowly in the background instead.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") void fetchProducts()
+    }, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const updatePendingSyncCount = async () => {
     const pending = await getPendingActions()
     setPendingSyncCount(pending.length)
@@ -280,13 +316,15 @@ export default function POSPage() {
     }
   }
 
-  // Save cart to localStorage whenever it changes
+  // Save cart to localStorage whenever it changes. The header badge reads this
+  // key, and `storage` does not fire in the tab that wrote it, so announce it.
   useEffect(() => {
     if (cart.length > 0) {
       localStorage.setItem('pos-cart', JSON.stringify(cart))
     } else {
       localStorage.removeItem('pos-cart')
     }
+    window.dispatchEvent(new Event('pos-cart-changed'))
   }, [cart])
 
   useEffect(() => {
@@ -298,13 +336,68 @@ export default function POSPage() {
     return () => window.removeEventListener("afterprint", handleAfterPrint)
   }, [])
 
-  const triggerReliablePrint = () => {
+  const triggerReliablePrint = (saleId?: string) => {
     // Wait for React to paint the print tree before opening the print dialog.
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        setTimeout(() => window.print(), 50)
+        setTimeout(() => {
+          if (saleId) void reportPrintOutcome(saleId, "requested")
+          try {
+            window.print()
+          } catch (error) {
+            console.error("Could not open the receipt print dialog:", error)
+            if (saleId) {
+              void reportPrintOutcome(saleId, "failed", "Browser could not open the print dialog")
+            } else {
+              toast({
+                variant: "destructive",
+                title: "Unable to open print dialog",
+                description: "The sale remains saved. Reprint the receipt from Transactions.",
+              })
+            }
+          }
+        }, 50)
       })
     })
+  }
+
+  // Records the receipt print step against the sale. It never touches money or
+  // stock, so a retry or a reprint cannot duplicate or reverse the sale.
+  const reportPrintOutcome = async (
+    saleId: string,
+    outcome: "requested" | "failed",
+    reason?: string,
+  ) => {
+    if (!saleId) return false
+    try {
+      const response = await fetch(
+        `/api/admin/pos/sales/${encodeURIComponent(saleId)}/print-status`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ outcome, reason }),
+        },
+      )
+      if (!response.ok) {
+        console.error("Receipt print status was not recorded:", response.status)
+        toast({
+          variant: "destructive",
+          title: "Print attempt not fully recorded",
+          description:
+            "The sale remains saved, but the print audit could not be confirmed. Ask a supervisor to verify the attempt.",
+        })
+      }
+      return response.ok
+    } catch (error) {
+      console.error("Receipt print status was not recorded:", error)
+      toast({
+        variant: "destructive",
+        title: "Print attempt not fully recorded",
+        description:
+          "The sale remains saved, but the print audit could not be confirmed. Ask a supervisor to verify the attempt.",
+      })
+      return false
+    }
   }
 
   // Check if current user is SYNAPSE PHARM master account
@@ -362,6 +455,7 @@ export default function POSPage() {
           const data = await response.json()
           const productList = Array.isArray(data) ? data : []
           setProducts(productList)
+          setProductsLoaded(true)
           saveMetadata('products', productList)
           return
         }
@@ -369,11 +463,17 @@ export default function POSPage() {
       }
       // Offline fallback
       const cachedProducts = await getMetadata('products')
-      if (Array.isArray(cachedProducts)) setProducts(cachedProducts as Product[])
+      if (Array.isArray(cachedProducts)) {
+        setProducts(cachedProducts as Product[])
+        setProductsLoaded(true)
+      }
     } catch (error) {
       console.error("Failed to fetch products:", error)
       const cachedProducts = await getMetadata('products')
-      if (Array.isArray(cachedProducts)) setProducts(cachedProducts as Product[])
+      if (Array.isArray(cachedProducts)) {
+        setProducts(cachedProducts as Product[])
+        setProductsLoaded(true)
+      }
 
       if (navigator.onLine) {
         toast({
@@ -382,6 +482,39 @@ export default function POSPage() {
           description: "Failed to fetch products",
         })
       }
+    }
+  }
+
+  useEffect(() => {
+    productsRef.current = products
+  }, [products])
+
+  // A sale only changes the lines it sold, so refresh those rather than the
+  // whole catalogue: that download was the till's heaviest per-sale cost.
+  const refreshSoldProducts = async (ids: string[]) => {
+    const unique = Array.from(new Set(ids.filter(Boolean)))
+    if (unique.length === 0) return
+    try {
+      const response = await fetch(
+        `/api/admin/inventory?ids=${encodeURIComponent(unique.join(","))}`,
+      )
+      if (!response.ok) throw new Error("Failed to refresh sold products")
+      const data = await response.json()
+      const fresh = Array.isArray(data) ? (data as Product[]) : []
+      const byId = new Map(fresh.map((product) => [product.id, product]))
+      const sold = new Set(unique)
+      // A sold product that does not come back was removed or deactivated while
+      // the till was open; drop it so the next sale cannot pick it again.
+      const next = productsRef.current
+        .filter((product) => !sold.has(product.id) || byId.has(product.id))
+        .map((product) => byId.get(product.id) ?? product)
+      productsRef.current = next
+      setProducts(next)
+      saveMetadata("products", next)
+    } catch (error) {
+      console.error("Failed to refresh sold products:", error)
+      // Fall back to the full refresh this replaced rather than leave it stale.
+      await fetchProducts()
     }
   }
 
@@ -405,7 +538,7 @@ export default function POSPage() {
 
   const hasMoreProducts = !debouncedSearchQuery && displayCount < products.length
 
-  const rebuildCartLine = (
+  const rebuildCartLine = useCallback((
     base: Product,
     opts: {
       cartQuantity: number
@@ -414,11 +547,9 @@ export default function POSPage() {
       discountReason?: DiscountReasonValue | ""
       discountReasonOther?: string
       discountApprovedBy?: string | null
-      listPrice?: number
     },
   ): CartItem => {
     const selectedPackage = opts.selectedPackage ?? null
-    const listPrice = opts.listPrice ?? (selectedPackage ? selectedPackage.price : base.price)
     const cartQuantity = opts.cartQuantity
     const baseUnits = selectedPackage ? cartQuantity * selectedPackage.unitsPerPackage : cartQuantity
     const allocations = allocateFefoBatches(
@@ -429,20 +560,35 @@ export default function POSPage() {
         expiryDate: b.expiryDate,
         manufacturer: b.manufacturer,
         costPrice: b.costPrice,
+        sellingPrice: b.sellingPrice ?? base.price,
       })),
       baseUnits,
     )
+    const allocatedUnits = allocations.reduce((total, allocation) => total + allocation.quantity, 0)
+    const baseListTotal =
+      allocations.reduce(
+        (total, allocation) => total + allocation.quantity * (allocation.sellingPrice ?? base.price),
+        0,
+      ) +
+      Math.max(0, baseUnits - allocatedUnits) * base.price
+    const unitListPrice = baseUnits > 0 ? baseListTotal / baseUnits : base.price
+    const listPrice = selectedPackage
+      ? unitListPrice * selectedPackage.unitsPerPackage
+      : unitListPrice
     const discountAmount = Math.max(0, opts.discountAmount ?? 0)
     const lineListTotal = listPrice * cartQuantity
     const soldTotal = Math.max(0, lineListTotal - discountAmount)
     const sellingPrice = cartQuantity > 0 ? soldTotal / cartQuantity : listPrice
+    const unitSellingPrice = baseUnits > 0 ? soldTotal / baseUnits : unitListPrice
     const first = allocations[0]
     return {
       ...base,
       cartQuantity,
       listPrice,
+      unitListPrice,
       costPrice: first?.costPrice ?? base.costPrice,
       sellingPrice,
+      unitSellingPrice,
       subtotal: soldTotal,
       discountAmount,
       discountReason: opts.discountReason ?? "",
@@ -456,14 +602,48 @@ export default function POSPage() {
       expiryDate: first?.expiryDate ?? base.expiryDate,
       batchAllocations: allocations,
     }
-  }
+  }, [])
+
+  const repriceCart = useCallback((items: CartItem[]) => {
+    const productsById = new Map(products.map((product) => [product.id, product]))
+    const repriced: CartItem[] = []
+    for (const item of items) {
+      const product = productsById.get(item.id)
+      // The catalogue lists active products only. A line left over from an
+      // earlier visit whose product has since been deactivated or merged away
+      // can never be sold, and would reject the whole sale with
+      // "Product not found" — drop it instead of carrying it forward.
+      if (!product) continue
+      const selectedPackage =
+        product.packages?.find(
+          (pkg) => pkg.id === item.selectedPackage?.id || pkg.name === item.selectedPackage?.name,
+        ) ?? null
+      repriced.push(
+        rebuildCartLine(product, {
+          cartQuantity: item.cartQuantity,
+          selectedPackage,
+          discountAmount: item.discountAmount,
+          discountReason: item.discountReason,
+          discountReasonOther: item.discountReasonOther,
+          discountApprovedBy: item.discountApprovedBy,
+        }),
+      )
+    }
+    return repriced
+  }, [products, rebuildCartLine])
+
+  useEffect(() => {
+    if (productsLoaded) setCart((current) => repriceCart(current))
+  }, [products, productsLoaded, repriceCart])
 
   const addToCart = (product: Product, selectedPackage?: ProductPackage | null) => {
-    // Stock may never go negative on a sale (server enforces INSUFFICIENT_STOCK too).
+    // Stock may go negative: an out-of-stock item is still sellable, and the
+    // balance is taken below zero rather than the sale being refused.
     if (Number(product.quantity ?? 0) <= 0) {
-      setLiveMessage(`${product.name} is out of stock`)
-      toast({ title: "Out of stock", description: `${product.name} has no sellable stock. Receive stock first.`, variant: "destructive" })
-      return
+      toast({
+        title: "Selling below zero stock",
+        description: `${product.name} has no sellable stock. This sale takes the balance negative.`,
+      })
     }
     setLiveMessage(`${product.name} added to cart`)
     const existingItem = cart.find((item) => item.id === product.id &&
@@ -478,7 +658,6 @@ export default function POSPage() {
         discountReason: existingItem.discountReason,
         discountReasonOther: existingItem.discountReasonOther,
         discountApprovedBy: existingItem.discountApprovedBy,
-        listPrice: existingItem.listPrice,
       })
       setCart([
         updatedItem,
@@ -517,7 +696,6 @@ export default function POSPage() {
           discountReason: item.discountReason,
           discountReasonOther: item.discountReasonOther,
           discountApprovedBy: item.discountApprovedBy,
-          listPrice: item.listPrice,
         })
       })
     )
@@ -541,7 +719,6 @@ export default function POSPage() {
           discountReason: patch.discountReason ?? item.discountReason,
           discountReasonOther: patch.discountReasonOther ?? item.discountReasonOther,
           discountApprovedBy: null,
-          listPrice: item.listPrice,
         })
       }),
     )
@@ -558,13 +735,34 @@ export default function POSPage() {
     !cashierCanEditPrice && cartDiscountPct > discountThreshold && !discountApprovedBy
 
   const total = cart.reduce((sum, item) => sum + item.subtotal, 0)
-  const taxRate = settings?.taxRate || 0
-  const taxAmount = total * (taxRate / 100)
-  const grandTotal = total + taxAmount
-  const settlement = settlePayment(
-    grandTotal,
-    paymentMethod === "CREDIT" ? 0 : amountPaid || 0,
+  // One implementation behind both the till and the sale route, so the total the
+  // cashier reads is the total the server stores.
+  const saleTax = computePharmacySaleTax(
+    {
+      vatEnabled: settings?.vatEnabled,
+      vatRate: settings?.vatRate,
+      taxRate: settings?.taxRate,
+    },
+    cart.map((item) => ({ netAmount: item.subtotal, vatCategory: item.vatCategory })),
   )
+  const taxConfigurationInvalid = !saleTax.ok
+  const taxRate = saleTax.ok ? saleTax.ratePct : 0
+  const taxAmount = saleTax.ok ? saleTax.taxAmount : 0
+  const taxSource = saleTax.ok ? saleTax.source : "none"
+  const taxableBase = saleTax.ok ? saleTax.taxableBase : 0
+  // VAT applies only to standard-rated lines, so the base can be smaller than
+  // the cart. Showing one percentage against the whole subtotal would overstate
+  // the tax: 18% of the subtotal is not what was charged.
+  const taxableBaseDiffers = taxAmount > 0 && taxableBase < total
+  const taxLabel = taxSource === "vat" ? `VAT (${taxRate}%)` : `Tax (${taxRate}%)`
+  const grandTotal = total + taxAmount
+  // An empty Amount Paid field means "gave the exact total", not "gave nothing".
+  // Reading it as 0 turned every plain cash sale into a full underpayment: the
+  // sale was refused for want of a customer name, and with one it posted the
+  // entire total to the credit ledger and put the patient on the debtor list.
+  const tenderedRaw = amountPaid.trim()
+  const tendered = paymentMethod === "CREDIT" ? 0 : tenderedRaw === "" ? grandTotal : Number(tenderedRaw) || 0
+  const settlement = settlePayment(grandTotal, tendered)
   const change = settlement.change
   const balanceDue = settlement.balanceDue
   const isPartialPayment = settlement.isPartial && paymentMethod !== "CREDIT"
@@ -589,6 +787,17 @@ export default function POSPage() {
       return
     }
 
+    // Refuse rather than charge a rate nobody configured: a wrong tax total is
+    // an accounting problem the till cannot spot after the fact.
+    if (!saleTax.ok) {
+      toast({
+        variant: "destructive",
+        title: "Tax settings are invalid",
+        description: saleTax.detail,
+      })
+      return
+    }
+
     // If logged in as SYNAPSE PHARM, show staff selection dialog
     if (isSynapsePharmAccount && !selectedStaff) {
       setShowStaffDialog(true)
@@ -608,6 +817,22 @@ export default function POSPage() {
     setClientNameBeforePrint("")
     setShowClientDetailsBeforeSaleDialog(true)
   }
+
+  // A new sale starts from a clean slate: nothing from the previous one (items,
+  // tender, method, credit customer, staff, discount approval) carries over.
+  const startNewSale = useCallback(() => {
+    setCart([])
+    localStorage.removeItem("pos-cart")
+    setSelectedStaff(null)
+    setAmountPaid("")
+    setPaymentMethod("CASH")
+    setCreditCustomerId("")
+    setCreditDueDate("")
+    setClientDetailsBeforeSale({ name: "", phone: "", address: "" })
+    setDiscountApprovedBy(null)
+    setSearchQuery("")
+    setTimeout(() => productSearchRef.current?.focus(), 0)
+  }, [])
 
   const processTransaction = async (
     staffForReceipt: StaffMember | null,
@@ -657,8 +882,13 @@ export default function POSPage() {
         return {
           productId: item.id,
           quantity: item.baseUnitsTotal || item.cartQuantity,
-          listPrice: item.listPrice,
-          unitPrice: item.sellingPrice,
+          listPrice: item.unitListPrice,
+          unitPrice: item.unitSellingPrice,
+          batchAllocations: item.batchAllocations.map((allocation) => ({
+            batchId: allocation.batchId,
+            quantity: allocation.quantity,
+            sellingPrice: allocation.sellingPrice,
+          })),
           discountAmount: item.discountAmount,
           discountReason: reason,
           discountApprovedBy: effectiveApproval,
@@ -711,6 +941,13 @@ export default function POSPage() {
 
         if (response.ok) {
           const sale = data.sale ?? data
+          // The workflow, not the customer: no name, receipt number or amount.
+          track("sale_completed", {
+            items: cart.length,
+            payment: paymentKind(paymentMethod),
+            credit: paymentMethod === "CREDIT" || isPartialPayment,
+            offline: false,
+          })
           toast({
             title: "Success",
             description: sale?.receipt_number
@@ -722,6 +959,15 @@ export default function POSPage() {
               ? `Payment completed. Sale ${sale.receipt_number}`
               : "Payment completed",
           )
+          if (data.creditWarning) {
+            // The sale went through but the receivable did not — never leave
+            // this as a silent success.
+            toast({
+              variant: "destructive",
+              title: "Credit not recorded",
+              description: String(data.creditWarning),
+            })
+          }
 
           const printTxn = {
             id: sale?.sale_id ?? sale?.id ?? `sale-${Date.now()}`,
@@ -737,7 +983,7 @@ export default function POSPage() {
             items: cart.map((item, idx) => ({
               id: `item-${idx}`,
               quantity: item.baseUnitsTotal || item.cartQuantity,
-              unitPrice: item.sellingPrice,
+              unitPrice: item.unitSellingPrice,
               totalPrice: item.subtotal,
               packageName: item.selectedPackage?.name || null,
               packageQuantity: item.packageQuantity || null,
@@ -757,7 +1003,7 @@ export default function POSPage() {
             balanceDue: settlement.balanceDue,
           }
           setPendingReceiptMeta(receiptMeta)
-          if (settings?.autoPrintReceipt) {
+          if (receiptPrintPolicy.autoPrint) {
             setPrintReceiptData({
               transaction: printTxn,
               staffName: receiptStaffName,
@@ -765,7 +1011,7 @@ export default function POSPage() {
               settings,
             })
             setIsPrintingReceipt(true)
-            triggerReliablePrint()
+            triggerReliablePrint(String(printTxn.id))
             setPendingTransaction(null)
             setReceiptStaffNamePending("")
             setPendingReceiptMeta(null)
@@ -773,20 +1019,35 @@ export default function POSPage() {
             setShowPrintPrompt(true)
           }
 
-          setCart([])
-          localStorage.removeItem('pos-cart')
-          setSelectedStaff(null)
-          setAmountPaid("")
-          setCreditCustomerId("")
-          setCreditDueDate("")
-          setDiscountApprovedBy(null)
-          fetchProducts()
+          const soldProductIds = cart.map((item) => item.id)
+          startNewSale()
+          void refreshSoldProducts(soldProductIds)
         } else {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: data.error || "Failed to process transaction",
-          })
+          track("sale_failed", { stage: "response", status: response.status })
+          const missingId = String(data.error ?? "")
+            .match(/^Product not found: (.+)$/)?.[1]
+            ?.trim()
+          if (response.status === 404 && missingId) {
+            // The catalogue moved on while this cart was open — the item was
+            // removed or deactivated. Drop the dead line so the rest of the
+            // sale can go through instead of failing again on every retry.
+            setCart((current) => current.filter((line) => line.id !== missingId))
+            // The dead line is in this list and will not come back, so the
+            // merge drops it from the catalogue as well.
+            void refreshSoldProducts(cart.map((line) => line.id))
+            toast({
+              variant: "destructive",
+              title: "Item no longer available",
+              description:
+                "It was removed from the cart. Check the sale and try again.",
+            })
+          } else {
+            toast({
+              variant: "destructive",
+              title: "Error",
+              description: data.error || "Failed to process transaction",
+            })
+          }
         }
       } catch (error) {
         toast({
@@ -809,9 +1070,27 @@ export default function POSPage() {
     setIsSavingClientNameBeforePrint(false)
   }
 
+  // The cashier cannot print. The sale is already committed, so this records
+  // the failure on the sale and tells them how to recover the receipt, rather
+  // than leaving the prompt open or pretending the receipt exists.
+  const recordPrinterUnavailable = () => {
+    const saleId = pendingTransaction?.id ? String(pendingTransaction.id) : ""
+    resetPendingPrintFlow()
+    toast({
+      variant: "destructive",
+      title: "Receipt not printed",
+      description: PRINTER_UNAVAILABLE_MESSAGE,
+    })
+    if (saleId) void reportPrintOutcome(saleId, "failed")
+  }
+
   const handlePrintPromptResponse = (shouldPrint: boolean) => {
     if (!shouldPrint) {
-      resetPendingPrintFlow()
+      if (receiptPrintPolicy.requiresAttempt) {
+        recordPrinterUnavailable()
+      } else {
+        resetPendingPrintFlow()
+      }
       return
     }
 
@@ -860,7 +1139,7 @@ export default function POSPage() {
       settings,
     })
     setIsPrintingReceipt(true)
-    triggerReliablePrint()
+    triggerReliablePrint(String(updatedTransaction.id))
 
     resetPendingPrintFlow()
   }
@@ -917,6 +1196,90 @@ export default function POSPage() {
       return
     }
     setShowOrderDialog(true)
+  }
+
+  const handlePosEnterKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
+    field:
+      | "productSearch"
+      | "cartQuantity"
+      | "paymentMethod"
+      | "amountPaid"
+      | "creditCustomer"
+      | "creditDueDate",
+    lineIndex?: number,
+  ) => {
+    if (
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey ||
+      event.nativeEvent.isComposing
+    ) {
+      return
+    }
+
+    const query = searchQuery.trim()
+    const normalizedQuery = query.toLowerCase()
+    const matches = field === "productSearch" && normalizedQuery
+      ? products.filter(
+          (product) =>
+            product.name.toLowerCase().includes(normalizedQuery) ||
+            product.sku.toLowerCase().includes(normalizedQuery) ||
+            Boolean(product.barcode?.toLowerCase().includes(normalizedQuery)),
+        )
+      : []
+    const action = resolvePosEnterAction(field, {
+      matches: field === "productSearch" ? matches.length : 0,
+      cartCount: cart.length,
+      query,
+      paymentMethod,
+      lineIndex,
+      lineCount: cart.length,
+    })
+
+    if (!action) return
+
+    if (action === "chooseProduct" && !firstProductResultRef.current) return
+    event.preventDefault()
+
+    switch (action) {
+      case "addProduct":
+        if (matches[0]) {
+          addToCart(matches[0])
+          setSearchQuery("")
+          productSearchRef.current?.focus()
+        }
+        break
+      case "chooseProduct":
+        firstProductResultRef.current?.focus()
+        break
+      case "focusNextQuantity":
+        if (event.currentTarget instanceof HTMLInputElement) {
+          const inputs = Array.from(
+            document.querySelectorAll<HTMLInputElement>("[data-pos-cart-quantity]"),
+          )
+          const currentIndex = inputs.indexOf(event.currentTarget)
+          inputs[currentIndex + 1]?.focus()
+        }
+        break
+      case "focusPayment":
+        paymentRef.current?.focus()
+        break
+      case "focusAmountPaid":
+        amountPaidRef.current?.focus()
+        break
+      case "focusCreditCustomer":
+        creditCustomerRef.current?.focus()
+        break
+      case "focusCreditDueDate":
+        creditDueDateRef.current?.focus()
+        break
+      case "completeSale":
+        completeSaleRef.current?.click()
+        break
+    }
   }
 
   usePosKeyboardShortcuts({
@@ -981,7 +1344,8 @@ export default function POSPage() {
         return
       }
       try {
-        setCart(JSON.parse(held))
+        const heldItems = JSON.parse(held) as CartItem[]
+        setCart(repriceCart(heldItems))
         setLiveMessage("Held sale resumed")
         toast({ title: "Sale resumed" })
       } catch {
@@ -989,11 +1353,35 @@ export default function POSPage() {
       }
     },
     onClose: () => {
+      // The mandatory print decision has exactly two exits. Escape used to
+      // dismiss the prompt without recording either, so a cashier could skip
+      // the required step by pressing it.
+      if (showClientNameBeforePrintDialog) {
+        if (receiptPrintPolicy.requiresAttempt) recordPrinterUnavailable()
+        else resetPendingPrintFlow()
+        return
+      }
+      if (showPrintPrompt) {
+        if (receiptPrintPolicy.requiresAttempt) return
+        resetPendingPrintFlow()
+        return
+      }
+      const dialogOpen =
+        showMobileCart ||
+        showReceiptPreview ||
+        showClientDetailsBeforeSaleDialog ||
+        showOrderDialog ||
+        showSupervisorDialog ||
+        showStaffDialog
       setShowMobileCart(false)
       setShowReceiptPreview(false)
       setShowClientDetailsBeforeSaleDialog(false)
       setShowOrderDialog(false)
-      setShowPrintPrompt(false)
+      setShowSupervisorDialog(false)
+      setShowStaffDialog(false)
+      // Escape closes the open dialog first; on a bare till it goes back, like
+      // the browser Back button, instead of trapping the cashier on the page.
+      if (!dialogOpen) router.back()
     },
   })
 
@@ -1019,6 +1407,7 @@ export default function POSPage() {
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Point of Sale</h1>
           <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
             Tally-style keys: F8 Sales · Ctrl+A Accept · F5 Payment · F6 Receipt · Alt+C Customer · Ctrl+D Del line · F9 Order.
+            {" "}Enter adds a unique product match, advances cart quantity lines and checkout fields, then completes from the final field.
             {isSynapsePharmAccount && selectedStaff && (
               <span className="ml-2 text-primary font-medium">
                 {" "}Selling as: {selectedStaff.name}
@@ -1283,10 +1672,10 @@ export default function POSPage() {
                 <Button
                   variant="outline"
                   className="flex-1"
-                  onClick={resetPendingPrintFlow}
+                  onClick={receiptPrintPolicy.requiresAttempt ? recordPrinterUnavailable : resetPendingPrintFlow}
                   disabled={isSavingClientNameBeforePrint}
                 >
-                  Cancel
+                  {receiptPrintPolicy.requiresAttempt ? "Printer unavailable" : "Cancel"}
                 </Button>
                 <Button
                   className="flex-1"
@@ -1320,6 +1709,8 @@ export default function POSPage() {
           total={total}
           taxRate={taxRate}
           taxAmount={taxAmount}
+          taxableBase={taxableBase}
+          taxSource={taxSource}
           grandTotal={grandTotal}
           amountPaid={amountPaid}
           change={change}
@@ -1340,7 +1731,10 @@ export default function POSPage() {
             <CardContent className="space-y-4">
               <div className="bg-accent/10 border border-accent/25 rounded-lg p-3">
                 <p className="text-sm text-foreground">
-                  <strong>Important:</strong> The transaction has already been saved to the system regardless of your choice.
+                  <strong>Important:</strong>{" "}
+                  {receiptPrintPolicy.requiresAttempt
+                    ? "The sale is already saved. Choose Print Receipt, or tell us the printer is unavailable so the receipt can be reprinted later."
+                    : "The transaction has already been saved to the system regardless of your choice."}
                 </p>
               </div>
               <div className="flex gap-3">
@@ -1349,7 +1743,7 @@ export default function POSPage() {
                   className="flex-1"
                   onClick={() => handlePrintPromptResponse(false)}
                 >
-                  Skip Printing
+                  {receiptPrintPolicy.allowSkip ? "Skip Printing" : "Printer unavailable"}
                 </Button>
                 <Button
                   className="flex-1"
@@ -1383,6 +1777,7 @@ export default function POSPage() {
                 <Input
                   id="pos-product-search"
                   ref={productSearchRef}
+                  onKeyDown={(event) => handlePosEnterKeyDown(event, "productSearch")}
                   placeholder="Search by name, SKU, or scan barcode..."
                   value={searchQuery}
                   onChange={(e) => {
@@ -1400,12 +1795,13 @@ export default function POSPage() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[600px] overflow-y-auto">
-                {filteredProducts.map((product) => (
+                {filteredProducts.map((product, index) => (
                   <div
                     key={product.id}
                     className="p-4 border rounded-lg hover:bg-muted/20 text-left transition-colors"
                   >
                     <button
+                      ref={index === 0 ? firstProductResultRef : undefined}
                       type="button"
                       onClick={() => addToCart(product)}
                       className="w-full text-left"
@@ -1431,7 +1827,7 @@ export default function POSPage() {
                           </span>
                         ) : product.quantity === 0 ? (
                           <span className="text-amber-700 font-medium">
-                            Out of stock · cannot be sold
+                            Out of stock · sells below zero
                           </span>
                         ) : (
                           <span>Stock: {product.quantity}</span>
@@ -1513,7 +1909,7 @@ export default function POSPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4 max-h-[400px] overflow-y-auto">
-                {cart.map((item) => (
+                {cart.map((item, lineIndex) => (
                   <div key={`${item.id}-${item.selectedPackage?.id || 'base'}`} className="border rounded-lg p-3">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -1532,6 +1928,7 @@ export default function POSPage() {
                             manufacturer: null,
                             quantity: item.baseUnitsTotal || item.cartQuantity,
                             costPrice: item.costPrice,
+                            sellingPrice: item.price,
                           }]).map((alloc) => {
                             const tone = expiryTone(alloc.expiryDate)
                             return (
@@ -1545,6 +1942,7 @@ export default function POSPage() {
                                   ? ` · Exp ${new Date(alloc.expiryDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`
                                   : ""}
                                 {alloc.manufacturer ? ` · ${alloc.manufacturer}` : " · Mfg —"}
+                                {` · ${formatCurrency(alloc.sellingPrice ?? item.price)}/unit`}
                                 {item.batchAllocations?.length > 1 ? ` · ×${alloc.quantity}` : ""}
                               </div>
                             )
@@ -1577,6 +1975,10 @@ export default function POSPage() {
                           type="number"
                           min="1"
                           value={item.cartQuantity}
+                          data-pos-cart-quantity
+                          onKeyDown={(event) =>
+                            handlePosEnterKeyDown(event, "cartQuantity", lineIndex)
+                          }
                           onChange={(e) =>
                             updateCartQuantity(item.id, parseInt(e.target.value), item.selectedPackage?.id)
                           }
@@ -1663,9 +2065,21 @@ export default function POSPage() {
                   <span>Subtotal</span>
                   <span className="font-mono tabular-nums">{formatCurrency(total)}</span>
                 </div>
+                {taxConfigurationInvalid && (
+                  <p className="text-xs text-destructive">
+                    Tax settings are invalid — completing a sale is blocked until they are
+                    fixed.{!saleTax.ok && ` ${saleTax.detail}`}
+                  </p>
+                )}
+                {taxableBaseDiffers && (
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Taxable base</span>
+                    <span>{formatCurrency(taxableBase)}</span>
+                  </div>
+                )}
                 {taxRate > 0 && (
                   <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Tax ({taxRate}%)</span>
+                    <span>{taxLabel}</span>
                     <span>{formatCurrency(taxAmount)}</span>
                   </div>
                 )}
@@ -1679,6 +2093,7 @@ export default function POSPage() {
                   <select
                     id="pos-payment"
                     ref={paymentRef}
+                    onKeyDown={(event) => handlePosEnterKeyDown(event, "paymentMethod")}
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -1697,6 +2112,8 @@ export default function POSPage() {
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Credit Customer</label>
                       <select
+                        ref={creditCustomerRef}
+                        onKeyDown={(event) => handlePosEnterKeyDown(event, "creditCustomer")}
                         value={creditCustomerId}
                         onChange={(e) => setCreditCustomerId(e.target.value)}
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -1714,6 +2131,8 @@ export default function POSPage() {
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Due Date (optional)</label>
                       <Input
+                        ref={creditDueDateRef}
+                        onKeyDown={(event) => handlePosEnterKeyDown(event, "creditDueDate")}
                         type="date"
                         value={creditDueDate}
                         onChange={(e) => setCreditDueDate(e.target.value)}
@@ -1733,6 +2152,7 @@ export default function POSPage() {
                     </label>
                     <Input
                       ref={amountPaidRef}
+                      onKeyDown={(event) => handlePosEnterKeyDown(event, "amountPaid")}
                       type="number"
                       placeholder="Enter amount paid"
                       value={amountPaid}
@@ -1766,16 +2186,7 @@ export default function POSPage() {
                 )}
 
                 <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setShowReceiptPreview(true)}
-                  disabled={cart.length === 0}
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  Preview Receipt
-                </Button>
-
-                <Button
+                  ref={completeSaleRef}
                   onClick={handleCompleteSale}
                   className="w-full"
                   disabled={isProcessing || cart.length === 0}
@@ -2109,6 +2520,8 @@ interface ReceiptPreviewDialogProps {
   total: number
   taxRate: number
   taxAmount: number
+  taxableBase: number
+  taxSource: string
   grandTotal: number
   amountPaid: string
   change: number
@@ -2124,6 +2537,8 @@ function ReceiptPreviewDialog({
   total,
   taxRate,
   taxAmount,
+  taxableBase,
+  taxSource,
   grandTotal,
   amountPaid,
   change,
@@ -2138,6 +2553,8 @@ function ReceiptPreviewDialog({
   const contact     = settings?.contact     || ""
   const email       = settings?.email       || ""
   const footer      = settings?.footerText  || "Thank you for your purchase!"
+  const paperWidth  = (settings?.receiptPaperWidth || "80").toLowerCase()
+  const fontScale   = settings?.receiptFontScale && settings.receiptFontScale > 0 ? settings.receiptFontScale : 1
   const now         = new Date()
   const dateStr     = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
   const timeStr     = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
@@ -2171,7 +2588,10 @@ function ReceiptPreviewDialog({
 
         {/* Thermal receipt preview — matches exact print output */}
         <div className="print-area rounded shadow-lg overflow-hidden">
-          <div className="thermal-receipt">
+          <div
+            className={`thermal-receipt paper-${paperWidth === "58" || paperWidth === "a4" ? paperWidth : "80"}`}
+            style={{ ["--receipt-font-scale" as string]: String(fontScale) }}
+          >
             {/* Header */}
             {settings?.logo && (
               <div className="tr-center" style={{ padding: "2px 0" }}>
@@ -2179,8 +2599,8 @@ function ReceiptPreviewDialog({
                   src={settings.logo} 
                   alt={`${pharmName} logo`} 
                   style={{ 
-                    maxWidth: "110px",
-                    maxHeight: "48px",
+                    maxWidth: paperWidth === "58" ? "90px" : paperWidth === "a4" ? "160px" : "110px",
+                    maxHeight: "32px",
                     objectFit: "contain",
                     margin: "0 auto",
                     display: "block"
@@ -2203,8 +2623,7 @@ function ReceiptPreviewDialog({
 
             {/* Meta */}
             <div className="tr-row"><span>Receipt #</span><span>TXN-PREVIEW</span></div>
-            <div className="tr-row"><span>Date</span><span>{dateStr}</span></div>
-            <div className="tr-row"><span>Time</span><span>{timeStr}</span></div>
+            <div className="tr-row"><span>Date / time</span><span>{dateStr} {timeStr}</span></div>
 
             {/* Items */}
             <div className="tr-dash" />
@@ -2238,7 +2657,13 @@ function ReceiptPreviewDialog({
             {taxAmount > 0 && (
               <>
                 <div className="tr-row"><span>Subtotal</span><span>{fmt(total)}</span></div>
-                <div className="tr-row"><span>Tax ({taxRate}%)</span><span>{fmt(taxAmount)}</span></div>
+                {taxableBase < total && (
+                  <div className="tr-row"><span>Taxable base</span><span>{fmt(taxableBase)}</span></div>
+                )}
+                <div className="tr-row">
+                  <span>{taxSource === "vat" ? "VAT" : "Tax"} ({taxRate}%)</span>
+                  <span>{fmt(taxAmount)}</span>
+                </div>
                 <div className="tr-dash" />
               </>
             )}
@@ -2314,7 +2739,14 @@ function TransactionReceipt({
   const dateStr = receiptDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
   const timeStr = receiptDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
 
-  const hasClient = transaction?.clientName || transaction?.clientPhone || transaction?.clientAddress
+  const receiptText = (value: unknown) => {
+    const text = value == null ? "" : String(value).trim()
+    return ["", "-", "—", "n/a", "null"].includes(text.toLowerCase()) ? "" : text
+  }
+  const clientName = receiptText(transaction?.clientName)
+  const clientPhone = receiptText(transaction?.clientPhone)
+  const clientAddress = receiptText(transaction?.clientAddress)
+  const hasClient = Boolean(clientName || clientPhone || clientAddress)
 
   return (
     <div
@@ -2330,7 +2762,7 @@ function TransactionReceipt({
             alt={`${pharmName} logo`} 
             style={{ 
               maxWidth: paperWidth === "58" ? "90px" : paperWidth === "a4" ? "160px" : "110px",
-              maxHeight: "48px",
+              maxHeight: "32px",
               objectFit: "contain",
               margin: "0 auto",
               display: "block"
@@ -2353,16 +2785,15 @@ function TransactionReceipt({
 
       {/* ── Transaction meta ── */}
       <div className="tr-row"><span>Receipt #</span><span>{transaction?.transactionNo || "—"}</span></div>
-      <div className="tr-row"><span>Date</span><span>{dateStr}</span></div>
-      <div className="tr-row"><span>Time</span><span>{timeStr}</span></div>
+      <div className="tr-row"><span>Date / time</span><span>{dateStr} {timeStr}</span></div>
 
       {/* ── Client info ── */}
       {hasClient && (
         <>
           <div className="tr-dash" />
-          {transaction.clientName    && <div className="tr-row"><span>Client</span><span>{transaction.clientName}</span></div>}
-          {transaction.clientPhone   && <div className="tr-row"><span>Phone</span><span>{transaction.clientPhone}</span></div>}
-          {transaction.clientAddress && <div className="tr-row"><span>Address</span><span>{transaction.clientAddress}</span></div>}
+          {clientName && <div className="tr-row"><span>Client</span><span>{clientName}</span></div>}
+          {clientPhone && <div className="tr-row"><span>Phone</span><span>{clientPhone}</span></div>}
+          {clientAddress && <div className="tr-row"><span>Address</span><span>{clientAddress}</span></div>}
         </>
       )}
 
@@ -2449,7 +2880,6 @@ function TransactionReceipt({
       <p className="tr-center tr-sm">By: <strong>{staffName}</strong></p>
       {footer && <p className="tr-center tr-sm">{footer}</p>}
       <div className="tr-dash" />
-      <p className="tr-center tr-mono tr-sm">{transaction?.transactionNo || ""}</p>
     </div>
   )
 }

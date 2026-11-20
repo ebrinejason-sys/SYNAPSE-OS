@@ -10,7 +10,20 @@
     "./inventory": "./src/inventory.ts",
     "./import-validation": "./src/import-validation.ts",
     "./inventory-rpc": "./src/inventory-rpc.ts",
+    "./pos-tax": "./src/pos-tax.ts",
+    "./tally-xml-rows": "./src/tally-xml-rows.ts",
+    "./tally-zip": "./src/tally-zip.ts",
+    "./tally-archive": "./src/tally-archive.ts",
+    "./tally-map": "./src/tally-map.ts",
+    "./tally-normalise": "./src/tally-normalise.ts",
+    "./tally-replay": "./src/tally-replay.ts",
+    "./tally-replay-rpc": "./src/tally-replay-rpc.ts",
+    "./accounting-voucher-types": "./src/accounting-voucher-types.ts",
+    "./accounting-close-readiness": "./src/accounting-close-readiness.ts",
+    "./accounting-ageing": "./src/accounting-ageing.ts",
+    "./accounting-bank-statement": "./src/accounting-bank-statement.ts",
     "./receipt": "./src/receipt.ts",
+    "./receipt-print": "./src/receipt-print.ts",
     "./identity": "./src/identity.ts",
     "./identity-persist": "./src/identity-persist.ts",
     "./mpi": "./src/mpi.ts",
@@ -18,6 +31,7 @@
     "./scope": "./src/scope.ts",
     "./consent": "./src/consent.ts",
     "./offline": "./src/offline.ts",
+    "./stock-take": "./src/stock-take.ts",
     "./sync-contract": "./src/sync-contract.ts",
     "./sync-runtime": "./src/sync-runtime.ts",
     "./memory-sync-outbox-store": "./src/memory-sync-outbox-store.ts",
@@ -45,6 +59,8 @@
     "./lab-order-persist": "./src/lab-order-persist.ts",
     "./lab-result-persist": "./src/lab-result-persist.ts",
     "./lab-report": "./src/lab-report.ts",
+    "./lab-ranges": "./src/lab-ranges.ts",
+    "./barcode-code128": "./src/barcode-code128.ts",
     "./lab-golden-journey": "./src/lab-golden-journey.ts",
     "./prescription-persist": "./src/prescription-persist.ts",
     "./clinical-timeline": "./src/clinical-timeline.ts",
@@ -80,11 +96,16 @@
     "./commercial-pricing": "./src/commercial-pricing.ts",
     "./commercial-crm": "./src/commercial-crm.ts",
     "./html-escape": "./src/html-escape.ts",
-    "./encounter-diagnosis": "./src/encounter-diagnosis.ts"
+    "./encounter-diagnosis": "./src/encounter-diagnosis.ts",
+    "./domain-event-outbox-store": "./src/domain-event-outbox-store.ts",
+    "./supabase-event-delivery": "./src/supabase-event-delivery.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",
     "@supabase/ssr": "^0.5.0",
     "@synapse/interop": "*"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0"
   }
 }

@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
+import { isEditableTarget } from "../shortcuts/registry"
 
 export type PosShortcutHandlers = {
   onPatientSearch?: () => void
@@ -45,6 +46,54 @@ export type PosShortcutAction =
   | "printReceipt"
   | "creditMode"
   | "saveOrder"
+
+export type PosEnterField =
+  | "productSearch"
+  | "cartQuantity"
+  | "paymentMethod"
+  | "amountPaid"
+  | "creditCustomer"
+  | "creditDueDate"
+
+export type PosEnterAction =
+  | "addProduct"
+  | "chooseProduct"
+  | "focusNextQuantity"
+  | "focusPayment"
+  | "focusAmountPaid"
+  | "focusCreditCustomer"
+  | "focusCreditDueDate"
+  | "completeSale"
+
+export function resolvePosEnterAction(
+  field: PosEnterField,
+  state: {
+    matches: number
+    cartCount: number
+    query: string
+    paymentMethod: string
+    lineIndex?: number
+    lineCount?: number
+  },
+): PosEnterAction | null {
+  if (field === "productSearch") {
+    if (state.matches === 1) return "addProduct"
+    if (state.matches > 1) return "chooseProduct"
+    return !state.query.trim() && state.cartCount > 0 ? "focusPayment" : null
+  }
+  if (field === "cartQuantity") {
+    const lineIndex = state.lineIndex ?? 0
+    const lineCount = state.lineCount ?? 0
+    return lineIndex + 1 < lineCount ? "focusNextQuantity" : "focusPayment"
+  }
+  if (field === "paymentMethod") {
+    if (state.paymentMethod === "CASH") return "focusAmountPaid"
+    if (state.paymentMethod === "CREDIT") return "focusCreditCustomer"
+    return "completeSale"
+  }
+  if (field === "creditCustomer") return "focusCreditDueDate"
+  return "completeSale"
+}
 
 /**
  * Pure key → action map so Tally parity can be unit-tested.
@@ -119,68 +168,85 @@ export const POS_SHORTCUT_CHEATSHEET: Array<{ keys: string; label: string }> = [
   { keys: "Esc", label: "Close" },
 ]
 
+const HANDLER_BY_ACTION: Record<PosShortcutAction, keyof PosShortcutHandlers> = {
+  close: "onClose",
+  accept: "onCompleteSale",
+  completeSale: "onCompleteSale",
+  customer: "onCustomer",
+  patient: "onPatientSearch",
+  products: "onProductSearch",
+  prescription: "onPrescription",
+  amountPaid: "onAmountPaid",
+  paymentMethod: "onPayment",
+  holdSale: "onHoldSale",
+  resumeSale: "onResumeSale",
+  deleteLine: "onDeleteLine",
+  clearCart: "onClearCart",
+  printReceipt: "onPrintReceipt",
+  creditMode: "onCreditMode",
+  saveOrder: "onSaveOrder",
+}
+
+/** Actions that hand focus to another field; only these need the blur first. */
+const FOCUS_MOVING_ACTIONS: ReadonlySet<PosShortcutAction> = new Set([
+  "patient",
+  "products",
+  "amountPaid",
+  "paymentMethod",
+])
+
+/**
+ * A field that has focus owns every binding that would otherwise type a
+ * character, so Ctrl+A stays select-all and Ctrl+D stays delete-word. Function
+ * keys type nothing and keep working, as they do in Tally.
+ */
+export function fieldOwnsKeystroke(event: { key: string }): boolean {
+  if (event.key === "Escape") return false
+  return !/^F\d{1,2}$/.test(event.key)
+}
+
+/**
+ * A function key that moves focus must first take it away from whatever input
+ * held it, otherwise the barcode scanner types into the old field.
+ */
+function blurActiveInput() {
+  const active = document.activeElement
+  if (!(active instanceof HTMLElement)) return
+  if (
+    active.tagName === "INPUT" ||
+    active.tagName === "TEXTAREA" ||
+    active.tagName === "SELECT" ||
+    active.isContentEditable
+  ) {
+    active.blur()
+  }
+}
+
 /**
  * POS accelerators modelled on Tally.ERP 9 / TallyPrime voucher keys.
  * Never the only way to complete a sale — mouse/touch still works.
  */
 export function usePosKeyboardShortcuts(handlers: PosShortcutHandlers) {
+  // The handlers object is rebuilt on every render; keep the listener stable.
+  const latest = useRef(handlers)
+  useEffect(() => {
+    latest.current = handlers
+  })
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.repeat) return
       const action = resolvePosShortcut(event)
       if (!action) return
+      const handler = latest.current[HANDLER_BY_ACTION[action]]
+      if (!handler) return
+      if (isEditableTarget(event.target) && fieldOwnsKeystroke(event)) return
 
+      if (FOCUS_MOVING_ACTIONS.has(action)) blurActiveInput()
       event.preventDefault()
-
-      switch (action) {
-        case "close":
-          handlers.onClose?.()
-          break
-        case "accept":
-        case "completeSale":
-          handlers.onCompleteSale?.()
-          break
-        case "customer":
-          handlers.onCustomer?.()
-          break
-        case "patient":
-          handlers.onPatientSearch?.()
-          break
-        case "products":
-          handlers.onProductSearch?.()
-          break
-        case "prescription":
-          handlers.onPrescription?.()
-          break
-        case "amountPaid":
-          handlers.onAmountPaid?.()
-          break
-        case "paymentMethod":
-          handlers.onPayment?.()
-          break
-        case "holdSale":
-          handlers.onHoldSale?.()
-          break
-        case "resumeSale":
-          handlers.onResumeSale?.()
-          break
-        case "deleteLine":
-          handlers.onDeleteLine?.()
-          break
-        case "clearCart":
-          handlers.onClearCart?.()
-          break
-        case "printReceipt":
-          handlers.onPrintReceipt?.()
-          break
-        case "creditMode":
-          handlers.onCreditMode?.()
-          break
-        case "saveOrder":
-          handlers.onSaveOrder?.()
-          break
-      }
+      handler()
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [handlers])
+  }, [])
 }
